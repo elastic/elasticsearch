@@ -84,11 +84,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     /**
      * Name constant for the job DLM schedules
      */
-    private static final String DATA_LIFECYCLE_JOB_NAME = "data_stream_lifecycle";
+    private static final String LIFECYCLE_JOB_NAME = "data_stream_lifecycle";
     /*
      * This is the key for DLM-related custom index metadata.
      */
-    static final String DLM_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
+    static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
 
     private final Settings settings;
@@ -192,7 +192,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(DATA_LIFECYCLE_JOB_NAME)) {
+        if (event.getJobName().equals(LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
                 logger.trace("DLM job triggered: {}, {}, {}", event.getJobName(), event.getScheduledTime(), event.getTriggeredTime());
                 run(clusterService.state());
@@ -520,7 +520,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * "data_stream_lifecycle".
      */
     private boolean isForceMergeComplete(IndexMetadata backingIndex) {
-        Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+        Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
     }
 
@@ -578,7 +578,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     private void cancelJob() {
         if (scheduler.get() != null) {
-            scheduler.get().remove(DATA_LIFECYCLE_JOB_NAME);
+            scheduler.get().remove(LIFECYCLE_JOB_NAME);
             scheduledJob = null;
         }
     }
@@ -605,7 +605,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
 
         assert scheduler.get() != null : "scheduler should be available";
-        scheduledJob = new SchedulerEngine.Job(DATA_LIFECYCLE_JOB_NAME, new TimeValueSchedule(pollInterval));
+        scheduledJob = new SchedulerEngine.Job(LIFECYCLE_JOB_NAME, new TimeValueSchedule(pollInterval));
         scheduler.get().add(scheduledJob);
     }
 
@@ -632,14 +632,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         ClusterState execute(ClusterState currentState) throws Exception {
             logger.debug("Updating cluster state with force merge complete marker for {}", targetIndex);
             IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
-            Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             Map<String, String> newCustomMetadata = new HashMap<>();
             if (customMetadata != null) {
                 newCustomMetadata.putAll(customMetadata);
             }
             newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
             IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
-                DLM_CUSTOM_INDEX_METADATA_KEY,
+                    LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                 newCustomMetadata
             ).build();
             Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();

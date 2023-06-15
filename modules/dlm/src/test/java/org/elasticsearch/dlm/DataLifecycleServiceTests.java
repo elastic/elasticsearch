@@ -69,7 +69,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
-import static org.elasticsearch.dlm.DataLifecycleService.DLM_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.dlm.DataLifecycleService.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -355,18 +355,18 @@ public class DataLifecycleServiceTests extends ESTestCase {
         // There are 3 backing indices. One gets rolled over. The other two get force merged:
         assertBusy(() -> {
             assertThat(
-                clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                 notNullValue()
             );
             assertThat(
-                clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                 notNullValue()
             );
             assertThat(
                 clusterService.state()
                     .metadata()
                     .index(dataStream.getIndices().get(0))
-                    .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                    .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                     .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
                 notNullValue()
             );
@@ -374,7 +374,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 clusterService.state()
                     .metadata()
                     .index(dataStream.getIndices().get(1))
-                    .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                    .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                     .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
                 notNullValue()
             );
@@ -413,14 +413,14 @@ public class DataLifecycleServiceTests extends ESTestCase {
         assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
         assertBusy(() -> {
             assertThat(
-                clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                 notNullValue()
             );
             assertThat(
                 clusterService.state()
                     .metadata()
                     .index(dataStream2.getIndices().get(2))
-                    .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                    .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                     .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
                 notNullValue()
             );
@@ -472,7 +472,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertBusy(() -> {
                 assertThat(forceMergeFailedCount.get(), equalTo(2));
                 assertThat(
-                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     nullValue()
                 );
             });
@@ -500,7 +500,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertBusy(() -> {
                 assertThat(forceMergeFailedCount.get(), equalTo(2));
                 assertThat(
-                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     nullValue()
                 );
             });
@@ -522,7 +522,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertBusy(() -> {
                 assertThat(forceMergeFailedCount.get(), equalTo(2));
                 assertThat(
-                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     nullValue()
                 );
             });
@@ -541,18 +541,18 @@ public class DataLifecycleServiceTests extends ESTestCase {
              */
             assertBusy(() -> {
                 assertThat(
-                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     notNullValue()
                 );
                 assertThat(
-                    clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     notNullValue()
                 );
                 assertThat(
                     clusterService.state()
                         .metadata()
                         .index(dataStream.getIndices().get(0))
-                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                        .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                         .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
                     notNullValue()
                 );
@@ -560,7 +560,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
                     clusterService.state()
                         .metadata()
                         .index(dataStream.getIndices().get(1))
-                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                        .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                         .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
                     notNullValue()
                 );
@@ -661,7 +661,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             ClusterState newClusterState = task.execute(clusterState);
             IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
             assertThat(indexMetadata, notNullValue());
-            Map<String, String> dlmMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            Map<String, String> dlmMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             assertThat(dlmMetadata, notNullValue());
             assertThat(dlmMetadata.size(), equalTo(1));
             String forceMergeCompleteTimestampString = dlmMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
@@ -682,7 +682,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             ClusterState clusterState = createClusterState(targetIndex, preExistingDlmCustomMetadata);
             ClusterState newClusterState = task.execute(clusterState);
             IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
-            Map<String, String> dlmMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            Map<String, String> dlmMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             assertThat(dlmMetadata, notNullValue());
             assertThat(dlmMetadata.size(), equalTo(2));
             assertThat(dlmMetadata.get(preExistingDlmCustomMetadataKey), equalTo(preExistingDlmCustomMetadataValue));
@@ -710,7 +710,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             .build();
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).version(randomLong()).settings(indexSettings);
         if (customDlmMetadata != null) {
-            indexMetadataBuilder.putCustom(DLM_CUSTOM_INDEX_METADATA_KEY, customDlmMetadata);
+            indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customDlmMetadata);
         }
         indices.put(indexName, indexMetadataBuilder.build());
         return ClusterState.builder(new ClusterName("test-cluster"))

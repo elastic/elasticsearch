@@ -216,7 +216,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_999)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
             subSearchSourceBuilders = in.readList(SubSearchSourceBuilder::new);
         } else {
             QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -290,7 +290,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeList(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_999)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
             out.writeList(subSearchSourceBuilders);
         } else if (out.getTransportVersion().before(TransportVersion.V_8_8_0) && subSearchSourceBuilders.size() >= 2) {
             throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");

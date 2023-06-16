@@ -357,9 +357,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testTerminateAfterSize0HitCountShortcut() throws Exception {
         indexDocs();
         // TotalHitCountCollector (used when size==0) shortcuts total hit count (using Weight#count) segment by segment.
-        // EarlyTerminatingCollector checks whether the threshold is reached at the beginning of each leaf collection.
-        // That's why the returned total hit count may be higher than terminate_after (or track_total_hits), yet lower
-        // than the number of docs depending on number of segments and documents distribution.
+        // With shortcut enabled, PartialHitCountCollector will figure out that the threshold is reached at the beginning
+        // of the following leaf collection. That's why the returned total hit count may be higher than terminate_after
+        // (or track_total_hits), yet lower than the number of docs depending on number of segments and documents distribution.
         IntUnaryOperator countDocUpTo = terminateAfter -> {
             int total = 0;
             for (LeafReaderContext leaf : reader.leaves()) {
@@ -397,13 +397,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is lower than terminate_after
-            context.trackTotalHitsUpTo(randomIntBetween(1, 9));
+            int trackTotalHits = randomIntBetween(1, 9);
+            context.trackTotalHitsUpTo(trackTotalHits);
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
-            // given that total hit count does not require collection, the early terminating collector that wraps the total hit count
-            // collector does not early terminate. The overall search, and consequently the total hit count collection, will early
-            // terminate based on the terminate_after value
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(10)));
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(trackTotalHits)));
+            // TODO this looks off, total hits tracking was early terminated, should be greater than or equal to?
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
@@ -928,8 +927,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
             QueryPhase.addCollectorsAndSearch(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
             assertThat(searchContext.queryResult().topDocs().topDocs.scoreDocs, arrayWithSize(0));
-            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value, equalTo(3500L));
+            assertThat(
+                searchContext.queryResult().topDocs().topDocs.totalHits.relation,
+                equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO)
+            );
         }
 
         // 7. Test that sort optimization doesn't break a case where from = 0 and size= 0

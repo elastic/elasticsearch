@@ -232,7 +232,7 @@ public class ComputeService {
             }
             CountDown countDown = new CountDown(targetShards.size());
             for (IndexShard targetShard : targetShards) {
-                targetShard.awaitShardSearchActive(ignored -> {
+                targetShard.ensureShardSearchActive(ignored -> {
                     if (countDown.countDown()) {
                         ActionListener.completeWith(listener, () -> {
                             final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());

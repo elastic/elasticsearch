@@ -28,6 +28,10 @@ in your cluster. Refer to the
 {ml-docs}/ml-nlp-elser.html[ELSER documentation] to learn how to download and 
 deploy the model.
 
+NOTE: The minimum dedicated ML node size for deploying and using the ELSER model 
+is 4 GB. This is a minimum and better performance can be achieved by using 
+bigger ML nodes.
+
 
 [discrete]
 [[elser-mappings]]

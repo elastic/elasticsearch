@@ -20,7 +20,7 @@ public class PutQueryRulesetActionRequestSerializingTests extends AbstractWireSe
 
     @Override
     protected PutQueryRulesetAction.Request createTestInstance() {
-        return new PutQueryRulesetAction.Request(SearchApplicationTestUtils.randomQueryRuleset(), randomBoolean());
+        return new PutQueryRulesetAction.Request(SearchApplicationTestUtils.randomQueryRuleset());
     }
 
     @Override

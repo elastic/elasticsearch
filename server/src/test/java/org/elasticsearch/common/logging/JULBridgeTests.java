@@ -138,4 +138,15 @@ public class JULBridgeTests extends ESTestCase {
         java.util.logging.Logger childLogger = java.util.logging.Logger.getLogger("foo");
         assertLogged(() -> childLogger.info("child msg"), new SeenEventExpectation("child msg", "foo", Level.INFO, "child msg"));
     }
+
+    public void testNullMessage() {
+        JULBridge.install();
+        assertLogged(() -> logger.info((String) null), new SeenEventExpectation("null msg", "", Level.INFO, "<null message>"));
+    }
+
+    public void testFormattedMessage() {
+        JULBridge.install();
+        assertLogged(() -> logger.log(java.util.logging.Level.INFO, "{0}", "a var"),
+            new SeenEventExpectation("formatted msg", "", Level.INFO, "a var"));
+    }
 }

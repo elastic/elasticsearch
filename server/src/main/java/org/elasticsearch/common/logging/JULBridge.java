@@ -13,6 +13,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.text.MessageFormat;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.logging.Handler;
@@ -60,10 +61,18 @@ class JULBridge extends Handler {
         Logger logger = LogManager.getLogger(record.getLoggerName());
         Level level = translateJulLevel(record.getLevel());
         Throwable thrown = record.getThrown();
-        if (thrown == null) {
-            logger.log(level, record.getMessage());
+        String rawMessage = record.getMessage();
+        final String message;
+        if (rawMessage == null) {
+            message = "<null message>";
         } else {
-            logger.log(level, record::getMessage, thrown);
+            message = MessageFormat.format(rawMessage, record.getParameters());
+        }
+
+        if (thrown == null) {
+            logger.log(level, message);
+        } else {
+            logger.log(level, () -> message, thrown);
         }
     }
 

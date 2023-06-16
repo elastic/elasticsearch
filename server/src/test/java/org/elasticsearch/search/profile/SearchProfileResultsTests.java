@@ -32,7 +32,12 @@ public class SearchProfileResultsTests extends AbstractXContentSerializingTestCa
         for (int i = 0; i < size; i++) {
             SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
             ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
-            shards.put(randomAlphaOfLengthBetween(5, 10), new SearchProfileShardResult(searchResult, fetchResult));
+            SearchShardTarget target = new SearchShardTarget(
+                NodeEnvironment.generateNodeId(Settings.EMPTY),
+                new ShardId(randomIdentifier(), UUID.randomUUID().toString(), randomNonNegativeInt()),
+                null
+            );
+            shards.put(target.toString(), new SearchProfileShardResult(searchResult, fetchResult));
         }
         return new SearchProfileResults(shards);
     }

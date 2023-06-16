@@ -61,6 +61,7 @@ class JULBridge extends Handler {
         Logger logger = LogManager.getLogger(record.getLoggerName());
         Level level = translateJulLevel(record.getLevel());
         Throwable thrown = record.getThrown();
+        
         String rawMessage = record.getMessage();
         final String message;
         if (rawMessage == null) {

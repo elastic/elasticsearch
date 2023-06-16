@@ -146,7 +146,9 @@ public class JULBridgeTests extends ESTestCase {
 
     public void testFormattedMessage() {
         JULBridge.install();
-        assertLogged(() -> logger.log(java.util.logging.Level.INFO, "{0}", "a var"),
-            new SeenEventExpectation("formatted msg", "", Level.INFO, "a var"));
+        assertLogged(
+            () -> logger.log(java.util.logging.Level.INFO, "{0}", "a var"),
+            new SeenEventExpectation("formatted msg", "", Level.INFO, "a var")
+        );
     }
 }

@@ -9,6 +9,6 @@ highlight:
   This top-level element is a list of searches used for ranking where each \
   \"sub search\" is executed independently. The `sub_searches` element is \
   used instead of `query` to allow a search using ranking to execute \
-  multiple queries. The `sub_searches` and `query` cannot be used together."
+  multiple queries. The `sub_searches` and `query` elements cannot be used \
+  together."
   notable: true
-

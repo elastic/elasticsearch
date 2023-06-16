@@ -23,6 +23,7 @@ import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,17 +88,23 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertEquals(results.size() + 1, loggerResults.size());
 
         // test indicator status
-        assertEquals("green", loggerResults.get(String.format("%s.network_latency.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX)));
+        assertEquals(
+            "green",
+            loggerResults.get(String.format(Locale.ROOT, "%s.network_latency.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
+        );
         assertEquals(
             "yellow",
-            loggerResults.get(String.format("%s.slow_task_assignment.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
+            loggerResults.get(String.format(Locale.ROOT, "%s.slow_task_assignment.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
         );
-        assertEquals("green", loggerResults.get(String.format("%s.shards_availability.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX)));
+        assertEquals(
+            "green",
+            loggerResults.get(String.format(Locale.ROOT, "%s.shards_availability.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
+        );
 
         // test calculated overall status
         assertEquals(
             overallStatus.xContentValue(),
-            loggerResults.get(String.format("%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
+            loggerResults.get(String.format(Locale.ROOT, "%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
         );
     }
 

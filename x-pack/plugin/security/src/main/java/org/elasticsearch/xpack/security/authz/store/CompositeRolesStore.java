@@ -382,6 +382,30 @@ public class CompositeRolesStore {
         }
     }
 
+    private static IllegalArgumentException validateRoleDescriptorRestrictions(Collection<RoleDescriptor> roleDescriptors) {
+        if (roleDescriptors.size() <= 1) {
+            return null;
+        }
+        long numberOfRoleDescriptorsWithRestriction = roleDescriptors.stream().filter(RoleDescriptor::hasRestriction).count();
+        if (numberOfRoleDescriptorsWithRestriction > 0L) {
+            // It's only allowed to define a single role descriptor with restriction.
+            if (numberOfRoleDescriptorsWithRestriction != 1L) {
+                return new IllegalArgumentException(
+                    "more than one role descriptor with restriction is not allowed: "
+                        + roleDescriptors.stream().map(RoleDescriptor::getName).toList()
+                );
+            }
+            // Combining roles with and without restriction is not allowed either.
+            if (numberOfRoleDescriptorsWithRestriction != roleDescriptors.size()) {
+                return new IllegalArgumentException(
+                    "combining role descriptors with and without restriction is not allowed: "
+                        + roleDescriptors.stream().map(RoleDescriptor::getName).toList()
+                );
+            }
+        }
+        return null;
+    }
+
     public static void buildRoleFromDescriptors(
         Collection<RoleDescriptor> roleDescriptors,
         FieldPermissionsCache fieldPermissionsCache,
@@ -391,6 +415,12 @@ public class CompositeRolesStore {
     ) {
         if (roleDescriptors.isEmpty()) {
             listener.onResponse(Role.EMPTY);
+            return;
+        }
+
+        final IllegalArgumentException validationException = validateRoleDescriptorRestrictions(roleDescriptors);
+        if (validationException != null) {
+            listener.onFailure(validationException);
             return;
         }
 
@@ -439,9 +469,6 @@ public class CompositeRolesStore {
             }
 
             if (descriptor.hasWorkflowsRestriction()) {
-                if (roleDescriptors.size() != 1) {
-                    throw new IllegalArgumentException("only single role descriptor with workflow restriction is allowed");
-                }
                 workflows.addAll(List.of(descriptor.getRestriction().getWorkflows()));
             }
         }

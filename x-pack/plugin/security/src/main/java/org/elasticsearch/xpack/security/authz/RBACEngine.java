@@ -154,6 +154,8 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener) {
+        // TODO: When we expand support of workflows restriction to broader use cases (other than API keys for Search Application),
+        // we should revisit this method and handle workflows in a consistent way.
         rolesStore.getRole(subject, listener.map(role -> new RBACAuthorizationInfo(role, role)));
     }
 

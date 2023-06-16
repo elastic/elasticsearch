@@ -671,7 +671,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95759")
     public void testRestartDataNodesDuringScrollSearch() throws Exception {
         final String dataNode = internalCluster().startDataOnlyNode();
         createIndex("demo", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());

@@ -65,7 +65,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
     private final Map<String, EnrichPolicy> policies;
 
     public EnrichMetadata(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, EnrichPolicy::new));
+        this(in.readMap(EnrichPolicy::new));
     }
 
     public EnrichMetadata(Map<String, EnrichPolicy> policies) {

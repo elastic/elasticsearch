@@ -281,7 +281,11 @@ public interface Role {
         }
 
         public Builder workflows(Set<String> workflowNames) {
-            this.workflowsRestriction = WorkflowsRestriction.resolve(workflowNames);
+            if (workflowNames == null || workflowNames.isEmpty()) {
+                this.workflowsRestriction = WorkflowsRestriction.NONE;
+            } else {
+                this.workflowsRestriction = new WorkflowsRestriction(workflowNames);
+            }
             return this;
         }
 

@@ -15,7 +15,7 @@ import java.util.function.Predicate;
 public final class WorkflowsRestriction {
 
     /**
-     * Default behaviour is to allow access to all workflows if none are provided.
+     * Default behaviour is no restriction which allows all workflows.
      */
     public static final WorkflowsRestriction NONE = new WorkflowsRestriction(null);
 
@@ -38,13 +38,6 @@ public final class WorkflowsRestriction {
 
     public boolean isWorkflowAllowed(String workflow) {
         return predicate.test(workflow);
-    }
-
-    public static WorkflowsRestriction resolve(Set<String> names) {
-        if (names == null || names.isEmpty()) {
-            return WorkflowsRestriction.NONE;
-        }
-        return new WorkflowsRestriction(names);
     }
 
 }

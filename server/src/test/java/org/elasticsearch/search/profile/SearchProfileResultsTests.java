@@ -9,12 +9,17 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -32,29 +37,55 @@ public class SearchProfileResultsTests extends AbstractXContentSerializingTestCa
         return new SearchProfileResults(shards);
     }
 
-    public void testParseProfileShardId() {
-        record TestPattern(String id, SearchProfileResults.ShardProfileId expected) {}
+    public void testParseCompositeProfileShardId() {
+        String indexUuid = UUID.randomUUID().toString(); // not part of composite ID, so can be anything
 
-        TestPattern[] cases = new TestPattern[] {
-            new TestPattern(null, null),
-            new TestPattern("", null),
-            new TestPattern("[][][]", null),
-            new TestPattern("chsk8ad", null),
-            new TestPattern("[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs]", null),  // shardId is missing
-            new TestPattern("[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs][xyz]", null),  // shardId must be integer
+        String nodeId1 = NodeEnvironment.generateNodeId(Settings.EMPTY);
+        String nodeId2 = NodeEnvironment.generateNodeId(
+            Settings.builder()
+                .put(randomAlphaOfLengthBetween(5, 18), randomNonNegativeInt())
+                .put(randomAlphaOfLengthBetween(5, 18), randomAlphaOfLength(15))
+                .build()
+        );
 
+        int shardId1 = randomNonNegativeInt();
+        int shardId2 = randomNonNegativeInt();
+        int shardId3 = randomNonNegativeInt();
+
+        String indexName1 = "x";
+        String indexName2 = ".ds-filebeat-8.3.2-2023.05.04-000420";
+        String indexName3 = randomIdentifier();
+
+        record TestPattern(SearchShardTarget input, SearchProfileResults.ShardProfileId expected) {}
+
+        TestPattern[] validPatterns = new TestPattern[] {
             new TestPattern(
-                "[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs][0]",
-                new SearchProfileResults.ShardProfileId("UngEVXTBQL-7w5j_tftGAQ", "blogs", 0, "remote1")
+                new SearchShardTarget(nodeId1, new ShardId(indexName1, indexUuid, shardId1), "remote1"),
+                new SearchProfileResults.ShardProfileId(nodeId1, indexName1, shardId1, "remote1")
             ),
             new TestPattern(
-                "[2m7SW9oIRrirdrwirM1mwQ][.ds-filebeat-8.3.2-2023.05.04-000420][303]",
-                new SearchProfileResults.ShardProfileId("2m7SW9oIRrirdrwirM1mwQ", ".ds-filebeat-8.3.2-2023.05.04-000420", 303, null)
+                new SearchShardTarget(nodeId2, new ShardId(indexName2, indexUuid, shardId2), null),
+                new SearchProfileResults.ShardProfileId(nodeId2, indexName2, shardId2, null)
             ),
-            new TestPattern("[_na_][:indexName_1][303]", new SearchProfileResults.ShardProfileId("_na_", "indexName_1", 303, "")) };
+            new TestPattern(
+                new SearchShardTarget(null, new ShardId(indexName3, indexUuid, shardId3), null),
+                new SearchProfileResults.ShardProfileId("_na_", indexName3, shardId3, null)
+            ) };
+        for (TestPattern testPattern : validPatterns) {
+            assertEquals(testPattern.expected, SearchProfileResults.parseCompositeProfileShardId(testPattern.input.toString()));
+        }
+    }
 
-        for (TestPattern testPattern : cases) {
-            assertEquals(testPattern.expected, SearchProfileResults.parseProfileShardId(testPattern.id));
+    public void testParseCompositeProfileShardIdWithInvalidEntries() {
+        String[] invalidPatterns = new String[] {
+            null,
+            "",
+            "chsk8ad",
+            "[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs]",     // shardId is missing
+            "[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs][xyz]" // shardId must be integer
+        };
+        for (String testPattern : invalidPatterns) {
+            expectThrows(AssertionError.class, () -> SearchProfileResults.parseCompositeProfileShardId(testPattern));
         }
     }
 

@@ -88,7 +88,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             builder.startObject();
             builder.field(ID_FIELD, key);
 
-            ShardProfileId shardProfileId = parseProfileShardId(key);
+            ShardProfileId shardProfileId = parseCompositeProfileShardId(key);
             if (shardProfileId != null) {
                 builder.field(NODE_ID_FIELD, shardProfileId.nodeId());
                 builder.field(SHARD_ID_FIELD, shardProfileId.shardId());
@@ -222,10 +222,9 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
      * @param compositeId see above for accepted formats
      * @return ShardProfileId with parsed components or null if the compositeId has an unsupported format
      */
-    static ShardProfileId parseProfileShardId(String compositeId) {
-        if (Strings.isNullOrEmpty(compositeId)) {
-            return null;
-        }
+    static ShardProfileId parseCompositeProfileShardId(String compositeId) {
+        assert Strings.isNullOrEmpty(compositeId) == false : "An empty id should not be passed to parseCompositeProfileShardId";
+
         Pattern r = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
         Matcher m = r.matcher(compositeId);
         if (m.find()) {
@@ -241,6 +240,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             }
             return new ShardProfileId(nodeId, indexName, shardId, cluster);
         } else {
+            assert false : "Unable to match input against expected pattern of [nodeId][indexName][shardId]. Input: " + compositeId;
             logger.warn("Unable to match input against expected pattern of [nodeId][indexName][shardId]. Input: {}", compositeId);
             return null;
         }

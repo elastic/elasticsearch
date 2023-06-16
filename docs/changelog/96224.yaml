@@ -1,33 +1,14 @@
 pr: 96224
-summary: Add multiple queries to search endpoint
+summary: Add multiple queries for ranking to the search endpoint
 area: Ranking
 type: enhancement
 issues: []
 highlight:
-  title: Add multiple queries to search endpoint
-  body: "This change adds a new top-level element to the search endpoint called\n\
-    `queries`. This top-level element allows for a list of \"query wrappers\"\nwhere\
-    \ each query wrapper in the list of queries will have a query and\nmay have also\
-    \ global elements such as sort (to be added in the future).\n\nThe `queries` element\
-    \ is used instead of `query` (and they may not be\nused together) to allow a search\
-    \ to execute multiple queries. Currently\nmultiple queries are scored using linear\
-    \ combination. However, if a rank\nis provided they will be ranked based on the\
-    \ chosen ranker, accordingly.\n\nAn example search using `queries` looks like:\n\
-    \n```\nGET example-index/_search\n{\n    \"queries\": \n        [\n          \
-    \  {\n                \"query\": {\n                    \"term\": {\n        \
-    \                \"text\": \"red shoes\"\n                    }\n            \
-    \    }\n            },\n            {\n                \"query\": {\n        \
-    \            \"term\": {\n                        \"text\": \"blue shoes\"\n \
-    \                   }\n                }    \n            }\n        ],\n    \"\
-    rank\": {\n        \"rrf\": {\n            \"window_size\": 100,\n           \
-    \ \"rank_constant\": 25\n        }\n    }\n}\n```\n\nReviewer notes: * I know\
-    \ this is a large PR; however, several thousand\nlines are for integration tests.\
-    \  * I would prefer to add documentation\nas a separate follow-up PR as we did\
-    \ with the first iteration of RRF.\n\nDesign notes: * `queries` works with both\
-    \ `query_then_fetch` and\n`dfs_query_then_fetch` * `queries` works with `can_match`\
-    \ * An\nadditional object called SearchQueryWrapper has been added. While this\n\
-    currently only contains a `QueryBuilder`, it should make it much easier\nto add\
-    \ additional information such as sort instead of attempting to have\nparallel\
-    \ lists or building this in later. I think this is important to\nkeep any future\
-    \ transport changes much easier to reason about."
+  title: Add multiple queries for ranking to the search endpoint
+  body: "The search endpoint adds a new top-level element called `sub_searches`. \
+  This top-level element is a list of searches used for ranking where each \
+  \"sub search\" is executed independently. The `sub_searches` element is \
+  used instead of `query` to allow a search using ranking to execute \
+  multiple queries. The `sub_searches` and `query` cannot be used together."
   notable: true
+

@@ -147,7 +147,9 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
             if (versionExtension == null) {
                 return fallback;
             }
-            return new TransportVersion(versionExtension.getCurrentTransportVersionId());
+            var version = versionExtension.getCurrentTransportVersion();
+            assert version.onOrAfter(fallback);
+            return version;
         }
     }
 

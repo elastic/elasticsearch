@@ -108,6 +108,49 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         dir.close();
     }
 
+    static class StaticScoreFunctionBuilder extends ScoreFunctionBuilder<StaticScoreFunctionBuilder> {
+        private final ScoreFunction scoreFunction;
+
+        StaticScoreFunctionBuilder(ScoreFunction scoreFunction) {
+            this.scoreFunction = scoreFunction;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+
+        }
+
+        @Override
+        public String getName() {
+            return null;
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
+        }
+
+        @Override
+        protected boolean doEquals(StaticScoreFunctionBuilder functionBuilder) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
+            return scoreFunction;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return null;
+        }
+    }
+
     public void testCollectMinScoreAcrossSegments() throws IOException, InterruptedException {
         Directory dir = newDirectory();
         RandomIndexWriter iw = getIndexWriter(dir);
@@ -172,42 +215,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             }
         };
 
-        ScoreFunctionBuilder scoreFunctionBuilder = new ScoreFunctionBuilder() {
-            @Override
-            protected void doWriteTo(StreamOutput out) throws IOException {
-
-            }
-
-            @Override
-            public String getName() {
-                return null;
-            }
-
-            @Override
-            protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-
-            }
-
-            @Override
-            protected boolean doEquals(ScoreFunctionBuilder functionBuilder) {
-                return false;
-            }
-
-            @Override
-            protected int doHashCode() {
-                return 0;
-            }
-
-            @Override
-            protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
-                return scoreFunction;
-            }
-
-            @Override
-            public TransportVersion getMinimalSupportedVersion() {
-                return null;
-            }
-        };
+        StaticScoreFunctionBuilder scoreFunctionBuilder = new StaticScoreFunctionBuilder(scoreFunction);
 
         FunctionScoreQueryBuilder functionScoreQuery = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(), scoreFunctionBuilder);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);

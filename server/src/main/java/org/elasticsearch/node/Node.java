@@ -954,7 +954,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingLimits,
-                searchModule.getValuesSourceRegistry().getUsageService()
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                repositoryService
             );
 
             final SearchService searchService = newSearchService(
@@ -1033,11 +1034,9 @@ public class Node implements Closeable {
                 threadPool,
                 systemIndices
             );
-
             HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
             healthPeriodicLogger.init();
-
-            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
+            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();

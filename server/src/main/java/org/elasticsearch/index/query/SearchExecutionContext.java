@@ -19,7 +19,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
@@ -30,6 +29,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -464,7 +464,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return nestedScope;
     }
 
-    public Version indexVersionCreated() {
+    public IndexVersion indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
     }
 

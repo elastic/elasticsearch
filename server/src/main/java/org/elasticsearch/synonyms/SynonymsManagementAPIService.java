@@ -9,6 +9,7 @@
 package org.elasticsearch.synonyms;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -143,7 +144,8 @@ public class SynonymsManagementAPIService {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof IndexNotFoundException) {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
                         // If System index has not been created yet, no synonym sets have been stored
                         listener.onResponse(new PagedResult<>(0L, new SynonymSetSummary[0]));
                         return;
@@ -161,17 +163,30 @@ public class SynonymsManagementAPIService {
             .setSize(size)
             .setPreference(Preference.LOCAL.type())
             .setTrackTotalHits(true)
-            .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
-                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
-                if (totalSynonymRules == 0) {
-                    listener.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
-                    return;
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
+                    if (totalSynonymRules == 0) {
+                        listener.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
+                        return;
+                    }
+                    final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
+                        .map(SynonymsManagementAPIService::hitToSynonymRule)
+                        .toArray(SynonymRule[]::new);
+                    listener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
                 }
-                final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
-                    .map(SynonymsManagementAPIService::hitToSynonymRule)
-                    .toArray(SynonymRule[]::new);
-                listener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
-            }));
+
+                @Override
+                public void onFailure(Exception e) {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
+                        listener.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
+                        return;
+                    }
+                    listener.onFailure(e);
+                }
+            });
     }
 
     private static SynonymRule hitToSynonymRule(SearchHit hit) {

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -1017,7 +1017,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             boolean updateable,
             Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer,
-            Version indexCreatedVersion
+            IndexVersion indexCreatedVersion
         ) {
             return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
                 String analyzerName = o.toString();
@@ -1047,7 +1047,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer
         ) {
-            return analyzerParam(name, updateable, initializer, defaultAnalyzer, Version.CURRENT);
+            return analyzerParam(name, updateable, initializer, defaultAnalyzer, IndexVersion.CURRENT);
         }
 
         /**
@@ -1260,7 +1260,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         continue;
                     }
                     case "boost" -> {
-                        if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
                             throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
                         }
                         deprecationLogger.warn(
@@ -1304,7 +1304,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         iterator.remove();
                         continue;
                     }
-                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(IndexVersion.V_8_0_0)) {
                         // The parameter is unknown, but this mapping is from a dynamic template.
                         // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
                         deprecationLogger.warn(
@@ -1350,8 +1350,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         // and so we emit a deprecation warning rather than failing a previously working mapping.
         private static final Set<String> DEPRECATED_PARAMS = Set.of("store", "meta", "index", "doc_values", "index_options", "similarity");
 
-        private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
-            if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+        private static boolean isDeprecatedParameter(String propName, IndexVersion indexCreatedVersion) {
+            if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
                 return false;
             }
             return DEPRECATED_PARAMS.contains(propName);
@@ -1373,21 +1373,21 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         private final BiFunction<String, MappingParserContext, Builder> builderFunction;
         private final BiConsumer<String, MappingParserContext> contextValidator;
-        private final Version minimumCompatibilityVersion; // see Mapper.TypeParser#supportsVersion()
+        private final IndexVersion minimumCompatibilityVersion; // see Mapper.TypeParser#supportsVersion()
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, Version.CURRENT.minimumIndexCompatibilityVersion());
+            this(builderFunction, (n, c) -> {}, IndexVersion.MINIMUM_COMPATIBLE);
         }
 
         /**
          * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
-         * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(Version)}).
+         * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(IndexVersion)}).
          */
-        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, Version minimumCompatibilityVersion) {
+        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
             this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
@@ -1395,13 +1395,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
-            this(builderFunction, contextValidator, Version.CURRENT.minimumIndexCompatibilityVersion());
+            this(builderFunction, contextValidator, IndexVersion.MINIMUM_COMPATIBLE);
         }
 
         private TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator,
-            Version minimumCompatibilityVersion
+            IndexVersion minimumCompatibilityVersion
         ) {
             this.builderFunction = builderFunction;
             this.contextValidator = contextValidator;
@@ -1417,7 +1417,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         @Override
-        public boolean supportsVersion(Version indexCreatedVersion) {
+        public boolean supportsVersion(IndexVersion indexCreatedVersion) {
             return indexCreatedVersion.onOrAfter(minimumCompatibilityVersion);
         }
     }

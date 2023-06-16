@@ -29,12 +29,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -230,7 +230,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                             }
                         };
                     }
-                }, searchContext.lookup(), 354.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 354.5f, "test", 0, IndexVersion.CURRENT)), equalTo(1));
             }
         }
     }
@@ -443,7 +443,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             b.field("format", "strictDateOptionalTime");
         });
         // Check that we can correctly use the camel case date format for 7.x indices
-        createMapperService(Version.fromId(7_99_99_99), mapping.get()); // no exception thrown
+        createMapperService(IndexVersion.fromId(7_99_99_99), mapping.get()); // no exception thrown
 
         // Check that we don't allow the use of camel case date formats on 8.x indices
         assertEquals(

@@ -21,6 +21,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -108,8 +109,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Version getVersion() {
-        return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+    protected IndexVersion getVersion() {
+        return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
     }
 
     public void testLegacySwitches() throws IOException {

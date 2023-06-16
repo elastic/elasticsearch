@@ -316,7 +316,7 @@ public class RecoverySourceHandler {
                     final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
                         "peer-recovery",
                         startingSeqNo,
-                        Long.MAX_VALUE,
+                        Math.max(endingSeqNo, startingSeqNo),
                         false,
                         false,
                         true

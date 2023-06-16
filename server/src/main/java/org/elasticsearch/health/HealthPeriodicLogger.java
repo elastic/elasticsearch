@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class periodically logs the results of the Health API to the standard Elasticsearch server log file.
  */
 public class HealthPeriodicLogger implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
+    public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
 
     /**
      * Creates a new HealthPeriodicLoggerResult.
@@ -61,7 +62,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             // top-level status for each indicator
             this.indicatorResults.forEach((indicatorResult) -> {
                 result.put(
-                    String.format(Locale.ROOT, "elasticsearch.health.%s.status", indicatorResult.name()),
+                    String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
                     indicatorResult.status().xContentValue()
                 );
             });
@@ -82,12 +83,12 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     /**
      * Name constant for the job HealthService schedules
      */
-    private static final String HEALTH_PERIODIC_LOGGER_JOB_NAME = "health_periodic_logger";
+    protected static final String HEALTH_PERIODIC_LOGGER_JOB_NAME = "health_periodic_logger";
 
     private final Settings settings;
 
     private final ClusterService clusterService;
-    private final NodeClient client;
+    private final Client client;
 
     private final HealthService healthService;
     private final Clock clock;
@@ -107,7 +108,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
      * @param client the client used to call the Health Service.
      * @param healthService the Health Service, where the actual Health API logic lives.
      */
-    public HealthPeriodicLogger(Settings settings, ClusterService clusterService, NodeClient client, HealthService healthService) {
+    public HealthPeriodicLogger(Settings settings, ClusterService clusterService, Client client, HealthService healthService) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.client = client;
@@ -148,10 +149,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
         final boolean isCurrentlyHealthNode = healthNode.getId().equals(this.clusterService.localNode().getId());
 
-        final boolean prevIsHealthNode = this.isHealthNode.get();
+        final boolean prevIsHealthNode = this.getIsHealthNode();
         if (prevIsHealthNode != isCurrentlyHealthNode) {
             this.isHealthNode.set(isCurrentlyHealthNode);
-            if (this.isHealthNode.get()) {
+            if (this.getIsHealthNode()) {
                 // we weren't the health node, and now we are
                 maybeScheduleJob();
             } else {
@@ -172,10 +173,18 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME)) {
-            if (this.isHealthNode.get()) {
-                this.healthService.getHealth(this.client, null, false, 0, resultsListener);
+            if (this.getIsHealthNode()) {
+                this.callGetHealth();
             }
         }
+    }
+
+    protected void callGetHealth() {
+        this.healthService.getHealth(this.client, null, false, 0, this.resultsListener);
+    }
+
+    protected boolean getIsHealthNode() {
+        return isHealthNode.get();
     }
 
     private void cancelJob() {
@@ -190,7 +199,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     }
 
     private void maybeScheduleJob() {
-        if (this.isHealthNode.get() == false) {
+        if (this.getIsHealthNode() == false) {
             return;
         }
 
@@ -229,5 +238,4 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             logger.warn("Health Service logging error:{}", e.toString());
         }
     };
-
 }

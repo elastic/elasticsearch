@@ -735,6 +735,27 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             }
 
             mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message if discovery type is single node ",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into single-node cluster UUID [test-uuid]"
+                )
+            );
+
+            new ClusterBootstrapService(
+                Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build(),
+                transportService,
+                Collections::emptyList,
+                () -> false,
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
+            ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+            mockAppender.assertAllExpectationsMatched();
         }
     }
 }

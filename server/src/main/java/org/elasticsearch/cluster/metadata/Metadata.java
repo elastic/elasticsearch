@@ -2685,7 +2685,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            processTokenForBuilder(parser, builder, currentFieldName);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            return builder.build();
+        }
 
+        private static void processTokenForBuilder(XContentParser parser, Builder builder, String currentFieldName) throws IOException {
+            XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -2697,8 +2703,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-            return builder.build();
         }
 
         private static void alignBuilderProperties(XContentParser parser, Builder builder, String currentFieldName) throws IOException {

@@ -2338,12 +2338,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 }
                 totalOpenIndexShards = getOpenIndexShards(allOpenIndices, visibleOpenIndices, allClosedIndices, visibleClosedIndices, totalOpenIndexShards, indexMetadata, name, visible);
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
-                if (sha256HashesInUse != null) {
-                    final var mapping = indexMetadata.mapping();
-                    if (mapping != null) {
-                        sha256HashesInUse.add(mapping.getSha256());
-                    }
-                }
+                populateSha256HashesInUse(sha256HashesInUse, indexMetadata);
             }
 
             var aliasedIndices = this.aliasedIndices.build();
@@ -2402,6 +2397,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 Version.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
+        }
+
+        private static void populateSha256HashesInUse(Set<String> sha256HashesInUse, IndexMetadata indexMetadata) {
+            if (sha256HashesInUse != null) {
+                final var mapping = indexMetadata.mapping();
+                if (mapping != null) {
+                    sha256HashesInUse.add(mapping.getSha256());
+                }
+            }
         }
 
         private static int getOpenIndexShards(List<String> allOpenIndices, List<String> visibleOpenIndices, List<String> allClosedIndices, List<String> visibleClosedIndices, int totalOpenIndexShards, IndexMetadata indexMetadata, String name, boolean visible) {

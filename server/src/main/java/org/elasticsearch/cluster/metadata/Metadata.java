@@ -727,20 +727,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     public boolean equalsAliases(Metadata other) {
         if (areIndexAliasesEqual(other)) return false;
 
+        if (compareDataStreamAliases(other)) return false;
+
+        return true;
+    }
+
+    private boolean compareDataStreamAliases(Metadata other) {
         if (other.dataStreamAliases().size() != dataStreamAliases().size()) {
-            return false;
+            return true;
         }
         for (DataStreamAlias otherAlias : other.dataStreamAliases().values()) {
             DataStreamAlias thisAlias = dataStreamAliases().get(otherAlias.getName());
             if (thisAlias == null) {
-                return false;
+                return true;
             }
             if (thisAlias.equals(otherAlias) == false) {
-                return false;
+                return true;
             }
         }
-
-        return true;
+        return false;
     }
 
     private boolean areIndexAliasesEqual(Metadata other) {

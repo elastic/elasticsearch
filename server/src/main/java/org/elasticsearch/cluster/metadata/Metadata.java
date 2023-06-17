@@ -2692,21 +2692,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     parseMetadataToBuilder(parser, builder, currentFieldName);
                 } else if (token.isValue()) {
-                    if ("version".equals(currentFieldName)) {
-                        builder.version = parser.longValue();
-                    } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
-                        builder.clusterUUID = parser.text();
-                    } else if ("cluster_uuid_committed".equals(currentFieldName)) {
-                        builder.clusterUUIDCommitted = parser.booleanValue();
-                    } else {
-                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
+                    alignBuilderProperties(parser, builder, currentFieldName);
                 } else {
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return builder.build();
+        }
+
+        private static void alignBuilderProperties(XContentParser parser, Builder builder, String currentFieldName) throws IOException {
+            if ("version".equals(currentFieldName)) {
+                builder.version = parser.longValue();
+            } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
+                builder.clusterUUID = parser.text();
+            } else if ("cluster_uuid_committed".equals(currentFieldName)) {
+                builder.clusterUUIDCommitted = parser.booleanValue();
+            } else {
+                throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+            }
         }
 
         private static void parseMetadataToBuilder(XContentParser parser, Builder builder, String currentFieldName) throws IOException {

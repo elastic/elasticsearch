@@ -725,15 +725,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public boolean equalsAliases(Metadata other) {
-        for (IndexMetadata otherIndex : other.indices().values()) {
-            IndexMetadata thisIndex = index(otherIndex.getIndex());
-            if (thisIndex == null) {
-                return false;
-            }
-            if (otherIndex.getAliases().equals(thisIndex.getAliases()) == false) {
-                return false;
-            }
-        }
+        if (areIndexAliasesEqual(other)) return false;
 
         if (other.dataStreamAliases().size() != dataStreamAliases().size()) {
             return false;
@@ -749,6 +741,19 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         return true;
+    }
+
+    private boolean areIndexAliasesEqual(Metadata other) {
+        for (IndexMetadata otherIndex : other.indices().values()) {
+            IndexMetadata thisIndex = index(otherIndex.getIndex());
+            if (thisIndex == null) {
+                return true;
+            }
+            if (otherIndex.getAliases().equals(thisIndex.getAliases()) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean indicesLookupInitialized() {

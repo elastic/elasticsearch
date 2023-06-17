@@ -148,7 +148,6 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             return;
         }
         final boolean isCurrentlyHealthNode = healthNode.getId().equals(this.clusterService.localNode().getId());
-
         final boolean prevIsHealthNode = this.getIsHealthNode();
         if (prevIsHealthNode != isCurrentlyHealthNode) {
             this.isHealthNode.set(isCurrentlyHealthNode);

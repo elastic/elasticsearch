@@ -9,12 +9,19 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -39,11 +47,12 @@ import static org.mockito.Mockito.when;
 public class HealthPeriodicLoggerTests extends ESTestCase {
     private ThreadPool threadPool;
 
-    private Client client;
+    private NodeClient client;
     private ClusterService clusterService;
+    private ClusterService testClusterService;
 
-    private Client getTestClient() {
-        return mock(Client.class);
+    private NodeClient getTestClient() {
+        return mock(NodeClient.class);
     }
 
     private HealthService getTestHealthService() {
@@ -66,6 +75,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     @After
     public void cleanup() {
         clusterService.close();
+        if (this.testClusterService != null) {
+            this.testClusterService.close();
+        }
         threadPool.shutdownNow();
         client.close();
     }
@@ -106,6 +118,40 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             overallStatus.xContentValue(),
             loggerResults.get(String.format(Locale.ROOT, "%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
         );
+    }
+
+    public void testHealthNodeIsSelected() throws Exception {
+        HealthService testHealthService = getTestHealthService();
+
+        HealthPeriodicLogger testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
+        testHealthPeriodicLogger.init();
+
+        assertFalse(testHealthPeriodicLogger.getIsHealthNode());
+
+        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
+
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, new DiscoveryNode[] { node1 });
+        assertNull(HealthNode.findHealthNode(state));
+
+        ClusterState current = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
+        assertEquals(HealthNode.findHealthNode(current), node2);
+
+        this.testClusterService = createClusterService(current, this.threadPool);
+        final HealthPeriodicLogger testHealthPeriodicLoggerWithHealthNode = new HealthPeriodicLogger(
+            Settings.EMPTY,
+            this.testClusterService,
+            client,
+            testHealthService
+        );
+        testHealthPeriodicLoggerWithHealthNode.init();
+
+        testHealthPeriodicLoggerWithHealthNode.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
+        assertTrue(testHealthPeriodicLoggerWithHealthNode.getIsHealthNode());
+        testHealthPeriodicLoggerWithHealthNode.close();
+        testHealthPeriodicLogger.close();
     }
 
     public void testTriggeredJobCallsGetHealth() throws Exception {

@@ -10,7 +10,6 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Aggregator;
@@ -31,6 +30,7 @@ import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
+import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 
 /**
  * Implements "AggregationFunctionSupplier" from a class annotated with both
@@ -64,14 +64,14 @@ public class AggregatorFunctionSupplierImplementer {
         }
 
         /*
-         * We like putting BigArrays first and then channel second
+         * We like putting BigArrays first and then channels second
          * regardless of the order that the aggs actually want them.
          * Just a little bit of standardization here.
          */
         Parameter bigArraysParam = new Parameter(BIG_ARRAYS, "bigArrays");
         sortedParameters.remove(bigArraysParam);
         sortedParameters.add(0, bigArraysParam);
-        sortedParameters.add(1, new Parameter(TypeName.INT, "channel"));
+        sortedParameters.add(1, new Parameter(LIST_INTEGER, "channels"));
 
         this.createParameters = sortedParameters;
 
@@ -118,7 +118,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addStatement(
             "return $T.create($L)",
             aggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channel"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
+            Stream.concat(Stream.of("channels"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
                 .collect(Collectors.joining(", "))
         );
 
@@ -131,7 +131,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addStatement(
             "return $T.create($L)",
             groupingAggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channel"), groupingAggregatorImplementer.createParameters().stream().map(Parameter::name))
+            Stream.concat(Stream.of("channels"), groupingAggregatorImplementer.createParameters().stream().map(Parameter::name))
                 .collect(Collectors.joining(", "))
         );
         return builder.build();

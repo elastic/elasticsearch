@@ -25,8 +25,8 @@ public class MaxIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new MaxIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MaxIntAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override

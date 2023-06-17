@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -25,20 +27,21 @@ import org.elasticsearch.compute.data.Vector;
 public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private final DoubleArrayState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
-  public MaxDoubleGroupingAggregatorFunction(int channel, DoubleArrayState state) {
-    this.channel = channel;
+  public MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DoubleArrayState state) {
+    this.channels = channels;
     this.state = state;
   }
 
-  public static MaxDoubleGroupingAggregatorFunction create(int channel, BigArrays bigArrays) {
-    return new MaxDoubleGroupingAggregatorFunction(channel, new DoubleArrayState(bigArrays, MaxDoubleAggregator.init()));
+  public static MaxDoubleGroupingAggregatorFunction create(List<Integer> channels,
+      BigArrays bigArrays) {
+    return new MaxDoubleGroupingAggregatorFunction(channels, new DoubleArrayState(bigArrays, MaxDoubleAggregator.init()));
   }
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channel);
+    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -72,7 +75,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channel);
+    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -119,7 +122,8 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Block block) {
+  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -146,23 +150,23 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public Block evaluateIntermediate(IntVector selected) {
+  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<DoubleArrayState>, DoubleArrayState> builder =
         AggregatorStateVector.builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
     builder.add(state, selected);
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal(IntVector selected) {
-    return state.toValuesBlock(selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
+    blocks[offset] = state.toValuesBlock(selected);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

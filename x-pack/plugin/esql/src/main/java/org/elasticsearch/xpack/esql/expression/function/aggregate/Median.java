@@ -38,17 +38,17 @@ public class Median extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannel, QuantileStates.MEDIAN);
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, QuantileStates.MEDIAN);
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannel, QuantileStates.MEDIAN);
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, QuantileStates.MEDIAN);
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannel, QuantileStates.MEDIAN);
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, QuantileStates.MEDIAN);
     }
 }

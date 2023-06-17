@@ -31,8 +31,8 @@ public class MaxDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new MaxDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MaxDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override

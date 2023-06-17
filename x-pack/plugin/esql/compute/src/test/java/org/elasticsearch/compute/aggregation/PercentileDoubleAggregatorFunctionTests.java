@@ -31,8 +31,8 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannel, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
     }
 
     @Override

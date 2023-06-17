@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -24,24 +26,24 @@ import org.elasticsearch.compute.data.Vector;
 public final class MinLongAggregatorFunction implements AggregatorFunction {
   private final LongState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
-  public MinLongAggregatorFunction(int channel, LongState state) {
-    this.channel = channel;
+  public MinLongAggregatorFunction(List<Integer> channels, LongState state) {
+    this.channels = channels;
     this.state = state;
   }
 
-  public static MinLongAggregatorFunction create(int channel) {
-    return new MinLongAggregatorFunction(channel, new LongState(MinLongAggregator.init()));
+  public static MinLongAggregatorFunction create(List<Integer> channels) {
+    return new MinLongAggregatorFunction(channels, new LongState(MinLongAggregator.init()));
   }
 
   @Override
   public void addRawInput(Page page) {
-    ElementType type = page.getBlock(channel).elementType();
+    ElementType type = page.getBlock(channels.get(0)).elementType();
     if (type == ElementType.NULL) {
       return;
     }
-    LongBlock block = page.getBlock(channel);
+    LongBlock block = page.getBlock(channels.get(0));
     LongVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -70,7 +72,8 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addIntermediateInput(Block block) {
+  public void addIntermediateInput(Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -87,23 +90,23 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public void evaluateIntermediate(Block[] blocks, int offset) {
     AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder =
         AggregatorStateVector.builderOfAggregatorState(LongState.class, state.getEstimatedSize());
     builder.add(state, IntVector.range(0, 1));
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return LongBlock.newConstantBlockWith(state.longValue(), 1);
+  public void evaluateFinal(Block[] blocks, int offset) {
+    blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

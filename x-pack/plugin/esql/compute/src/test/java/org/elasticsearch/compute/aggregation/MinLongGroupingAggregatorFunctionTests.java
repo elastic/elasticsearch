@@ -23,8 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new MinLongAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MinLongAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override

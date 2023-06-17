@@ -29,8 +29,8 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannel, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
     }
 
     @Override

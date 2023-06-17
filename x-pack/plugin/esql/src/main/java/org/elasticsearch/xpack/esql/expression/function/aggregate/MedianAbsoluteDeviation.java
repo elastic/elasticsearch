@@ -38,17 +38,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
-        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
-        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 }

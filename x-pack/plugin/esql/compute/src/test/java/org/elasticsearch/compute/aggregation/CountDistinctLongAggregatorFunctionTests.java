@@ -34,8 +34,8 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new CountDistinctLongAggregatorFunctionSupplier(bigArrays, inputChannel, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new CountDistinctLongAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
     }
 
     @Override

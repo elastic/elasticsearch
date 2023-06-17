@@ -4,8 +4,10 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 
 /**
@@ -15,25 +17,25 @@ import org.elasticsearch.common.util.BigArrays;
 public final class CountDistinctDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final BigArrays bigArrays;
 
-  private final int channel;
+  private final List<Integer> channels;
 
   private final int precision;
 
-  public CountDistinctDoubleAggregatorFunctionSupplier(BigArrays bigArrays, int channel,
+  public CountDistinctDoubleAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels,
       int precision) {
     this.bigArrays = bigArrays;
-    this.channel = channel;
+    this.channels = channels;
     this.precision = precision;
   }
 
   @Override
   public CountDistinctDoubleAggregatorFunction aggregator() {
-    return CountDistinctDoubleAggregatorFunction.create(channel, bigArrays, precision);
+    return CountDistinctDoubleAggregatorFunction.create(channels, bigArrays, precision);
   }
 
   @Override
   public CountDistinctDoubleGroupingAggregatorFunction groupingAggregator() {
-    return CountDistinctDoubleGroupingAggregatorFunction.create(channel, bigArrays, precision);
+    return CountDistinctDoubleGroupingAggregatorFunction.create(channels, bigArrays, precision);
   }
 
   @Override

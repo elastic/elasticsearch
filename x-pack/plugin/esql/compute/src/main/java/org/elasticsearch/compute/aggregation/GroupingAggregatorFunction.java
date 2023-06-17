@@ -22,7 +22,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     void addRawInput(LongVector groupIdVector, Page page);
 
-    void addIntermediateInput(LongVector groupIdVector, Block block);
+    void addIntermediateInput(LongVector groupIdVector, Page page);
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId
@@ -34,12 +34,12 @@ public interface GroupingAggregatorFunction extends Releasable {
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    Block evaluateIntermediate(IntVector selected);
+    void evaluateIntermediate(Block[] blocks, int offset, IntVector selected);
 
     /**
      * Build the final results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    Block evaluateFinal(IntVector selected);
+    void evaluateFinal(Block[] blocks, int offset, IntVector selected);
 }

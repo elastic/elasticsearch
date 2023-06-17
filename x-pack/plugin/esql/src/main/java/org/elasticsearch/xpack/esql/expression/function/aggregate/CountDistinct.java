@@ -69,24 +69,24 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel) {
+    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
         DataType type = field().dataType();
         int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
         if (type == DataTypes.BOOLEAN) {
             // Booleans ignore the precision because there are only two possible values anyway
-            return new CountDistinctBooleanAggregatorFunctionSupplier(bigArrays, inputChannel);
+            return new CountDistinctBooleanAggregatorFunctionSupplier(bigArrays, inputChannels);
         }
         if (type == DataTypes.DATETIME || type == DataTypes.LONG) {
-            return new CountDistinctLongAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
+            return new CountDistinctLongAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
         if (type == DataTypes.INTEGER) {
-            return new CountDistinctIntAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
+            return new CountDistinctIntAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
         if (type == DataTypes.DOUBLE) {
-            return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
+            return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
         if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
-            return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
+            return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
         throw new UnsupportedOperationException();
     }

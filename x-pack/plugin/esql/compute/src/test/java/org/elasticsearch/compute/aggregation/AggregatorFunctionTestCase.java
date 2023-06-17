@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
-    protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel);
+    protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected abstract String expectedDescriptionOfAggregator();
 
@@ -49,7 +49,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         return new AggregationOperator.AggregationOperatorFactory(
-            List.of(aggregatorFunction(bigArrays, 0).aggregatorFactory(mode, 0)),
+            List.of(aggregatorFunction(bigArrays, List.of(0)).aggregatorFactory(mode)),
             mode
         );
     }
@@ -62,7 +62,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     @Override
     protected final String expectedToStringOfSimple() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + type + "[channel=0], mode=SINGLE]]]";
+        return "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + type + "[channels=[0]], mode=SINGLE]]]";
     }
 
     @Override

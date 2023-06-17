@@ -11,9 +11,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.operator.EvalOperator;
 
+import java.util.List;
+
 /**
  * Expressions that have a mapping to an {@link EvalOperator.ExpressionEvaluator}.
  */
 public interface ToAggregator {
-    AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel);
+    AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels);
 }

@@ -258,7 +258,7 @@ public class OrdinalsGroupingOperator implements Operator {
             blockBuilder = null;
             IntVector selected = IntVector.range(0, blocks[0].getPositionCount());
             for (int i = 0; i < aggregators.size(); i++) {
-                blocks[i + 1] = aggregators.get(i).evaluate(selected);
+                aggregators.get(i).evaluate(blocks, i + 1, selected);
             }
             return new Page(blocks);
         } finally {

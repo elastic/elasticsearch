@@ -19,38 +19,31 @@ import java.util.function.Supplier;
 public class Aggregator implements Releasable {
 
     public static final Object[] EMPTY_PARAMS = new Object[] {};
-    private static final int UNUSED_CHANNEL = -1;
 
     private final AggregatorFunction aggregatorFunction;
 
     private final AggregatorMode mode;
 
-    private final int intermediateChannel;
-
     public interface Factory extends Supplier<Aggregator>, Describable {}
 
-    public Aggregator(AggregatorFunction aggregatorFunction, AggregatorMode mode, int inputChannel) {
-        assert mode.isInputPartial() || inputChannel >= 0;
-        // input channel is used both to signal the creation of the page (when the input is not partial)
+    public Aggregator(AggregatorFunction aggregatorFunction, AggregatorMode mode) {
         this.aggregatorFunction = aggregatorFunction;
-        // and to indicate the page during the intermediate phase
-        this.intermediateChannel = mode.isInputPartial() ? inputChannel : UNUSED_CHANNEL;
         this.mode = mode;
     }
 
     public void processPage(Page page) {
         if (mode.isInputPartial()) {
-            aggregatorFunction.addIntermediateInput(page.getBlock(intermediateChannel));
+            aggregatorFunction.addIntermediateInput(page);
         } else {
             aggregatorFunction.addRawInput(page);
         }
     }
 
-    public Block evaluate() {
+    public void evaluate(Block[] blocks, int offset) {
         if (mode.isOutputPartial()) {
-            return aggregatorFunction.evaluateIntermediate();
+            aggregatorFunction.evaluateIntermediate(blocks, offset);
         } else {
-            return aggregatorFunction.evaluateFinal();
+            aggregatorFunction.evaluateFinal(blocks, offset);
         }
     }
 

@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -24,20 +26,21 @@ import org.elasticsearch.compute.data.Vector;
 public final class MinIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private final IntArrayState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
-  public MinIntGroupingAggregatorFunction(int channel, IntArrayState state) {
-    this.channel = channel;
+  public MinIntGroupingAggregatorFunction(List<Integer> channels, IntArrayState state) {
+    this.channels = channels;
     this.state = state;
   }
 
-  public static MinIntGroupingAggregatorFunction create(int channel, BigArrays bigArrays) {
-    return new MinIntGroupingAggregatorFunction(channel, new IntArrayState(bigArrays, MinIntAggregator.init()));
+  public static MinIntGroupingAggregatorFunction create(List<Integer> channels,
+      BigArrays bigArrays) {
+    return new MinIntGroupingAggregatorFunction(channels, new IntArrayState(bigArrays, MinIntAggregator.init()));
   }
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    IntBlock valuesBlock = page.getBlock(channel);
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -71,7 +74,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    IntBlock valuesBlock = page.getBlock(channel);
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -118,7 +121,8 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Block block) {
+  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -145,23 +149,23 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public Block evaluateIntermediate(IntVector selected) {
+  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<IntArrayState>, IntArrayState> builder =
         AggregatorStateVector.builderOfAggregatorState(IntArrayState.class, state.getEstimatedSize());
     builder.add(state, selected);
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal(IntVector selected) {
-    return state.toValuesBlock(selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
+    blocks[offset] = state.toValuesBlock(selected);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

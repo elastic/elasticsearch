@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -24,28 +26,28 @@ import org.elasticsearch.compute.data.Vector;
 public final class PercentileIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private final QuantileStates.GroupingState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
   private final BigArrays bigArrays;
 
   private final double percentile;
 
-  public PercentileIntGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state,
-      BigArrays bigArrays, double percentile) {
-    this.channel = channel;
+  public PercentileIntGroupingAggregatorFunction(List<Integer> channels,
+      QuantileStates.GroupingState state, BigArrays bigArrays, double percentile) {
+    this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.percentile = percentile;
   }
 
-  public static PercentileIntGroupingAggregatorFunction create(int channel, BigArrays bigArrays,
-      double percentile) {
-    return new PercentileIntGroupingAggregatorFunction(channel, PercentileIntAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
+  public static PercentileIntGroupingAggregatorFunction create(List<Integer> channels,
+      BigArrays bigArrays, double percentile) {
+    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
   }
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    IntBlock valuesBlock = page.getBlock(channel);
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -79,7 +81,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    IntBlock valuesBlock = page.getBlock(channel);
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -126,7 +128,8 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Block block) {
+  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -153,23 +156,23 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
   }
 
   @Override
-  public Block evaluateIntermediate(IntVector selected) {
+  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<QuantileStates.GroupingState>, QuantileStates.GroupingState> builder =
         AggregatorStateVector.builderOfAggregatorState(QuantileStates.GroupingState.class, state.getEstimatedSize());
     builder.add(state, selected);
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal(IntVector selected) {
-    return PercentileIntAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
+    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, selected);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

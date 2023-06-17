@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -23,25 +25,25 @@ import org.elasticsearch.compute.data.Vector;
 public final class MedianAbsoluteDeviationIntAggregatorFunction implements AggregatorFunction {
   private final QuantileStates.SingleState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationIntAggregatorFunction(int channel,
+  public MedianAbsoluteDeviationIntAggregatorFunction(List<Integer> channels,
       QuantileStates.SingleState state) {
-    this.channel = channel;
+    this.channels = channels;
     this.state = state;
   }
 
-  public static MedianAbsoluteDeviationIntAggregatorFunction create(int channel) {
-    return new MedianAbsoluteDeviationIntAggregatorFunction(channel, MedianAbsoluteDeviationIntAggregator.initSingle());
+  public static MedianAbsoluteDeviationIntAggregatorFunction create(List<Integer> channels) {
+    return new MedianAbsoluteDeviationIntAggregatorFunction(channels, MedianAbsoluteDeviationIntAggregator.initSingle());
   }
 
   @Override
   public void addRawInput(Page page) {
-    ElementType type = page.getBlock(channel).elementType();
+    ElementType type = page.getBlock(channels.get(0)).elementType();
     if (type == ElementType.NULL) {
       return;
     }
-    IntBlock block = page.getBlock(channel);
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -70,7 +72,8 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   }
 
   @Override
-  public void addIntermediateInput(Block block) {
+  public void addIntermediateInput(Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -87,23 +90,23 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public void evaluateIntermediate(Block[] blocks, int offset) {
     AggregatorStateVector.Builder<AggregatorStateVector<QuantileStates.SingleState>, QuantileStates.SingleState> builder =
         AggregatorStateVector.builderOfAggregatorState(QuantileStates.SingleState.class, state.getEstimatedSize());
     builder.add(state, IntVector.range(0, 1));
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return MedianAbsoluteDeviationIntAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset) {
+    blocks[offset] = MedianAbsoluteDeviationIntAggregator.evaluateFinal(state);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

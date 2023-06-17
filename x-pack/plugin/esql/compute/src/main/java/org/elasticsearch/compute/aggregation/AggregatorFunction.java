@@ -17,9 +17,9 @@ public interface AggregatorFunction extends Releasable {
 
     void addRawInput(Page page);
 
-    void addIntermediateInput(Block block);
+    void addIntermediateInput(Page page);
 
-    Block evaluateIntermediate();
+    void evaluateIntermediate(Block[] blocks, int offset);
 
-    Block evaluateFinal();
+    void evaluateFinal(Block[] blocks, int offset);
 }

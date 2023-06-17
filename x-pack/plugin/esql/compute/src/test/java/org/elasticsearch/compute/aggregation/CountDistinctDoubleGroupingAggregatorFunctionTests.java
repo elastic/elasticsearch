@@ -23,8 +23,8 @@ import static org.hamcrest.Matchers.closeTo;
 public class CountDistinctDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannel, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
     }
 
     @Override

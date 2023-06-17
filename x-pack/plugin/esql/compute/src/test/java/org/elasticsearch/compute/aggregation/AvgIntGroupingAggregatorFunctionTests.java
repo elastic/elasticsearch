@@ -23,8 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AvgIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new AvgIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new AvgIntAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override

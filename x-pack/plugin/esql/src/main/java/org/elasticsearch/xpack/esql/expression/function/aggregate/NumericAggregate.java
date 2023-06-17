@@ -41,23 +41,23 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel) {
+    public final AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
         DataType type = field().dataType();
         if (type == DataTypes.LONG) {
-            return longSupplier(bigArrays, inputChannel);
+            return longSupplier(bigArrays, inputChannels);
         }
         if (type == DataTypes.INTEGER) {
-            return intSupplier(bigArrays, inputChannel);
+            return intSupplier(bigArrays, inputChannels);
         }
         if (type == DataTypes.DOUBLE) {
-            return doubleSupplier(bigArrays, inputChannel);
+            return doubleSupplier(bigArrays, inputChannels);
         }
         throw new UnsupportedOperationException();
     }
 
-    protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel);
+    protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels);
 
-    protected abstract AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel);
+    protected abstract AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels);
 
-    protected abstract AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel);
+    protected abstract AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels);
 }

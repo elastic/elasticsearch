@@ -39,8 +39,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
-                new AvgLongAggregatorFunctionSupplier(bigArrays, 1).groupingAggregatorFactory(mode, 1),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannel).groupingAggregatorFactory(mode, maxChannel)
+                new AvgLongAggregatorFunctionSupplier(bigArrays, List.of(1)).groupingAggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(bigArrays, List.of(maxChannel)).groupingAggregatorFactory(mode)
             ),
             bigArrays
         );
@@ -54,8 +54,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
     protected String expectedToStringOfSimple() {
         return "HashAggregationOperator[blockHash=LongBlockHash{channel=0, entries=0}, aggregators=["
-            + "GroupingAggregator[aggregatorFunction=AvgLongGroupingAggregatorFunction[channel=1], mode=SINGLE], "
-            + "GroupingAggregator[aggregatorFunction=MaxLongGroupingAggregatorFunction[channel=1], mode=SINGLE]]]";
+            + "GroupingAggregator[aggregatorFunction=AvgLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE], "
+            + "GroupingAggregator[aggregatorFunction=MaxLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE]]]";
     }
 
     @Override

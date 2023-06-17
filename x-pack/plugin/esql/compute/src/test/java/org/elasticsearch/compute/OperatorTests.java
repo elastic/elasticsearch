@@ -410,12 +410,12 @@ public class OperatorTests extends ESTestCase {
                             ),
                             0,
                             gField,
-                            List.of(CountAggregatorFunction.supplier(bigArrays, 1).groupingAggregatorFactory(INITIAL, 1)),
+                            List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1)).groupingAggregatorFactory(INITIAL)),
                             bigArrays,
                             driverContext
                         ),
                         new HashAggregationOperator(
-                            List.of(CountAggregatorFunction.supplier(bigArrays, 1).groupingAggregatorFactory(FINAL, 1)),
+                            List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1)).groupingAggregatorFactory(FINAL)),
                             () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)), bigArrays),
                             driverContext
                         )

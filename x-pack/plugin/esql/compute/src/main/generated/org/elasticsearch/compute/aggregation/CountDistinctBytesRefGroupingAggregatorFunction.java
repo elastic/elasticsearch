@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
@@ -26,28 +28,28 @@ import org.elasticsearch.compute.data.Vector;
 public final class CountDistinctBytesRefGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private final HllStates.GroupingState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
   private final BigArrays bigArrays;
 
   private final int precision;
 
-  public CountDistinctBytesRefGroupingAggregatorFunction(int channel, HllStates.GroupingState state,
-      BigArrays bigArrays, int precision) {
-    this.channel = channel;
+  public CountDistinctBytesRefGroupingAggregatorFunction(List<Integer> channels,
+      HllStates.GroupingState state, BigArrays bigArrays, int precision) {
+    this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
-  public static CountDistinctBytesRefGroupingAggregatorFunction create(int channel,
+  public static CountDistinctBytesRefGroupingAggregatorFunction create(List<Integer> channels,
       BigArrays bigArrays, int precision) {
-    return new CountDistinctBytesRefGroupingAggregatorFunction(channel, CountDistinctBytesRefAggregator.initGrouping(bigArrays, precision), bigArrays, precision);
+    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(bigArrays, precision), bigArrays, precision);
   }
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channel);
+    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     BytesRefVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -83,7 +85,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channel);
+    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     BytesRefVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -132,7 +134,8 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Block block) {
+  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -159,23 +162,23 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   }
 
   @Override
-  public Block evaluateIntermediate(IntVector selected) {
+  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<HllStates.GroupingState>, HllStates.GroupingState> builder =
         AggregatorStateVector.builderOfAggregatorState(HllStates.GroupingState.class, state.getEstimatedSize());
     builder.add(state, selected);
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal(IntVector selected) {
-    return CountDistinctBytesRefAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
+    blocks[offset] = CountDistinctBytesRefAggregator.evaluateFinal(state, selected);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

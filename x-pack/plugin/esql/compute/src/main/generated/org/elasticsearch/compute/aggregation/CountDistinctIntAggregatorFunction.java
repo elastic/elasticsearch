@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -23,32 +25,32 @@ import org.elasticsearch.compute.data.Vector;
 public final class CountDistinctIntAggregatorFunction implements AggregatorFunction {
   private final HllStates.SingleState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
   private final BigArrays bigArrays;
 
   private final int precision;
 
-  public CountDistinctIntAggregatorFunction(int channel, HllStates.SingleState state,
+  public CountDistinctIntAggregatorFunction(List<Integer> channels, HllStates.SingleState state,
       BigArrays bigArrays, int precision) {
-    this.channel = channel;
+    this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
-  public static CountDistinctIntAggregatorFunction create(int channel, BigArrays bigArrays,
-      int precision) {
-    return new CountDistinctIntAggregatorFunction(channel, CountDistinctIntAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+  public static CountDistinctIntAggregatorFunction create(List<Integer> channels,
+      BigArrays bigArrays, int precision) {
+    return new CountDistinctIntAggregatorFunction(channels, CountDistinctIntAggregator.initSingle(bigArrays, precision), bigArrays, precision);
   }
 
   @Override
   public void addRawInput(Page page) {
-    ElementType type = page.getBlock(channel).elementType();
+    ElementType type = page.getBlock(channels.get(0)).elementType();
     if (type == ElementType.NULL) {
       return;
     }
-    IntBlock block = page.getBlock(channel);
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -77,7 +79,8 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
   }
 
   @Override
-  public void addIntermediateInput(Block block) {
+  public void addIntermediateInput(Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -94,23 +97,23 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public void evaluateIntermediate(Block[] blocks, int offset) {
     AggregatorStateVector.Builder<AggregatorStateVector<HllStates.SingleState>, HllStates.SingleState> builder =
         AggregatorStateVector.builderOfAggregatorState(HllStates.SingleState.class, state.getEstimatedSize());
     builder.add(state, IntVector.range(0, 1));
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return CountDistinctIntAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset) {
+    blocks[offset] = CountDistinctIntAggregator.evaluateFinal(state);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

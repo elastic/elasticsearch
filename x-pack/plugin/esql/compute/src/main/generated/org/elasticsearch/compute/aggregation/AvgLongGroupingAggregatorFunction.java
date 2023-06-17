@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -23,24 +25,25 @@ import org.elasticsearch.compute.data.Vector;
 public final class AvgLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private final AvgLongAggregator.GroupingAvgState state;
 
-  private final int channel;
+  private final List<Integer> channels;
 
   private final BigArrays bigArrays;
 
-  public AvgLongGroupingAggregatorFunction(int channel, AvgLongAggregator.GroupingAvgState state,
-      BigArrays bigArrays) {
-    this.channel = channel;
+  public AvgLongGroupingAggregatorFunction(List<Integer> channels,
+      AvgLongAggregator.GroupingAvgState state, BigArrays bigArrays) {
+    this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
   }
 
-  public static AvgLongGroupingAggregatorFunction create(int channel, BigArrays bigArrays) {
-    return new AvgLongGroupingAggregatorFunction(channel, AvgLongAggregator.initGrouping(bigArrays), bigArrays);
+  public static AvgLongGroupingAggregatorFunction create(List<Integer> channels,
+      BigArrays bigArrays) {
+    return new AvgLongGroupingAggregatorFunction(channels, AvgLongAggregator.initGrouping(bigArrays), bigArrays);
   }
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    LongBlock valuesBlock = page.getBlock(channel);
+    LongBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -74,7 +77,7 @@ public final class AvgLongGroupingAggregatorFunction implements GroupingAggregat
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    LongBlock valuesBlock = page.getBlock(channel);
+    LongBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
     LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -121,7 +124,8 @@ public final class AvgLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Block block) {
+  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+    Block block = page.getBlock(channels.get(0));
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -148,23 +152,23 @@ public final class AvgLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public Block evaluateIntermediate(IntVector selected) {
+  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<AvgLongAggregator.GroupingAvgState>, AvgLongAggregator.GroupingAvgState> builder =
         AggregatorStateVector.builderOfAggregatorState(AvgLongAggregator.GroupingAvgState.class, state.getEstimatedSize());
     builder.add(state, selected);
-    return builder.build().asBlock();
+    blocks[offset] = builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal(IntVector selected) {
-    return AvgLongAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
+    blocks[offset] = AvgLongAggregator.evaluateFinal(state, selected);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channel=").append(channel);
+    sb.append("channels=").append(channels);
     sb.append("]");
     return sb.toString();
   }

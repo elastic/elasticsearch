@@ -43,17 +43,17 @@ public class Max extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
-        return new MaxLongAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MaxLongAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
-        return new MaxIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MaxIntAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
-        return new MaxDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MaxDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 }

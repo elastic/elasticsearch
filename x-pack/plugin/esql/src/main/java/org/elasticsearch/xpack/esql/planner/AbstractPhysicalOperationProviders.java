@@ -60,7 +60,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 mode,
                 source,
                 context.bigArrays(),
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channel))
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -123,7 +123,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 mode,
                 source,
                 context.bigArrays(),
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channel))
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
             );
 
             if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
@@ -149,7 +149,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         throw new UnsupportedOperationException();
     }
 
-    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode, Integer channel) {}
+    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
         List<? extends NamedExpression> aggregates,
@@ -181,9 +181,10 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                         params[i] = aggParams.get(i).fold();
                     }
 
-                    int inputChannel = source.layout.getChannel(sourceAttr.id());
+                    List<Integer> inputChannels = List.of(source.layout.getChannel(sourceAttr.id()));
+                    assert inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
                     if (aggregateFunction instanceof ToAggregator agg) {
-                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannel), aggMode, inputChannel));
+                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
                     } else {
                         throw new UnsupportedOperationException("aggregate functions must extend ToAggregator");
                     }

@@ -50,7 +50,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel) {
-        return CountAggregatorFunction.supplier(bigArrays, inputChannel);
+    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return CountAggregatorFunction.supplier(bigArrays, inputChannels);
     }
 }

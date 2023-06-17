@@ -32,8 +32,8 @@ public class PercentileLongGroupingAggregatorFunctionTests extends GroupingAggre
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannel, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
     }
 
     @Override

@@ -4,8 +4,10 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 
 /**
@@ -15,25 +17,25 @@ import org.elasticsearch.common.util.BigArrays;
 public final class PercentileIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final BigArrays bigArrays;
 
-  private final int channel;
+  private final List<Integer> channels;
 
   private final double percentile;
 
-  public PercentileIntAggregatorFunctionSupplier(BigArrays bigArrays, int channel,
+  public PercentileIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels,
       double percentile) {
     this.bigArrays = bigArrays;
-    this.channel = channel;
+    this.channels = channels;
     this.percentile = percentile;
   }
 
   @Override
   public PercentileIntAggregatorFunction aggregator() {
-    return PercentileIntAggregatorFunction.create(channel, percentile);
+    return PercentileIntAggregatorFunction.create(channels, percentile);
   }
 
   @Override
   public PercentileIntGroupingAggregatorFunction groupingAggregator() {
-    return PercentileIntGroupingAggregatorFunction.create(channel, bigArrays, percentile);
+    return PercentileIntGroupingAggregatorFunction.create(channels, bigArrays, percentile);
   }
 
   @Override

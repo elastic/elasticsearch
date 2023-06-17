@@ -18,11 +18,11 @@ public interface AggregatorFunctionSupplier extends Describable {
 
     GroupingAggregatorFunction groupingAggregator();
 
-    default Aggregator.Factory aggregatorFactory(AggregatorMode mode, int channel) {
+    default Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
         return new Aggregator.Factory() {
             @Override
             public Aggregator get() {
-                return new Aggregator(aggregator(), mode, channel);
+                return new Aggregator(aggregator(), mode);
             }
 
             @Override
@@ -32,11 +32,11 @@ public interface AggregatorFunctionSupplier extends Describable {
         };
     }
 
-    default GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode, int channel) {
+    default GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode) {
         return new GroupingAggregator.Factory() {
             @Override
             public GroupingAggregator apply(DriverContext driverContext) {
-                return new GroupingAggregator(groupingAggregator(), mode, channel);
+                return new GroupingAggregator(groupingAggregator(), mode);
             }
 
             @Override

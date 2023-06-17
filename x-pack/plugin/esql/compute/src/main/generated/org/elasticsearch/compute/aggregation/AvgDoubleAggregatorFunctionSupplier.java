@@ -4,8 +4,10 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 
 /**
@@ -15,21 +17,21 @@ import org.elasticsearch.common.util.BigArrays;
 public final class AvgDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final BigArrays bigArrays;
 
-  private final int channel;
+  private final List<Integer> channels;
 
-  public AvgDoubleAggregatorFunctionSupplier(BigArrays bigArrays, int channel) {
+  public AvgDoubleAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
     this.bigArrays = bigArrays;
-    this.channel = channel;
+    this.channels = channels;
   }
 
   @Override
   public AvgDoubleAggregatorFunction aggregator() {
-    return AvgDoubleAggregatorFunction.create(channel);
+    return AvgDoubleAggregatorFunction.create(channels);
   }
 
   @Override
   public AvgDoubleGroupingAggregatorFunction groupingAggregator() {
-    return AvgDoubleGroupingAggregatorFunction.create(channel, bigArrays);
+    return AvgDoubleGroupingAggregatorFunction.create(channels, bigArrays);
   }
 
   @Override

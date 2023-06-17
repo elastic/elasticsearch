@@ -4,8 +4,10 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 
 /**
@@ -15,21 +17,21 @@ import org.elasticsearch.common.util.BigArrays;
 public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final BigArrays bigArrays;
 
-  private final int channel;
+  private final List<Integer> channels;
 
-  public MaxIntAggregatorFunctionSupplier(BigArrays bigArrays, int channel) {
+  public MaxIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
     this.bigArrays = bigArrays;
-    this.channel = channel;
+    this.channels = channels;
   }
 
   @Override
   public MaxIntAggregatorFunction aggregator() {
-    return MaxIntAggregatorFunction.create(channel);
+    return MaxIntAggregatorFunction.create(channels);
   }
 
   @Override
   public MaxIntGroupingAggregatorFunction groupingAggregator() {
-    return MaxIntGroupingAggregatorFunction.create(channel, bigArrays);
+    return MaxIntGroupingAggregatorFunction.create(channels, bigArrays);
   }
 
   @Override

@@ -28,14 +28,11 @@ public class GroupingAggregator implements Releasable {
 
     private final AggregatorMode mode;
 
-    private final int intermediateChannel;
-
     public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {}
 
-    public GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode, int inputChannel) {
+    public GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode) {
         this.aggregatorFunction = aggregatorFunction;
         this.mode = mode;
-        this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
     }
 
     public void processPage(LongBlock groupIdBlock, Page page) {
@@ -44,7 +41,7 @@ public class GroupingAggregator implements Releasable {
             if (groupIdVector == null) {
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }
-            aggregatorFunction.addIntermediateInput(groupIdVector, page.getBlock(intermediateChannel));
+            aggregatorFunction.addIntermediateInput(groupIdVector, page);
         } else {
             if (groupIdVector != null) {
                 aggregatorFunction.addRawInput(groupIdVector, page);
@@ -66,11 +63,11 @@ public class GroupingAggregator implements Releasable {
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    public Block evaluate(IntVector selected) {
+    public void evaluate(Block[] blocks, int offset, IntVector selected) {
         if (mode.isOutputPartial()) {
-            return aggregatorFunction.evaluateIntermediate(selected);
+            aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
         } else {
-            return aggregatorFunction.evaluateFinal(selected);
+            aggregatorFunction.evaluateFinal(blocks, offset, selected);
         }
     }
 

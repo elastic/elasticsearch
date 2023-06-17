@@ -7,8 +7,12 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
+
+import java.util.List;
 
 /**
  * Types used by the code generator.
@@ -19,8 +23,11 @@ public class Types {
     private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
+    static final TypeName LIST_INTEGER = ParameterizedTypeName.get(ClassName.get(List.class), TypeName.INT.box());
+
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
     static final ClassName BLOCK = ClassName.get(DATA_PACKAGE, "Block");
+    static final TypeName BLOCK_ARRAY = ArrayTypeName.of(BLOCK);
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");

@@ -15,18 +15,20 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
+import java.util.List;
+
 @Experimental
 public class CountAggregatorFunction implements AggregatorFunction {
-    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, int channel) {
+    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> channels) {
         return new AggregatorFunctionSupplier() {
             @Override
             public AggregatorFunction aggregator() {
-                return CountAggregatorFunction.create(channel);
+                return CountAggregatorFunction.create(channels);
             }
 
             @Override
             public GroupingAggregatorFunction groupingAggregator() {
-                return CountGroupingAggregatorFunction.create(bigArrays, channel);
+                return CountGroupingAggregatorFunction.create(bigArrays, channels);
             }
 
             @Override
@@ -37,26 +39,27 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     private final LongState state;
-    private final int channel;
+    private final List<Integer> channels;
 
-    public static CountAggregatorFunction create(int inputChannel) {
-        return new CountAggregatorFunction(inputChannel, new LongState());
+    public static CountAggregatorFunction create(List<Integer> inputChannels) {
+        return new CountAggregatorFunction(inputChannels, new LongState());
     }
 
-    private CountAggregatorFunction(int channel, LongState state) {
-        this.channel = channel;
+    private CountAggregatorFunction(List<Integer> channels, LongState state) {
+        this.channels = channels;
         this.state = state;
     }
 
     @Override
     public void addRawInput(Page page) {
-        Block block = page.getBlock(channel);
+        Block block = page.getBlock(channels.get(0));
         LongState state = this.state;
         state.longValue(state.longValue() + block.getTotalValueCount());
     }
 
     @Override
-    public void addIntermediateInput(Block block) {
+    public void addIntermediateInput(Page page) {
+        Block block = page.getBlock(channels.get(0));
         if (block.asVector() != null && block.asVector() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
             AggregatorStateVector<LongState> blobVector = (AggregatorStateVector) block.asVector();
@@ -72,25 +75,25 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public Block evaluateIntermediate() {
+    public void evaluateIntermediate(Block[] blocks, int offset) {
         AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder = AggregatorStateVector.builderOfAggregatorState(
             LongState.class,
             state.getEstimatedSize()
         );
         builder.add(state, IntVector.range(0, 1));
-        return builder.build().asBlock();
+        blocks[offset] = builder.build().asBlock();
     }
 
     @Override
-    public Block evaluateFinal() {
-        return LongBlock.newConstantBlockWith(state.longValue(), 1);
+    public void evaluateFinal(Block[] blocks, int offset) {
+        blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channel=").append(channel);
+        sb.append("channels=").append(channels);
         sb.append("]");
         return sb.toString();
     }

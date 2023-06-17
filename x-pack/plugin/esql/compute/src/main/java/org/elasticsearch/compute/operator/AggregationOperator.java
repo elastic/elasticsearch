@@ -93,7 +93,7 @@ public class AggregationOperator implements Operator {
         Block[] blocks = new Block[aggregators.size()];
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
-            blocks[i] = aggregator.evaluate();
+            aggregator.evaluate(blocks, i);
         }
 
         Page page = new Page(blocks);

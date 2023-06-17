@@ -37,17 +37,17 @@ public class Avg extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
-        return new AvgLongAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new AvgLongAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
-        return new AvgIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new AvgIntAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
-        return new AvgDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new AvgDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 }

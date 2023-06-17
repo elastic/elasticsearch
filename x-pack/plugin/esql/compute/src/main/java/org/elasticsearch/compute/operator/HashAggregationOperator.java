@@ -112,9 +112,11 @@ public class HashAggregationOperator implements Operator {
         IntVector selected = blockHash.nonEmpty();
         Block[] blocks = new Block[keys.length + aggregators.size()];
         System.arraycopy(keys, 0, blocks, 0, keys.length);
+        int offset = keys.length;
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
-            blocks[i + keys.length] = aggregator.evaluate(selected);
+            aggregator.evaluate(blocks, offset, selected);
+            offset++;
         }
 
         Page page = new Page(blocks);

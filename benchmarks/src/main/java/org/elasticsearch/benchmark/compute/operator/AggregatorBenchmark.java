@@ -107,7 +107,7 @@ public class AggregatorBenchmark {
 
     private static Operator operator(String grouping, String op, String dataType) {
         if (grouping.equals("none")) {
-            return new AggregationOperator(List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE, 0).get()));
+            return new AggregationOperator(List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).get()));
         }
         List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
             case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));
@@ -126,7 +126,7 @@ public class AggregatorBenchmark {
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
         return new HashAggregationOperator(
-            List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE, groups.size())),
+            List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
             () -> BlockHash.build(groups, BIG_ARRAYS),
             new DriverContext()
         );
@@ -136,8 +136,8 @@ public class AggregatorBenchmark {
         return switch (op) {
             // TODO maybe just use the ESQL functions and let them resolve the data type so we don't have to maintain a huge switch tree
             case COUNT_DISTINCT -> switch (dataType) { // TODO add other ops......
-                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(BIG_ARRAYS, dataChannel, 3000);
-                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(BIG_ARRAYS, dataChannel, 3000);
+                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
+                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
                 default -> throw new IllegalArgumentException("unsupported aggName [" + op + "]");
             };
             default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");

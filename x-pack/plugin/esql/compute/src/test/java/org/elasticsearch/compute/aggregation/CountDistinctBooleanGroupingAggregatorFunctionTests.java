@@ -23,8 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountDistinctBooleanGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return new CountDistinctBooleanAggregatorFunctionSupplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new CountDistinctBooleanAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 
     @Override

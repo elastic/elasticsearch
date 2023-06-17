@@ -35,8 +35,8 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         int maxChannel = mode.isInputPartial() ? 1 : 0;
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new AvgLongAggregatorFunctionSupplier(bigArrays, 0).aggregatorFactory(mode, 0),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannel).aggregatorFactory(mode, maxChannel)
+                new AvgLongAggregatorFunctionSupplier(bigArrays, List.of(0)).aggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(bigArrays, List.of(maxChannel)).aggregatorFactory(mode)
             ),
             mode
         );
@@ -50,8 +50,8 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
     protected String expectedToStringOfSimple() {
         return "AggregationOperator[aggregators=["
-            + "Aggregator[aggregatorFunction=AvgLongAggregatorFunction[channel=0], mode=SINGLE], "
-            + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channel=0], mode=SINGLE]]]";
+            + "Aggregator[aggregatorFunction=AvgLongAggregatorFunction[channels=[0]], mode=SINGLE], "
+            + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]";
     }
 
     @Override

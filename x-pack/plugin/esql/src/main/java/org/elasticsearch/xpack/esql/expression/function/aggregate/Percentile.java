@@ -62,18 +62,18 @@ public class Percentile extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannel, percentileValue());
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannel, percentileValue());
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannel, percentileValue());
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
     }
 
     private int percentileValue() {

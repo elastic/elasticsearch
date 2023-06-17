@@ -33,7 +33,7 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
-import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
@@ -44,6 +44,7 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
+import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
@@ -174,7 +175,7 @@ public class AggregatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(AGGREGATOR_FUNCTION);
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
-        builder.addField(TypeName.INT, "channel", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
 
         for (VariableElement p : init.getParameters()) {
             builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
@@ -196,14 +197,14 @@ public class AggregatorImplementer {
     private MethodSpec create() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
-        builder.addParameter(TypeName.INT, "channel");
+        builder.addParameter(LIST_INTEGER, "channels");
         for (VariableElement p : init.getParameters()) {
             builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
         }
         if (init.getParameters().isEmpty()) {
-            builder.addStatement("return new $T(channel, $L)", implementation, callInit());
+            builder.addStatement("return new $T(channels, $L)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channel, $L, $L)", implementation, callInit(), initParameters());
+            builder.addStatement("return new $T(channels, $L, $L)", implementation, callInit(), initParameters());
         }
         return builder.build();
     }
@@ -224,9 +225,9 @@ public class AggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        builder.addParameter(TypeName.INT, "channel");
+        builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(stateType, "state");
-        builder.addStatement("this.channel = channel");
+        builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
 
         for (VariableElement p : init.getParameters()) {
@@ -239,9 +240,9 @@ public class AggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
-        builder.addStatement("$T type = page.getBlock(channel).elementType()", ELEMENT_TYPE);
+        builder.addStatement("$T type = page.getBlock(channels.get(0)).elementType()", ELEMENT_TYPE);
         builder.beginControlFlow("if (type == $T.NULL)", ELEMENT_TYPE).addStatement("return").endControlFlow();
-        builder.addStatement("$T block = page.getBlock(channel)", valueBlockType(init, combine));
+        builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
         builder.nextControlFlow("else").addStatement("addRawBlock(block)").endControlFlow();
@@ -335,7 +336,8 @@ public class AggregatorImplementer {
 
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(BLOCK, "block");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
+        builder.addStatement("Block block = page.getBlock(channels.get(0))");
         builder.addStatement("$T vector = block.asVector()", VECTOR);
         builder.beginControlFlow("if (vector == null || vector instanceof $T == false)", AGGREGATOR_STATE_VECTOR);
         {
@@ -382,7 +384,10 @@ public class AggregatorImplementer {
 
     private MethodSpec evaluateIntermediate() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateIntermediate");
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(BLOCK);
+        builder.addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter(BLOCK_ARRAY, "blocks")
+            .addParameter(TypeName.INT, "offset");
         ParameterizedTypeName stateBlockBuilderType = ParameterizedTypeName.get(
             AGGREGATOR_STATE_VECTOR_BUILDER,
             stateBlockType(),
@@ -395,17 +400,20 @@ public class AggregatorImplementer {
             stateType
         );
         builder.addStatement("builder.add(state, $T.range(0, 1))", INT_VECTOR);
-        builder.addStatement("return builder.build().asBlock()");
+        builder.addStatement("blocks[offset] = builder.build().asBlock()");
         return builder.build();
     }
 
     private MethodSpec evaluateFinal() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateFinal");
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(BLOCK);
+        builder.addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter(BLOCK_ARRAY, "blocks")
+            .addParameter(TypeName.INT, "offset");
         if (evaluateFinal == null) {
             primitiveStateToResult(builder);
         } else {
-            builder.addStatement("return $T.evaluateFinal(state)", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state)", declarationType);
         }
         return builder.build();
     }
@@ -413,13 +421,13 @@ public class AggregatorImplementer {
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
             case "org.elasticsearch.compute.aggregation.IntState":
-                builder.addStatement("return $T.newConstantBlockWith(state.intValue(), 1)", INT_BLOCK);
+                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.intValue(), 1)", INT_BLOCK);
                 return;
             case "org.elasticsearch.compute.aggregation.LongState":
-                builder.addStatement("return $T.newConstantBlockWith(state.longValue(), 1)", LONG_BLOCK);
+                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.longValue(), 1)", LONG_BLOCK);
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
-                builder.addStatement("return $T.newConstantBlockWith(state.doubleValue(), 1)", DOUBLE_BLOCK);
+                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.doubleValue(), 1)", DOUBLE_BLOCK);
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);
@@ -431,7 +439,7 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(String.class);
         builder.addStatement("$T sb = new $T()", StringBuilder.class, StringBuilder.class);
         builder.addStatement("sb.append(getClass().getSimpleName()).append($S)", "[");
-        builder.addStatement("sb.append($S).append(channel)", "channel=");
+        builder.addStatement("sb.append($S).append(channels)", "channels=");
         builder.addStatement("sb.append($S)", "]");
         builder.addStatement("return sb.toString()");
         return builder.build();

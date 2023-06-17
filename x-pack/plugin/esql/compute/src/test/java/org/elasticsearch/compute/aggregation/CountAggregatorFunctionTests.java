@@ -25,8 +25,8 @@ public class CountAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return CountAggregatorFunction.supplier(bigArrays, inputChannel);
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
+        return CountAggregatorFunction.supplier(bigArrays, inputChannels);
     }
 
     @Override

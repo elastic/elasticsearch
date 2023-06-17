@@ -2336,12 +2336,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 if (visible) {
                     visibleIndices.add(name);
                 }
-                if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
-                    totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
-                    updateIndices(allOpenIndices, visibleOpenIndices, name, visible);
-                } else if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                    updateIndices(allClosedIndices, visibleClosedIndices, name, visible);
-                }
+                totalOpenIndexShards = getOpenIndexShards(allOpenIndices, visibleOpenIndices, allClosedIndices, visibleClosedIndices, totalOpenIndexShards, indexMetadata, name, visible);
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
                 if (sha256HashesInUse != null) {
                     final var mapping = indexMetadata.mapping();
@@ -2407,6 +2402,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 Version.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
+        }
+
+        private static int getOpenIndexShards(List<String> allOpenIndices, List<String> visibleOpenIndices, List<String> allClosedIndices, List<String> visibleClosedIndices, int totalOpenIndexShards, IndexMetadata indexMetadata, String name, boolean visible) {
+            if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
+                totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
+                updateIndices(allOpenIndices, visibleOpenIndices, name, visible);
+            } else if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                updateIndices(allClosedIndices, visibleClosedIndices, name, visible);
+            }
+            return totalOpenIndexShards;
         }
 
         private static void updateIndices(List<String> allOpenIndices, List<String> visibleOpenIndices, String name, boolean visible) {

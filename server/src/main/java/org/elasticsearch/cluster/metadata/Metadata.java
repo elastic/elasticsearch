@@ -1920,10 +1920,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             } else if (previous != null && current == null) {
                 excludeAliases(previous);
             } else if (previous != null && current != null) {
-                if (Objects.equals(previous.getAliases(), current.getAliases())) {
-                    return;
-                }
+                synchronizeAliases(previous, current);
+            }
+        }
 
+        private void synchronizeAliases(IndexMetadata previous, IndexMetadata current) {
+            if (!Objects.equals(previous.getAliases(), current.getAliases())) {
                 addMissingAliases(previous, current);
                 removeUnusedAliases(previous, current);
             }

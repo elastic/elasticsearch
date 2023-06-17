@@ -1918,9 +1918,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             if (previous == null && current != null) {
                 includeAliases(current);
             } else if (previous != null && current == null) {
-                for (var key : previous.getAliases().keySet()) {
-                    removeAlias(key, previous.getIndex());
-                }
+                excludeAliases(previous);
             } else if (previous != null && current != null) {
                 if (Objects.equals(previous.getAliases(), current.getAliases())) {
                     return;
@@ -1936,6 +1934,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         removeAlias(key, current.getIndex());
                     }
                 }
+            }
+        }
+
+        private void excludeAliases(IndexMetadata previous) {
+            for (var key : previous.getAliases().keySet()) {
+                removeAlias(key, previous.getIndex());
             }
         }
 

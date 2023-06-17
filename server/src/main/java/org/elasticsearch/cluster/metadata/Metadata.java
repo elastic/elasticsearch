@@ -2730,9 +2730,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             } else if ("templates".equals(currentFieldName)) {
                 parseTemplateMetadataTokens(parser, builder);
             } else if ("reserved_state".equals(currentFieldName)) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    builder.put(ReservedStateMetadata.fromXContent(parser));
-                }
+                parseReservedStateMetadataTokens(parser, builder);
             } else {
                 try {
                     Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
@@ -2741,6 +2739,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                     parser.skipChildren();
                 }
+            }
+        }
+
+        private static void parseReservedStateMetadataTokens(XContentParser parser, Builder builder) throws IOException {
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                builder.put(ReservedStateMetadata.fromXContent(parser));
             }
         }
 

@@ -2724,9 +2724,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             } else if ("settings".equals(currentFieldName)) {
                 builder.persistentSettings(Settings.fromXContent(parser));
             } else if ("indices".equals(currentFieldName)) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    builder.put(IndexMetadata.Builder.fromXContent(parser), false);
-                }
+                parseIndexMetadataToken(parser, builder);
             } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
                 builder.hashesOfConsistentSettings(parser.mapStrings());
             } else if ("templates".equals(currentFieldName)) {
@@ -2745,6 +2743,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                     parser.skipChildren();
                 }
+            }
+        }
+
+        private static void parseIndexMetadataToken(XContentParser parser, Builder builder) throws IOException {
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                builder.put(IndexMetadata.Builder.fromXContent(parser), false);
             }
         }
 

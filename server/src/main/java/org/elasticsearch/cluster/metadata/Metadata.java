@@ -1924,15 +1924,19 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     return;
                 }
 
-                for (var key : current.getAliases().keySet()) {
-                    if (previous.getAliases().containsKey(key) == false) {
-                        putAlias(key, current.getIndex());
-                    }
-                }
+                addMissingAliases(previous, current);
                 for (var key : previous.getAliases().keySet()) {
                     if (current.getAliases().containsKey(key) == false) {
                         removeAlias(key, current.getIndex());
                     }
+                }
+            }
+        }
+
+        private void addMissingAliases(IndexMetadata previous, IndexMetadata current) {
+            for (var key : current.getAliases().keySet()) {
+                if (previous.getAliases().containsKey(key) == false) {
+                    putAlias(key, current.getIndex());
                 }
             }
         }

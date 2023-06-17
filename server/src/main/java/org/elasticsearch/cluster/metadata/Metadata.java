@@ -2732,13 +2732,17 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             } else if ("reserved_state".equals(currentFieldName)) {
                 parseReservedStateMetadataTokens(parser, builder);
             } else {
-                try {
-                    Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
-                    builder.putCustom(custom.getWriteableName(), custom);
-                } catch (NamedObjectNotFoundException ex) {
-                    logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                    parser.skipChildren();
-                }
+                parseAndPutCustom(parser, builder, currentFieldName);
+            }
+        }
+
+        private static void parseAndPutCustom(XContentParser parser, Builder builder, String currentFieldName) throws IOException {
+            try {
+                Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
+                builder.putCustom(custom.getWriteableName(), custom);
+            } catch (NamedObjectNotFoundException ex) {
+                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                parser.skipChildren();
             }
         }
 

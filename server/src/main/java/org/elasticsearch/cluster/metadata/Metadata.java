@@ -2690,33 +2690,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("cluster_coordination".equals(currentFieldName)) {
-                        builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
-                    } else if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(Settings.fromXContent(parser));
-                    } else if ("indices".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
-                        }
-                    } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
-                        builder.hashesOfConsistentSettings(parser.mapStrings());
-                    } else if ("templates".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
-                        }
-                    } else if ("reserved_state".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(ReservedStateMetadata.fromXContent(parser));
-                        }
-                    } else {
-                        try {
-                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
-                            builder.putCustom(custom.getWriteableName(), custom);
-                        } catch (NamedObjectNotFoundException ex) {
-                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                            parser.skipChildren();
-                        }
-                    }
+                    parseMetadataToBuilder(parser, builder, currentFieldName);
                 } else if (token.isValue()) {
                     if ("version".equals(currentFieldName)) {
                         builder.version = parser.longValue();
@@ -2733,6 +2707,37 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return builder.build();
+        }
+
+        private static void parseMetadataToBuilder(XContentParser parser, Builder builder, String currentFieldName) throws IOException {
+            XContentParser.Token token;
+            if ("cluster_coordination".equals(currentFieldName)) {
+                builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
+            } else if ("settings".equals(currentFieldName)) {
+                builder.persistentSettings(Settings.fromXContent(parser));
+            } else if ("indices".equals(currentFieldName)) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    builder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                }
+            } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
+                builder.hashesOfConsistentSettings(parser.mapStrings());
+            } else if ("templates".equals(currentFieldName)) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                }
+            } else if ("reserved_state".equals(currentFieldName)) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    builder.put(ReservedStateMetadata.fromXContent(parser));
+                }
+            } else {
+                try {
+                    Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
+                    builder.putCustom(custom.getWriteableName(), custom);
+                } catch (NamedObjectNotFoundException ex) {
+                    logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                    parser.skipChildren();
+                }
+            }
         }
 
         /**

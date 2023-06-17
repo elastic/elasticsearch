@@ -613,7 +613,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.trackTotalHitsUpTo(randomIntBetween(1, 6));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
-            // MultiCollector ignores calls to setMinCompetitiveScore, hence we effectively don't early terminate tracking total hits
+            // MultiCollector ignores calls to setMinCompetitiveScore, because one collector is TOP_DOCS and the other TOP_SCORES,
+            // hence we effectively don't early terminate tracking total hits
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(7L));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(5));

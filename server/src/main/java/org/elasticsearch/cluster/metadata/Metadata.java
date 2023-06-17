@@ -2338,15 +2338,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 }
                 if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
                     totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
-                    allOpenIndices.add(name);
-                    if (visible) {
-                        visibleOpenIndices.add(name);
-                    }
+                    updateIndices(allOpenIndices, visibleOpenIndices, name, visible);
                 } else if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                    allClosedIndices.add(name);
-                    if (visible) {
-                        visibleClosedIndices.add(name);
-                    }
+                    updateIndices(allClosedIndices, visibleClosedIndices, name, visible);
                 }
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
                 if (sha256HashesInUse != null) {
@@ -2413,6 +2407,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 Version.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
+        }
+
+        private static void updateIndices(List<String> allOpenIndices, List<String> visibleOpenIndices, String name, boolean visible) {
+            allOpenIndices.add(name);
+            if (visible) {
+                visibleOpenIndices.add(name);
+            }
         }
 
         private static void ensureNoNameCollisions(

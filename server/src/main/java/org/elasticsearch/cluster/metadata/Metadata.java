@@ -2620,10 +2620,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 boolean reported = false;
                 reported = isReported(indicesMap, duplicates, alias, reported);
                 // This is for adding an error message for when a data steam alias has the same name as a data stream.
-                if (reported == false && dataStreamMetadata != null && dataStreamMetadata.dataStreams().containsKey(alias)) {
+                if (isAliasReportedAndPresent(dataStreamMetadata, alias, reported)) {
                     duplicates.add("data stream alias and data stream have the same name (" + alias + ")");
                 }
             }
+        }
+
+        private static boolean isAliasReportedAndPresent(DataStreamMetadata dataStreamMetadata, String alias, boolean reported) {
+            return reported == false && dataStreamMetadata != null && dataStreamMetadata.dataStreams().containsKey(alias);
         }
 
         private static boolean isReported(ImmutableOpenMap<String, IndexMetadata> indicesMap, ArrayList<String> duplicates, String alias, boolean reported) {

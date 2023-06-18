@@ -1515,9 +1515,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
         XContentContext context = XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
-        final Iterator<? extends ToXContent> start = context == XContentContext.API
-            ? ChunkedToXContentHelper.startObject("metadata")
-            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+        final Iterator<? extends ToXContent> start = getStart(context);
 
         final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
             ? Iterators.single((builder, params) -> {
@@ -1562,6 +1560,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private Iterator<? extends ToXContent> getStart(XContentContext context) {
+        final Iterator<? extends ToXContent> start = context == XContentContext.API
+            ? ChunkedToXContentHelper.startObject("metadata")
+            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+        return start;
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {

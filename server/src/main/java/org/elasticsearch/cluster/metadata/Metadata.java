@@ -1729,13 +1729,17 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
         final Function<String, MappingMetadata> mappingLookup = buildMappingLookup(in);
         createIndexFromMetadata(in, builder, mappingLookup);
+        processReservedMetadata(in, builder);
+        return builder.build();
+    }
+
+    private static void processReservedMetadata(StreamInput in, Builder builder) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
         }
-        return builder.build();
     }
 
     private static void createIndexFromMetadata(StreamInput in, Builder builder, Function<String, MappingMetadata> mappingLookup) throws IOException {

@@ -2702,19 +2702,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         private static void validateAlias(String aliasName, List<IndexMetadata> indexMetadatas) {
             // Validate write indices
-            List<String> writeIndices = indexMetadatas.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .map(im -> im.getIndex().getName())
-                .toList();
-            if (writeIndices.size() > 1) {
-                throw new IllegalStateException(
-                    "alias ["
-                        + aliasName
-                        + "] has more than one write index ["
-                        + Strings.collectionToCommaDelimitedString(writeIndices)
-                        + "]"
-                );
-            }
+            validateSingleWriteIndex(aliasName, indexMetadatas);
 
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
@@ -2763,6 +2751,22 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                             + " non-system indices, not both"
                     );
                 }
+            }
+        }
+
+        private static void validateSingleWriteIndex(String aliasName, List<IndexMetadata> indexMetadatas) {
+            List<String> writeIndices = indexMetadatas.stream()
+                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                .map(im -> im.getIndex().getName())
+                .toList();
+            if (writeIndices.size() > 1) {
+                throw new IllegalStateException(
+                    "alias ["
+                        + aliasName
+                        + "] has more than one write index ["
+                        + Strings.collectionToCommaDelimitedString(writeIndices)
+                        + "]"
+                );
             }
         }
 

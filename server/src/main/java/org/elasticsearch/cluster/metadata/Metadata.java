@@ -1430,12 +1430,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
         if (compareCoordinationAndPersistent(metadata1, metadata2)) return false;
         if (compareHashesOfConsistentAndTemplate(metadata1, metadata2)) return false;
-        if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
-            return false;
-        }
-        if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
-            return false;
-        }
+        if (compareClusterParameter(metadata1, metadata2)) return false;
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
@@ -1459,6 +1454,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return false;
         }
         return true;
+    }
+
+    private static boolean compareClusterParameter(Metadata metadata1, Metadata metadata2) {
+        if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
+            return true;
+        }
+        if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean compareHashesOfConsistentAndTemplate(Metadata metadata1, Metadata metadata2) {

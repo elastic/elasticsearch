@@ -1525,14 +1525,18 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             persistentSettings,
             getToXContentIterator(),
             indices,
-            Iterators.flatMap(
-                customs.entrySet().iterator(),
-                entry -> entry.getValue().context().contains(context)
-                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                    : Collections.emptyIterator()
-            ),
+            getIteratorFlatMap(p, context),
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private Iterator<? extends ToXContent> getIteratorFlatMap(ToXContent.Params p, XContentContext context) {
+        return Iterators.flatMap(
+            customs.entrySet().iterator(),
+            entry -> entry.getValue().context().contains(context)
+                ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                : Collections.emptyIterator()
         );
     }
 

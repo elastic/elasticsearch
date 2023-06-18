@@ -1517,13 +1517,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         XContentContext context = XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
         final Iterator<? extends ToXContent> start = getStart(context);
 
-        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
-            ? Iterators.single((builder, params) -> {
-                builder.startObject("settings");
-                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                return builder.endObject();
-            })
-            : Collections.emptyIterator();
+        final Iterator<? extends ToXContent> persistentSettings = getPersistentSettings(context);
 
         final Iterator<? extends ToXContent> indices = context == XContentContext.API
             ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
@@ -1560,6 +1554,17 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private Iterator<? extends ToXContent> getPersistentSettings(XContentContext context) {
+        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
+            ? Iterators.single((builder, params) -> {
+                builder.startObject("settings");
+                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                return builder.endObject();
+            })
+            : Collections.emptyIterator();
+        return persistentSettings;
     }
 
     private Iterator<? extends ToXContent> getStart(XContentContext context) {

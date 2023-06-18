@@ -79,7 +79,7 @@ A `rare_terms` aggregation looks like this in isolation:
 |`field` |The field we wish to find rare terms in |Required |
 |`max_doc_count` |The maximum number of documents a term should appear in. |Optional |`1`
 |`precision` |The precision of the internal CuckooFilters. Smaller precision leads to
-better approximation, but higher memory usage. Cannot be smaller than `0.00001` |Optional |`0.01`
+better approximation, but higher memory usage. Cannot be smaller than `0.00001` |Optional |`0.001`
 |`include` |Terms that should be included in the aggregation|Optional |
 |`exclude` |Terms that should be excluded from the aggregation|Optional |
 |`missing` |The value that should be used if a document does not have the field being aggregated|Optional |

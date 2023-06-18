@@ -2533,9 +2533,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             // Adding data stream aliases:
             for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
                 findDuplicates(indexAliases, duplicates, dataStreamAlias);
-                if (indicesMap.containsKey(dataStreamAlias)) {
-                    aliasDuplicatesWithIndices.add(dataStreamAlias);
-                }
+                findAliasDuplicatesWithIndices(indicesMap, aliasDuplicatesWithIndices, dataStreamAlias);
                 if (allDataStreams.containsKey(dataStreamAlias)) {
                     aliasDuplicatesWithDataStreams.add(dataStreamAlias);
                 }
@@ -2544,9 +2542,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 if (allDataStreams.containsKey(alias)) {
                     aliasDuplicatesWithDataStreams.add(alias);
                 }
-                if (indicesMap.containsKey(alias)) {
-                    aliasDuplicatesWithIndices.add(alias);
-                }
+                findAliasDuplicatesWithIndices(indicesMap, aliasDuplicatesWithIndices, alias);
             }
             allDataStreams.forEach((key, value) -> {
                 if (indicesMap.containsKey(key)) {
@@ -2566,6 +2562,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         + Strings.collectionToCommaDelimitedString(duplicates)
                         + "]"
                 );
+            }
+        }
+
+        private static void findAliasDuplicatesWithIndices(ImmutableOpenMap<String, IndexMetadata> indicesMap, Set<String> aliasDuplicatesWithIndices, String dataStreamAlias) {
+            if (indicesMap.containsKey(dataStreamAlias)) {
+                aliasDuplicatesWithIndices.add(dataStreamAlias);
             }
         }
 

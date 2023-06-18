@@ -1429,12 +1429,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
         if (compareCoordinationAndPersistent(metadata1, metadata2)) return false;
-        if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
-            return false;
-        }
-        if (metadata1.templates.equals(metadata2.templates()) == false) {
-            return false;
-        }
+        if (compareHashesOfConsistentAndTemplate(metadata1, metadata2)) return false;
         if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
             return false;
         }
@@ -1464,6 +1459,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return false;
         }
         return true;
+    }
+
+    private static boolean compareHashesOfConsistentAndTemplate(Metadata metadata1, Metadata metadata2) {
+        if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
+            return true;
+        }
+        if (metadata1.templates.equals(metadata2.templates()) == false) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean compareCoordinationAndPersistent(Metadata metadata1, Metadata metadata2) {

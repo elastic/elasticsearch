@@ -1519,17 +1519,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         final Iterator<? extends ToXContent> persistentSettings = getPersistentSettings(context);
 
-        final Iterator<? extends ToXContent> indices = context == XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
-            : Collections.emptyIterator();
+        final Iterator<? extends ToXContent> indices = getIndices(context);
 
-        return Iterators.concat(start, Iterators.<ToXContent>single((builder, params) -> {
-            builder.field("cluster_uuid", clusterUUID);
-            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-            builder.startObject("cluster_coordination");
-            coordinationMetadata().toXContent(builder, params);
-            return builder.endObject();
-        }),
+        return Iterators.concat(start, Iterators.<ToXContent>single(getToXContent()),
             persistentSettings,
             ChunkedToXContentHelper.wrapWithObject(
                 "templates",
@@ -1554,6 +1546,23 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private ToXContent getToXContent() {
+        return (builder, params) -> {
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+            builder.startObject("cluster_coordination");
+            coordinationMetadata().toXContent(builder, params);
+            return builder.endObject();
+        };
+    }
+
+    private Iterator<? extends ToXContent> getIndices(XContentContext context) {
+        final Iterator<? extends ToXContent> indices = context == XContentContext.API
+            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
+            : Collections.emptyIterator();
+        return indices;
     }
 
     private Iterator<? extends ToXContent> getPersistentSettings(XContentContext context) {

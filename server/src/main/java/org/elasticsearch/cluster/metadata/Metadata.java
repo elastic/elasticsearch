@@ -577,11 +577,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 updatedOpenIndices = allOpenIndices;
                 updatedClosedIndices = ArrayUtils.append(allClosedIndices, indexName);
                 updatedVisibleOpenIndices = visibleOpenIndices;
-                if (index.isHidden() == false) {
-                    updatedVisibleClosedIndices = ArrayUtils.append(visibleClosedIndices, indexName);
-                } else {
-                    updatedVisibleClosedIndices = visibleClosedIndices;
-                }
+                updatedVisibleClosedIndices = getUpdatedVisibleClosedIndices(index, indexName);
             }
             default -> throw new AssertionError("impossible, index is either open or closed");
         }
@@ -633,6 +629,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
             reservedStateMetadata
         );
+    }
+
+    private String[] getUpdatedVisibleClosedIndices(IndexMetadata index, String indexName) {
+        final String[] updatedVisibleClosedIndices;
+        if (index.isHidden() == false) {
+            updatedVisibleClosedIndices = ArrayUtils.append(visibleClosedIndices, indexName);
+        } else {
+            updatedVisibleClosedIndices = visibleClosedIndices;
+        }
+        return updatedVisibleClosedIndices;
     }
 
     private String[] getUpdatedVisibleOpenIndices(IndexMetadata index, String indexName) {

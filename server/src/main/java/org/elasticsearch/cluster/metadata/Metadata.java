@@ -2341,11 +2341,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 populateSha256HashesInUse(sha256HashesInUse, indexMetadata);
             }
 
-            var aliasedIndices = this.aliasedIndices.build();
-            for (var entry : aliasedIndices.entrySet()) {
-                List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
-                validateAlias(entry.getKey(), aliasIndices);
-            }
+            ImmutableOpenMap<String, Set<Index>> aliasedIndices = getAliasedIndices(indicesMap);
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
                 // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
@@ -2397,6 +2393,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 Version.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
+        }
+
+        private ImmutableOpenMap<String, Set<Index>> getAliasedIndices(ImmutableOpenMap<String, IndexMetadata> indicesMap) {
+            var aliasedIndices = this.aliasedIndices.build();
+            for (var entry : aliasedIndices.entrySet()) {
+                List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
+                validateAlias(entry.getKey(), aliasIndices);
+            }
+            return aliasedIndices;
         }
 
         private static void populateSha256HashesInUse(Set<String> sha256HashesInUse, IndexMetadata indexMetadata) {

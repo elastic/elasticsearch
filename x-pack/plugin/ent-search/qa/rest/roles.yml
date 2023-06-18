@@ -2,6 +2,7 @@ admin:
   cluster:
     - manage_search_application
     - manage_behavioral_analytics
+    - manage
     - monitor
   indices:
     - names: [

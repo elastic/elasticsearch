@@ -245,7 +245,7 @@ public class SimpleRoleTests extends ESTestCase {
         assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLength(8)), equalTo(RoleDescriptorsIntersection.EMPTY));
     }
 
-    public void testBuildFromRoleDescriptorWithWorkflowsRestriction() {
+    public void testForWorkflowWithRestriction() {
         final SimpleRole role = Role.buildFromRoleDescriptor(
             new RoleDescriptor(
                 "r1",
@@ -265,5 +265,20 @@ public class SimpleRoleTests extends ESTestCase {
         );
 
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+        assertThat(role.forWorkflow(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()), equalTo(role));
+        assertThat(role.forWorkflow(randomFrom(randomAlphaOfLength(9), null, "")), equalTo(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+    }
+
+    public void testForWorkflowWithoutRestriction() {
+        final SimpleRole role = Role.buildFromRoleDescriptor(
+            new RoleDescriptor("r1", null, null, null, null, null, null, null, null, null),
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of()
+        );
+
+        assertThat(role.hasWorkflowsRestriction(), equalTo(false));
+        String workflow = randomFrom(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name(), null, "", randomAlphaOfLength(9));
+        assertThat(role.forWorkflow(workflow), equalTo(role));
     }
 }

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -1087,6 +1088,32 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
         assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias), indexGroup("index-1"));
+    }
+
+    public void testBuildRoleFromDescriptorsWithSingleRestriction() {
+        Role role = buildRole(RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true));
+        assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+    }
+
+    public void testBuildRoleFromDescriptorsWithViolationOfRestrictionValidation() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildRole(
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true),
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true)
+            )
+        );
+        assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not allowed"));
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildRole(
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true),
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false),
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false)
+            )
+        );
+        assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not allowed"));
     }
 
     public void testBuildRoleWithFlsAndDlsInRemoteIndicesDefinition() {
@@ -2761,6 +2788,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            callback.onResponse(Collections.emptyList());
+            return null;
+        }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
         CompositeRolesStore.buildRoleFromDescriptors(
             Sets.newHashSet(roleDescriptors),
             cache,

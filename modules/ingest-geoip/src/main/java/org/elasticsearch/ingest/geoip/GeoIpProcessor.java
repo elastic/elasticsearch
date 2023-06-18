@@ -427,6 +427,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
 
+            // Validating the download_database_on_pipeline_creation even if the result
+            // is not used directly by the factory.
+            downloadDatabaseOnPipelineCreation(config, processorTag);
+
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
@@ -485,6 +489,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 firstOnly,
                 databaseFile
             );
+        }
+
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
+            return downloadDatabaseOnPipelineCreation(config, null);
+        }
+
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
+            return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
         }
 
         private static boolean useDatabaseUnavailableProcessor(GeoIpDatabase database, String databaseName) {

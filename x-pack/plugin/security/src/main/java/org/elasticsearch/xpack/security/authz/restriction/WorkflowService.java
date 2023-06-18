@@ -34,11 +34,7 @@ public class WorkflowService {
     }
 
     public String readWorkflowFromThreadContext(ThreadContext threadContext) {
-        String workflowName = threadContext.getHeader(WORKFLOW_HEADER);
-        if (workflowName == null) {
-            return null;
-        }
-        return workflowName;
+        return threadContext.getHeader(WORKFLOW_HEADER);
     }
 
     private Workflow resolveWorkflow(RestHandler restHandler) {

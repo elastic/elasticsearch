@@ -9,44 +9,35 @@ package org.elasticsearch.xpack.core.security.authz.restriction;
 
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
 public final class WorkflowsRestriction {
 
     /**
-     * Default behaviour is to allow access to all workflows if none are provided.
+     * Default behaviour is no restriction which allows all workflows.
      */
-    public static final WorkflowsRestriction NONE = new WorkflowsRestriction(Set.of());
+    public static final WorkflowsRestriction NONE = new WorkflowsRestriction(null);
 
     private final Set<String> names;
     private final Predicate<String> predicate;
 
     public WorkflowsRestriction(Set<String> names) {
-        this.names = Objects.requireNonNull(names);
-        this.predicate = StringMatcher.of(names);
+        assert names == null || names.size() > 0 : "workflow names cannot be an empty set";
+        this.names = names;
+        if (names != null) {
+            this.predicate = StringMatcher.of(names);
+        } else {
+            this.predicate = name -> true;
+        }
     }
 
     public boolean hasWorkflows() {
-        return this.names.size() > 0;
+        return this.names != null && this.names.size() > 0;
     }
 
     public boolean isWorkflowAllowed(String workflow) {
-        if (names.isEmpty()) {
-            return true;
-        }
-        if (workflow == null) {
-            return false;
-        }
         return predicate.test(workflow);
-    }
-
-    public static WorkflowsRestriction resolve(Set<String> names) {
-        if (names == null || names.isEmpty()) {
-            return WorkflowsRestriction.NONE;
-        }
-        return new WorkflowsRestriction(names);
     }
 
 }

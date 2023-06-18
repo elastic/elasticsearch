@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -63,7 +64,16 @@ public interface Role {
 
     boolean hasWorkflowsRestriction();
 
-    Role forWorkflow(String workflow);
+    /**
+     * This method returns an effective role for the given workflow if role has workflows restriction
+     * (i.e. {@link #hasWorkflowsRestriction} is true). Otherwise, this method returns an unchanged role.
+     *
+     * The returned effective role can be an {@link #EMPTY_RESTRICTED_BY_WORKFLOW} when the given workflow is
+     * not one of the workflows to which this role is restricted.
+     *
+     * The workflows to which a role can be restricted are static and defined in {@link WorkflowResolver}.
+     */
+    Role forWorkflow(@Nullable String workflow);
 
     /**
      * Whether the Role has any field or document level security enabled index privileges
@@ -271,7 +281,11 @@ public interface Role {
         }
 
         public Builder workflows(Set<String> workflowNames) {
-            this.workflowsRestriction = WorkflowsRestriction.resolve(workflowNames);
+            if (workflowNames == null || workflowNames.isEmpty()) {
+                this.workflowsRestriction = WorkflowsRestriction.NONE;
+            } else {
+                this.workflowsRestriction = new WorkflowsRestriction(workflowNames);
+            }
             return this;
         }
 

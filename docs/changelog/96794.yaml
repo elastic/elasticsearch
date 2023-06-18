@@ -1,5 +1,0 @@
-pr: 96794
-summary: Make TDigestState configurable
-area: Aggregations
-type: enhancement
-issues: []

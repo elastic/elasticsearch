@@ -1432,28 +1432,38 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (compareHashesOfConsistentAndTemplate(metadata1, metadata2)) return false;
         if (compareClusterParameter(metadata1, metadata2)) return false;
         // Check if any persistent metadata needs to be saved
+        if (compareCustomMetadata(metadata1, metadata2)) return false;
+        if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean compareCustomMetadata(Metadata metadata1, Metadata metadata2) {
         int customCount1 = 0;
         for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
             if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
                 if (cursor.getValue().equals(metadata2.custom(cursor.getKey())) == false) {
-                    return false;
+                    return true;
                 }
                 customCount1++;
             }
         }
         int customCount2 = 0;
+        customCount2 = getCustomCount2(metadata2, customCount2);
+        if (customCount1 != customCount2) {
+            return true;
+        }
+        return false;
+    }
+
+    private static int getCustomCount2(Metadata metadata2, int customCount2) {
         for (Custom custom : metadata2.customs.values()) {
             if (custom.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
-        if (customCount1 != customCount2) {
-            return false;
-        }
-        if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
-            return false;
-        }
-        return true;
+        return customCount2;
     }
 
     private static boolean compareClusterParameter(Metadata metadata1, Metadata metadata2) {

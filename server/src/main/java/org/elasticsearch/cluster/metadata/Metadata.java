@@ -569,11 +569,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         switch (index.getState()) {
             case OPEN -> {
                 updatedOpenIndices = ArrayUtils.append(allOpenIndices, indexName);
-                if (index.isHidden() == false) {
-                    updatedVisibleOpenIndices = ArrayUtils.append(visibleOpenIndices, indexName);
-                } else {
-                    updatedVisibleOpenIndices = visibleOpenIndices;
-                }
+                updatedVisibleOpenIndices = getUpdatedVisibleOpenIndices(index, indexName);
                 updatedVisibleClosedIndices = visibleClosedIndices;
                 updatedClosedIndices = allClosedIndices;
             }
@@ -637,6 +633,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
             reservedStateMetadata
         );
+    }
+
+    private String[] getUpdatedVisibleOpenIndices(IndexMetadata index, String indexName) {
+        final String[] updatedVisibleOpenIndices;
+        if (index.isHidden() == false) {
+            updatedVisibleOpenIndices = ArrayUtils.append(visibleOpenIndices, indexName);
+        } else {
+            updatedVisibleOpenIndices = visibleOpenIndices;
+        }
+        return updatedVisibleOpenIndices;
     }
 
     private String[] getUpdatedVisibleIndices(IndexMetadata index, String indexName) {

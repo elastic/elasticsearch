@@ -1523,19 +1523,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         return Iterators.concat(start, Iterators.<ToXContent>single(getToXContent()),
             persistentSettings,
-            ChunkedToXContentHelper.wrapWithObject(
-                "templates",
-                templates().values()
-                    .stream()
-                    .map(
-                        template -> (ToXContent) (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(
-                            template,
-                            builder,
-                            params
-                        )
-                    )
-                    .iterator()
-            ),
+            getToXContentIterator(),
             indices,
             Iterators.flatMap(
                 customs.entrySet().iterator(),
@@ -1545,6 +1533,22 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             ),
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private Iterator<ToXContent> getToXContentIterator() {
+        return ChunkedToXContentHelper.wrapWithObject(
+            "templates",
+            templates().values()
+                .stream()
+                .map(
+                    template -> (ToXContent) (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(
+                        template,
+                        builder,
+                        params
+                    )
+                )
+                .iterator()
         );
     }
 

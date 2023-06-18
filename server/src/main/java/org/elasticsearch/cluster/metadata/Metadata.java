@@ -2618,17 +2618,22 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             for (String alias : aliasDuplicatesWithDataStreams) {
                 // reported var avoids adding a message twice if an index alias has the same name as a data stream.
                 boolean reported = false;
-                for (IndexMetadata cursor : indicesMap.values()) {
-                    if (cursor.getAliases().containsKey(alias)) {
-                        duplicates.add(alias + " (alias of " + cursor.getIndex() + ") conflicts with data stream");
-                        reported = true;
-                    }
-                }
+                reported = isReported(indicesMap, duplicates, alias, reported);
                 // This is for adding an error message for when a data steam alias has the same name as a data stream.
                 if (reported == false && dataStreamMetadata != null && dataStreamMetadata.dataStreams().containsKey(alias)) {
                     duplicates.add("data stream alias and data stream have the same name (" + alias + ")");
                 }
             }
+        }
+
+        private static boolean isReported(ImmutableOpenMap<String, IndexMetadata> indicesMap, ArrayList<String> duplicates, String alias, boolean reported) {
+            for (IndexMetadata cursor : indicesMap.values()) {
+                if (cursor.getAliases().containsKey(alias)) {
+                    duplicates.add(alias + " (alias of " + cursor.getIndex() + ") conflicts with data stream");
+                    reported = true;
+                }
+            }
+            return reported;
         }
 
         /**

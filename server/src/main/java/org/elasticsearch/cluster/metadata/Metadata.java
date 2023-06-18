@@ -1428,12 +1428,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
-        if (metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata) == false) {
-            return false;
-        }
-        if (metadata1.persistentSettings.equals(metadata2.persistentSettings) == false) {
-            return false;
-        }
+        if (compareCoordinationAndPersistent(metadata1, metadata2)) return false;
         if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
             return false;
         }
@@ -1469,6 +1464,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return false;
         }
         return true;
+    }
+
+    private static boolean compareCoordinationAndPersistent(Metadata metadata1, Metadata metadata2) {
+        if (metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata) == false) {
+            return true;
+        }
+        if (metadata1.persistentSettings.equals(metadata2.persistentSettings) == false) {
+            return true;
+        }
+        return false;
     }
 
     @Override

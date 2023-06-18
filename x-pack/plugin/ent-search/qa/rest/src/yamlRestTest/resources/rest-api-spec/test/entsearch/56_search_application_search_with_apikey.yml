@@ -109,6 +109,9 @@ setup:
           field3: value3
         refresh: true
 
+  - do:
+      search_application.put_behavioral_analytics:
+        name: my-test-analytics-collection
 ---
 teardown:
   - do:
@@ -141,6 +144,10 @@ teardown:
         index: test-index
         ignore: 404
 
+  - do:
+      search_application.delete_behavioral_analytics:
+        name: my-test-analytics-collection
+
 ---
 "Query Search Application with API key":
   - skip:
@@ -154,6 +161,7 @@ teardown:
             "name": "search-application-api-key",
             "role_descriptors": {
               "role": {
+                "cluster": [ "manage_behavioral_analytics" ],
                 "index": [
                   {
                     "names": ["*"],
@@ -172,7 +180,6 @@ teardown:
   - set: { id: api_key_id }
 
 # Query Search Application with default parameters:
-
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -185,7 +192,6 @@ teardown:
 
 
 # Query Search Application overriding part of the parameters:
-
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -200,7 +206,6 @@ teardown:
   - match: { hits.hits.0._id: "doc1" }
 
 # Query Search Application overriding all parameters:
-
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -216,7 +221,6 @@ teardown:
   - match: { hits.hits.0._id: "doc2" }
 
 # Query Search Application with list of parameters:
-
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -238,7 +242,6 @@ teardown:
   - match: { hits.hits.0._id: "doc2" }
 
 # Query Search Application with invalid parameter validation:
-
   - do:
       catch: "bad_request"
       headers:
@@ -251,7 +254,6 @@ teardown:
             field_value: 35
 
 # Query Search Application without required parameter:
-
   - do:
       catch: "bad_request"
       headers:
@@ -263,9 +265,8 @@ teardown:
             field_value: test
 
 # Query Search Application - not found:
-
   - do:
-      catch: "forbidden"
+      catch: forbidden
       headers:
         Authorization: ApiKey ${api_key_encoded}
       search_application.search:
@@ -274,6 +275,18 @@ teardown:
           params:
             field_name: field3
             field_value: value3
+
+# Get Analytics Collection should be rejected due to a workflow restriction
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: ApiKey ${api_key_encoded}
+      search_application.get_behavioral_analytics:
+        name:
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.root_cause.0.type: access_restricted_exception }
+  - match: { error.root_cause.0.reason: "access restricted by workflow" }
 
 # Remove Test API Key:
   - do:

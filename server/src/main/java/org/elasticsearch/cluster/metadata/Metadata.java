@@ -565,21 +565,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         UpdatedOpenCloseIndices updatedOpenCloseIndices = getUpdatedOpenCloseIndices(index, indexName);
 
         final MappingMetadata mappingMetadata = index.mapping();
-        final Map<String, MappingMetadata> updatedMappingsByHash;
-        if (mappingMetadata == null) {
-            updatedMappingsByHash = mappingsByHash;
-        } else {
-            final MappingMetadata existingMapping = mappingsByHash.get(mappingMetadata.getSha256());
-            if (existingMapping != null) {
-                index = index.withMappingMetadata(existingMapping);
-                updatedMappingsByHash = mappingsByHash;
-            } else {
-                updatedMappingsByHash = Maps.copyMapWithAddedEntry(mappingsByHash, mappingMetadata.getSha256(), mappingMetadata);
-            }
-        }
+        IndexAndUpdatedMapByHash indexAndUpdatedMapByHash = getIndexAndUpdatedMapByHash(index, mappingMetadata);
 
         final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
-        builder.put(indexName, index);
+        builder.put(indexName, indexAndUpdatedMapByHash.index());
         final ImmutableOpenMap<String, IndexMetadata> indicesMap = builder.build();
         for (var entry : updatedAliases.entrySet()) {
             List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
@@ -594,8 +583,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards + index.getTotalNumberOfShards(),
-            totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
+            totalNumberOfShards + indexAndUpdatedMapByHash.index().getTotalNumberOfShards(),
+            totalOpenIndexShards + (indexAndUpdatedMapByHash.index().getState() == IndexMetadata.State.OPEN ? indexAndUpdatedMapByHash.index().getTotalNumberOfShards() : 0),
             indicesMap,
             updatedAliases,
             templates,
@@ -607,10 +596,30 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             updatedOpenCloseIndices.updatedClosedIndices(),
             updatedOpenCloseIndices.updatedVisibleClosedIndices(),
             null,
-            updatedMappingsByHash,
-            index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
+            indexAndUpdatedMapByHash.updatedMappingsByHash(),
+            indexAndUpdatedMapByHash.index().getCompatibilityVersion().before(oldestIndexVersion) ? indexAndUpdatedMapByHash.index().getCompatibilityVersion() : oldestIndexVersion,
             reservedStateMetadata
         );
+    }
+
+    private IndexAndUpdatedMapByHash getIndexAndUpdatedMapByHash(IndexMetadata index, MappingMetadata mappingMetadata) {
+        final Map<String, MappingMetadata> updatedMappingsByHash;
+        if (mappingMetadata == null) {
+            updatedMappingsByHash = mappingsByHash;
+        } else {
+            final MappingMetadata existingMapping = mappingsByHash.get(mappingMetadata.getSha256());
+            if (existingMapping != null) {
+                index = index.withMappingMetadata(existingMapping);
+                updatedMappingsByHash = mappingsByHash;
+            } else {
+                updatedMappingsByHash = Maps.copyMapWithAddedEntry(mappingsByHash, mappingMetadata.getSha256(), mappingMetadata);
+            }
+        }
+        IndexAndUpdatedMapByHash indexAndUpdatedMapByHash = new IndexAndUpdatedMapByHash(index, updatedMappingsByHash);
+        return indexAndUpdatedMapByHash;
+    }
+
+    private record IndexAndUpdatedMapByHash(IndexMetadata index, Map<String, MappingMetadata> updatedMappingsByHash) {
     }
 
     private UpdatedOpenCloseIndices getUpdatedOpenCloseIndices(IndexMetadata index, String indexName) {

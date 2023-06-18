@@ -562,25 +562,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         final String[] updatedVisibleIndices = getUpdatedVisibleIndices(index, indexName);
 
         final String[] updatedAllIndices = ArrayUtils.append(allIndices, indexName);
-        final String[] updatedOpenIndices;
-        final String[] updatedClosedIndices;
-        final String[] updatedVisibleOpenIndices;
-        final String[] updatedVisibleClosedIndices;
-        switch (index.getState()) {
-            case OPEN -> {
-                updatedOpenIndices = ArrayUtils.append(allOpenIndices, indexName);
-                updatedVisibleOpenIndices = getUpdatedVisibleOpenIndices(index, indexName);
-                updatedVisibleClosedIndices = visibleClosedIndices;
-                updatedClosedIndices = allClosedIndices;
-            }
-            case CLOSE -> {
-                updatedOpenIndices = allOpenIndices;
-                updatedClosedIndices = ArrayUtils.append(allClosedIndices, indexName);
-                updatedVisibleOpenIndices = visibleOpenIndices;
-                updatedVisibleClosedIndices = getUpdatedVisibleClosedIndices(index, indexName);
-            }
-            default -> throw new AssertionError("impossible, index is either open or closed");
-        }
+        UpdatedOpenCloseIndices updatedOpenCloseIndices = getUpdatedOpenCloseIndices(index, indexName);
 
         final MappingMetadata mappingMetadata = index.mapping();
         final Map<String, MappingMetadata> updatedMappingsByHash;
@@ -620,15 +602,42 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             customs,
             updatedAllIndices,
             updatedVisibleIndices,
-            updatedOpenIndices,
-            updatedVisibleOpenIndices,
-            updatedClosedIndices,
-            updatedVisibleClosedIndices,
+            updatedOpenCloseIndices.updatedOpenIndices(),
+            updatedOpenCloseIndices.updatedVisibleOpenIndices(),
+            updatedOpenCloseIndices.updatedClosedIndices(),
+            updatedOpenCloseIndices.updatedVisibleClosedIndices(),
             null,
             updatedMappingsByHash,
             index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
             reservedStateMetadata
         );
+    }
+
+    private UpdatedOpenCloseIndices getUpdatedOpenCloseIndices(IndexMetadata index, String indexName) {
+        final String[] updatedVisibleOpenIndices;
+        final String[] updatedOpenIndices;
+        final String[] updatedVisibleClosedIndices;
+        final String[] updatedClosedIndices;
+        switch (index.getState()) {
+            case OPEN -> {
+                updatedOpenIndices = ArrayUtils.append(allOpenIndices, indexName);
+                updatedVisibleOpenIndices = getUpdatedVisibleOpenIndices(index, indexName);
+                updatedVisibleClosedIndices = visibleClosedIndices;
+                updatedClosedIndices = allClosedIndices;
+            }
+            case CLOSE -> {
+                updatedOpenIndices = allOpenIndices;
+                updatedClosedIndices = ArrayUtils.append(allClosedIndices, indexName);
+                updatedVisibleOpenIndices = visibleOpenIndices;
+                updatedVisibleClosedIndices = getUpdatedVisibleClosedIndices(index, indexName);
+            }
+            default -> throw new AssertionError("impossible, index is either open or closed");
+        }
+        UpdatedOpenCloseIndices updatedOpenCloseIndices = new UpdatedOpenCloseIndices(updatedOpenIndices, updatedClosedIndices, updatedVisibleOpenIndices, updatedVisibleClosedIndices);
+        return updatedOpenCloseIndices;
+    }
+
+    private record UpdatedOpenCloseIndices(String[] updatedOpenIndices, String[] updatedClosedIndices, String[] updatedVisibleOpenIndices, String[] updatedVisibleClosedIndices) {
     }
 
     private String[] getUpdatedVisibleClosedIndices(IndexMetadata index, String indexName) {

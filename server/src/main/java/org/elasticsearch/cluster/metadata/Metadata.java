@@ -2708,6 +2708,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             validateHiddenStatus(aliasName, indexMetadatas);
 
             // Validate system status
+            validateSystemStatus(aliasName, indexMetadatas);
+        }
+
+        private static void validateSystemStatus(String aliasName, List<IndexMetadata> indexMetadatas) {
             final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = indexMetadatas.stream()
                 .collect(Collectors.groupingBy(IndexMetadata::isSystem));
             // If the alias has either all system or all non-system, then no more validation is required

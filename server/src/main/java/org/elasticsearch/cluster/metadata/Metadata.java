@@ -1727,17 +1727,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         }
-        final Function<String, MappingMetadata> mappingLookup;
-        if (in.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
-            if (mappingMetadataMap.size() > 0) {
-                mappingLookup = mappingMetadataMap::get;
-            } else {
-                mappingLookup = null;
-            }
-        } else {
-            mappingLookup = null;
-        }
+        final Function<String, MappingMetadata> mappingLookup = buildMappingLookup(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
@@ -1758,6 +1748,21 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
         }
         return builder.build();
+    }
+
+    private static Function<String, MappingMetadata> buildMappingLookup(StreamInput in) throws IOException {
+        final Function<String, MappingMetadata> mappingLookup;
+        if (in.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
+            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+            if (mappingMetadataMap.size() > 0) {
+                mappingLookup = mappingMetadataMap::get;
+            } else {
+                mappingLookup = null;
+            }
+        } else {
+            mappingLookup = null;
+        }
+        return mappingLookup;
     }
 
     @Override

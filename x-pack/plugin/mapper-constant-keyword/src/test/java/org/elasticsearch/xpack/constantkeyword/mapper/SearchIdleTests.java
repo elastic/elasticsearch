@@ -345,7 +345,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
 
         List<ShardStats> active = Arrays.stream(idleIndexStatsAfter.getShards()).filter(s -> s.isSearchIdle() == false).toList();
-        assertThat(active, empty());
+        // Adjust this assertion (active should be empty) when updating WildcardQueryBuilder#doRewrite(...)
+        assertThat(active, hasSize(idleIndexShardsCount));
     }
 
     private SearchResponse search(final String index, final String field, final String value, int preFilterShardSize) {

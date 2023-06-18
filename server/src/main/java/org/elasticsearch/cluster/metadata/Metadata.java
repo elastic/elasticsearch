@@ -2332,10 +2332,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 final IndexMetadata indexMetadata = entry.getValue();
                 totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
                 final String name = indexMetadata.getIndex().getName();
-                final boolean visible = indexMetadata.isHidden() == false;
-                if (visible) {
-                    visibleIndices.add(name);
-                }
+                final boolean visible = isVisible(visibleIndices, indexMetadata, name);
                 totalOpenIndexShards = getOpenIndexShards(allOpenIndices, visibleOpenIndices, allClosedIndices, visibleClosedIndices, totalOpenIndexShards, indexMetadata, name, visible);
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
                 populateSha256HashesInUse(sha256HashesInUse, indexMetadata);
@@ -2384,6 +2381,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 Version.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
+        }
+
+        private static boolean isVisible(List<String> visibleIndices, IndexMetadata indexMetadata, String name) {
+            final boolean visible = indexMetadata.isHidden() == false;
+            if (visible) {
+                visibleIndices.add(name);
+            }
+            return visible;
         }
 
         private SortedMap<String, IndexAbstraction> getIndicesLookup(boolean skipNameCollisionChecks, ImmutableOpenMap<String, IndexMetadata> indicesMap, ImmutableOpenMap<String, Set<Index>> aliasedIndices) {

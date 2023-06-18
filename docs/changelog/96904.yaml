@@ -1,0 +1,12 @@
+pr: 96904
+summary: Switch TDigestState to use `HybridDigest` by default
+area: Aggregations
+type: breaking
+issues: []
+breaking:
+  title: Switch TDigestState to use `HybridDigest` by default
+  area: Aggregations
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

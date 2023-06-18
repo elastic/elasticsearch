@@ -2705,22 +2705,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             validateSingleWriteIndex(aliasName, indexMetadatas);
 
             // Validate hidden status
-            final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
-                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
-            if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
-                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream().map(idx -> idx.getIndex().getName()).toList();
-                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream().map(idx -> idx.getIndex().getName()).toList();
-                throw new IllegalStateException(
-                    "alias ["
-                        + aliasName
-                        + "] has is_hidden set to true on indices ["
-                        + Strings.collectionToCommaDelimitedString(hiddenOn)
-                        + "] but does not have is_hidden set to true on indices ["
-                        + Strings.collectionToCommaDelimitedString(nonHiddenOn)
-                        + "]; alias must have the same is_hidden setting "
-                        + "on all indices"
-                );
-            }
+            validateHiddenStatus(aliasName, indexMetadatas);
 
             // Validate system status
             final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = indexMetadatas.stream()
@@ -2751,6 +2736,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                             + " non-system indices, not both"
                     );
                 }
+            }
+        }
+
+        private static void validateHiddenStatus(String aliasName, List<IndexMetadata> indexMetadatas) {
+            final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
+                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
+            if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
+                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream().map(idx -> idx.getIndex().getName()).toList();
+                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream().map(idx -> idx.getIndex().getName()).toList();
+                throw new IllegalStateException(
+                    "alias ["
+                        + aliasName
+                        + "] has is_hidden set to true on indices ["
+                        + Strings.collectionToCommaDelimitedString(hiddenOn)
+                        + "] but does not have is_hidden set to true on indices ["
+                        + Strings.collectionToCommaDelimitedString(nonHiddenOn)
+                        + "]; alias must have the same is_hidden setting "
+                        + "on all indices"
+                );
             }
         }
 

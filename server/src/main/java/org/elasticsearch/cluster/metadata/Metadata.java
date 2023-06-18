@@ -2342,16 +2342,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
 
             ImmutableOpenMap<String, Set<Index>> aliasedIndices = getAliasedIndices(indicesMap);
-            SortedMap<String, IndexAbstraction> indicesLookup = null;
-            if (previousIndicesLookup != null) {
-                // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
-                indicesLookup = previousIndicesLookup;
-            } else if (skipNameCollisionChecks == false) {
-                // we have changes to the the entity names so we ensure we have no naming collisions
-                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
-            }
-            assert assertDataStreams(indicesMap, dataStreamMetadata());
+            SortedMap<String, IndexAbstraction> indicesLookup = getIndicesLookup(skipNameCollisionChecks, indicesMap, aliasedIndices);
 
             if (sha256HashesInUse != null) {
                 mappingsByHash.keySet().retainAll(sha256HashesInUse);
@@ -2393,6 +2384,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 Version.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
+        }
+
+        private SortedMap<String, IndexAbstraction> getIndicesLookup(boolean skipNameCollisionChecks, ImmutableOpenMap<String, IndexMetadata> indicesMap, ImmutableOpenMap<String, Set<Index>> aliasedIndices) {
+            SortedMap<String, IndexAbstraction> indicesLookup = null;
+            if (previousIndicesLookup != null) {
+                // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
+                indicesLookup = previousIndicesLookup;
+            } else if (skipNameCollisionChecks == false) {
+                // we have changes to the the entity names so we ensure we have no naming collisions
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
+            }
+            assert assertDataStreams(indicesMap, dataStreamMetadata());
+            return indicesLookup;
         }
 
         private ImmutableOpenMap<String, Set<Index>> getAliasedIndices(ImmutableOpenMap<String, IndexMetadata> indicesMap) {

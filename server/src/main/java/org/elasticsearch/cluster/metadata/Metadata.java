@@ -559,12 +559,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         ensureNoNameCollision(indexName);
         final Map<String, AliasMetadata> aliases = index.getAliases();
         final ImmutableOpenMap<String, Set<Index>> updatedAliases = aliasesAfterAddingIndex(index, aliases);
-        final String[] updatedVisibleIndices;
-        if (index.isHidden()) {
-            updatedVisibleIndices = visibleIndices;
-        } else {
-            updatedVisibleIndices = ArrayUtils.append(visibleIndices, indexName);
-        }
+        final String[] updatedVisibleIndices = getUpdatedVisibleIndices(index, indexName);
 
         final String[] updatedAllIndices = ArrayUtils.append(allIndices, indexName);
         final String[] updatedOpenIndices;
@@ -642,6 +637,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
             reservedStateMetadata
         );
+    }
+
+    private String[] getUpdatedVisibleIndices(IndexMetadata index, String indexName) {
+        final String[] updatedVisibleIndices;
+        if (index.isHidden()) {
+            updatedVisibleIndices = visibleIndices;
+        } else {
+            updatedVisibleIndices = ArrayUtils.append(visibleIndices, indexName);
+        }
+        return updatedVisibleIndices;
     }
 
     private ImmutableOpenMap<String, Set<Index>> aliasesAfterAddingIndex(IndexMetadata index, Map<String, AliasMetadata> aliases) {

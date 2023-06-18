@@ -1133,15 +1133,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     private static String resolveRouting(@Nullable String routing, String aliasOrIndex, AliasMetadata aliasMd) {
         if (aliasMd.indexRouting() != null) {
-            if (aliasMd.indexRouting().indexOf(',') != -1) {
-                throw new IllegalArgumentException(
-                    "index/alias ["
-                        + aliasOrIndex
-                        + "] provided with routing value ["
-                        + aliasMd.getIndexRouting()
-                        + "] that resolved to several routing values, rejecting operation"
-                );
-            }
+            validateRoutingValue(aliasOrIndex, aliasMd);
             if (routing != null) {
                 if (routing.equals(aliasMd.indexRouting()) == false) {
                     throw new IllegalArgumentException(
@@ -1159,6 +1151,18 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return aliasMd.indexRouting();
         }
         return routing;
+    }
+
+    private static void validateRoutingValue(String aliasOrIndex, AliasMetadata aliasMd) {
+        if (aliasMd.indexRouting().indexOf(',') != -1) {
+            throw new IllegalArgumentException(
+                "index/alias ["
+                    + aliasOrIndex
+                    + "] provided with routing value ["
+                    + aliasMd.getIndexRouting()
+                    + "] that resolved to several routing values, rejecting operation"
+            );
+        }
     }
 
     private static void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {

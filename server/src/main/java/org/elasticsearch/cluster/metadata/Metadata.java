@@ -2631,20 +2631,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             final var dataStreams = dataStreamMetadata.dataStreams();
-            for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
-                IndexAbstraction existing = indicesLookup.put(alias.getName(), makeDsAliasAbstraction(dataStreams, alias));
-                assert existing == null : "duplicate data stream alias for " + alias.getName();
-            }
-            for (DataStream dataStream : dataStreams.values()) {
-                assert dataStream.getIndices().isEmpty() == false;
-
-                IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dataStream);
-                assert existing == null : "duplicate data stream for " + dataStream.getName();
-
-                for (Index i : dataStream.getIndices()) {
-                    indexToDataStreamLookup.put(i.getName(), dataStream);
-                }
-            }
+            buildIndexLookupMap(dataStreamMetadata, indicesLookup, indexToDataStreamLookup, dataStreams);
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
             for (var entry : indices.entrySet()) {
@@ -2669,6 +2656,23 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
 
             return Collections.unmodifiableSortedMap(indicesLookup);
+        }
+
+        private static void buildIndexLookupMap(DataStreamMetadata dataStreamMetadata, SortedMap<String, IndexAbstraction> indicesLookup, Map<String, DataStream> indexToDataStreamLookup, Map<String, DataStream> dataStreams) {
+            for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
+                IndexAbstraction existing = indicesLookup.put(alias.getName(), makeDsAliasAbstraction(dataStreams, alias));
+                assert existing == null : "duplicate data stream alias for " + alias.getName();
+            }
+            for (DataStream dataStream : dataStreams.values()) {
+                assert dataStream.getIndices().isEmpty() == false;
+
+                IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dataStream);
+                assert existing == null : "duplicate data stream for " + dataStream.getName();
+
+                for (Index i : dataStream.getIndices()) {
+                    indexToDataStreamLookup.put(i.getName(), dataStream);
+                }
+            }
         }
 
         private static IndexAbstraction.Alias makeDsAliasAbstraction(Map<String, DataStream> dataStreams, DataStreamAlias alias) {

@@ -1134,23 +1134,27 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private static String resolveRouting(@Nullable String routing, String aliasOrIndex, AliasMetadata aliasMd) {
         if (aliasMd.indexRouting() != null) {
             validateRoutingValue(aliasOrIndex, aliasMd);
-            if (routing != null) {
-                if (routing.equals(aliasMd.indexRouting()) == false) {
-                    throw new IllegalArgumentException(
-                        "Alias ["
-                            + aliasOrIndex
-                            + "] has index routing associated with it ["
-                            + aliasMd.indexRouting()
-                            + "], and was provided with routing value ["
-                            + routing
-                            + "], rejecting operation"
-                    );
-                }
-            }
+            validateRoutingAndAlias(routing, aliasOrIndex, aliasMd);
             // Alias routing overrides the parent routing (if any).
             return aliasMd.indexRouting();
         }
         return routing;
+    }
+
+    private static void validateRoutingAndAlias(String routing, String aliasOrIndex, AliasMetadata aliasMd) {
+        if (routing != null) {
+            if (routing.equals(aliasMd.indexRouting()) == false) {
+                throw new IllegalArgumentException(
+                    "Alias ["
+                        + aliasOrIndex
+                        + "] has index routing associated with it ["
+                        + aliasMd.indexRouting()
+                        + "], and was provided with routing value ["
+                        + routing
+                        + "], rejecting operation"
+                );
+            }
+        }
     }
 
     private static void validateRoutingValue(String aliasOrIndex, AliasMetadata aliasMd) {

@@ -2636,13 +2636,17 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
             getAliasToIndices(indices, indicesLookup, indexToDataStreamLookup, aliasToIndices);
 
+            populateIndicesWithAliases(indicesLookup, aliasToIndices);
+
+            return Collections.unmodifiableSortedMap(indicesLookup);
+        }
+
+        private static void populateIndicesWithAliases(SortedMap<String, IndexAbstraction> indicesLookup, Map<String, List<IndexMetadata>> aliasToIndices) {
             for (var entry : aliasToIndices.entrySet()) {
                 AliasMetadata alias = entry.getValue().get(0).getAliases().get(entry.getKey());
                 IndexAbstraction existing = indicesLookup.put(entry.getKey(), new IndexAbstraction.Alias(alias, entry.getValue()));
                 assert existing == null : "duplicate for " + entry.getKey();
             }
-
-            return Collections.unmodifiableSortedMap(indicesLookup);
         }
 
         private static void getAliasToIndices(ImmutableOpenMap<String, IndexMetadata> indices, SortedMap<String, IndexAbstraction> indicesLookup, Map<String, DataStream> indexToDataStreamLookup, Map<String, List<IndexMetadata>> aliasToIndices) {

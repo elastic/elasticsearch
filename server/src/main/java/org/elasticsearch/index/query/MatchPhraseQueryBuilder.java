@@ -157,24 +157,26 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
-        if (sec == null) {
-            return this;
-        }
+    protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+        return doMappingMetadataAwareRewrite(searchExecutionContext);
+    }
+
+    @Override
+    protected QueryBuilder doMappingMetadataAwareRewrite(QueryRewriteContext context) throws IOException {
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
         // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
-        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(context);
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
-            return termQueryBuilder.rewrite(sec);
+            return termQueryBuilder.rewrite(context);
+        } else {
+            return this;
         }
-        return this;
     }
 
-    private NamedAnalyzer configuredAnalyzer(SearchExecutionContext context) {
+    private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);
         }

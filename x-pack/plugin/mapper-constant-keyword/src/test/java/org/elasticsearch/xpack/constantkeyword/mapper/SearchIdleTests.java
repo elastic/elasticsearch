@@ -40,6 +40,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+
 public class SearchIdleTests extends ESSingleNodeTestCase {
 
     @Override
@@ -138,6 +142,13 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
 
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
+
+        // If no shards match the can match phase then at least one shard gets queries for an empty response.
+        // However, this affects the search idle stats.
+        List<ShardStats> active = Arrays.stream(afterStatsResponse.getShards()).filter(s -> s.isSearchIdle() == false).toList();
+        assertThat(active, hasSize(1));
+        assertThat(active.get(0).getShardRouting().getIndexName(), equalTo("test1"));
+        assertThat(active.get(0).getShardRouting().id(), equalTo(0));
     }
 
     public void testSearchIdleConstantKeywordMatchOneIndex() throws InterruptedException {
@@ -202,6 +213,9 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // THEN
         final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
+
+        List<ShardStats> active = Arrays.stream(idleIndexStatsAfter.getShards()).filter(s -> s.isSearchIdle() == false).toList();
+        assertThat(active, empty());
     }
 
     public void testSearchIdleConstantKeywordMatchTwoIndices() throws InterruptedException {
@@ -329,6 +343,9 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
         final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
+
+        List<ShardStats> active = Arrays.stream(idleIndexStatsAfter.getShards()).filter(s -> s.isSearchIdle() == false).toList();
+        assertThat(active, empty());
     }
 
     private SearchResponse search(final String index, final String field, final String value, int preFilterShardSize) {

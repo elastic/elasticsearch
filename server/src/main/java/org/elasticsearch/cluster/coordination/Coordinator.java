@@ -1469,8 +1469,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 .blocks(clusterState.blocks())
                 .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 .build();
-            final DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
-            return ClusterState.builder(clusterState).blocks(clusterBlocks).nodes(discoveryNodes).build();
+            return ClusterState.builder(clusterState).blocks(clusterBlocks).nodes(clusterState.nodes().withMasterNodeId(null)).build();
         } else {
             return clusterState;
         }

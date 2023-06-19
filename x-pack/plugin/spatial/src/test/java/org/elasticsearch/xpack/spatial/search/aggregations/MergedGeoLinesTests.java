@@ -46,7 +46,7 @@ public class MergedGeoLinesTests extends ESTestCase {
         // assert that the mergedGeoLines are sorted (does not necessarily validate correctness, but it is a good heuristic)
         long[] sortedPoints = Arrays.copyOf(mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalPoints().length);
         double[] sortedValues = Arrays.copyOf(mergedGeoLines.getFinalSortValues(), mergedGeoLines.getFinalSortValues().length);
-        new PathArraySorter(sortedPoints, sortedValues, sortOrder).sort();
+        PathArraySorter.forOrder(sortOrder).apply(sortedPoints, sortedValues).sort();
         assertArrayEquals(sortedValues, mergedGeoLines.getFinalSortValues(), 0d);
         assertArrayEquals(sortedPoints, mergedGeoLines.getFinalPoints());
     }
@@ -72,7 +72,7 @@ public class MergedGeoLinesTests extends ESTestCase {
         // assert that the mergedGeoLines are sorted (does not necessarily validate correctness, but it is a good heuristic)
         long[] sortedPoints = Arrays.copyOf(mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalPoints().length);
         double[] sortedValues = Arrays.copyOf(mergedGeoLines.getFinalSortValues(), mergedGeoLines.getFinalSortValues().length);
-        new PathArraySorter(sortedPoints, sortedValues, sortOrder).sort();
+        PathArraySorter.forOrder(sortOrder).apply(sortedPoints, sortedValues).sort();
         assertArrayEquals(sortedValues, mergedGeoLines.getFinalSortValues(), 0d);
         assertArrayEquals(sortedPoints, mergedGeoLines.getFinalPoints());
     }

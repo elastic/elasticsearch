@@ -221,9 +221,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             ShardRoutingState.STARTED,
             ShardRoutingState.INITIALIZING
         );
-        state = ClusterState.builder(state)
-            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
-            .build();
+        state = ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(state.nodes().getLocalNodeId())).build();
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState previousState = ClusterState.builder(state)

@@ -15,6 +15,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -193,7 +196,7 @@ public class SynonymsManagementAPIService {
         return new SynonymRule((String) sourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) sourceAsMap.get(SYNONYMS_FIELD));
     }
 
-    public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsResult> listener) {
+    public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsSetResult> listener) {
         deleteSynonymsSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
             boolean created = bulkByScrollResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
@@ -219,8 +222,20 @@ public class SynonymsManagementAPIService {
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
                     if (bulkResponse.hasFailures() == false) {
-                        UpdateSynonymsResult result = created ? UpdateSynonymsResult.CREATED : UpdateSynonymsResult.UPDATED;
-                        bulkResponseListener.onResponse(result);
+                        UpdateSynonymsResultStatus updateSynonymsResultStatus = created
+                            ? UpdateSynonymsResultStatus.CREATED
+                            : UpdateSynonymsResultStatus.UPDATED;
+
+                        // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
+                        // TODO: reload only those analyzers that use this synonymsSet
+                        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest("*");
+                        client.execute(
+                            ReloadAnalyzerAction.INSTANCE,
+                            reloadAnalyzersRequest,
+                            bulkResponseListener.delegateFailure((reloadResponseListener, reloadResponse) -> {
+                                reloadResponseListener.onResponse(new UpdateSynonymsSetResult(updateSynonymsResultStatus, reloadResponse));
+                            })
+                        );
                     } else {
                         bulkResponseListener.onFailure(
                             new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
@@ -289,8 +304,8 @@ public class SynonymsManagementAPIService {
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }
 
-    public void deleteSynonymsSet(String resourceName, ActionListener<AcknowledgedResponse> listener) {
-        deleteSynonymsSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
+    public void deleteSynonymsSet(String resourceName, ActionListener<DeleteSynonymsSetResult> listener) {
+        deleteSynonymSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
             if (bulkByScrollResponse.getDeleted() == 0) {
                 // If nothing was deleted, synonym set did not exist
                 l.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
@@ -307,7 +322,16 @@ public class SynonymsManagementAPIService {
                 return;
             }
 
-            listener.onResponse(AcknowledgedResponse.of(true));
+            // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
+            // TODO: reload only those analyzers that use this synonymsSet
+            ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest("*");
+            client.execute(
+                ReloadAnalyzerAction.INSTANCE,
+                reloadAnalyzersRequest,
+                listener.delegateFailure((reloadResponseListener, reloadResponse) -> {
+                    reloadResponseListener.onResponse(new DeleteSynonymsSetResult(AcknowledgedResponse.of(true), reloadResponse));
+                })
+            );
         }));
     }
 
@@ -330,10 +354,14 @@ public class SynonymsManagementAPIService {
             .build();
     }
 
-    public enum UpdateSynonymsResult {
+    public enum UpdateSynonymsResultStatus {
         CREATED,
         UPDATED
     }
+
+    public record UpdateSynonymsSetResult(UpdateSynonymsResultStatus updateStatus, ReloadAnalyzersResponse reloadAnalyzersResponse) {}
+
+    public record DeleteSynonymsSetResult(AcknowledgedResponse acknowledgedResponse, ReloadAnalyzersResponse reloadAnalyzersResponse) {}
 
     // Listeners that checks failures for IndexNotFoundException, and transforms them in ResourceNotFoundException,
     // invoking onFailure on the delegate listener

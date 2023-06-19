@@ -17,7 +17,7 @@ import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutSynonymsAction extends HandledTransportAction<PutSynonymsAction.Request, SynonymUpdateResponse> {
+public class TransportPutSynonymsAction extends HandledTransportAction<PutSynonymsAction.Request, PutSynonymsAction.Response> {
 
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
@@ -29,11 +29,11 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
     }
 
     @Override
-    protected void doExecute(Task task, PutSynonymsAction.Request request, ActionListener<SynonymUpdateResponse> listener) {
+    protected void doExecute(Task task, PutSynonymsAction.Request request, ActionListener<PutSynonymsAction.Response> listener) {
         synonymsManagementAPIService.putSynonymsSet(
             request.synonymsSetId(),
             request.synonymRules(),
-            listener.map(SynonymUpdateResponse::new)
+            listener.map(ur -> new PutSynonymsAction.Response(ur.updateStatus(), ur.reloadAnalyzersResponse()))
         );
     }
 }

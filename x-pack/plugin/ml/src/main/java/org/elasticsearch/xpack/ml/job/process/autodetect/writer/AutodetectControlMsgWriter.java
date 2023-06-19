@@ -79,6 +79,11 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
     public static final String BACKGROUND_PERSIST_MESSAGE_CODE = "w";
 
     /**
+     * This must match the code defined in the api::CAnomalyJob C++ class.
+     */
+    public static final String REFRESH_REQUIRED_MESSAGE_CODE = "z";
+
+    /**
      * An number to uniquely identify each flush so that subsequent code can
      * wait for acknowledgement of the correct flush.
      */
@@ -143,6 +148,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         if (params.shouldCalculateInterim()) {
             writeControlCodeFollowedByTimeRange(INTERIM_MESSAGE_CODE, params.getStart(), params.getEnd());
         }
+        writeMessage(REFRESH_REQUIRED_MESSAGE_CODE + params.isRefreshRequired());
     }
 
     /**

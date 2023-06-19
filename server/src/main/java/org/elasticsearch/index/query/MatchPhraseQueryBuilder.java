@@ -158,11 +158,11 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
 
     @Override
     protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
-        return doMappingMetadataAwareRewrite(searchExecutionContext);
+        return doIndexMetadataRewrite(searchExecutionContext);
     }
 
     @Override
-    protected QueryBuilder doMappingMetadataAwareRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
         // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder

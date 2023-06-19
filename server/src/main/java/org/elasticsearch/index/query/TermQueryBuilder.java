@@ -169,11 +169,11 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
-        return doMappingMetadataAwareRewrite(searchExecutionContext);
+        return doIndexMetadataRewrite(searchExecutionContext);
     }
 
     @Override
-    protected QueryBuilder doMappingMetadataAwareRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder();

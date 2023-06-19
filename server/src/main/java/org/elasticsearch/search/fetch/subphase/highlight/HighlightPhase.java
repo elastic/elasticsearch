@@ -10,6 +10,9 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -117,7 +120,7 @@ public class HighlightPhase implements FetchSubPhase {
                 MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
 
                 // We should prevent highlighting if a field is anything but a text, match_only_text,
-                // or keyword field.
+                // keyword or constant_keyword field.
                 // However, someone might implement a custom field type that has text and still want to
                 // highlight on that. We cannot know in advance if the highlighter will be able to
                 // highlight such a field and so we do the following:
@@ -143,11 +146,27 @@ public class HighlightPhase implements FetchSubPhase {
                     sourceRequired = true;
                 }
 
-                Query highlightQuery = field.fieldOptions().highlightQuery();
-                if (fieldType instanceof ConstantFieldType) {
-                    highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
-                }
-                Query finalHighlightQuery = highlightQuery;
+                // Query highlightQuery = field.fieldOptions().highlightQuery();
+                // if (fieldType instanceof ConstantFieldType) {
+                // if (context.query() instanceof MatchAllDocsQuery ){
+                // highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+                // } else if (context.query() instanceof DisjunctionMaxQuery) {
+                // DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) context.query();
+                // for (Query anyQuery : disjunctionMaxQuery.getDisjuncts()) {
+                // if (anyQuery instanceof MatchAllDocsQuery){
+                // highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+                // }
+                // }
+                // }
+                // }
+                //// if (((ConstantFieldType)fieldType).termQuery(getValueForConstantFieldType(context, fieldType),
+                // context.getSearchExecutionContext()) instanceof MatchAllDocsQuery) {
+                //// highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+                //// }
+                //// }
+                // Query finalHighlightQuery = highlightQuery;
+                Query highlightQuery = getHighlighterQuery(context, field, fieldType);
+
                 builders.put(
                     fieldName,
                     hc -> new FieldHighlightContext(
@@ -156,7 +175,7 @@ public class HighlightPhase implements FetchSubPhase {
                         fieldType,
                         context,
                         hc,
-                        finalHighlightQuery == null ? query : finalHighlightQuery,
+                        highlightQuery == null ? query : highlightQuery,
                         sharedCache
                     )
                 );
@@ -164,6 +183,26 @@ public class HighlightPhase implements FetchSubPhase {
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
         }
         return new FieldContext(storedFieldsSpec, builders);
+    }
+
+    private Query getHighlighterQuery(FetchContext context, SearchHighlightContext.Field field, MappedFieldType fieldType) {
+        if (fieldType instanceof ConstantFieldType) {
+            return getHighlighterQueryForConstantFieldType(context, fieldType);
+        }
+        return field.fieldOptions().highlightQuery();
+    }
+
+    private Query getHighlighterQueryForConstantFieldType(FetchContext context, MappedFieldType fieldType) {
+        if (context.query() instanceof MatchAllDocsQuery) {
+            return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+        } else if (context.query() instanceof DisjunctionMaxQuery disjunctionMaxQuery) {
+            for (Query anyDisjunctQuery : disjunctionMaxQuery.getDisjuncts()) {
+                if (anyDisjunctQuery instanceof MatchAllDocsQuery) {
+                    return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+                }
+            }
+        }
+        return new MatchNoDocsQuery();
     }
 
     private String getValueForConstantFieldType(FetchContext context, MappedFieldType fieldType) {

@@ -19,6 +19,12 @@
       "_source": {
         "enabled": false
       },
+      /*
+       We intentionally allow dynamic mappings for metrics. Which metrics are added is guarded by
+       the collector and we want to allow adding new metrics over time. As this is a datastream,
+       which will age and eventually be deleted, schema evolution is not a major concern here.
+       */
+      "dynamic": true,
       "properties": {
         "ecs.version": {
           "type": "keyword",

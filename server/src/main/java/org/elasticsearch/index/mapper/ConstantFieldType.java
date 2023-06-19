@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
@@ -44,7 +45,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.
      */
-    protected abstract boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context);
+    protected abstract boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context);
 
     private static String valueToString(Object value) {
         return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
@@ -52,6 +53,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @Override
     public final Query termQuery(Object value, SearchExecutionContext context) {
+        return internalTermQuery(value, context);
+    }
+
+    public final Query internalTermQuery(Object value, QueryRewriteContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, false, context)) {
             return Queries.newMatchAllQueryWrapper(pattern);
@@ -62,6 +67,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @Override
     public final Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+        return internalTermQueryCaseInsensitive(value, context);
+    }
+
+    public final Query internalTermQueryCaseInsensitive(Object value, QueryRewriteContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, true, context)) {
             return Queries.newMatchAllQueryWrapper(pattern);

@@ -322,6 +322,14 @@ public class AuthorizationService {
                     maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
                 }, e -> {
                     if (e instanceof ElasticsearchRoleRestrictionException) {
+                        logger.debug(
+                            () -> Strings.format(
+                                "denying action [%s] due to role restriction for authentication [%s]",
+                                action,
+                                authentication
+                            ),
+                            e
+                        );
                         listener.onFailure(actionDenied(authentication, EmptyAuthorizationInfo.INSTANCE, action, unwrappedRequest, e));
                     } else {
                         listener.onFailure(e);

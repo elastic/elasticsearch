@@ -19,6 +19,8 @@ import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -146,25 +148,6 @@ public class HighlightPhase implements FetchSubPhase {
                     sourceRequired = true;
                 }
 
-                // Query highlightQuery = field.fieldOptions().highlightQuery();
-                // if (fieldType instanceof ConstantFieldType) {
-                // if (context.query() instanceof MatchAllDocsQuery ){
-                // highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
-                // } else if (context.query() instanceof DisjunctionMaxQuery) {
-                // DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) context.query();
-                // for (Query anyQuery : disjunctionMaxQuery.getDisjuncts()) {
-                // if (anyQuery instanceof MatchAllDocsQuery){
-                // highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
-                // }
-                // }
-                // }
-                // }
-                //// if (((ConstantFieldType)fieldType).termQuery(getValueForConstantFieldType(context, fieldType),
-                // context.getSearchExecutionContext()) instanceof MatchAllDocsQuery) {
-                //// highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
-                //// }
-                //// }
-                // Query finalHighlightQuery = highlightQuery;
                 Query highlightQuery = getHighlighterQuery(context, field, fieldType);
 
                 builders.put(

@@ -175,16 +175,16 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     private Query getHighlighterQueryForConstantFieldType(FetchContext context, MappedFieldType fieldType) {
-        if (context.query() instanceof MatchAllDocumentQueryWrapper persist) {
-            return new TermQuery(new Term(fieldType.name(), persist.getPattern()));
-        } else if (context.query() instanceof DisjunctionMaxQuery changeName) {
-            for (Query query : changeName.getDisjuncts()) {
-                if (query instanceof MatchAllDocumentQueryWrapper anyPersist) {
-                    if (Regex.simpleMatch(anyPersist.getPattern(), getValueForConstantFieldType(context, fieldType))) {
+        if (context.query() instanceof MatchAllDocumentQueryWrapper matchAllDocumentQueryWrapper) {
+            return new TermQuery(new Term(fieldType.name(), matchAllDocumentQueryWrapper.getPattern()));
+        } else if (context.query() instanceof DisjunctionMaxQuery unionOfQueries) {
+            for (Query query : unionOfQueries.getDisjuncts()) {
+                if (query instanceof MatchAllDocumentQueryWrapper matchAllDocumentQueryWrapper) {
+                    if (Regex.simpleMatch(matchAllDocumentQueryWrapper.getPattern(), getValueForConstantFieldType(context, fieldType))) {
                         return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
                     }
                 }
-            }
+            }git
         }
         return new MatchNoDocsQuery();
     }

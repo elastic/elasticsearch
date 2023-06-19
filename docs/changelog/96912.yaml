@@ -2,4 +2,5 @@ pr: 96912
 summary: Use a long to properly track added samples
 area: Aggregations
 type: bug
-issues: []
+issues:
+ - 96911

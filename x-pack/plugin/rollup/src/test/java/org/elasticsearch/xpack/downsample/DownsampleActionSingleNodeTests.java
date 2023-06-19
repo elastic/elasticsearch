@@ -159,7 +159,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(10, 2000);
+        docCount = randomIntBetween(10, 9000);
         numOfShards = randomIntBetween(1, 4);
         numOfReplicas = randomIntBetween(0, 3);
 
@@ -1187,10 +1187,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject();
         };
+        docCount = 512; // Hard code to have 512 documents in the source index, otherwise running this test take too long.
         bulkIndex(sourceIndex, sourceSupplier);
         prepareSourceIndex(sourceIndex);
 
-        int n = randomIntBetween(5, 10);
+        int n = randomIntBetween(3, 6);
         final CountDownLatch rollupComplete = new CountDownLatch(n);
         final List<String> targets = new ArrayList<>();
         final List<Thread> threads = new ArrayList<>();

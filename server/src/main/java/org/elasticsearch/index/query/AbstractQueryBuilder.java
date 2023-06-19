@@ -299,6 +299,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (sec != null) {
             return doSearchRewrite(sec);
         }
+        final QueryRewriteContext context = queryRewriteContext.convertToIndexMetadataContext();
+        if (context != null) {
+            return doIndexMetadataRewrite(context);
+        }
         return this;
     }
 
@@ -318,6 +322,18 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return A {@link QueryBuilder} representing the rewritten query.
      */
     protected QueryBuilder doSearchRewrite(final SearchExecutionContext searchExecutionContext) throws IOException {
+        return this;
+    }
+
+    /**
+     * Optional rewrite logic that only needs access to index level metadata and services (e.g. index settings and mappings)
+     * on the data node, but not the shard / Lucene index.
+     * The can_match phase can use this logic to early terminate a search without doing any search related i/o.
+     *
+     * @param context an {@link QueryRewriteContext} instance that has access the mappings and other index metadata
+     * @return A {@link QueryBuilder} representing the rewritten query, that could be used to determine whether this query yields result.
+     */
+    protected QueryBuilder doIndexMetadataRewrite(final QueryRewriteContext context) throws IOException {
         return this;
     }
 

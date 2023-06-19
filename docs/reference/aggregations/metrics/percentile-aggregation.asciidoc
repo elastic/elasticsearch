@@ -306,6 +306,38 @@ TDigest roughly 64KB in size. In practice data tends to be more random and
 the TDigest will use less memory.
 // end::t-digest[]
 
+[[search-aggregations-metrics-percentile-aggregation-execution-hint]]
+==== Execution hint
+
+The default implementation of TDigest is optimized for performance, scaling to millions or even
+billions of sample values while maintaining acceptable accuracy levels (close to 1% relative error
+for millions of samples in some cases). There's an option to use an implementation optimized
+for accuracy by setting parameter `execution_hint` to value `high_accuracy`:
+
+[source,console]
+--------------------------------------------------
+GET latency/_search
+{
+  "size": 0,
+  "aggs": {
+    "load_time_outlier": {
+      "percentiles": {
+        "field": "load_time",
+        "tdigest": {
+          "execution_hint": "high_accuracy"    <1>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:latency]
+
+<1> Optimize TDigest for accuracy, at the expense of performance
+
+This option can lead to improved accuracy (relative error close to 0.01% for millions of samples in some
+cases) but then percentile queries take 2x-10x longer to complete.
+
 ==== HDR Histogram
 
 https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation

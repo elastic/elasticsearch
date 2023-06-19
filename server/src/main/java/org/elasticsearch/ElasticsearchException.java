@@ -1843,7 +1843,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             ElasticsearchRoleRestrictionException.class,
             ElasticsearchRoleRestrictionException::new,
             170,
-            TransportVersion.V_8_500_014
+            TransportVersion.V_8_500_016
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

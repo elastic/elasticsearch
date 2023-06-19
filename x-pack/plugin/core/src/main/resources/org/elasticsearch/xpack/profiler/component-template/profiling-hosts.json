@@ -19,6 +19,7 @@
       "_source": {
         "enabled": true
       },
+      "dynamic": false,
       "properties": {
         "ecs.version": {
           "type": "keyword"
@@ -31,7 +32,6 @@
           "format": "epoch_second"
         },
         "profiling": {
-          "dynamic": false,
           "properties": {
             "project.id": {
               "type": "keyword"
@@ -160,7 +160,6 @@
           }
         },
         "ec2": {
-          "dynamic": false,
           "properties": {
             "ami_id": {
               "type": "keyword"
@@ -224,7 +223,6 @@
           }
         },
         "azure": {
-          "dynamic": false,
           "properties": {
             "compute.sku": {
               "type": "keyword"
@@ -268,7 +266,6 @@
           }
         },
         "gce": {
-          "dynamic": false,
           "properties": {
             "instance.id": {
               "type": "keyword"

@@ -285,7 +285,7 @@ teardown:
         name:
   - match: { status: 403 }
   - match: { error.type: security_exception }
-  - match: { error.root_cause.0.type: access_restricted_exception }
+  - match: { error.root_cause.0.type: role_restriction_exception }
   - match: { error.root_cause.0.reason: "access restricted by workflow" }
 
 # Remove Test API Key:

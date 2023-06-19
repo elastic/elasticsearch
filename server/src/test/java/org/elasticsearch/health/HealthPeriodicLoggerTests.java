@@ -8,6 +8,9 @@
 
 package org.elasticsearch.health;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -17,12 +20,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -194,6 +199,68 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         assertFalse(failureCalled.get());
         assertTrue(listenerCalled.get());
+    }
+
+    public void testLoggingHappens() {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "network_latency",
+                HealthPeriodicLogger.class.getCanonicalName(),
+                Level.INFO,
+                "health_periodic_logger"
+            )
+        );
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "network_latency",
+                HealthPeriodicLogger.class.getCanonicalName(),
+                Level.INFO,
+                "elasticsearch.health.network_latency.status=\"green\""
+            )
+        );
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "slow_task_assignment",
+                HealthPeriodicLogger.class.getCanonicalName(),
+                Level.INFO,
+                "elasticsearch.health.slow_task_assignment.status=\"yellow\""
+            )
+        );
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation(
+                "ilm",
+                HealthPeriodicLogger.class.getCanonicalName(),
+                Level.INFO,
+                "elasticsearch.health.ilm.status=\"red\""
+            )
+        );
+        Logger periodicLoggerLogger = LogManager.getLogger(HealthPeriodicLogger.class);
+        Loggers.addAppender(periodicLoggerLogger, mockAppender);
+
+        HealthService testHealthService = getTestHealthService();
+
+        HealthPeriodicLogger testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
+        testHealthPeriodicLogger.init();
+
+        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
+        when(spyHealthPeriodicLogger.getIsHealthNode()).thenReturn(true);
+        doAnswer(invocation -> {
+            spyHealthPeriodicLogger.resultsListener.onResponse(getTestIndicatorResults());
+            return null;
+        }).when(spyHealthPeriodicLogger).callGetHealth();
+
+        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+        spyHealthPeriodicLogger.triggered(event);
+
+        try {
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(periodicLoggerLogger, mockAppender);
+            mockAppender.stop();
+        }
+
     }
 
 }

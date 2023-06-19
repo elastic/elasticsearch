@@ -226,13 +226,13 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-    private final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
+    protected final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
         @Override
         public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
             HealthPeriodicLoggerResult result = new HealthPeriodicLoggerResult(healthIndicatorResults);
             Map<String, Object> resultsMap = result.toMap();
             if (resultsMap.size() > 0) {
-                ESLogMessage msg = new ESLogMessage().withFields(result.toMap());
+                ESLogMessage msg = new ESLogMessage("health_periodic_logger").withFields(result.toMap());
                 logger.info(msg);
             }
         }

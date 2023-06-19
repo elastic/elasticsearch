@@ -38,8 +38,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.LambdaMatchers;
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,8 +76,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -332,33 +328,21 @@ public class MetadataTests extends ESTestCase {
         Exception ex = expectThrows(IllegalArgumentException.class, () -> metadata.resolveIndexRouting("0", "alias1"));
         assertThat(
             ex.getMessage(),
-            is(
-                "Alias [alias1] has index routing associated with it [1], "
-                    + "and was provided with routing value [0], rejecting operation"
-            )
+            is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation")
         );
-
 
         // alias with invalid index routing.
         ex = expectThrows(IllegalArgumentException.class, () -> metadata.resolveIndexRouting(null, "alias2"));
-            assertThat(
-                ex.getMessage(),
-                is(
-                    "index/alias [alias2] provided with routing value [1,2] that"
-                        + " resolved to several routing values, rejecting operation"
-                )
-            );
-
+        assertThat(
+            ex.getMessage(),
+            is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
+        );
 
         ex = expectThrows(IllegalArgumentException.class, () -> metadata.resolveIndexRouting("1", "alias2"));
-            assertThat(
-                ex.getMessage(),
-                is(
-                    "index/alias [alias2] provided with routing value [1,2] that"
-                        + " resolved to several routing values, rejecting operation"
-                )
-            );
-
+        assertThat(
+            ex.getMessage(),
+            is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
+        );
 
         IndexMetadata.Builder builder2 = IndexMetadata.builder("index2")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))

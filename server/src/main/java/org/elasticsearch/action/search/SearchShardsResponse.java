@@ -49,7 +49,7 @@ public final class SearchShardsResponse extends ActionResponse {
         super(in);
         this.groups = in.readList(SearchShardsGroup::new);
         this.nodes = in.readList(DiscoveryNode::new);
-        this.aliasFilters = in.readMap(StreamInput::readString, AliasFilter::readFrom);
+        this.aliasFilters = in.readMap(AliasFilter::readFrom);
     }
 
     @Override

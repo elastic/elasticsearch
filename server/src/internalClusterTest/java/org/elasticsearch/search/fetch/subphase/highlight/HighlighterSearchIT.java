@@ -3769,5 +3769,4 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             });
         }
     }
-
 }

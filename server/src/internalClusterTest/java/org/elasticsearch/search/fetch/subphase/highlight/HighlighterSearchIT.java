@@ -3653,6 +3653,45 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(search, 1, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
     }
 
+    public void testDoubleConstantKeywordJustOneHighlighted() throws IOException {
+        String index = "test";
+        String firstConstantKeywordFieldName = "test_constant_keyword_field_1";
+        String secondConstantKeywordFieldName = "test_constant_keyword_field_2";
+        String firstConstantValue = "constant_value_1";
+        String secondConstantValue = "constant_value_2";
+
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("_doc")
+            .startObject("properties")
+            .startObject(firstConstantKeywordFieldName)
+            .field("type", "constant_keyword")
+            .field("value", firstConstantValue)
+            .endObject()
+            .startObject(secondConstantKeywordFieldName)
+            .field("type", "constant_keyword")
+            .field("value", secondConstantValue)
+            .endObject()
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+
+
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(firstConstantValue));
+
+        assertNoFailures(search);
+        assertEquals(1, search.getHits().getHits()[0].getHighlightFields().size());
+        assertHighlight(search, 0, firstConstantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(firstConstantValue)));
+    }
+
     private XContentBuilder prepareConstantKeywordMappings(String constantKeywordFieldName, String constantValue) throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();

@@ -15,4 +15,4 @@ breaking:
     \ `execution_hint` to `high_accuracy` in the `tdigest` spec of a given percentile\
     \ calculation, or set `search.aggs.tdigest_execution_hint` to `high_accuracy`\
     \ in cluster settings to apply to all percentile queries."
-  notable: false
+  notable: true

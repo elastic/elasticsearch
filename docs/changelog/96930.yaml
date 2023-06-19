@@ -1,5 +1,5 @@
 pr: 96930
 summary: Include more downsampling status statistics
-area: Downsampling
+area: TSDB
 type: enhancement
 issues: []

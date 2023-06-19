@@ -184,7 +184,7 @@ public class HighlightPhase implements FetchSubPhase {
                         return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
                     }
                 }
-            }git
+            }
         }
         return new MatchNoDocsQuery();
     }

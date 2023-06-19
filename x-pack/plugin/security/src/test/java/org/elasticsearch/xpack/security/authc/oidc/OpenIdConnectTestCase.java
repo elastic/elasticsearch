@@ -43,9 +43,9 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
 
     @BeforeClass
     public static void setupWriters() {
-        // In test code, we sometimes create claims sets with claims that use that `Nonce` class; therefore, we register a writer
+        // In test code, we sometimes create claims sets with claims that use the `Nonce` class; therefore, we register a writer
         // for them here; otherwise json-smart tries to use reflection which our security manage prohibits
-        // This only applies to test, not prod code since we don't create claim sets with "non"-default classes
+        // This only applies to test, not prod code, since we don't create claim sets with "non-default" classes
         JSONValue.registerWriter(Nonce.class, new JsonWriterI<Nonce>() {
             @Override
             public <E extends Nonce> void writeJSONString(E e, Appendable appendable, JSONStyle jsonStyle) throws IOException {

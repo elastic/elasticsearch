@@ -57,7 +57,8 @@ basic:
 with params:
   - skip:
       features: close_to
-
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         body:
@@ -191,6 +192,9 @@ invalid params:
 
 ---
 "Invalid execution hint":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
       search:

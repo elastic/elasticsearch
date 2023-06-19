@@ -79,6 +79,9 @@ setup:
 ---
 "with execution hint":
 
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -160,6 +163,9 @@ setup:
 
 ---
 "Invalid execution hint":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
       search:

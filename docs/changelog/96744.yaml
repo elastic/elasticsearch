@@ -1,0 +1,5 @@
+pr: 96744
+summary: Role changes to support enforcing workflow restrictions
+area: Authorization
+type: feature
+issues: []

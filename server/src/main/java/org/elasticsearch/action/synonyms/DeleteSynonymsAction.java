@@ -101,9 +101,11 @@ public class DeleteSynonymsAction extends ActionType<DeleteSynonymsAction.Respon
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field(ACKNOWLEDGED_KEY, acknowledgedResponse.isAcknowledged());
-            builder.field("reload_analyzers_details");
-            reloadAnalyzersResponse.toXContent(builder, params);
+            {
+                builder.field(ACKNOWLEDGED_KEY, acknowledgedResponse.isAcknowledged());
+                builder.field("reload_analyzers_details");
+                reloadAnalyzersResponse.toXContent(builder, params);
+            }
             builder.endObject();
             return builder;
         }

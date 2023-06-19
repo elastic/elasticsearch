@@ -102,6 +102,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.crypto.SecretKey;
 
@@ -1077,13 +1078,10 @@ public class TokenServiceTests extends ESTestCase {
     ) {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
-        final DiscoveryNode anotherDataNode = DiscoveryNodeUtils.create(
-            "another_data_node#" + version,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-            version
-        );
+        final DiscoveryNode anotherDataNode = DiscoveryNodeUtils.builder("another_data_node#" + version)
+            .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+            .version(version)
+            .build();
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);

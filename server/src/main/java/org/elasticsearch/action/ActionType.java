@@ -58,4 +58,9 @@ public class ActionType<Response extends ActionResponse> {
     public int hashCode() {
         return name.hashCode();
     }
+
+    @Override
+    public String toString() {
+        return name;
+    }
 }

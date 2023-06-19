@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
@@ -405,6 +406,16 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("fallback_to_default_databases", randomBoolean());
         factory.create(null, null, null, config);
         assertWarnings(GeoIpProcessor.DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+    }
+
+    public void testDownloadDatabaseOnPipelineCreation() throws IOException {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomIdentifier());
+        config.put("download_database_on_pipeline_creation", randomBoolean());
+        factory.create(null, null, null, config);
+        // Check all the config params were consumed.
+        assertThat(config, anEmptyMap());
     }
 
     public void testDefaultDatabaseWithTaskPresent() throws Exception {

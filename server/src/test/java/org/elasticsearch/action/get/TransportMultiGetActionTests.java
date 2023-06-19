@@ -165,6 +165,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
         shardAction = new TransportShardMultiGetAction(
             clusterService,
@@ -173,7 +174,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             threadPool,
             new ActionFilters(emptySet()),
             new Resolver(),
-            EmptySystemIndices.INSTANCE.getExecutorSelector()
+            EmptySystemIndices.INSTANCE.getExecutorSelector(),
+            client
         ) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {}

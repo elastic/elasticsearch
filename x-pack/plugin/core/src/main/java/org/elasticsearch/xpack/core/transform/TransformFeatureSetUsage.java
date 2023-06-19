@@ -31,8 +31,8 @@ public class TransformFeatureSetUsage extends Usage {
 
     public TransformFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.transformCountByState = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.transformCountByFeature = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.transformCountByState = in.readMap(StreamInput::readLong);
+        this.transformCountByFeature = in.readMap(StreamInput::readLong);
         this.accumulatedStats = new TransformIndexerStats(in);
     }
 

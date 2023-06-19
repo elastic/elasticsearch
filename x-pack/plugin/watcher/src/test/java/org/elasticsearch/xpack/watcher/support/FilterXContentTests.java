@@ -61,10 +61,10 @@ public class FilterXContentTests extends ESTestCase {
 
     public void testNestedPayloadFiltering() throws Exception {
         Map<String, Object> data = new HashMap<>();
-        data.put("leaf1", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", true).map());
+        data.put("leaf1", Map.of("key1", "value1", "key2", true));
         data.put("leaf2", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", "value2").put("key3", 3).map());
-        Map<Object, Object> innerMap = MapBuilder.newMapBuilder().put("key1", "value1").put("key2", "value2").map();
-        data.put("leaf3", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", innerMap).map());
+        Map<Object, Object> innerMap = Map.of("key1", "value1", "key2", "value2");
+        data.put("leaf3", Map.of("key1", "value1", "key2", innerMap));
 
         XContentBuilder builder = jsonBuilder().map(data);
         XContentParser parser = createParser(builder);

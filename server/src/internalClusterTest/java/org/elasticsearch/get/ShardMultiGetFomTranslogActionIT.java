@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96749")
     public void testShardMultiGetFromTranslog() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(
@@ -93,19 +92,19 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         }
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // Get followed by a Delete should still return a result
-        client().prepareDelete("test", "1").get();
-        response = getFromTranslog(indexOrAlias(), List.of("1", "2"));
+        var idToDelete = randomFrom(idsToIndex);
+        client().prepareDelete("test", idToDelete).get();
+        response = getFromTranslog(indexOrAlias(), idsToIndex);
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(2));
         assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
         getResponses = getResponses(multiGetShardResponse);
         assertThat(getResponses.size(), equalTo(2));
-        assertNotNull("get followed by a delete should still return a result", getResponses.get(0));
-        assertThat(getResponses.get(0).getId(), equalTo("1"));
-        assertThat(getResponses.get(0).isExists(), equalTo(false));
-        assertNotNull(getResponses.get(1));
-        assertThat(getResponses.get(1).getId(), equalTo("2"));
-        assertThat(getResponses.get(1).isExists(), equalTo(true));
+        assertTrue(getResponses.stream().allMatch(Objects::nonNull));
+        for (var getResponse : getResponses) {
+            var shouldExist = getResponse.getId().equals(idToDelete) ? false : true;
+            assertThat(getResponse.isExists(), equalTo(shouldExist));
+        }
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
         indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();

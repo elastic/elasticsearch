@@ -73,7 +73,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("name1", "id1", transportAddress, emptyMap(), emptySet());
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
-        streamOutput.setTransportVersion(TransportVersion.CURRENT);
+        streamOutput.setTransportVersion(TransportVersion.current());
         node.writeTo(streamOutput);
 
         StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
@@ -95,11 +95,11 @@ public class DiscoveryNodeTests extends ESTestCase {
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setTransportVersion(TransportVersion.CURRENT);
+            streamOutput.setTransportVersion(TransportVersion.current());
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setTransportVersion(TransportVersion.CURRENT);
+            in.setTransportVersion(TransportVersion.current());
             DiscoveryNode serialized = new DiscoveryNode(in);
             final Set<DiscoveryNodeRole> roles = serialized.getRoles();
             assertThat(roles, hasSize(1));

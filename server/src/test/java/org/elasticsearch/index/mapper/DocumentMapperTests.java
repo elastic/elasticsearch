@@ -12,11 +12,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -284,7 +284,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testEmptyDocumentMapper() {
-        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+        MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> false);
         DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
         assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
         assertTrue(documentMapper.mappers().hasMappings());
@@ -428,7 +428,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 builders[i].endObject().endObject().endObject();
             }
 
-            final MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+            final MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> false);
             final CountDownLatch latch = new CountDownLatch(1);
             final Thread[] threads = new Thread[numThreads];
             for (int i = 0; i < threads.length; i++) {

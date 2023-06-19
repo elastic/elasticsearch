@@ -193,15 +193,6 @@ public class SynonymsManagementAPIService {
         return new SynonymRule((String) sourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) sourceAsMap.get(SYNONYMS_FIELD));
     }
 
-    // Retrieves the external synonym rule ID from the internal one for displaying to users
-    private static String externalSynonymRuleId(String internalId) {
-        int index = internalId.indexOf(SYNONYM_RULE_ID_SEPARATOR);
-        if (index == -1) {
-            throw new IllegalStateException("Synonym Rule ID [" + internalId + "] is incorrect");
-        }
-        return internalId.substring(index + 1);
-    }
-
     public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsResult> listener) {
         deleteSynonymsSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
             boolean created = bulkByScrollResponse.getDeleted() == 0;

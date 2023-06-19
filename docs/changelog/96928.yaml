@@ -1,0 +1,5 @@
+pr: 96928
+summary: Remove invalid asserts in `MergingDigest`
+area: Aggregations
+type: bug
+issues: []

@@ -55,17 +55,19 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         public Map<String, Object> toMap() {
             final Map<String, Object> result = new HashMap<>();
 
-            // overall status
-            final HealthStatus status = HealthStatus.merge(this.indicatorResults.stream().map(HealthIndicatorResult::status));
-            result.put("elasticsearch.health.status", status.xContentValue());
+            if (this.indicatorResults != null && this.indicatorResults.size() > 0) {
+                // overall status
+                final HealthStatus status = HealthStatus.merge(this.indicatorResults.stream().map(HealthIndicatorResult::status));
+                result.put("elasticsearch.health.status", status.xContentValue());
 
-            // top-level status for each indicator
-            this.indicatorResults.forEach((indicatorResult) -> {
-                result.put(
-                    String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
-                    indicatorResult.status().xContentValue()
-                );
-            });
+                // top-level status for each indicator
+                this.indicatorResults.forEach((indicatorResult) -> {
+                    result.put(
+                        String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
+                        indicatorResult.status().xContentValue()
+                    );
+                });
+            }
 
             return result;
         }
@@ -228,8 +230,11 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         @Override
         public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
             HealthPeriodicLoggerResult result = new HealthPeriodicLoggerResult(healthIndicatorResults);
-            ESLogMessage msg = new ESLogMessage().withFields(result.toMap());
-            logger.info(msg);
+            Map<String, Object> resultsMap = result.toMap();
+            if (resultsMap.size() > 0) {
+                ESLogMessage msg = new ESLogMessage().withFields(result.toMap());
+                logger.info(msg);
+            }
         }
 
         @Override

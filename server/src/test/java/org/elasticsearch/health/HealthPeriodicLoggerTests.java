@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -38,7 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -118,6 +118,15 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             overallStatus.xContentValue(),
             loggerResults.get(String.format(Locale.ROOT, "%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
         );
+
+        // test empty results
+        {
+            List<HealthIndicatorResult> empty = new ArrayList<HealthIndicatorResult>();
+            HealthPeriodicLogger.HealthPeriodicLoggerResult emptyResults = new HealthPeriodicLogger.HealthPeriodicLoggerResult(empty);
+            Map<String, Object> emptyMap = emptyResults.toMap();
+
+            assertEquals(0, emptyMap.size());
+        }
     }
 
     public void testHealthNodeIsSelected() throws Exception {

@@ -9,10 +9,13 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FilterScorable;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 
@@ -22,10 +25,6 @@ import java.io.IOException;
  */
 class TerminateAfterCollector implements Collector {
     static final class EarlyTerminationException extends RuntimeException {
-        private EarlyTerminationException(String msg) {
-            super(msg);
-        }
-
         @Override
         public Throwable fillInStackTrace() {
             // never re-thrown so we can save the expensive stacktrace
@@ -33,6 +32,7 @@ class TerminateAfterCollector implements Collector {
         }
     }
 
+    private final Collector collector;
     private final int maxCountHits;
     private int numCollected;
 
@@ -40,7 +40,8 @@ class TerminateAfterCollector implements Collector {
      *
      * @param maxCountHits the number of hits to collect, after which the collection must be early terminated
      */
-    TerminateAfterCollector(int maxCountHits) {
+    TerminateAfterCollector(Collector collector, int maxCountHits) {
+        this.collector = collector;
         this.maxCountHits = maxCountHits;
     }
 
@@ -49,14 +50,43 @@ class TerminateAfterCollector implements Collector {
         if (numCollected >= maxCountHits) {
             earlyTerminate();
         }
+
+        LeafCollector leafCollector;
+        try {
+            leafCollector = collector.getLeafCollector(context);
+        } catch (CollectionTerminatedException e) {
+            leafCollector = null;
+        }
+
+        final LeafCollector finalLeafCollector = leafCollector;
         return new LeafCollector() {
-            @Override
-            public void setScorer(Scorable scorer) {}
+            LeafCollector innerLeafCollector = finalLeafCollector;
 
             @Override
-            public void collect(int doc) {
+            public void setScorer(Scorable scorer) throws IOException {
+                if (innerLeafCollector != null) {
+                    innerLeafCollector.setScorer(new FilterScorable(scorer) {
+                        @Override
+                        public void setMinCompetitiveScore(float minScore) {
+                            // Ignore calls to setMinCompetitiveScore so that if the wrapped collector wants to skip low-scoring hits,
+                            // we are still able to terminate the collection when the threshold is reached. Otherwise, we'd stop counting.
+                            // which would effectively cancel terminate_after for aggs: they would see all docs without early termination.
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
                 if (++numCollected > maxCountHits) {
                     earlyTerminate();
+                }
+                if (innerLeafCollector != null) {
+                    try {
+                        innerLeafCollector.collect(doc);
+                    } catch (CollectionTerminatedException e) {
+                        innerLeafCollector = null;
+                    }
                 }
             }
         };
@@ -64,11 +94,16 @@ class TerminateAfterCollector implements Collector {
 
     @Override
     public ScoreMode scoreMode() {
-        // this collector is not exhaustive, as it early terminates, and never needs scores
-        return ScoreMode.TOP_DOCS;
+        // we can return the score mode from the wrapped collector: terminate_after on its own is not exhaustive and does not need scores
+        return collector.scoreMode();
     }
 
-    private void earlyTerminate() {
-        throw new EarlyTerminationException("early termination [CountBased]");
+    @Override
+    public void setWeight(Weight weight) {
+        collector.setWeight(weight);
+    }
+
+    private static void earlyTerminate() {
+        throw new EarlyTerminationException();
     }
 }

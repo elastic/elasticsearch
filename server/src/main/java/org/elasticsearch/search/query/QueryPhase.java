@@ -208,11 +208,11 @@ public class QueryPhase {
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                TerminateAfterCollector terminateAfterCollector = new TerminateAfterCollector(searchContext.terminateAfter());
                 final Collector collector = collectorManager.newCollector();
+                TerminateAfterCollector terminateAfterCollector = new TerminateAfterCollector(collector, searchContext.terminateAfter());
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(terminateAfterCollector, collector)),
+                    new SingleThreadCollectorManager(terminateAfterCollector),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
                     collector
                 );

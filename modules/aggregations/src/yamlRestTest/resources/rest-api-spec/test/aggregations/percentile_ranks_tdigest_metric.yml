@@ -54,6 +54,28 @@ basic:
   - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 61.5, error: 1} }
 
 ---
+with params:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: [50, 99]
+                tdigest:
+                  compression: 200
+                  execution_hint: high_accuracy
+
+  - match: { hits.total.value: 4 }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1} }
+
+---
 filtered:
   - skip:
       features: close_to
@@ -155,6 +177,30 @@ invalid params:
             percentile_ranks_string:
               percentile_ranks:
                 field: string
+
+  - do:
+      catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\]/
+      search:
+        body:
+          aggs:
+            percentile_ranks_string:
+              percentile_ranks:
+                field: string
+                tdigest:
+                  compression: -1
+
+---
+"Invalid execution hint":
+  - do:
+      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
+      search:
+        body:
+          aggs:
+            percentile_ranks_string:
+              percentile_ranks:
+                field: string
+                tdigest:
+                  execution_hint: no_such_hint
 
 ---
 non-keyed test:

@@ -77,6 +77,23 @@ setup:
   - match: { aggregations.mad_double.value: 100 }
 
 ---
+"with execution hint":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            mad_int:
+              median_absolute_deviation:
+                field: int_field
+                execution_hint: high_accuracy
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.mad_int.value: 100 }
+
+---
 "no documents":
 
   - do:
@@ -140,3 +157,16 @@ setup:
               median_absolute_deviation:
                 field: int_field
                 compression: -1
+
+---
+"Invalid execution hint":
+  - do:
+      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            mad:
+              median_absolute_deviation:
+                field: int_field
+                execution_hint: no_such_hint

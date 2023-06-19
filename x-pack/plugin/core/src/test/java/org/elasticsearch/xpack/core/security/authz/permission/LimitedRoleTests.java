@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -780,7 +781,7 @@ public class LimitedRoleTests extends ESTestCase {
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);
             assertThat(role.hasWorkflowsRestriction(), equalTo(true));
-            assertThat(role.forWorkflow(workflow.name()), equalTo(role));
+            assertThat(role.forWorkflow(workflow.name()), sameInstance(role));
         }
         // Test restriction when role is not restricted regardless of originating workflow
         {
@@ -788,7 +789,7 @@ public class LimitedRoleTests extends ESTestCase {
             Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a").add(IndexPrivilege.READ, "index-a").build();
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);
-            assertThat(role.forWorkflow(originatingWorkflow), equalTo(role));
+            assertThat(role.forWorkflow(originatingWorkflow), sameInstance(role));
             assertThat(role.hasWorkflowsRestriction(), equalTo(false));
         }
         // Test when role is restricted but originating workflow is not allowed
@@ -799,7 +800,7 @@ public class LimitedRoleTests extends ESTestCase {
                 .build();
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);
-            assertThat(role.forWorkflow(null), equalTo(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+            assertThat(role.forWorkflow(randomFrom(randomAlphaOfLength(9), null, "")), sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
             assertThat(role.hasWorkflowsRestriction(), equalTo(true));
         }
     }

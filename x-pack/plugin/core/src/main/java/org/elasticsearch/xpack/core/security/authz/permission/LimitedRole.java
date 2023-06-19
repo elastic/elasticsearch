@@ -90,7 +90,11 @@ public final class LimitedRole implements Role {
         if (limitedByRestricted == EMPTY_RESTRICTED_BY_WORKFLOW) {
             return EMPTY_RESTRICTED_BY_WORKFLOW;
         }
-        return baseRestricted.limitedBy(limitedByRestricted);
+        if (baseRestricted == baseRole && limitedByRestricted == limitedByRole) {
+            return this;
+        } else {
+            return baseRestricted.limitedBy(limitedByRestricted);
+        }
     }
 
     @Override

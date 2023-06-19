@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SimpleRoleTests extends ESTestCase {
 
@@ -265,8 +266,8 @@ public class SimpleRoleTests extends ESTestCase {
         );
 
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
-        assertThat(role.forWorkflow(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()), equalTo(role));
-        assertThat(role.forWorkflow(randomFrom(randomAlphaOfLength(9), null, "")), equalTo(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+        assertThat(role.forWorkflow(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()), sameInstance(role));
+        assertThat(role.forWorkflow(randomFrom(randomAlphaOfLength(9), null, "")), sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
     }
 
     public void testForWorkflowWithoutRestriction() {
@@ -279,6 +280,6 @@ public class SimpleRoleTests extends ESTestCase {
 
         assertThat(role.hasWorkflowsRestriction(), equalTo(false));
         String workflow = randomFrom(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name(), null, "", randomAlphaOfLength(9));
-        assertThat(role.forWorkflow(workflow), equalTo(role));
+        assertThat(role.forWorkflow(workflow), sameInstance(role));
     }
 }

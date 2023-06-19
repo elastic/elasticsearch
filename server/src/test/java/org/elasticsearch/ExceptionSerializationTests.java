@@ -829,7 +829,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(167, UnsupportedAggregationOnDownsampledIndex.class);
         ids.put(168, DocumentParsingException.class);
         ids.put(169, HttpHeadersValidationException.class);
-        ids.put(170, ElasticsearchAccessRestrictedException.class);
+        ids.put(170, ElasticsearchRoleRestrictionException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

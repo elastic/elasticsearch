@@ -48,7 +48,7 @@ public interface Role {
 
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
-    Role EMPTY_RESTRICTED_BY_WORKFLOW = builder(new RestrictedIndices(Automatons.EMPTY)).build();
+    Role EMPTY_RESTRICTED_BY_WORKFLOW = builder(new RestrictedIndices(Automatons.EMPTY)).workflows(Set.of()).build();
 
     String[] names();
 
@@ -194,9 +194,6 @@ public interface Role {
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.
      */
     default Role limitedBy(Role role) {
-        if (role == EMPTY_RESTRICTED_BY_WORKFLOW || this == EMPTY_RESTRICTED_BY_WORKFLOW) {
-            return EMPTY_RESTRICTED_BY_WORKFLOW;
-        }
         return new LimitedRole(this, role);
     }
 
@@ -281,7 +278,7 @@ public interface Role {
         }
 
         public Builder workflows(Set<String> workflowNames) {
-            if (workflowNames == null || workflowNames.isEmpty()) {
+            if (workflowNames == null) {
                 this.workflowsRestriction = WorkflowsRestriction.NONE;
             } else {
                 this.workflowsRestriction = new WorkflowsRestriction(workflowNames);

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchAccessRestrictedException;
+import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -321,9 +321,7 @@ public class AuthorizationService {
                     threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
                     maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
                 }, e -> {
-                    if (e instanceof ElasticsearchAccessRestrictedException) {
-                        auditTrailService.get()
-                            .accessDenied(auditId, authentication, action, unwrappedRequest, EmptyAuthorizationInfo.INSTANCE);
+                    if (e instanceof ElasticsearchRoleRestrictionException) {
                         listener.onFailure(actionDenied(authentication, EmptyAuthorizationInfo.INSTANCE, action, unwrappedRequest, e));
                     } else {
                         listener.onFailure(e);

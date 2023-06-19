@@ -209,7 +209,11 @@ public class CompositeRolesStore {
         assert false == subject.getUser() instanceof InternalUser : "Internal user [" + subject.getUser() + "] should not pass here";
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
-        roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
+        final String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+        roleReferenceIntersection.buildRole(
+            this::buildRoleFromRoleReference,
+            ActionListener.wrap(role -> roleActionListener.onResponse(role.forWorkflow(workflow)), roleActionListener::onFailure)
+        );
     }
 
     // Accessible by tests
@@ -288,8 +292,7 @@ public class CompositeRolesStore {
                 }
             }, failureHandler));
         } else {
-            String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
-            roleActionListener.onResponse(existing.forWorkflow(workflow));
+            roleActionListener.onResponse(existing);
         }
     }
 
@@ -339,8 +342,7 @@ public class CompositeRolesStore {
                     negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                 }
             }
-            String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
-            listener.onResponse(role.forWorkflow(workflow));
+            listener.onResponse(role);
         }, listener::onFailure));
     }
 
@@ -476,7 +478,6 @@ public class CompositeRolesStore {
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
-            .workflows(workflows)
             .runAs(runAsPrivilege);
         indicesPrivilegesMap.forEach(
             (key, privilege) -> builder.add(
@@ -511,6 +512,9 @@ public class CompositeRolesStore {
                 )
             );
         });
+        if (false == workflows.isEmpty()) {
+            builder.workflows(workflows);
+        }
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {

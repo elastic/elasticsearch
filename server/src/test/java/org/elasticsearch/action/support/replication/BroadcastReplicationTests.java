@@ -87,7 +87,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         super.setUp();
         TcpTransport transport = new Netty4Transport(
             Settings.EMPTY,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,

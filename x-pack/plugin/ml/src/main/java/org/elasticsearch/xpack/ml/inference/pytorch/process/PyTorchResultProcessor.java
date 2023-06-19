@@ -121,33 +121,23 @@ public class PyTorchResultProcessor {
             if (isStopping == false) {
                 logger.error(() -> "[" + modelId + "] Error processing results", e);
             }
-            pendingResults.forEach(
-                (id, pendingResult) -> pendingResult.listener.onResponse(
-                    new PyTorchResult(
-                        id,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ErrorResult(
-                            isStopping
-                                ? "inference canceled as process is stopping"
-                                : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
-                        )
-                    )
-                )
+            var errorResult = new ErrorResult(
+                isStopping
+                    ? "inference canceled as process is stopping"
+                    : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
             );
-            pendingResults.clear();
+            notifyAndClearPendingResults(errorResult);
         } finally {
-            pendingResults.forEach(
-                (id, pendingResult) -> pendingResult.listener.onResponse(
-                    new PyTorchResult(id, false, null, null, null, null, new ErrorResult("inference canceled as process is stopping"))
-                )
-            );
-            pendingResults.clear();
+            notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping"));
         }
         logger.debug(() -> "[" + modelId + "] Results processing finished");
+    }
+
+    private void notifyAndClearPendingResults(ErrorResult errorResult) {
+        pendingResults.forEach(
+            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
+        );
+        pendingResults.clear();
     }
 
     void processInferenceResult(PyTorchResult result) {

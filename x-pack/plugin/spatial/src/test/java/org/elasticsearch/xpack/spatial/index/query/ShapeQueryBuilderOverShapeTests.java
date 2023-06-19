@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
@@ -33,7 +33,7 @@ public class ShapeQueryBuilderOverShapeTests extends ShapeQueryBuilderTests {
     @Override
     protected ShapeRelation getShapeRelation(ShapeType type) {
         SearchExecutionContext context = createSearchExecutionContext();
-        if (context.indexVersionCreated().onOrAfter(Version.V_7_5_0)) { // CONTAINS is only supported from version 7.5
+        if (context.indexVersionCreated().onOrAfter(IndexVersion.V_7_5_0)) { // CONTAINS is only supported from version 7.5
             if (type == ShapeType.LINESTRING || type == ShapeType.MULTILINESTRING) {
                 return randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS);
             } else {

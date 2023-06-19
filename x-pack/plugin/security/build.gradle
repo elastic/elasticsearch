@@ -384,8 +384,8 @@ tasks.named("thirdPartyAudit").configure {
           'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
           'com.google.crypto.tink.subtle.Ed25519Verify',
           'com.google.crypto.tink.subtle.X25519',
-          'com.nimbusds.common.contenttype.ContentType',
-          'com.google.crypto.tink.subtle.XChaCha20Poly1305'
+          'com.google.crypto.tink.subtle.XChaCha20Poly1305',
+          'com.nimbusds.common.contenttype.ContentType'
   )
 
    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {

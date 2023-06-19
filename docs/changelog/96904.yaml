@@ -2,17 +2,17 @@ pr: 96904
 summary: Switch TDigestState to use `HybridDigest` by default
 area: Aggregations
 type: breaking
-issues: [95903]
+issues: []
 breaking:
   title: Switch TDigestState to use `HybridDigest` by default
   area: Cluster and node setting
-  details: The default implementation for TDigest in percentile calculations switches to a new internal implementation
-    offering superior performance (2x-10x speedup), at a very small accuracy penalty for very large sample
-    populations.
-
-  impact: This change leads to generating slightly different results in percentile calculations. If the highest
-    possible accuracy is desired, or it's crucial to produce exactly the same results as in previous versions, one can
-    either set `execution_hint` to `high_accuracy` in the `tdigest` spec of a given percentile calculation, or set
-    `search.aggs.tdigest_execution_hint` to `high_accuracy` in cluster settings to apply to all percentile queries.
-
+  details: "The default implementation for TDigest in percentile calculations switches\
+    \ to a new internal implementation offering superior performance (2x-10x speedup),\
+    \ at a very small accuracy penalty for very large sample populations."
+  impact: "This change leads to generating slightly different results in percentile\
+    \ calculations. If the highest possible accuracy is desired, or it's crucial to\
+    \ produce exactly the same results as in previous versions, one can either set\
+    \ `execution_hint` to `high_accuracy` in the `tdigest` spec of a given percentile\
+    \ calculation, or set `search.aggs.tdigest_execution_hint` to `high_accuracy`\
+    \ in cluster settings to apply to all percentile queries."
   notable: false

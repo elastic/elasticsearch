@@ -55,9 +55,9 @@ setup:
 
   - match: { aggregations.plot.min: 2.0 }
   - match: { aggregations.plot.max: 15.0 }
-  - match: { aggregations.plot.q1: 2.75 }
+  - match: { aggregations.plot.q1: 3.0 }
   - match: { aggregations.plot.q2: 5.0 }
-  - match: { aggregations.plot.q3: 11.25 }
+  - match: { aggregations.plot.q3: 10.0 }
 
 ---
 "Search With Params":
@@ -105,9 +105,9 @@ setup:
 
   - match: { aggregations.plot.min: 20.0 }
   - match: { aggregations.plot.max: 10000.0 }
-  - match: { aggregations.plot.q1: 27.5 }
+  - match: { aggregations.plot.q1: 30.0 }
   - match: { aggregations.plot.q2: 50.0 }
-  - match: { aggregations.plot.q3: 2612.5 }
+  - match: { aggregations.plot.q3: 150.0 }
   - match: { aggregations.plot.lower: 20.0 }
   - match: { aggregations.plot.upper: 150.0 }
 
@@ -127,9 +127,9 @@ setup:
 
   - match: { aggregations.plot.min: 2.0 }
   - match: { aggregations.plot.max: 10000.0 }
-  - match: { aggregations.plot.q1: 3 }
+  - match: { aggregations.plot.q1: 3.5 }
   - match: { aggregations.plot.q2: 7.5 }
-  - match: { aggregations.plot.q3: 15.0 }
+  - match: { aggregations.plot.q3: 13.75 }
   - match: { aggregations.plot.lower: 2.0 }
   - match: { aggregations.plot.upper: 15.0 }
 

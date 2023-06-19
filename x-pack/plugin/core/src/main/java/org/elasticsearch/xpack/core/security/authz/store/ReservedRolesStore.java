@@ -14,10 +14,14 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -38,10 +42,12 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -101,7 +107,39 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             : null,
         null
     );
-    private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
+
+    private static final Map<String, RoleDescriptor> ALL_RESERVED_ROLES = initializeReservedRoles();
+
+    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.listSetting(
+        SecurityField.setting("reserved_roles.include"),
+        List.copyOf(ALL_RESERVED_ROLES.keySet()),
+        Function.identity(),
+        value -> {
+            if (false == value.contains("superuser")) {
+                throw new IllegalArgumentException("the [superuser] reserved role must be included");
+            }
+            final Set<String> unknownRoles = Sets.sortedDifference(Set.copyOf(value), ALL_RESERVED_ROLES.keySet());
+            if (false == unknownRoles.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "unknown reserved roles to include [" + Strings.collectionToCommaDelimitedString(unknownRoles)
+                );
+            }
+        },
+        Setting.Property.NodeScope
+    );
+    private static Map<String, RoleDescriptor> RESERVED_ROLES = null;
+
+    public ReservedRolesStore() {
+        this(ALL_RESERVED_ROLES.keySet());
+    }
+
+    public ReservedRolesStore(Set<String> includes) {
+        assert includes.contains("superuser") : "superuser must be included";
+        RESERVED_ROLES = ALL_RESERVED_ROLES.entrySet()
+            .stream()
+            .filter(entry -> includes.contains(entry.getKey()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 
     private static RoleDescriptor.RemoteIndicesPrivileges getRemoteIndicesReadPrivileges(String indexPattern) {
         return new RoleDescriptor.RemoteIndicesPrivileges(
@@ -948,6 +986,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static boolean isReserved(String role) {
+        if (RESERVED_ROLES == null) {
+            throw new IllegalStateException("ReserveRolesStore is not initialized properly");
+        }
         return RESERVED_ROLES.containsKey(role);
     }
 
@@ -964,6 +1005,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static Set<String> names() {
+        if (RESERVED_ROLES == null) {
+            throw new IllegalStateException("ReserveRolesStore is not initialized properly");
+        }
         return RESERVED_ROLES.keySet();
     }
 

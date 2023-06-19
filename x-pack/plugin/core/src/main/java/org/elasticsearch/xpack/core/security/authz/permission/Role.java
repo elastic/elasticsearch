@@ -420,7 +420,7 @@ public interface Role {
         }
 
         if (roleDescriptor.hasWorkflowsRestriction()) {
-            builder.workflows(Set.of(roleDescriptor.getRestriction().getWorkflows()));
+            builder.workflows(Sets.newHashSet(roleDescriptor.getRestriction().getWorkflows()));
         }
 
         return builder.build();

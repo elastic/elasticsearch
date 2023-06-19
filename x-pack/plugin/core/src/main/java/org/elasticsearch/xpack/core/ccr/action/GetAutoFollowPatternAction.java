@@ -88,7 +88,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            autoFollowPatterns = in.readMap(StreamInput::readString, AutoFollowPattern::readFrom);
+            autoFollowPatterns = in.readMap(AutoFollowPattern::readFrom);
         }
 
         @Override

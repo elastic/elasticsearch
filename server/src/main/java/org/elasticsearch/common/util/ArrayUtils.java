@@ -99,4 +99,19 @@ public class ArrayUtils {
             end--;
         }
     }
+
+    /**
+     * Reverse the {@code length} values on the array starting from {@code offset}.
+     */
+    public static void reverseSubArray(long[] array, int offset, int length) {
+        int start = offset;
+        int end = offset + length;
+        while (end > start) {
+            final long scratch = array[start];
+            array[start] = array[end - 1];
+            array[end - 1] = scratch;
+            start++;
+            end--;
+        }
+    }
 }

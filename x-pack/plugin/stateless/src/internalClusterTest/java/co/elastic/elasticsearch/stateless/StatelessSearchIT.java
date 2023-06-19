@@ -30,11 +30,13 @@ import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShard
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
@@ -44,6 +46,7 @@ import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
@@ -94,6 +97,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1046,6 +1050,82 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
         final SearchResponse response = searchFuture.get();
         assertHitCount(response, docCount);
+    }
+
+    public void testFastRefreshSearch() throws Exception {
+        startIndexNodes(numShards);
+        startSearchNodes(numReplicas);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                .build()
+        );
+        ensureGreen(indexName);
+        int docsToIndex = randomIntBetween(1, 100);
+        indexDocsAndRefresh(indexName, docsToIndex);
+
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.contains(SearchAction.NAME)) {
+                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        final var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+    }
+
+    public void testFastRefreshGet() throws Exception {
+        startIndexNodes(numShards);
+        startSearchNodes(numReplicas);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                .build()
+        );
+        ensureGreen(indexName);
+        indexDocsAndRefresh(indexName, randomIntBetween(1, 100));
+        int customDocs = randomIntBetween(5, 10);
+        for (int i = 0; i < customDocs; i++) {
+            indexDoc(indexName, "myid-" + Integer.toString(i), "foo", "bar" + i);
+        }
+
+        final AtomicInteger getFromTranslogActionsSent = new AtomicInteger(0);
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.startsWith(GetAction.NAME)) {
+                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
+                } else if (action.startsWith(TransportGetFromTranslogAction.NAME)) {
+                    getFromTranslogActionsSent.incrementAndGet();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        // Test get
+        for (int i = 0; i < customDocs; i++) {
+            String id = "myid-" + Integer.toString(i);
+            boolean realtime = randomBoolean();
+            final var get = client().prepareGet(indexName, id).setRealtime(realtime);
+            if (realtime) assertTrue(get.get().isExists());
+            assertThat(get.get().getId(), equalTo(id));
+        }
+        assertThat(getFromTranslogActionsSent.get(), equalTo(0));
     }
 
     private static SearchResponse countDocsInRange(Client client, String index, int min, int max) {

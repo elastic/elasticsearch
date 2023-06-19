@@ -16,7 +16,7 @@ import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class UnregisteredSettingsIntegTestCase extends SecurityIntegTestCase {
+public class UnregisteredSettingsIntegTests extends SecurityIntegTestCase {
 
     public void testIncludeReservedRolesSettingNotRegistered() {
         internalCluster().setBootstrapMasterNodeIndex(0);

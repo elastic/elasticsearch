@@ -134,6 +134,7 @@ class RollupShardIndexer {
 
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
         long startTime = System.currentTimeMillis();
+        task.setRollupShardIndexerStatus("started");
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
@@ -154,6 +155,7 @@ class RollupShardIndexer {
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
+            task.setRollupShardIndexerStatus("error: indexing failure");
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -166,6 +168,7 @@ class RollupShardIndexer {
         }
 
         if (task.getNumFailed() > 0) {
+            task.setRollupShardIndexerStatus("error: indexing failure");
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -176,6 +179,8 @@ class RollupShardIndexer {
                     + "]."
             );
         }
+
+        task.setRollupShardIndexerStatus("completed");
 
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
@@ -189,6 +194,7 @@ class RollupShardIndexer {
                 task.getNumIndexed(),
                 task.getNumFailed()
             );
+            task.setRollupShardIndexerStatus("cancelled");
             throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
         }
     }

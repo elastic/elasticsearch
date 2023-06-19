@@ -37,6 +37,7 @@ public class RollupShardStatus implements Task.Status {
     private static final ParseField LAST_INDEXING_TIMESTAMP = new ParseField("last_indexing_timestamp");
     private static final ParseField BEFORE_BULK_INFO = new ParseField("rollup_before_bulk");
     private static final ParseField AFTER_BULK_INFO = new ParseField("rollup_after_bulk");
+    private static final ParseField ROLLUP_SHARD_INDEXER_STATUS = new ParseField("rollup_shard_indexer_status");
 
     private final ShardId shardId;
     private final long rollupStart;
@@ -51,6 +52,8 @@ public class RollupShardStatus implements Task.Status {
     private final long lastIndexingTimestamp;
     private final RollupBeforeBulkInfo rollupBeforeBulkInfo;
     private final RollupAfterBulkInfo rollupAfterBulkInfo;
+
+    private final String rollupShardIndexerStatus;
 
     private static final ConstructingObjectParser<RollupShardStatus, Void> PARSER;
     static {
@@ -69,7 +72,8 @@ public class RollupShardStatus implements Task.Status {
                 (Long) args[9],
                 (Long) args[10],
                 (RollupBeforeBulkInfo) args[11],
-                (RollupAfterBulkInfo) args[12]
+                (RollupAfterBulkInfo) args[12],
+                (String) args[13]
             )
         );
 
@@ -94,6 +98,7 @@ public class RollupShardStatus implements Task.Status {
             (p, c) -> RollupAfterBulkInfo.fromXContent(p),
             AFTER_BULK_INFO
         );
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ROLLUP_SHARD_INDEXER_STATUS);
     }
 
     public RollupShardStatus(StreamInput in) throws IOException {
@@ -111,6 +116,7 @@ public class RollupShardStatus implements Task.Status {
             lastIndexingTimestamp = in.readLong();
             rollupBeforeBulkInfo = in.readNamedWriteable(RollupBeforeBulkInfo.class, RollupBeforeBulkInfo.NAME);
             rollupAfterBulkInfo = in.readNamedWriteable(RollupAfterBulkInfo.class, RollupAfterBulkInfo.NAME);
+            rollupShardIndexerStatus = in.readString();
         } else {
             totalDocCount = -1;
             totalShardDocCount = -1;
@@ -119,6 +125,7 @@ public class RollupShardStatus implements Task.Status {
             lastIndexingTimestamp = -1;
             rollupBeforeBulkInfo = null;
             rollupAfterBulkInfo = null;
+            rollupShardIndexerStatus = null;
         }
     }
 
@@ -135,7 +142,8 @@ public class RollupShardStatus implements Task.Status {
         long lastTargetTimestamp,
         long lastIndexingTimestamp,
         final RollupBeforeBulkInfo rollupBeforeBulkInfo,
-        final RollupAfterBulkInfo rollupAfterBulkInfo
+        final RollupAfterBulkInfo rollupAfterBulkInfo,
+        final String rollupShardIndexerStatus
     ) {
         this.shardId = shardId;
         this.rollupStart = rollupStart;
@@ -150,6 +158,7 @@ public class RollupShardStatus implements Task.Status {
         this.lastIndexingTimestamp = lastIndexingTimestamp;
         this.rollupBeforeBulkInfo = rollupBeforeBulkInfo;
         this.rollupAfterBulkInfo = rollupAfterBulkInfo;
+        this.rollupShardIndexerStatus = rollupShardIndexerStatus;
     }
 
     public static RollupShardStatus fromXContent(XContentParser parser) throws IOException {
@@ -172,6 +181,7 @@ public class RollupShardStatus implements Task.Status {
         builder.field(LAST_INDEXING_TIMESTAMP.getPreferredName(), lastIndexingTimestamp);
         rollupBeforeBulkInfo.toXContent(builder, params);
         rollupAfterBulkInfo.toXContent(builder, params);
+        builder.field(ROLLUP_SHARD_INDEXER_STATUS.getPreferredName(), rollupShardIndexerStatus);
         return builder.endObject();
     }
 
@@ -197,6 +207,7 @@ public class RollupShardStatus implements Task.Status {
             out.writeLong(lastIndexingTimestamp);
             rollupBeforeBulkInfo.writeTo(out);
             rollupAfterBulkInfo.writeTo(out);
+            out.writeString(rollupShardIndexerStatus);
         } else {
             out.writeBoolean(false);
         }
@@ -220,7 +231,8 @@ public class RollupShardStatus implements Task.Status {
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Objects.equals(shardId.id(), that.shardId.id())
             && Objects.equals(rollupBeforeBulkInfo, that.rollupBeforeBulkInfo)
-            && Objects.equals(rollupAfterBulkInfo, that.rollupAfterBulkInfo);
+            && Objects.equals(rollupAfterBulkInfo, that.rollupAfterBulkInfo)
+            && Objects.equals(rollupShardIndexerStatus, that.rollupShardIndexerStatus);
     }
 
     @Override
@@ -239,7 +251,8 @@ public class RollupShardStatus implements Task.Status {
             lastTargetTimestamp,
             lastIndexingTimestamp,
             rollupBeforeBulkInfo,
-            rollupAfterBulkInfo
+            rollupAfterBulkInfo,
+            rollupShardIndexerStatus
         );
     }
 

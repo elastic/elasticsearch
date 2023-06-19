@@ -319,7 +319,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     public void testInOrderScrollOptimization() throws Exception {
-        final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
+        final Sort sort = new Sort(new SortField("not_present", SortField.Type.INT));
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         int numDocs = indexDocs(iwc);
 
@@ -355,7 +355,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
      * A match all query is used to leverage the hit count shortcut as it enables retrieving the count from the index statistics.
      */
     public void testTerminateAfterSize0HitCountShortcut() throws Exception {
-        int numDocs = indexDocs();
+        indexDocs();
         // TotalHitCountCollector (used when size==0) shortcuts total hit count (using Weight#count) segment by segment.
         // EarlyTerminatingCollector checks whether the threshold is reached at the beginning of each leaf collection.
         // That's why the returned total hit count may be higher than terminate_after (or track_total_hits), yet lower

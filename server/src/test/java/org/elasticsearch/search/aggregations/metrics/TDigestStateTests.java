@@ -158,6 +158,8 @@ public class TDigestStateTests extends ESTestCase {
 
         assertEquals(fast, anotherFast);
         assertEquals(accurate, anotherAccurate);
+        assertNotEquals(fast, accurate);
+        assertNotEquals(anotherFast, anotherAccurate);
     }
 
     public void testOverrideDefaultType() {
@@ -218,6 +220,7 @@ public class TDigestStateTests extends ESTestCase {
         assertEquals(serialized, state);
 
         TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_500_000);
+        assertNotEquals(serializedBackwardsCompatible, state);
         assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 }

@@ -932,7 +932,7 @@ public final class IngestDocument {
      *
      * @return whether the document is redirected to another target
      */
-    boolean isReroute() {
+    public boolean isReroute() {
         return reroute;
     }
 
@@ -940,7 +940,7 @@ public final class IngestDocument {
      * Set the {@link #reroute} flag to false so that subsequent calls to {@link #isReroute()} will return false until/unless
      * {@link #reroute(String)} is called.
      */
-    void resetReroute() {
+    public void resetReroute() {
         reroute = false;
     }
 

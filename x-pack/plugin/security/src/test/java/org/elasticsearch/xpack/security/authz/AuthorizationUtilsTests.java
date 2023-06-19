@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -151,14 +152,14 @@ public class AuthorizationUtilsTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
 
-        final ActionListener<Void> listener = ActionListener.wrap(v -> {
+        final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
             assertEquals(user, authentication.getEffectiveSubject().getUser());
             assertEquals(version, authentication.getEffectiveSubject().getTransportVersion());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         final Consumer<ThreadContext.StoredContext> consumer = original -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));

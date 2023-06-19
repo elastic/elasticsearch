@@ -191,9 +191,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
         serviceProviderIndex.findAll(
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, set) -> f.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet()))
                 )
             )
         );
@@ -223,9 +222,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         serviceProviderIndex.readDocument(
             doc.docId,
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, info) -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, f)
                 )
             )
         );
@@ -243,9 +241,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         serviceProviderIndex.findByEntityId(
             entityId,
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, set) -> f.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet()))
                 )
             )
         );

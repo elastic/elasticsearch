@@ -71,6 +71,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -1117,7 +1118,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest("does_not_exist").indicesOptions(
                 IndicesOptions.fromOptions(true, true, true, false)
             );
-            final ActionListener<Void> listener = ActionListener.wrap(ignore -> {
+            final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(ignore -> {
                 final IndicesAccessControl indicesAccessControl = threadContext.getTransient(
                     AuthorizationServiceField.INDICES_PERMISSIONS_KEY
                 );
@@ -1127,7 +1128,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 );
                 assertFalse(indexAccessControl.getFieldPermissions().hasFieldLevelSecurity());
                 assertFalse(indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
-            }, e -> { fail(e.getMessage()); });
+            });
             final CountDownLatch latch = new CountDownLatch(1);
             authorizationService.authorize(authentication, SearchAction.NAME, searchRequest, new LatchedActionListener<>(listener, latch));
             latch.await();

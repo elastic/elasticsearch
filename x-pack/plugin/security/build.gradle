@@ -66,8 +66,8 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
-  api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
-  api "com.nimbusds:nimbus-jose-jwt:9.8.1"
+  api "com.nimbusds:oauth2-oidc-sdk:9.37"
+  api "com.nimbusds:nimbus-jose-jwt:9.23"
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
@@ -90,7 +90,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:9.8.1')
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.23')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')
@@ -384,7 +384,8 @@ tasks.named("thirdPartyAudit").configure {
           'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
           'com.google.crypto.tink.subtle.Ed25519Verify',
           'com.google.crypto.tink.subtle.X25519',
-          'com.nimbusds.common.contenttype.ContentType'
+          'com.nimbusds.common.contenttype.ContentType',
+          'com.google.crypto.tink.subtle.XChaCha20Poly1305'
   )
 
    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {

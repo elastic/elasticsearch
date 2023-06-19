@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Switch TDigestState to use `HybridDigest` by default
-  area: Cluster and node setting
+  area: REST API
   details: "The default implementation for TDigest in percentile calculations switches\
     \ to a new internal implementation offering superior performance (2x-10x speedup),\
     \ at a very small accuracy penalty for very large sample populations."

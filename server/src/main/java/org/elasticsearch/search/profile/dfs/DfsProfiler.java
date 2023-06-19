@@ -54,7 +54,7 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
 
     public QueryProfiler addQueryProfiler(InternalProfileCollectorManager collectorManager) {
         QueryProfiler queryProfiler = new QueryProfiler();
-        queryProfiler.setCollectorManager(collectorManager);
+        queryProfiler.setCollectorManager(collectorManager::getCollectorTree);
         knnQueryProfilers.add(queryProfiler);
         collectorManagerSet = true;
         return queryProfiler;
@@ -74,7 +74,7 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
             for (QueryProfiler queryProfiler : knnQueryProfilers) {
                 queryProfileShardResult.add(
-                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
+                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollectorResult())
                 );
             }
         } else {

@@ -55,7 +55,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     }
 
     public IndexDiskUsageStats(StreamInput in) throws IOException {
-        this.fields = new HashMap<>(in.readMap(StreamInput::readString, PerFieldDiskUsage::new));
+        this.fields = new HashMap<>(in.readMap(PerFieldDiskUsage::new));
         this.indexSizeInBytes = in.readVLong();
     }
 

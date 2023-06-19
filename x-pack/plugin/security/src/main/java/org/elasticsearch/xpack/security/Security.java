@@ -1604,7 +1604,7 @@ public class Security extends Plugin
                 transportReference.set(
                     new SecurityNetty4ServerTransport(
                         settings,
-                        TransportVersion.CURRENT,
+                        TransportVersion.current(),
                         threadPool,
                         networkService,
                         pageCacheRecycler,

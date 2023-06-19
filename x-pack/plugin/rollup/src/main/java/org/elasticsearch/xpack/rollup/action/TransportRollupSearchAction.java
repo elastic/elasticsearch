@@ -272,10 +272,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     ) throws IOException {
         Writeable.Writer<SearchSourceBuilder> writer = (out, value) -> value.writeTo(out);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.CURRENT);
+            output.setTransportVersion(TransportVersion.current());
             writer.write(output, original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setTransportVersion(TransportVersion.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 return reader.read(in);
             }
         }

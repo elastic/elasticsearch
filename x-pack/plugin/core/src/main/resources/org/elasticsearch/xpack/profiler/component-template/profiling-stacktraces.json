@@ -19,6 +19,7 @@
       "_source": {
         "mode": "synthetic"
       },
+      "dynamic": false,
       "properties": {
         "ecs.version": {
           "type": "keyword",

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -123,17 +124,29 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         static final double DEFAULT_COMPRESSION = 100.0;
         private double compression;
 
+        private TDigestExecutionHint executionHint = TDigestExecutionHint.DEFAULT;
+
         public TDigest() {
             this(DEFAULT_COMPRESSION);
         }
 
         public TDigest(double compression) {
+            this(compression, TDigestExecutionHint.DEFAULT);
+        }
+
+        public TDigest(double compression, TDigestExecutionHint executionHint) {
             super(PercentilesMethod.TDIGEST);
+            this.executionHint = executionHint;
             setCompression(compression);
         }
 
         TDigest(StreamInput in) throws IOException {
-            this(in.readDouble());
+            this(
+                in.readDouble(),
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)
+                    ? TDigestExecutionHint.readFrom(in)
+                    : TDigestExecutionHint.HIGH_ACCURACY
+            );
         }
 
         public void setCompression(double compression) {
@@ -147,6 +160,14 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             return compression;
         }
 
+        public void parseExecutionHint(String executionHint) {
+            this.executionHint = TDigestExecutionHint.parse(executionHint);
+        }
+
+        public TDigestExecutionHint getExecutionHint() {
+            return executionHint;
+        }
+
         @Override
         public Aggregator createPercentilesAggregator(
             String name,
@@ -158,7 +179,18 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) throws IOException {
-            return new TDigestPercentilesAggregator(name, config, context, parent, values, compression, keyed, formatter, metadata);
+            return new TDigestPercentilesAggregator(
+                name,
+                config,
+                context,
+                parent,
+                values,
+                compression,
+                executionHint,
+                keyed,
+                formatter,
+                metadata
+            );
         }
 
         @Override
@@ -183,7 +215,18 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) throws IOException {
-            return new TDigestPercentileRanksAggregator(name, config, context, parent, values, compression, keyed, formatter, metadata);
+            return new TDigestPercentileRanksAggregator(
+                name,
+                config,
+                context,
+                parent,
+                values,
+                compression,
+                executionHint,
+                keyed,
+                formatter,
+                metadata
+            );
         }
 
         @Override
@@ -194,13 +237,16 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) {
-            return InternalTDigestPercentileRanks.empty(name, values, compression, keyed, formatter, metadata);
+            return InternalTDigestPercentileRanks.empty(name, values, compression, executionHint, keyed, formatter, metadata);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+                executionHint.writeTo(out);
+            }
         }
 
         @Override
@@ -218,12 +264,12 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             if (super.equals(obj) == false) return false;
 
             TDigest other = (TDigest) obj;
-            return compression == other.getCompression();
+            return compression == other.getCompression() && executionHint.equals(other.getExecutionHint());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), compression);
+            return Objects.hash(super.hashCode(), compression, executionHint);
         }
     }
 

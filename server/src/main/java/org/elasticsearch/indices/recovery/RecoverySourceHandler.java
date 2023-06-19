@@ -18,7 +18,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -43,6 +42,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -971,7 +971,7 @@ public class RecoverySourceHandler {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
                 // recovery as a conservative estimate for the global checkpoint.
-                assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0)
+                assert shard.indexSettings().getIndexVersionCreated().before(IndexVersion.V_7_4_0)
                     || shard.indexSettings().isSoftDeleteEnabled() == false;
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
                 final var newLease = shard.addPeerRecoveryRetentionLease(targetNodeId, estimatedGlobalCheckpoint, backgroundSyncListener);

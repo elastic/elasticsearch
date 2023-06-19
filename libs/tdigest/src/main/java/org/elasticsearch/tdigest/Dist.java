@@ -30,30 +30,68 @@ import java.util.function.Function;
 public class Dist {
 
     private static double cdf(final double x, final int length, Function<Integer, Double> elementGetter) {
+        if (length == 0) {
+            // no data to examine
+            return Double.NaN;
+        }
+        if (length == 1) {
+            double value = elementGetter.apply(0);
+            if (x < value) return 0;
+            if (x > value) return 1;
+            return 0.5;
+        }
+
         if (Double.compare(x, elementGetter.apply(0)) < 0) {
             return 0;
         }
 
-        double n1 = 0.5;
-        int n2 = 0;
-        for (int i = 1; i < length; i++) {
-            double value = elementGetter.apply(i);
-            int compareResult = Double.compare(value, x);
-            if (compareResult > 0) {
-                if (Double.compare(n2, 0) > 0) {
-                    return (n1 + 0.5 * n2) / length;
-                }
-                double previousValue = elementGetter.apply(i - 1);
-                double factor = (x - previousValue) / (value - previousValue);
-                return (n1 + factor) / length;
+        if (Double.compare(x, elementGetter.apply(0)) == 0) {
+            // we have one or more centroids == x, treat them as one
+            // dw will accumulate the weight of all of the centroids at x
+            double dw = 0;
+            for (int i = 0; i < length && Double.compare(elementGetter.apply(i), x) == 0; i++) {
+                dw += 1;
             }
-            if (compareResult < 0) {
-                n1++;
-            } else {
-                n2++;
-            }
+            return dw / 2.0 / length;
         }
-        return (length - 0.5 * n2) / length;
+
+        if (x > elementGetter.apply(length - 1)) {
+            return 1;
+        }
+        if (x == elementGetter.apply(length - 1)) {
+            double dw = 0;
+            for (int i = length - 1; i >= 0 && Double.compare(elementGetter.apply(i), x) == 0; i--) {
+                dw += 1;
+            }
+            return (length - dw / 2.0) / length;
+        }
+
+        // initially, we set left width equal to right width
+        double left = (elementGetter.apply(1) - elementGetter.apply(0)) / 2;
+        double weightSoFar = 0;
+
+        for (int i = 0; i < length - 1; i++) {
+            double right = (elementGetter.apply(i + 1) - elementGetter.apply(i)) / 2;
+            if (x < elementGetter.apply(i) + right) {
+                double value = (weightSoFar + AbstractTDigest.interpolate(x, elementGetter.apply(i) - left, elementGetter.apply(i) + right))
+                    / length;
+                return Math.max(value, 0.0);
+            }
+            weightSoFar += 1;
+            left = right;
+        }
+
+        // for the last element, assume right width is same as left
+        int lastOffset = length - 1;
+        double right = (elementGetter.apply(lastOffset) - elementGetter.apply(lastOffset - 1)) / 2;
+        if (x < elementGetter.apply(lastOffset) + right) {
+            return (weightSoFar + AbstractTDigest.interpolate(
+                x,
+                elementGetter.apply(lastOffset) - right,
+                elementGetter.apply(lastOffset) + right
+            )) / length;
+        }
+        return 1;
     }
 
     public static double cdf(final double x, double[] data) {

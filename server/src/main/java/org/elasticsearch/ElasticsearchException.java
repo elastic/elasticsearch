@@ -1839,11 +1839,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             169,
             TransportVersion.V_8_9_0
         ),
-        ACCESS_RESTRICTED_EXCEPTION(
-            org.elasticsearch.ElasticsearchAccessRestrictedException.class,
-            org.elasticsearch.ElasticsearchAccessRestrictedException::new,
+        ROLE_RESTRICTION_EXCEPTION(
+            ElasticsearchRoleRestrictionException.class,
+            ElasticsearchRoleRestrictionException::new,
             170,
-            TransportVersion.V_8_500_014
+            TransportVersion.V_8_500_016
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

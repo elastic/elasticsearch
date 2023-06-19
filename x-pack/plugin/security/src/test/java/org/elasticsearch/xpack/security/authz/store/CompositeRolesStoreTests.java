@@ -85,6 +85,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
@@ -103,6 +105,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowServiceTests.TestBaseRestHandler;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
@@ -154,6 +157,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -2176,6 +2180,218 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.getRole(authentication1.getAuthenticatingSubject(), future1);
         future1.actionGet();
         verify(apiKeyService).parseRoleDescriptorsBytes(apiKeyId, limitedByRoleDescriptorBytes, RoleReference.ApiKeyRoleType.LIMITED_BY);
+    }
+
+    public void testGetRoleForWorkflowWithRestriction() {
+        final Settings settings = Settings.EMPTY;
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD)));
+        final ApiKeyService apiKeyService = new ApiKeyService(
+            settings,
+            Clock.systemUTC(),
+            mock(Client.class),
+            mock(SecurityIndexManager.class),
+            clusterService,
+            mock(CacheInvalidatorRegistry.class),
+            mock(ThreadPool.class)
+        );
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            callback.onResponse(Collections.emptyList());
+            return null;
+        }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
+        final WorkflowService workflowService = new WorkflowService();
+        final ThreadContext threadContext = new ThreadContext(settings);
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
+            settings,
+            buildRolesProvider(null, null, null, null, licenseState),
+            privilegeStore,
+            threadContext,
+            licenseState,
+            cache,
+            apiKeyService,
+            mock(ServiceAccountService.class),
+            buildBitsetCache(),
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            rds -> {},
+            workflowService
+        );
+
+        final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
+        final String apiKeyId = randomAlphaOfLength(20);
+        final BytesReference roleDescriptorBytes = new BytesArray(Strings.format("""
+            {
+                "base-role": {
+                    "indices": [
+                      {
+                        "names": ["index-a"],
+                        "privileges": ["read"]
+                      }
+                    ],
+                    "restriction": {
+                        "workflows": ["%s"]
+                    }
+                }
+            }
+            """, workflow.name()));
+        final BytesReference limitedByRoleDescriptorBytes = new BytesArray("""
+            {
+                "limited-role": {
+                    "indices": [
+                      {
+                        "names": ["index-a"],
+                        "privileges": ["read"]
+                      }
+                    ]
+                }
+            }
+            """);
+
+        final User authenticatedUser1 = new User("authenticated_user");
+        final Authentication authentication1 = AuthenticationTestHelper.builder()
+            .apiKey(apiKeyId)
+            .metadata(
+                Map.of(
+                    API_KEY_ROLE_DESCRIPTORS_KEY,
+                    roleDescriptorBytes,
+                    API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    limitedByRoleDescriptorBytes
+                )
+            )
+            .user(authenticatedUser1)
+            .build();
+
+        // Tests that for a role with restriction, getRole returns:
+        // 1. a usable role when originating workflow matches
+        try (var ignored = threadContext.stashContext()) {
+            workflowService.resolveWorkflowAndStoreInThreadContext(
+                new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers())),
+                threadContext
+            );
+
+            final PlainActionFuture<Role> future1 = new PlainActionFuture<>();
+            compositeRolesStore.getRole(authentication1.getEffectiveSubject(), future1);
+            Role role = future1.actionGet();
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+            assertThat(role, not(sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW)));
+            assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
+        }
+
+        // 2. an "empty-restricted" role if originating workflow does not match (or is null)
+        try (var ignored = threadContext.stashContext()) {
+            workflowService.resolveWorkflowAndStoreInThreadContext(new TestBaseRestHandler(randomAlphaOfLength(10)), threadContext);
+
+            final PlainActionFuture<Role> future1 = new PlainActionFuture<>();
+            compositeRolesStore.getRole(authentication1.getEffectiveSubject(), future1);
+            Role role = future1.actionGet();
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+            assertThat(role, sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+
+        }
+    }
+
+    public void testGetRoleForWorkflowWithoutRestriction() {
+        final Settings settings = Settings.EMPTY;
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD)));
+        final ApiKeyService apiKeyService = new ApiKeyService(
+            settings,
+            Clock.systemUTC(),
+            mock(Client.class),
+            mock(SecurityIndexManager.class),
+            clusterService,
+            mock(CacheInvalidatorRegistry.class),
+            mock(ThreadPool.class)
+        );
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            callback.onResponse(Collections.emptyList());
+            return null;
+        }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
+        final WorkflowService workflowService = new WorkflowService();
+        final ThreadContext threadContext = new ThreadContext(settings);
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
+            settings,
+            buildRolesProvider(null, null, null, null, licenseState),
+            privilegeStore,
+            threadContext,
+            licenseState,
+            cache,
+            apiKeyService,
+            mock(ServiceAccountService.class),
+            buildBitsetCache(),
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            rds -> {},
+            workflowService
+        );
+
+        final String apiKeyId = randomAlphaOfLength(20);
+        final BytesReference roleDescriptorBytes = new BytesArray(randomBoolean() ? """
+            {
+                "base-role": {
+                    "indices": [
+                      {
+                        "names": ["index-a"],
+                        "privileges": ["read"]
+                      }
+                    ]
+                }
+            }
+            """ : "{}");
+        final BytesReference limitedByRoleDescriptorBytes = new BytesArray("""
+            {
+                "limited-role": {
+                    "cluster": ["all"],
+                    "indices": [
+                      {
+                        "names": ["index-a", "index-b"],
+                        "privileges": ["read"]
+                      }
+                    ]
+                }
+            }
+            """);
+
+        final User authenticatedUser1 = new User("authenticated_user");
+        final Authentication authentication1 = AuthenticationTestHelper.builder()
+            .apiKey(apiKeyId)
+            .metadata(
+                Map.of(
+                    API_KEY_ROLE_DESCRIPTORS_KEY,
+                    roleDescriptorBytes,
+                    API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    limitedByRoleDescriptorBytes
+                )
+            )
+            .user(authenticatedUser1)
+            .build();
+
+        // Tests that for a role without restriction, getRole returns the same role regardless of the originating workflow.
+        try (var ignored = threadContext.stashContext()) {
+            boolean useExistingWorkflowAsOriginating = randomBoolean();
+            Workflow existingWorkflow = randomFrom(WorkflowResolver.allWorkflows());
+            workflowService.resolveWorkflowAndStoreInThreadContext(
+                new TestBaseRestHandler(
+                    useExistingWorkflowAsOriginating ? randomFrom(existingWorkflow.allowedRestHandlers()) : randomAlphaOfLengthBetween(4, 8)
+                ),
+                threadContext
+            );
+
+            final PlainActionFuture<Role> future1 = new PlainActionFuture<>();
+            compositeRolesStore.getRole(authentication1.getEffectiveSubject(), future1);
+            Role role = future1.actionGet();
+            assertThat(role.hasWorkflowsRestriction(), equalTo(false));
+            assertThat(role, not(sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW)));
+            assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
+        }
     }
 
     public void testUsageStats() {

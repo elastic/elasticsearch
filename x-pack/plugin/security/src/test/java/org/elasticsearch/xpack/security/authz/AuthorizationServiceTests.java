@@ -129,6 +129,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -199,6 +200,7 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizatio
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsDenied;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsUnauthorizedAction;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
@@ -3065,6 +3067,35 @@ public class AuthorizationServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testRoleRestrictionAccessDenial() {
+        Tuple<String, TransportRequest> tuple = randomFrom(
+            asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
+        );
+        String action = tuple.v1();
+        TransportRequest request = tuple.v2();
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        mockEmptyMetadata();
+
+        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphaOfLengthBetween(3, 8)), Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20))),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        final Role role = Role.EMPTY_RESTRICTED_BY_WORKFLOW;
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[1];
+            listener.onResponse(role);
+            return null;
+        }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
+
+        ElasticsearchSecurityException securityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(apiKeyAuthentication, action, request)
+        );
+        assertThat(securityException, throwableWithMessage(containsString("[" + action + "] is unauthorized for API key")));
+        assertThat(securityException.getRootCause(), throwableWithMessage(containsString("access restricted by workflow")));
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

@@ -14,22 +14,22 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 /**
- * This exception is thrown to indicate that the access has been denied because of restrictions that
+ * This exception is thrown to indicate that the access has been denied because of role restrictions that
  * an authenticated subject might have (e.g. not allowed to access certain APIs).
- * This differs from other 403 error in sense that it's additional access control that is enforced
- * before permissions are checked.
+ * This differs from other 403 error in sense that it's additional access control that is enforced after role
+ * is resolved and before permissions are checked.
  */
-public class ElasticsearchAccessRestrictedException extends ElasticsearchSecurityException {
+public class ElasticsearchRoleRestrictionException extends ElasticsearchSecurityException {
 
-    public ElasticsearchAccessRestrictedException(String msg, Throwable cause, Object... args) {
+    public ElasticsearchRoleRestrictionException(String msg, Throwable cause, Object... args) {
         super(msg, RestStatus.FORBIDDEN, cause, args);
     }
 
-    public ElasticsearchAccessRestrictedException(String msg, Object... args) {
+    public ElasticsearchRoleRestrictionException(String msg, Object... args) {
         this(msg, null, args);
     }
 
-    public ElasticsearchAccessRestrictedException(StreamInput in) throws IOException {
+    public ElasticsearchRoleRestrictionException(StreamInput in) throws IOException {
         super(in);
     }
 }

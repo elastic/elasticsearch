@@ -33,7 +33,7 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
         synonymsManagementAPIService.putSynonymsSet(
             request.synonymsSetId(),
             request.synonymRules(),
-            listener.map(PutSynonymsAction.Response::new)
+            listener.map(ur -> new PutSynonymsAction.Response(ur.updateStatus(), ur.reloadAnalyzersResponse()))
         );
     }
 }

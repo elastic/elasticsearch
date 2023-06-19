@@ -468,15 +468,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return indexSettings.getIndexVersionCreated();
     }
 
-    /**
-     *  Given an index pattern, checks whether it matches against the current shard. The pattern
-     *  may represent a fully qualified index name if the search targets remote shards.
-     */
-    public boolean indexMatches(String pattern) {
-        assert indexNameMatcher != null;
-        return indexNameMatcher.test(pattern);
-    }
-
     public boolean indexSortedOnField(String field) {
         IndexSortConfig indexSortConfig = indexSettings.getIndexSortConfig();
         return indexSortConfig.hasPrimarySortOnField(field);
@@ -605,14 +596,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Override
     public final SearchExecutionContext convertToSearchExecutionContext() {
         return this;
-    }
-
-    /**
-     * Returns the index settings for this context. This might return null if the
-     * context has not index scope.
-     */
-    public IndexSettings getIndexSettings() {
-        return indexSettings;
     }
 
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,

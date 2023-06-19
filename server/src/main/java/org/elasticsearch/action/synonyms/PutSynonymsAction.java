@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -121,36 +123,42 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
 
-        private final SynonymsManagementAPIService.UpdateSynonymsResult result;
+        private final UpdateSynonymsResultStatus updateStatus;
+        private final ReloadAnalyzersResponse reloadAnalyzersResponse;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.result = in.readEnum((SynonymsManagementAPIService.UpdateSynonymsResult.class));
+            this.updateStatus = in.readEnum(UpdateSynonymsResultStatus.class);
+            this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
         }
 
-        public Response(SynonymsManagementAPIService.UpdateSynonymsResult result) {
+        public Response(UpdateSynonymsResultStatus updateStatus, ReloadAnalyzersResponse reloadAnalyzersResponse) {
             super();
-            Objects.requireNonNull(result, "Result must not be null");
-            this.result = result;
+            Objects.requireNonNull(updateStatus, "Update status must not be null");
+            Objects.requireNonNull(updateStatus, "Reload analyzers response must not be null");
+            this.updateStatus = updateStatus;
+            this.reloadAnalyzersResponse = reloadAnalyzersResponse;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("result", result.name().toLowerCase(Locale.ENGLISH));
+            builder.field("result", updateStatus.name().toLowerCase(Locale.ENGLISH));
+            builder.field("reload_analyzers_details");
+            reloadAnalyzersResponse.toXContent(builder, params);
             builder.endObject();
-
             return builder;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(result);
+            out.writeEnum(updateStatus);
+            reloadAnalyzersResponse.writeTo(out);
         }
 
         @Override
         public RestStatus status() {
-            return switch (result) {
+            return switch (updateStatus) {
                 case CREATED -> RestStatus.CREATED;
                 default -> RestStatus.OK;
             };
@@ -161,12 +169,12 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return result == response.result;
+            return updateStatus == response.updateStatus && Objects.equals(reloadAnalyzersResponse, response.reloadAnalyzersResponse);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(result);
+            return Objects.hash(updateStatus, reloadAnalyzersResponse);
         }
     }
 }

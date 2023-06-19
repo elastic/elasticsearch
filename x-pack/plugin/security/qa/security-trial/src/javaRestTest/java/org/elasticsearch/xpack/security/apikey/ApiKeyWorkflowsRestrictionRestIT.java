@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRestTestCase {
@@ -41,7 +42,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
               "cluster": ["manage_api_key"],
               "indices": [
                 {
-                  "names": ["my-app"],
+                  "names": ["*"],
                   "privileges": ["read"]
                 }
               ]
@@ -75,7 +76,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
                     "r1": {
                         "indices": [
                           {
-                            "names": ["my-app"],
+                            "names": ["my-app-a"],
                             "privileges": ["read"]
                           }
                         ],
@@ -91,8 +92,8 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
         String apiKeyId = createApiKeyResponse.evaluate("id");
         assertThat(apiKeyId, notNullValue());
 
-        final Request createSearchApplicationRequest = new Request("PUT", "_application/search_application/my-app?create");
-        createSearchApplicationRequest.setJsonEntity("""
+        final Request createSearchApplicationARequest = new Request("PUT", "_application/search_application/my-app-a?create");
+        createSearchApplicationARequest.setJsonEntity("""
             {
               "indices": [ "index-a" ],
               "template": {
@@ -112,27 +113,59 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
               }
             }
             """);
-        assertOK(adminClient().performRequest(createSearchApplicationRequest));
+        assertOK(adminClient().performRequest(createSearchApplicationARequest));
+        ObjectPath queryResponseA = assertOKAndCreateObjectPath(
+            performRequestWithApiKey(new Request("GET", "_application/search_application/my-app-a/_search"), apiKeyEncoded)
+        );
+        assertThat(queryResponseA.evaluate("hits.total.value"), equalTo(1));
+        assertThat(queryResponseA.evaluate("hits.hits.0._id"), equalTo("doc1"));
 
-        final Request queryRequest = new Request("POST", "_application/search_application/my-app/_search");
-        queryRequest.setJsonEntity("""
+        // Check that access is rejected by workflow restriction after successful search application query call.
+        // This test additionally proves that the permission check works correctly even after the API key's role is cached.
+        final Request searchRequest = new Request("GET", "/my-app-a/_search");
+        var e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(searchRequest, apiKeyEncoded));
+        assertThat(e.getMessage(), containsString("access restricted by workflow"));
+
+        // Check that access is rejected due to missing index privilege and not due to the workflow restriction.
+        final Request createSearchApplicationBRequest = new Request("PUT", "_application/search_application/my-app-b?create");
+        createSearchApplicationBRequest.setJsonEntity("""
             {
-              "params": {
-                "value": "bar",
-                "size": 10,
-                "from": 0,
-                "text_fields": [
-                    {
-                        "name": "foo",
-                        "boost": 10
+              "indices": [ "index-b" ],
+              "template": {
+                "script": {
+                  "source": {
+                    "query": {
+                      "term": {
+                        "{{field_name}}": "{{field_value}}"
+                      }
                     }
-                ]
+                  },
+                  "params": {
+                    "field_name": "baz",
+                    "field_value": "qux"
+                  }
+                }
               }
             }
             """);
-        ObjectPath queryResponse = assertOKAndCreateObjectPath(performRequestWithApiKey(queryRequest, apiKeyEncoded));
-        assertThat(queryResponse.evaluate("hits.total.value"), equalTo(1));
-        assertThat(queryResponse.evaluate("hits.hits.0._id"), equalTo("doc1"));
+        assertOK(adminClient().performRequest(createSearchApplicationBRequest));
+
+        e = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithApiKey(new Request("GET", "_application/search_application/my-app-b/_search"), apiKeyEncoded)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "action [indices:data/read/xpack/application/search_application/search] is unauthorized for API key id ["
+                    + apiKeyId
+                    + "] of user ["
+                    + WORKFLOW_API_KEY_USER
+                    + "] on indices [my-app-b], this action is granted by the index privileges [read,all]"
+            )
+        );
+        assertThat(e.getMessage(), not(containsString("access restricted by workflow")));
+
     }
 
     public void testWorkflowsRestrictionDeniesAccess() throws IOException {
@@ -144,7 +177,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
                     "r1": {
                         "indices": [
                           {
-                            "names": ["index-a"],
+                            "names": ["*"],
                             "privileges": ["read"]
                           }
                         ],
@@ -160,7 +193,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
         String apiKeyId = createApiKeyResponse.evaluate("id");
         assertThat(apiKeyId, notNullValue());
 
-        final Request searchRequest = new Request("GET", "/index-a/_search");
+        final Request searchRequest = new Request("GET", "/index-*/_search");
         ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(searchRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [indices:data/read/search] is unauthorized for API key "));

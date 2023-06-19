@@ -1,0 +1,5 @@
+pr: 96914
+summary: Add cluster setting for TDigestExecutionHint
+area: Aggregations
+type: enhancement
+issues: []

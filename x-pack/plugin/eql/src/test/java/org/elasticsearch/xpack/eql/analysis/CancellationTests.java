@@ -69,7 +69,7 @@ public class CancellationTests extends ESTestCase {
     public void mockTransportService() {
         threadPool = new TestThreadPool(getClass().getName());
         // The TransportService needs to be able to return a valid RemoteClusterServices object down the stream, required by the Verifier.
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.current(), threadPool);
     }
 
     @After

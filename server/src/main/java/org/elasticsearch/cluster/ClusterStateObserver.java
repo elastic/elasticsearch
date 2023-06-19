@@ -182,6 +182,35 @@ public class ClusterStateObserver {
         }
     }
 
+    /**
+     * Waits for the cluster state to match a given predicate. Unlike {@link #waitForNextChange} this method checks whether the current
+     * state matches the predicate first and resolves the listener directly if it matches without waiting for another cluster state update.
+     *
+     * @param clusterService cluster service
+     * @param threadContext  thread context to resolve listener in
+     * @param listener       listener to resolve once state matches the predicate
+     * @param statePredicate predicate the cluster state has to match
+     * @param timeout        timeout for the wait or {@code null} for no timeout
+     * @param logger         logger to use for logging observer messages
+     */
+    public static void waitForState(
+        ClusterService clusterService,
+        ThreadContext threadContext,
+        Listener listener,
+        Predicate<ClusterState> statePredicate,
+        @Nullable TimeValue timeout,
+        Logger logger
+    ) {
+        final ClusterState initialState = clusterService.state();
+        if (statePredicate.test(initialState)) {
+            // short-cut in case the state matches the predicate already
+            listener.onNewClusterState(initialState);
+            return;
+        }
+        ClusterStateObserver observer = new ClusterStateObserver(initialState, clusterService, timeout, logger, threadContext);
+        observer.waitForNextChange(listener, statePredicate);
+    }
+
     class ObserverClusterStateListener implements TimeoutClusterStateListener {
 
         @Override

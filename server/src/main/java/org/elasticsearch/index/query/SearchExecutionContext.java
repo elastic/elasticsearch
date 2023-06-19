@@ -19,7 +19,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
@@ -30,6 +29,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -75,6 +74,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
 
 /**
  * The context used to execute a search request on a shard. It provides access
@@ -463,7 +464,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return nestedScope;
     }
 
-    public Version indexVersionCreated() {
+    public IndexVersion indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
     }
 
@@ -615,13 +616,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
-     *  for instance if this rewrite context is used to index queries (percolation). */
+     *  for instance if this rewrite context is used to index queries (percolation).
+     */
     public IndexReader getIndexReader() {
         return searcher == null ? null : searcher.getIndexReader();
     }
 
-    /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
-     *  for instance if this rewrite context is used to index queries (percolation). */
+    /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available, which happens
+     * if this rewrite context is used to index queries (percolation).
+     */
     public IndexSearcher searcher() {
         return searcher;
     }
@@ -643,30 +646,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             }
         }
         return fieldsInIndex.contains(fieldname);
-    }
-
-    private static Map<String, MappedFieldType> parseRuntimeMappings(
-        Map<String, Object> runtimeMappings,
-        MapperService mapperService,
-        IndexSettings indexSettings,
-        MappingLookup lookup
-    ) {
-        if (runtimeMappings.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
-        MappingParserContext parserContext = mapperService.parserContext();
-        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
-        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
-        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
-            for (String r : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
-                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
-                }
-            }
-        }
-        runtimeFieldTypes.keySet().forEach(lookup::validateDoesNotShadow);
-        return runtimeFieldTypes;
     }
 
     /**

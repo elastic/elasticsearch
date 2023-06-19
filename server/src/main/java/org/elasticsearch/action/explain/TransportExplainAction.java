@@ -74,10 +74,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        ActionListener<QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
+        ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
-            super.doExecute(task, request, listener);
-        }, listener::onFailure);
+            super.doExecute(task, request, l);
+        });
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
@@ -101,7 +101,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        indexShard.awaitShardSearchActive(b -> {
+        indexShard.ensureShardSearchActive(b -> {
             try {
                 super.asyncShardOperation(request, shardId, listener);
             } catch (Exception ex) {

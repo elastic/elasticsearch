@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -163,11 +162,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
         TestDataExtractor extractor = new TestDataExtractor(1000L, 4000L);
 
-        SearchResponse response = createSearchResponse(
-            "buckets",
-            compositeBucket,
-            MapBuilder.<String, Object>newMapBuilder().put("time_bucket", 4000L).put("airline", "d").map()
-        );
+        SearchResponse response = createSearchResponse("buckets", compositeBucket, Map.of("time_bucket", 4000L, "airline", "d"));
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
@@ -253,11 +248,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
         TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1000 + 1);
 
-        SearchResponse response = createSearchResponse(
-            "buckets",
-            buckets,
-            MapBuilder.<String, Object>newMapBuilder().put("time_bucket", 1000L).put("airline", "d").map()
-        );
+        SearchResponse response = createSearchResponse("buckets", buckets, Map.of("time_bucket", 1000L, "airline", "d"));
         extractor.setNextResponse(response);
         extractor.cancel();
         // We should have next right now as we have not yet determined if we have handled a page or not
@@ -286,11 +277,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
         TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1000 + 1);
 
-        SearchResponse response = createSearchResponse(
-            "buckets",
-            buckets,
-            MapBuilder.<String, Object>newMapBuilder().put("time_bucket", 1000L).put("airline", "d").map()
-        );
+        SearchResponse response = createSearchResponse("buckets", buckets, Map.of("time_bucket", 1000L, "airline", "d"));
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
@@ -319,11 +306,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
                 )
             );
         }
-        response = createSearchResponse(
-            "buckets",
-            buckets,
-            MapBuilder.<String, Object>newMapBuilder().put("time_bucket", 3000L).put("airline", "a").map()
-        );
+        response = createSearchResponse("buckets", buckets, Map.of("time_bucket", 3000L, "airline", "a"));
         extractor.setNextResponse(response);
         extractor.cancel();
         assertThat(extractor.hasNext(), is(true));

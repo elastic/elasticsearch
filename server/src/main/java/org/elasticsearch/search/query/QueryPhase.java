@@ -102,7 +102,7 @@ public class QueryPhase {
         long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
         int nodeQueueSize = querySearchResult.nodeQueueSize();
 
-        // run each of the rrf queries
+        // run each of the rank queries
         for (Query rankQuery : rankShardContext.queries()) {
             // if a search timeout occurs, exit with partial results
             if (searchTimedOut) {
@@ -318,7 +318,9 @@ public class QueryPhase {
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {
-            searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager((InternalProfileCollectorManager) collectorManager);
+            searchContext.getProfilers()
+                .getCurrentQueryProfiler()
+                .setCollectorManager(((InternalProfileCollectorManager) collectorManager)::getCollectorTree);
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {

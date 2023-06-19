@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -1063,8 +1063,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
-                    final var expectedCrossClusterAccessSubjectInfo = CrossClusterAccessUser.subjectInfo(
-                        TransportVersion.CURRENT,
+                    final var expectedCrossClusterAccessSubjectInfo = SystemUser.crossClusterAccessSubjectInfo(
+                        TransportVersion.current(),
                         // Since we are running on a multi-node cluster the actual node name may be different between runs
                         // so just copy the one from the actual result
                         actualCrossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
@@ -1107,7 +1107,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         final MockTransportService service = MockTransportService.createNewService(
             settings,
             Version.CURRENT,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             null
         );

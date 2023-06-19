@@ -103,14 +103,14 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 isNull
-from hosts | where is_null(ip0) | project ip0, ip1;
+from hosts | where is_null(ip0) | keep ip0, ip1;
 
 ip0:ip         |ip1:ip
 null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
 ;
 
 conditional
-from hosts | eval eq=case(ip0==ip1, ip0, ip1) | project eq, ip0, ip1;
+from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1;
 
 eq:ip                                                 |ip0:ip                                                                           |ip1:ip
 127.0.0.1                                             |127.0.0.1                                                                        |127.0.0.1
@@ -179,7 +179,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 convertFromIP
-from hosts | project ip0 | eval ip0ip = to_ip(ip0) | sort ip0ip desc | limit 2;
+from hosts | keep ip0 | eval ip0ip = to_ip(ip0) | sort ip0ip desc | limit 2;
 
 ip0:ip                                                |ip0ip:ip
 null                                                  |null
@@ -220,7 +220,7 @@ eth0           |beta           |127.0.0.1   |::1
 ;
 
 pushDownIPWithComparision
-from hosts | where ip1 > to_ip("127.0.0.1") | project card, ip1;
+from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
 
 card:keyword   |ip1:ip
 eth1           |127.0.0.2

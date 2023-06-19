@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -315,8 +315,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveRename(r, childrenOutput);
             }
 
-            if (plan instanceof ProjectReorder p) {
-                return resolveProject(p, childrenOutput);
+            if (plan instanceof Keep p) {
+                return resolveKeep(p, childrenOutput);
             }
 
             if (plan instanceof Eval p) {
@@ -378,7 +378,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
         }
 
-        private LogicalPlan resolveProject(Project p, List<Attribute> childOutput) {
+        private LogicalPlan resolveKeep(Project p, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>();
             var projections = p.projections();
             // start with projections
@@ -445,7 +445,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             rename.renamings().forEach(alias -> {
                 // skip NOPs: `| rename a = a`
                 if (alias.child() instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
-                    // remove attributes overwritten by a renaming: `| project a, b, c | rename b = a`
+                    // remove attributes overwritten by a renaming: `| keep a, b, c | rename b = a`
                     projections.removeIf(x -> x.name().equals(alias.name()));
 
                     var resolved = resolveAttribute(ua, childrenOutput);

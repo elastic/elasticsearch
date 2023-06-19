@@ -32,7 +32,7 @@ id:i |name:k |version:v
 ;
 
 projectionVersion
-FROM apps | WHERE id == 3 | PROJECT version;
+FROM apps | WHERE id == 3 | KEEP version;
 
 version:v
 2.3.4
@@ -231,7 +231,7 @@ v:version
 ;
 
 castConstantToVersion2
-FROM apps | EVAL v = TO_VERSION("1.2.3") | PROJECT v;
+FROM apps | EVAL v = TO_VERSION("1.2.3") | KEEP v;
 
 v:v
 1.2.3
@@ -251,7 +251,7 @@ v:v
 ;
 
 multipleCast
-FROM apps | EVAL v = TO_STR(TO_VER("1.2.3")) | PROJECT v;
+FROM apps | EVAL v = TO_STR(TO_VER("1.2.3")) | KEEP v;
 
 v:s
 1.2.3
@@ -271,7 +271,7 @@ v:s
 ;
 
 compareVersions
-ROW v1 = TO_VER("1.2.3"), v2 = TO_VER("1.11.4") | EVAL v = v1 < v2 | PROJECT v;
+ROW v1 = TO_VER("1.2.3"), v2 = TO_VER("1.11.4") | EVAL v = v1 < v2 | KEEP v;
 
 v:boolean
 true
@@ -297,7 +297,7 @@ FROM apps
     IS_NULL(version), "none",
     "low")
 | SORT version DESC NULLS LAST, id DESC
-| PROJECT v, version, version_text, id, m, g, i, c;
+| KEEP v, version, version_text, id, m, g, i, c;
 
 v:v        | version:v |version_text:s   | id:i  |  m:i  |  g:v   | i:v     |  c:s
 1231.11.0  | 1.11.0    | 1.11.0          | 5     | 1     | 1.11.0 | 1.11.0  | high

@@ -330,7 +330,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromSortWithTieBreakerLimit() {
-        EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | project data, count, time");
+        EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | keep data, count, time");
         logger.info(results);
         assertThat(
             results.values(),
@@ -345,7 +345,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromStatsProjectGroup() {
-        EsqlQueryResponse results = run("from test | stats avg_count = avg(count) by data | project data");
+        EsqlQueryResponse results = run("from test | stats avg_count = avg(count) by data | keep data");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
@@ -353,7 +353,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRowStatsProjectGroupByInt() {
-        EsqlQueryResponse results = run("row a = 1, b = 2 | stats count(b) by a | project a");
+        EsqlQueryResponse results = run("row a = 1, b = 2 | stats count(b) by a | keep a");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("integer"));
@@ -361,7 +361,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRowStatsProjectGroupByLong() {
-        EsqlQueryResponse results = run("row a = 1000000000000, b = 2 | stats count(b) by a | project a");
+        EsqlQueryResponse results = run("row a = 1000000000000, b = 2 | stats count(b) by a | keep a");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
@@ -369,7 +369,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRowStatsProjectGroupByDouble() {
-        EsqlQueryResponse results = run("row a = 1.0, b = 2 | stats count(b) by a | project a");
+        EsqlQueryResponse results = run("row a = 1.0, b = 2 | stats count(b) by a | keep a");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
@@ -377,7 +377,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRowStatsProjectGroupByKeyword() {
-        EsqlQueryResponse results = run("row a = \"hello\", b = 2 | stats count(b) by a | project a");
+        EsqlQueryResponse results = run("row a = \"hello\", b = 2 | stats count(b) by a | keep a");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("keyword"));
@@ -385,7 +385,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromStatsProjectGroupByDouble() {
-        EsqlQueryResponse results = run("from test | stats count(count) by data_d | project data_d");
+        EsqlQueryResponse results = run("from test | stats count(count) by data_d | keep data_d");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data_d"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
@@ -393,7 +393,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromStatsProjectGroupWithAlias() {
-        String query = "from test | stats avg_count = avg(count) by data | eval d2 = data | rename d = data | project d, d2";
+        String query = "from test | stats avg_count = avg(count) by data | eval d2 = data | rename d = data | keep d, d2";
         EsqlQueryResponse results = run(query);
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("d", "d2"));
@@ -402,7 +402,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromStatsProjectAgg() {
-        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | project a");
+        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | keep a");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
@@ -410,7 +410,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromStatsProjectAggWithAlias() {
-        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | rename b = a | project b");
+        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | rename b = a | keep b");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("b"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
@@ -418,7 +418,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromProjectStatsGroupByAlias() {
-        EsqlQueryResponse results = run("from test | rename d = data | project d, count | stats avg(count) by d");
+        EsqlQueryResponse results = run("from test | rename d = data | keep d, count | stats avg(count) by d");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(count)", "d"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
@@ -426,7 +426,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromProjectStatsAggregateAlias() {
-        EsqlQueryResponse results = run("from test | rename c = count | project c, data | stats avg(c) by data");
+        EsqlQueryResponse results = run("from test | rename c = count | keep c, data | stats avg(c) by data");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(c)", "data"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
@@ -465,7 +465,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProjectWhere() {
-        EsqlQueryResponse results = run("from test | project count | where count > 40");
+        EsqlQueryResponse results = run("from test | keep count | where count > 40");
         logger.info(results);
         Assert.assertEquals(30, results.values().size());
         int countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
@@ -526,7 +526,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testMultiConditionalWhere() {
         EsqlQueryResponse results = run(
-            "from test | eval abc = 1+2 | where (abc + count >= 44 or data_d == 2) and data == 1 | project color, abc"
+            "from test | eval abc = 1+2 | where (abc + count >= 44 or data_d == 2) and data == 1 | keep color, abc"
         );
         logger.info(results);
         Assert.assertEquals(10, results.values().size());
@@ -538,7 +538,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereNegatedCondition() {
-        EsqlQueryResponse results = run("from test | eval abc=1+2 | where abc + count > 45 and data != 1 | project color, data");
+        EsqlQueryResponse results = run("from test | eval abc=1+2 | where abc + count > 45 and data != 1 | keep color, data");
         logger.info(results);
         Assert.assertEquals(10, results.values().size());
         Assert.assertEquals(2, results.columns().size());
@@ -561,7 +561,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProjectRename() {
-        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | project x, y");
+        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | keep x, y");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
         assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long")));
@@ -572,7 +572,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProjectRenameEval() {
-        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | project x, y | eval x2 = x + 1 | eval y2 = y + 2");
+        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | keep x, y | eval x2 = x + 1 | eval y2 = y + 2");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
         assertThat(
@@ -588,7 +588,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProjectRenameEvalProject() {
-        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | project x, y | eval z = x + y | project x, y, z");
+        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | keep x, y | eval z = x + y | keep x, y, z");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
         assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long"), new ColumnInfo("z", "long")));
@@ -600,7 +600,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProjectOverride() {
-        EsqlQueryResponse results = run("from test | eval cnt = count | rename data = count | project cnt, data");
+        EsqlQueryResponse results = run("from test | eval cnt = count | rename data = count | keep cnt, data");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
         assertThat(results.columns(), contains(new ColumnInfo("cnt", "long"), new ColumnInfo("data", "long")));
@@ -748,14 +748,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromLimit() {
-        EsqlQueryResponse results = run("from test | project data | limit 2");
+        EsqlQueryResponse results = run("from test | keep data | limit 2");
         logger.info(results);
         assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
         assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
     public void testDropAllColumns() {
-        EsqlQueryResponse results = run("from test | project data | drop data | eval a = 1");
+        EsqlQueryResponse results = run("from test | keep data | drop data | eval a = 1");
         logger.info(results);
         assertThat(results.columns(), hasSize(1));
         assertThat(results.columns(), contains(new ColumnInfo("a", "integer")));
@@ -883,7 +883,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInWithNullValue() {
-        EsqlQueryResponse results = run("from test | where null in (data, 2) | project data");
+        EsqlQueryResponse results = run("from test | where null in (data, 2) | keep data");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("data", "long"))));
         assertThat(results.values().size(), equalTo(0));
     }
@@ -918,7 +918,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 | where color == "yellow"
                 | sort data desc nulls first, count asc nulls first
                 | limit 10
-                | project data, count, color
+                | keep data, count, color
             """);
         logger.info(results);
         Assert.assertEquals(3, results.columns().size());
@@ -973,7 +973,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         );
 
         int limit = randomIntBetween(1, 5);
-        EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | project time");
+        EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | keep time");
         logger.info(results);
         Assert.assertEquals(1, results.columns().size());
         Assert.assertEquals(limit, results.values().size());

@@ -249,11 +249,11 @@ unsupported:
 
   - length: { values: 0 }
 
-# project unsupported and limit 0
+# keep unsupported and limit 0
   - do:
       esql.query:
         body:
-          query: 'from test | project shape | limit 0'
+          query: 'from test | keep shape | limit 0'
   - match: { columns.0.name: shape }
   - match: { columns.0.type: unsupported }
   - length: { values: 0 }

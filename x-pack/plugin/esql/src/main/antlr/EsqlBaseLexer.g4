@@ -8,6 +8,7 @@ EXPLAIN : 'explain' -> pushMode(EXPLAIN_MODE);
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 GROK : 'grok' -> pushMode(EXPRESSION);
 INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
+KEEP : 'keep' -> pushMode(SOURCE_IDENTIFIERS);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
 MV_EXPAND : 'mv_expand' -> pushMode(SOURCE_IDENTIFIERS);
 PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);

@@ -22,33 +22,33 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 ;
 
 projectDropWithWildcardKeepOthers
-row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | eval abc = x * 2 | drop a* | project b,x;
+row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | eval abc = x * 2 | drop a* | keep b,x;
 
 b:integer | x:integer
 2 | 8
 ;
 
 dropAllColumns
-from employees | project height | drop height | eval x = 1;
+from employees | keep height | drop height | eval x = 1;
 
 x:integer
 ;
 
 dropAllColumns_WithLimit
-from employees | project height | drop height | eval x = 1 | limit 3;
+from employees | keep height | drop height | eval x = 1 | limit 3;
 
 x:integer
 ;
 
 dropAllColumns_WithCount
-from employees | project height | drop height | eval x = 1 | stats c=count(x);
+from employees | keep height | drop height | eval x = 1 | stats c=count(x);
 
 c:long
 0
 ;
 
 dropAllColumns_WithStats
-from employees | project height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
+from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
 
 c:l|mi:i|s:l
 0  |null|null

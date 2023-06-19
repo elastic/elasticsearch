@@ -55,7 +55,7 @@ c:integer | b:integer | e:integer
 ;
 
 rowRenameEvalProject
-row a = 1, b = 2 | rename c = a | project c | eval e = 2 * c | project e, c;
+row a = 1, b = 2 | rename c = a | keep c | eval e = 2 * c | keep e, c;
 
 e:integer | c:integer
 2 | 1
@@ -76,7 +76,7 @@ d:integer | c:integer
 ;
 
 renameEvalProject
-from employees | rename x = languages | project x | eval z = 2 * x | project x, z | limit 3;
+from employees | rename x = languages | keep x | eval z = 2 * x | keep x, z | limit 3;
 
 x:integer | z:integer
 2 | 4
@@ -85,7 +85,7 @@ x:integer | z:integer
 ;
 
 renameProjectEval
-from employees | eval y = languages | rename x = languages | project x, y | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
+from employees | eval y = languages | rename x = languages | keep x, y | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
 
 x:integer | y:integer | x2:integer | y2:integer
 2 | 2 | 3 | 4
@@ -94,7 +94,7 @@ x:integer | y:integer | x2:integer | y2:integer
 ;
 
 renameWithFilterPushedToES
-from employees | rename x = emp_no | project languages, first_name, last_name, x | where x > 10030 and x < 10040 | limit 5;
+from employees | rename x = emp_no | keep languages, first_name, last_name, x | where x > 10030 and x < 10040 | limit 5;
 
 languages:integer | first_name:keyword | last_name:keyword | x:integer
 4 | null | Joslin | 10031
@@ -105,7 +105,7 @@ languages:integer | first_name:keyword | last_name:keyword | x:integer
 ;
 
 renameNopProject
-from employees | rename emp_no = emp_no | project emp_no, last_name | limit 3;
+from employees | rename emp_no = emp_no | keep emp_no, last_name | limit 3;
 
 emp_no:integer | last_name:keyword
 10001 | Facello
@@ -114,7 +114,7 @@ emp_no:integer | last_name:keyword
 ;
 
 renameOverride
-from employees | rename languages = emp_no | project languages, last_name | limit 3;
+from employees | rename languages = emp_no | keep languages, last_name | limit 3;
 
 languages:integer | last_name:keyword
 10001 | Facello
@@ -123,7 +123,7 @@ languages:integer | last_name:keyword
 ;
 
 projectRenameDate
-from employees | sort hire_date | rename x = hire_date | project emp_no, x | limit 5;
+from employees | sort hire_date | rename x = hire_date | keep emp_no, x | limit 5;
 
 emp_no:integer | x:date
 10009          | 1985-02-18T00:00:00.000Z            

@@ -634,6 +634,11 @@ public class StatementParserTests extends ESTestCase {
         assertThat(expand.target(), equalTo(attribute("a")));
     }
 
+    public void testUsageOfProject() {
+        processingCommand("project a");
+        assertWarnings("PROJECT command is no longer supported, please use KEEP instead");
+    }
+
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));

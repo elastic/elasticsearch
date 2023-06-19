@@ -83,8 +83,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
                 /*
                  * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):
-                 *  - before stats (project x = a | stats by x) which requires the partial input to use a's channel
-                 *  - after  stats (stats by a | project x = a) which causes the output layout to refer to the follow-up alias
+                 *  - before stats (keep x = a | stats by x) which requires the partial input to use a's channel
+                 *  - after  stats (stats by a | keep x = a) which causes the output layout to refer to the follow-up alias
                  */
                 for (NamedExpression agg : aggregates) {
                     if (agg instanceof Alias a) {

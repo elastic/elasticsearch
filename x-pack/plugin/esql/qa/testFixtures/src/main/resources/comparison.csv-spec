@@ -1,7 +1,7 @@
 intToInt
 from employees
 | where emp_no < 10002
-| project emp_no;
+| keep emp_no;
 
 emp_no:integer
 10001
@@ -11,7 +11,7 @@ longToLong
 from employees
 | where languages.long < avg_worked_seconds
 | limit 1
-| project emp_no;
+| keep emp_no;
 
 emp_no:integer
 10001
@@ -21,7 +21,7 @@ doubleToDouble
 from employees
 | where height < 10.0
 | limit 1
-| project emp_no;
+| keep emp_no;
 
 emp_no:integer
 10001
@@ -30,7 +30,7 @@ emp_no:integer
 intToLong
 from employees
 | where emp_no > languages.long
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 
@@ -41,7 +41,7 @@ emp_no:integer
 longToInt
 from employees
 | where languages.long < emp_no
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 
@@ -52,7 +52,7 @@ emp_no:integer
 doubleToLong
 from employees
 | where 2.0 > languages.long
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 
@@ -63,7 +63,7 @@ emp_no:integer
 longToDouble
 from employees
 | where languages.long < 2.0
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 
@@ -74,7 +74,7 @@ emp_no:integer
 intToLong
 from employees
 | where 2.0 > languages
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 
@@ -85,7 +85,7 @@ emp_no:integer
 intToDouble
 from employees
 | where languages < 2.0
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 
@@ -96,7 +96,7 @@ emp_no:integer
 boolToBool
 from employees
 | where still_hired == false
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 
@@ -107,7 +107,7 @@ emp_no:integer
 dateToDate
 from employees
 | where birth_date < hire_date
-| project emp_no
+| keep emp_no
 | sort emp_no
 | limit 1;
 

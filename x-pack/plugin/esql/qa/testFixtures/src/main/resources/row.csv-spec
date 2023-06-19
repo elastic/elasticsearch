@@ -185,28 +185,28 @@ NaN
 ;
 
 rowStatsProjectGroupByInt
-row a = 1, b = 2 | stats count(b) by a | project a;
+row a = 1, b = 2 | stats count(b) by a | keep a;
 
 a:integer
 1
 ;
 
 rowStatsProjectGroupByLong
-row a = 1000000000000, b = 2 | stats count(b) by a | project a;
+row a = 1000000000000, b = 2 | stats count(b) by a | keep a;
 
 a:long
 1000000000000
 ;
 
 rowStatsProjectGroupByDouble
-row a = 1.0, b = 2 | stats count(b) by a | project a;
+row a = 1.0, b = 2 | stats count(b) by a | keep a;
 
 a:double
 1.0
 ;
 
 rowStatsProjectGroupByLong
-row a = "hello world", b = 2 | stats count(b) by a | project a;
+row a = "hello world", b = 2 | stats count(b) by a | keep a;
 
 a:keyword
 "hello world"

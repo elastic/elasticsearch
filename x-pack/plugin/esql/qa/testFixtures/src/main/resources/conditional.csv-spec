@@ -4,7 +4,7 @@ from employees
     languages <= 1, "monolingual",
     languages <= 2, "bilingual",
      "polyglot")
-| project emp_no, type
+| keep emp_no, type
 | limit 10;
 
 emp_no:integer | type:keyword
@@ -23,7 +23,7 @@ emp_no:integer | type:keyword
 singleCondition
 from employees
 | eval g = case(gender == "F", true)
-| project gender, g
+| keep gender, g
 | limit 10;
 
 gender:keyword |g:boolean
@@ -45,7 +45,7 @@ from employees
     gender == "F", 1,
     languages > 1, 2,
     3) 
-| project gender, languages, g 
+| keep gender, languages, g 
 | limit 25;
 
 gender:keyword |languages:integer|g:integer
@@ -79,7 +79,7 @@ M              |null             |3
 nullValue
 from employees
 | eval g = case(gender == "F", 1 + null, 10)
-| project gender, g
+| keep gender, g
 | limit 5;
 
 gender:keyword |g:integer
@@ -94,7 +94,7 @@ isNull
 from employees
 | where is_null(gender)
 | sort first_name
-| project first_name, gender
+| keep first_name, gender
 | limit 3;
 
 first_name:keyword|gender:keyword
@@ -107,7 +107,7 @@ notIsNull
 from employees
 | where not is_null(gender)
 | sort first_name
-| project first_name, gender
+| keep first_name, gender
 | limit 3;
 
 first_name:keyword|gender:keyword

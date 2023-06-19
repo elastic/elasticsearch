@@ -64,7 +64,7 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
 
     public void testKeyword() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
-        EsqlQueryResponse response = EsqlActionIT.run("from test | project const | limit 1");
+        EsqlQueryResponse response = EsqlActionIT.run("from test | keep const | limit 1");
         assertThat(response.values(), equalTo(List.of(List.of("const"))));
     }
 

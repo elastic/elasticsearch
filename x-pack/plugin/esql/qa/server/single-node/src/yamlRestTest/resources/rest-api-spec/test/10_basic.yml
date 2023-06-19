@@ -143,7 +143,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test | project data | sort data | limit 2'
+          query: 'from test | keep data | sort data | limit 2'
           columnar: true
 
   - match: {columns.0.name: "data"}
@@ -172,7 +172,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | project data, x, y, z, time | limit 2'
+          query: 'from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | keep data, x, y, z, time | limit 2'
 
   - match: {columns.0.name: "data"}
   - match: {columns.0.type: "long"}
@@ -197,11 +197,11 @@ setup:
   - match: {values.1.3: 47.0}
 
 ---
-"Test Project After TopN":
+"Test keep After TopN":
   - do:
       esql.query:
         body:
-          query: 'from test | sort time | limit 2 | project count'
+          query: 'from test | sort time | limit 2 | keep count'
           columnar: true
 
   - length: {columns: 1}
@@ -210,11 +210,11 @@ setup:
   - match: {values.0: [40, 42]}
 
 ---
-"Test Project After TopN Desc":
+"Test keep After TopN Desc":
   - do:
       esql.query:
         body:
-          query: 'from test | sort time desc | limit 2 | project count'
+          query: 'from test | sort time desc | limit 2 | keep count'
           columnar: true
 
   - length: {columns: 1}
@@ -223,11 +223,11 @@ setup:
   - match: {values.0: [46, 44]}
 
 ---
-"Test TopN Project Eval":
+"Test TopN keep Eval":
   - do:
       esql.query:
         body:
-          query: 'from test | sort time | limit 2 | project count | eval x = count + 1'
+          query: 'from test | sort time | limit 2 | keep count | eval x = count + 1'
           columnar: true
 
   - length: {columns: 2}
@@ -240,11 +240,11 @@ setup:
   - match: {values.1: [41, 43]}
 
 ---
-"Test TopN Project Eval Project":
+"Test TopN keep Eval Project":
   - do:
       esql.query:
         body:
-          query: 'from test | sort time | limit 2 | project count | eval x = count + 1 | project x'
+          query: 'from test | sort time | limit 2 | keep count | eval x = count + 1 | keep x'
           columnar: true
 
   - length: {columns: 1}

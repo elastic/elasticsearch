@@ -67,7 +67,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test | enrich cities_policy on city_id | project name, city, country | sort name'
+          query: 'from test | enrich cities_policy on city_id | keep name, city, country | sort name'
 
   - match: { columns.0.name: "name" }
   - match: { columns.0.type: "keyword" }
@@ -86,7 +86,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test | project name, city_id | enrich cities_policy on city_id with country | sort name'
+          query: 'from test | keep name, city_id | enrich cities_policy on city_id with country | sort name'
 
   - match: { columns.0.name: "name" }
   - match: { columns.0.type: "keyword" }
@@ -105,7 +105,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test | project name, city_id | enrich cities_policy on city_id with country_name = country | sort name'
+          query: 'from test | keep name, city_id | enrich cities_policy on city_id with country_name = country | sort name'
 
   - match: { columns.0.name: "name" }
   - match: { columns.0.type: "keyword" }

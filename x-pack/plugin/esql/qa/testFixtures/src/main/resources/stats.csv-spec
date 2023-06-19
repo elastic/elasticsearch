@@ -261,7 +261,7 @@ h:d  | languages:i
 ;
 
 groupByAlias
-from employees | rename l = languages | project l, height | stats m = min(height) by l | sort l;
+from employees | rename l = languages | keep l, height | stats m = min(height) by l | sort l;
 
 m:d  | l:i
 1.42 | 1
@@ -293,7 +293,7 @@ c:long | gender:keyword | trunk_worked_seconds:long
 ;
 
 byStringAndLongWithAlias
-from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | rename g = gender, tws = trunk_worked_seconds | project g, tws | stats c = count(g) by g, tws | sort c desc;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | rename g = gender, tws = trunk_worked_seconds | keep g, tws | stats c = count(g) by g, tws | sort c desc;
 
 c:long | g:keyword | tws:long
 30 | M | 300000000
@@ -397,7 +397,7 @@ c:long | d:date | gender:keyword | languages:integer
 ;
 
 byDateAndKeywordAndIntWithAlias
-from employees | eval d = date_trunc(hire_date, 1 year) | rename g = gender, l = languages, e = emp_no | project d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
+from employees | eval d = date_trunc(hire_date, 1 year) | rename g = gender, l = languages, e = emp_no | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
 
 c:long | d:date | g:keyword | l:integer
 3 | 1986-01-01T00:00:00.000Z | M | 2

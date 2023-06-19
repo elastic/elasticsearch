@@ -1,7 +1,7 @@
-[[esql-project]]
-=== `PROJECT`
+[[esql-keep]]
+=== `KEEP`
 
-The `PROJECT` command enables you to specify what columns are returned and the
+The `KEEP` command enables you to specify what columns are returned and the
 order in which they are returned.
 
 To limit the columns that are returned, use a comma-separated list of column
@@ -9,11 +9,11 @@ names. The columns are returned in the specified order:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=project]
+include::{esql-specs}/docs.csv-spec[tag=keep]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs.csv-spec[tag=project-result]
+include::{esql-specs}/docs.csv-spec[tag=keep-result]
 |===
 
 Rather than specify each column by name, you can use wildcards to return all
@@ -21,7 +21,7 @@ columns with a name that matches a pattern:
 
 [source,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=projectWildcard]
+include::{esql-specs}/docs.csv-spec[tag=keepWildcard]
 ----
 
 The asterisk wildcard (`*`) by itself translates to all columns that do not
@@ -30,5 +30,5 @@ that starts with an h, followed by all other columns:
 
 [source,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=projectDoubleWildcard]
+include::{esql-specs}/docs.csv-spec[tag=keepDoubleWildcard]
 ----

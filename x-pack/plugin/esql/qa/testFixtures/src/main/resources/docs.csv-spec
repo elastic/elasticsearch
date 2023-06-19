@@ -21,7 +21,7 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 docsEval
 // tag::eval[]
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | EVAL height_feet = height * 3.281, height_cm = height * 100
 // end::eval[]
 | WHERE first_name == "Georgi"
@@ -36,7 +36,7 @@ Georgi |Facello | 2.03 | 6.66043 | 202.99999999999997
 docsEvalReplace
 // tag::evalReplace[]
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | EVAL height = height * 3.281
 // end::evalReplace[]
 | WHERE first_name == "Georgi"
@@ -53,7 +53,7 @@ docsLimit
 FROM employees
 | LIMIT 5
 // end::limit[]
-| PROJECT emp_no
+| KEEP emp_no
 | SORT emp_no ASC
 ;
 
@@ -65,40 +65,40 @@ emp_no:integer
 10005
 ;
 
-docsProject
-// tag::project[]
+docsKeep
+// tag::keep[]
 FROM employees
-| PROJECT emp_no, first_name, last_name, height
-// end::project[]
+| KEEP emp_no, first_name, last_name, height
+// end::keep[]
 | SORT emp_no ASC
 | LIMIT 5
 ;
 
-// tag::project-result[]
+// tag::keep-result[]
 emp_no:integer | first_name:keyword | last_name:keyword | height:double
 10001          |Georgi         |Facello        |2.03
 10002          |Bezalel        |Simmel         |2.08
 10003          |Parto          |Bamford        |1.83
 10004          |Chirstian      |Koblick        |1.78
 10005          |Kyoichi        |Maliniak       |2.05
-// end::project-result[]
+// end::keep-result[]
 ;
 
-docsProjectWildcard
-// tag::projectWildcard[]
+docsKeepWildcard
+// tag::keepWildcard[]
 FROM employees
-| PROJECT h*
-// end::projectWildcard[]
+| KEEP h*
+// end::keepWildcard[]
 | LIMIT 0;
 
 height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date
 ;
 
-docsProjectDoubleWildcard
-// tag::projectDoubleWildcard[]
+docsKeepDoubleWildcard
+// tag::keepDoubleWildcard[]
 FROM employees
-| PROJECT h*, *
-// end::projectDoubleWildcard[]
+| KEEP h*, *
+// end::keepDoubleWildcard[]
 | LIMIT 0;
 
 height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
@@ -107,7 +107,7 @@ height:double | height.float:double | height.half_float:double | height.scaled_f
 docsRename
 // tag::rename[]
 FROM employees
-| PROJECT first_name, last_name, still_hired
+| KEEP first_name, last_name, still_hired
 | RENAME employed = still_hired
 // end::rename[]
 | LIMIT 0;
@@ -118,7 +118,7 @@ first_name:keyword | last_name:keyword | employed:boolean
 docsRenameMultipleColumns
 // tag::renameMultipleColumns[]
 FROM employees
-| PROJECT first_name, last_name
+| KEEP first_name, last_name
 | RENAME fn = first_name, ln = last_name
 // end::renameMultipleColumns[]
 | LIMIT 0;
@@ -129,7 +129,7 @@ fn:keyword | ln:keyword
 docsSort
 // tag::sort[]
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | SORT height
 // end::sort[]
 | SORT height, first_name
@@ -144,7 +144,7 @@ Vishv          |Zockler        |1.42
 docsSortDesc
 // tag::sortDesc[]
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | SORT height DESC
 // end::sortDesc[]
 | SORT height DESC, first_name ASC
@@ -159,7 +159,7 @@ Saniya         |Kalloufi       |2.1
 docsSortTie
 // tag::sortTie[]
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | SORT height DESC, first_name ASC
 // end::sortTie[]
 | LIMIT 3;
@@ -173,7 +173,7 @@ Saniya         |Kalloufi       |2.1
 docsSortNullsFirst
 // tag::sortNullsFirst[]
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | SORT first_name ASC NULLS FIRST
 // end::sortNullsFirst[]
 | SORT first_name ASC NULLS FIRST, height
@@ -248,7 +248,7 @@ hired:keyword |languages.long:long | avg_salary:double
 docsWhere
 // tag::where[]
 FROM employees
-| PROJECT first_name, last_name, still_hired
+| KEEP first_name, last_name, still_hired
 | WHERE still_hired == true
 // end::where[]
 | STATS count = COUNT(last_name) BY still_hired
@@ -261,7 +261,7 @@ count:long | still_hired:boolean
 docsWhereBoolean
 // tag::whereBoolean[]
 FROM employees
-| PROJECT first_name, last_name, still_hired
+| KEEP first_name, last_name, still_hired
 | WHERE still_hired
 // end::whereBoolean[]
 | STATS count = COUNT(last_name) BY still_hired
@@ -274,7 +274,7 @@ count:long | still_hired:boolean
 docsWhereFunction
 // tag::whereFunction[]
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | WHERE length(first_name) < 4
 // end::whereFunction[]
 | SORT first_name

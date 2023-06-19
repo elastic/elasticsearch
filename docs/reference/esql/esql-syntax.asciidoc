@@ -97,7 +97,7 @@ are supported:
 ----
 FROM employees
 | WHERE first_name LIKE "?b*"
-| PROJECT first_name, last_name
+| KEEP first_name, last_name
 ----
 --
 
@@ -107,7 +107,7 @@ FROM employees
 ----
 FROM employees
 | WHERE first_name RLIKE ".leja.*"
-| PROJECT first_name, last_name
+| KEEP first_name, last_name
 ----
 
 The following boolean operators are supported:

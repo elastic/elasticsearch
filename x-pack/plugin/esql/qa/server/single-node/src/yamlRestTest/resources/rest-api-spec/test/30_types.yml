@@ -35,7 +35,7 @@ constant_keyword:
   - do:
       esql.query:
         body:
-          query: 'from test | eval l=length(kind) | project l'
+          query: 'from test | eval l=length(kind) | keep l'
 
   - match: {columns.0.name: l}
   - match: {columns.0.type: integer}
@@ -101,7 +101,7 @@ wildcard:
   - do:
       esql.query:
         body:
-          query: 'from test | eval l=length(card) | project l'
+          query: 'from test | eval l=length(card) | keep l'
   - match: {columns.0.name: l}
   - match: {columns.0.type: integer}
   - length: {values: 1}
@@ -206,7 +206,7 @@ small_numbers:
   - do:
       esql.query:
         body:
-          query: 'from test | eval sum_d = b + f + hf + s, sum_i = b + s | project sum_d, sum_i'
+          query: 'from test | eval sum_d = b + f + hf + s, sum_i = b + s | keep sum_d, sum_i'
   - match: {columns.0.name: sum_d}
   - match: {columns.0.type: double}
   - match: {columns.1.name: sum_i}
@@ -218,7 +218,7 @@ small_numbers:
   - do:
       esql.query:
         body:
-          query: 'from test | eval r_f = round(f), r_hf = round(hf) | project r_f, r_hf'
+          query: 'from test | eval r_f = round(f), r_hf = round(hf) | keep r_f, r_hf'
   - match: {columns.0.name: r_f}
   - match: {columns.0.type: double}
   - match: {columns.1.name: r_hf}
@@ -264,7 +264,7 @@ scaled_float:
   - do:
       esql.query:
         body:
-          query: 'from test | eval sum = d + f | project sum'
+          query: 'from test | eval sum = d + f | keep sum'
   - match: {columns.0.name: sum}
   - match: {columns.0.type: double}
   - length: {values: 1}
@@ -388,7 +388,7 @@ alias:
   - do:
       esql.query:
         body:
-          query: 'from test | project foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
+          query: 'from test | keep foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
   - match: { columns.0.name: foo }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: bar }
@@ -430,7 +430,7 @@ alias:
   - do:
       esql.query:
         body:
-          query: 'from test | where bar == "abc" | project foo, bar, level1.level2, level2_alias'
+          query: 'from test | where bar == "abc" | keep foo, bar, level1.level2, level2_alias'
   - match: { columns.0.name: foo }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: bar }
@@ -448,7 +448,7 @@ alias:
   - do:
       esql.query:
         body:
-          query: 'from test | where level2_alias == 10 | project foo, bar, level1.level2, level2_alias'
+          query: 'from test | where level2_alias == 10 | keep foo, bar, level1.level2, level2_alias'
   - match: { columns.0.name: foo }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: bar }

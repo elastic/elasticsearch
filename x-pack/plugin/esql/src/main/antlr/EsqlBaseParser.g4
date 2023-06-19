@@ -30,7 +30,7 @@ processingCommand
     : evalCommand
     | inlinestatsCommand
     | limitCommand
-    | projectCommand
+    | keepCommand
     | sortCommand
     | statsCommand
     | whereCommand
@@ -151,8 +151,9 @@ orderExpression
     : booleanExpression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
     ;
 
-projectCommand
-    :  PROJECT sourceIdentifier (COMMA sourceIdentifier)*
+keepCommand
+    :  KEEP sourceIdentifier (COMMA sourceIdentifier)*
+    |  PROJECT sourceIdentifier (COMMA sourceIdentifier)*
     ;
 
 dropCommand

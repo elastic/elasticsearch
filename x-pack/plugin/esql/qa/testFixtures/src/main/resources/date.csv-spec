@@ -1,5 +1,5 @@
 simple
-from employees | sort emp_no | project emp_no, hire_date | limit 1;
+from employees | sort emp_no | keep emp_no, hire_date | limit 1;
 
 emp_no:integer | hire_date:date 
 10001          | 1986-06-26T00:00:00.000Z            
@@ -7,7 +7,7 @@ emp_no:integer | hire_date:date
 
 
 sort
-from employees | sort hire_date | project emp_no, hire_date | limit 5; 
+from employees | sort hire_date | keep emp_no, hire_date | limit 5; 
 
 emp_no:integer | hire_date:date
 10009          | 1985-02-18T00:00:00.000Z            
@@ -20,7 +20,7 @@ emp_no:integer | hire_date:date
 
 
 sortDesc
-from employees | sort hire_date desc | project emp_no, hire_date | limit 5; 
+from employees | sort hire_date desc | keep emp_no, hire_date | limit 5; 
 
 emp_no:integer | hire_date:date
 10019          | 1999-04-30T00:00:00.000Z            
@@ -32,7 +32,7 @@ emp_no:integer | hire_date:date
 
 
 evalAssign
-from employees | sort hire_date | eval x = hire_date | project emp_no, x | limit 5;
+from employees | sort hire_date | eval x = hire_date | keep emp_no, x | limit 5;
 
 emp_no:integer | x:date
 10009          | 1985-02-18T00:00:00.000Z            
@@ -45,7 +45,7 @@ emp_no:integer | x:date
 
 
 evalDateFormat
-from employees | sort hire_date | eval x = date_format(hire_date), y = date_format(hire_date, "YYYY-MM-dd") | project emp_no, x, y | limit 5;
+from employees | sort hire_date | eval x = date_format(hire_date), y = date_format(hire_date, "YYYY-MM-dd") | keep emp_no, x, y | limit 5;
 
 emp_no:integer | x:keyword                     | y:keyword
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18            
@@ -57,7 +57,7 @@ emp_no:integer | x:keyword                     | y:keyword
 
 
 compareToString
-from employees | where hire_date < "1985-03-01T00:00:00Z" | project emp_no, hire_date;
+from employees | where hire_date < "1985-03-01T00:00:00Z" | keep emp_no, hire_date;
 
 emp_no:integer | hire_date:date
 10009          | 1985-02-18T00:00:00.000Z
@@ -65,14 +65,14 @@ emp_no:integer | hire_date:date
 
 
 compareToDatetime
-from employees | where hire_date < birth_date | project emp_no, hire_date;
+from employees | where hire_date < birth_date | keep emp_no, hire_date;
 
 emp_no:integer | hire_date:date
 ;
 
 
 nullDate
-from employees | where emp_no == 10040 | eval x = date_format(birth_date) | project emp_no, birth_date, hire_date, x;
+from employees | where emp_no == 10040 | eval x = date_format(birth_date) | keep emp_no, birth_date, hire_date, x;
 
 emp_no:integer | birth_date:date                     | hire_date:date             | x:keyword
 10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
@@ -87,7 +87,7 @@ min:date                  | max:date
 ;
 
 evalDateTruncIntervalExpressionPeriod
-from employees | sort hire_date | eval x = date_trunc(hire_date, 1 month) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 1 month) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                    
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z         
@@ -98,7 +98,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncIntervalExpressionDuration
-from employees | sort hire_date | eval x = date_trunc(hire_date, 240 hours) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 240 hours) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                  
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z       
@@ -109,7 +109,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncWeeklyInterval
-from employees | sort hire_date | eval x = date_trunc(hire_date, 1 week) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 1 week) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                  
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18T00:00:00.000Z       
@@ -120,7 +120,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncQuarterlyInterval
-from employees | sort hire_date | eval x = date_trunc(hire_date, 3 month) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 3 month) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                    
 10009          | 1985-02-18T00:00:00.000Z      | 1985-01-01T00:00:00.000Z         
@@ -131,14 +131,14 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncNullDate
-from employees | where emp_no == 10040 | eval x = date_trunc(birth_date, 1 day) | project emp_no, birth_date, x;
+from employees | where emp_no == 10040 | eval x = date_trunc(birth_date, 1 day) | keep emp_no, birth_date, x;
 
 emp_no:integer | birth_date:date               | x:date
 10040          | null                          | null  
 ;
 
 evalDateTruncGrouping
-from employees | eval y = date_trunc(hire_date, 1 year) | stats count(emp_no) by y | sort y | project y, count(emp_no) | limit 5;
+from employees | eval y = date_trunc(hire_date, 1 year) | stats count(emp_no) by y | sort y | keep y, count(emp_no) | limit 5;
 
 y:date                        | count(emp_no):long
 1985-01-01T00:00:00.000Z      | 11       
@@ -149,7 +149,7 @@ y:date                        | count(emp_no):long
 ;
 
 in
-from employees | eval x = date_trunc(hire_date, 1 year) | where birth_date not in (x, hire_date) | project x, hire_date | sort x desc | limit 4;
+from employees | eval x = date_trunc(hire_date, 1 year) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc | limit 4;
 
 x:date                  |hire_date:date
 1999-01-01T00:00:00.000Z|1999-04-30T00:00:00.000Z
@@ -159,7 +159,7 @@ x:date                  |hire_date:date
 ;
 
 convertFromDatetime
-from employees| project birth_date | eval bd = to_datetime(birth_date) | limit 2;
+from employees| keep birth_date | eval bd = to_datetime(birth_date) | limit 2;
 
 birth_date:date         |bd:date
 1953-09-02T00:00:00.000Z|1953-09-02T00:00:00.000Z
@@ -247,7 +247,7 @@ from employees
 | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
 | eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | sort hire_date
-| project hire_date, hd;
+| keep hire_date, hd;
 
 hire_date:date           | hd:date
 1985-02-18T00:00:00.000Z | 1985-02-01T00:00:00.000Z
@@ -267,7 +267,7 @@ from employees
 | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
 | eval hd = auto_bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | sort hire_date
-| project hire_date, hd;
+| keep hire_date, hd;
 
 hire_date:date           | hd:date
 1985-02-18T00:00:00.000Z | 1985-02-18T00:00:00.000Z
@@ -304,49 +304,49 @@ AVG(salary):double | bucket:date
 ;
 
 evalDateParseWithSimpleDate
-row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd") | project b;
+row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd") | keep b;
 
 b:datetime
 2023-02-01T00:00:00.000Z
 ;
 
 evalDateParseWithDateTime
-row a = "2023-02-01 12:15:55" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | project b;
+row a = "2023-02-01 12:15:55" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | keep b;
 
 b:datetime
 2023-02-01T12:15:55.000Z
 ;
 
 evalDateParseWithDateTimeDefaultFormat
-row a = "2023-02-01T12:15:55.000Z" | eval b = date_parse(a) | project b;
+row a = "2023-02-01T12:15:55.000Z" | eval b = date_parse(a) | keep b;
 
 b:datetime
 2023-02-01T12:15:55.000Z
 ;
 
 evalDateParseWrongDate
-row a = "2023-02-01 foo" | eval b = date_parse(a, "yyyy-MM-dd") | project b;
+row a = "2023-02-01 foo" | eval b = date_parse(a, "yyyy-MM-dd") | keep b;
 
 b:datetime
 null
 ;
 
 evalDateParseNotMatching
-row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM") | project b;
+row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM") | keep b;
 
 b:datetime
 null
 ;
 
 evalDateParseNotMatching2
-row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | project b;
+row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | keep b;
 
 b:datetime
 null
 ;
 
 evalDateParseNullPattern
-row a = "2023-02-01" | eval b = date_parse(a, null) | project b;
+row a = "2023-02-01" | eval b = date_parse(a, null) | keep b;
 
 b:datetime
 null
@@ -355,7 +355,7 @@ null
 evalDateParseDynamic
 from employees | where emp_no == 10039 or emp_no == 10040 | sort emp_no 
 | eval birth_date_string = date_format(birth_date, "yyyy-MM-dd")
-| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | project emp_no, new_date, birth_date, bool;
+| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
 
 emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
 10039           | 1959-10-01        | 1959-10-01          | true
@@ -366,7 +366,7 @@ evalDateParseDynamic2
 from employees | where emp_no >= 10047 | sort emp_no | where emp_no <= 10051 
 | eval birth_date_string = date_format(birth_date, "yyyy-MM-dd") 
 | eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") 
-| project emp_no, new_date, birth_date | eval bool = new_date == birth_date;
+| keep emp_no, new_date, birth_date | eval bool = new_date == birth_date;
 
 emp_no:integer | new_date:datetime        | birth_date:datetime       | bool:boolean      
 10047          | null                     | null                      | null           
@@ -380,7 +380,7 @@ emp_no:integer | new_date:datetime        | birth_date:datetime       | bool:boo
 evalDateParseDynamicDateAndPattern
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
 | eval pattern = "yyyy-MM-dd", birth_date_string = date_format(birth_date, pattern)
-| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | project emp_no, new_date, birth_date, bool;
+| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
 
 emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
 10049           | null              | null                | null
@@ -389,7 +389,7 @@ emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
 
 evalDateFormatParse
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
-| eval new_date = date_parse(date_format(birth_date)) | eval bool = new_date == birth_date | project emp_no, new_date, birth_date, bool;
+| eval new_date = date_parse(date_format(birth_date)) | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
 
 emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:boolean
 10049           | null                       | null                      | null

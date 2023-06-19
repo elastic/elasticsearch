@@ -5,6 +5,6 @@ Concatenates two or more strings.
 [source,esql]
 ----
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | EVAL fullname = CONCAT(first_name, " ", last_name)
 ----

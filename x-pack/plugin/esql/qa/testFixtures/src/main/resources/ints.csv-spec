@@ -1,14 +1,14 @@
 // Integral types-specific tests
 
 inLongAndInt
-from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | project emp_no, avg_worked_seconds;
+from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
 
 emp_no:integer |avg_worked_seconds:long
 10017          |236703986
 ;
 
 inShortAndByte
-from employees | project emp_no, languages.short, languages.byte | where languages.short in (2, 4, 5) and languages.byte in (4, -1) and emp_no < 10010;
+from employees | keep emp_no, languages.short, languages.byte | where languages.short in (2, 4, 5) and languages.byte in (4, -1) and emp_no < 10010;
 
 emp_no:integer |languages.short:short|languages.byte:byte
 10003          |4                    |4
@@ -16,7 +16,7 @@ emp_no:integer |languages.short:short|languages.byte:byte
 ;
 
 inCast
-from employees | project emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+from employees | keep emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
 
 emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
 10003          |4                   |200296405               |1.83
@@ -25,7 +25,7 @@ emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
 
 // `<= 10030` insures going over records where is_null(languages)==true; `in (.., emp_no)` prevents pushing the IN to Lucene
 inOverNulls
-from employees | project emp_no, languages | where is_null(languages) or emp_no <= 10030 | where languages in (2, 3, emp_no);
+from employees | keep emp_no, languages | where is_null(languages) or emp_no <= 10030 | where languages in (2, 3, emp_no);
 
 emp_no:integer |languages:integer
 10001          |2
@@ -54,7 +54,7 @@ int:integer       |long:long
 ;
 
 convertDatetimeToLong
-from employees | sort emp_no | eval hired_long = to_long(hire_date) | project emp_no, hire_date, hired_long  | limit 3;
+from employees | sort emp_no | eval hired_long = to_long(hire_date) | keep emp_no, hire_date, hired_long  | limit 3;
 
 emp_no:integer |hire_date:date          |hired_long:long
 10001          |1986-06-26T00:00:00.000Z|520128000000
@@ -153,7 +153,7 @@ d:double       |d2i:integer   |overflow:integer
 ;
 
 lessThanMultivalue
-from employees | where salary_change.int < 1 | project emp_no, salary_change.int | sort emp_no | limit 5;
+from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -165,7 +165,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 greaterThanMultivalue
-from employees | where salary_change.int > 1 | project emp_no, salary_change.int | sort emp_no | limit 5;
+from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -177,7 +177,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 equalToMultivalue
-from employees | where salary_change.int == 0 | project emp_no, salary_change.int | sort emp_no;
+from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -188,7 +188,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 equalToOrEqualToMultivalue
-from employees | where salary_change.int == 1 or salary_change.int == 8 | project emp_no, salary_change.int | sort emp_no;
+from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -197,7 +197,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 inMultivalue
-from employees | where salary_change.int in (1, 7) | project emp_no, salary_change.int | sort emp_no;
+from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -206,7 +206,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notLessThanMultivalue
-from employees | where not(salary_change.int < 1) | project emp_no, salary_change.int | sort emp_no | limit 5;
+from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -218,7 +218,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notGreaterThanMultivalue
-from employees | where not(salary_change.int > 1) | project emp_no, salary_change.int | sort emp_no | limit 5;
+from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -230,7 +230,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notEqualToMultivalue
-from employees | where not(salary_change.int == 1) | project emp_no, salary_change.int | sort emp_no | limit 5;
+from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -242,7 +242,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notEqualToAndEqualToMultivalue-Ignore
-from employees | where not(salary_change.int == 1 or salary_change.int == -4) | project emp_no, salary_change.int | sort emp_no;
+from employees | where not(salary_change.int == 1 or salary_change.int == -4) | keep emp_no, salary_change.int | sort emp_no;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -254,7 +254,7 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notInMultivalue-Ignore
-from employees | where not(salary_change.int in (1, -4)) | project emp_no, salary_change.int | sort emp_no;
+from employees | where not(salary_change.int in (1, -4)) | keep emp_no, salary_change.int | sort emp_no;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer

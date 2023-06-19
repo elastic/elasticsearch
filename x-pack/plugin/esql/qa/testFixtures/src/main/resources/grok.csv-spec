@@ -18,7 +18,7 @@ complexPattern
 // tag::grok[]
 ROW a = "1953-01-23T12:15:00Z 127.0.0.1 some.email@foo.com 42" 
 | GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
-| PROJECT date, ip, email, num
+| KEEP date, ip, email, num
 // end::grok[]
 ;
 
@@ -54,7 +54,7 @@ foo bar   | null      | null
 
 
 evalGrok
-from employees | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:a} %{WORD:b}" | sort emp_no asc | project full_name, a, b | limit 3;
+from employees | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:a} %{WORD:b}" | sort emp_no asc | keep full_name, a, b | limit 3;
 
 full_name:keyword | a:keyword | b:keyword
 Georgi Facello    | Georgi    | Facello
@@ -64,7 +64,7 @@ Parto Bamford     | Parto     | Bamford
 
 
 grokExpression
-from employees | grok concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}" | sort emp_no asc | project a, b | limit 3;
+from employees | grok concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}" | sort emp_no asc | keep a, b | limit 3;
 
 a:keyword | b:keyword
 Georgi    | Facello
@@ -74,7 +74,7 @@ Parto     | Bamford
 
 
 evalGrokSort
-from employees | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:a} %{WORD:b}" | sort a asc | project full_name, a, b | limit 3;
+from employees | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:a} %{WORD:b}" | sort a asc | keep full_name, a, b | limit 3;
 
 full_name:keyword     | a:keyword    | b:keyword
 Alejandro McAlpine    | Alejandro    | McAlpine
@@ -84,7 +84,7 @@ Anneke Preusig        | Anneke       | Preusig
 
 
 grokStats
-from employees | eval x = concat(gender, " foobar") | grok x "%{WORD:a} %{WORD:b}" | stats n = max(emp_no) by a | project a, n | sort a asc;
+from employees | eval x = concat(gender, " foobar") | grok x "%{WORD:a} %{WORD:b}" | stats n = max(emp_no) by a | keep a, n | sort a asc;
 
 a:keyword  | n:integer
 F          | 10100    
@@ -93,7 +93,7 @@ M          | 10097
 
 
 nullOnePattern
-from employees | where emp_no == 10030 | grok first_name "%{WORD:a}" | project first_name, a;
+from employees | where emp_no == 10030 | grok first_name "%{WORD:a}" | keep first_name, a;
 
 first_name:keyword | a:keyword
 null               | null     
@@ -101,7 +101,7 @@ null               | null
 
 
 nullTwoPatterns
-from employees | where emp_no == 10030 | grok first_name "%{WORD:a} %{WORD:b}" | project first_name, a, b;
+from employees | where emp_no == 10030 | grok first_name "%{WORD:a} %{WORD:b}" | keep first_name, a, b;
 
 first_name:keyword | a:keyword | b:keyword
 null               | null      | null
@@ -109,7 +109,7 @@ null               | null      | null
 
 
 overwriteName
-from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | project full_name, emp_no, b | limit 3;
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
 Georgi Facello    | Georgi         | Facello
@@ -119,7 +119,7 @@ Parto Bamford     | Parto          | Bamford
 
 
 overwriteNameWhere
-from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | where emp_no == "Bezalel" | project full_name, emp_no, b | limit 3;
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
 Bezalel Simmel    | Bezalel        | Simmel 
@@ -137,7 +137,7 @@ foo bar   | foo
 
 # for now it calculates only based on the first value
 multivalueInput
-from employees | where emp_no <= 10006 | grok job_positions "%{WORD:a} %{WORD:b} %{WORD:c}" | sort emp_no | project emp_no, a, b, c;
+from employees | where emp_no <= 10006 | grok job_positions "%{WORD:a} %{WORD:b} %{WORD:c}" | sort emp_no | keep emp_no, a, b, c;
 
 emp_no:integer | a:keyword | b:keyword | c:keyword 
 10001          | null      | null      | null
@@ -150,7 +150,7 @@ emp_no:integer | a:keyword | b:keyword | c:keyword
 
 
 matchAtTheBegin
-from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name, " 123 456") | grok full_name "%{WORD:first_name} %{WORD:last_name} %{NUMBER:num:int}" | project full_name, first_name, last_name, num | limit 3;
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name, " 123 456") | grok full_name "%{WORD:first_name} %{WORD:last_name} %{NUMBER:num:int}" | keep full_name, first_name, last_name, num | limit 3;
 
 full_name:keyword          | first_name:keyword   | last_name:keyword | num:integer 
 Georgi Facello 123 456 | Georgi               | Facello           | 123
@@ -160,7 +160,7 @@ Parto Bamford 123 456  | Parto                | Bamford           | 123
 
 
 matchAtTheEnd
-from employees | sort emp_no asc | eval full_name = concat("123 ", first_name, " ", last_name, " 123") | grok full_name "%{WORD:first_name} %{WORD:last_name} %{NUMBER:num:int}" | project full_name, first_name, last_name, num | limit 3;
+from employees | sort emp_no asc | eval full_name = concat("123 ", first_name, " ", last_name, " 123") | grok full_name "%{WORD:first_name} %{WORD:last_name} %{NUMBER:num:int}" | keep full_name, first_name, last_name, num | limit 3;
 
 full_name:keyword      | first_name:keyword   | last_name:keyword | num:integer 
 123 Georgi Facello 123 | Georgi               | Facello           | 123
@@ -170,7 +170,7 @@ full_name:keyword      | first_name:keyword   | last_name:keyword | num:integer
 
 
 matchInBetween
-from employees | sort emp_no asc | eval full_name = concat("123 ", first_name, " ", last_name, " 123 456") | grok full_name "%{WORD:first_name} %{WORD:last_name} %{NUMBER:num:int}" | project full_name, first_name, last_name, num | limit 3;
+from employees | sort emp_no asc | eval full_name = concat("123 ", first_name, " ", last_name, " 123 456") | grok full_name "%{WORD:first_name} %{WORD:last_name} %{NUMBER:num:int}" | keep full_name, first_name, last_name, num | limit 3;
 
 full_name:keyword          | first_name:keyword   | last_name:keyword | num:integer 
 123 Georgi Facello 123 456 | Georgi               | Facello           | 123
@@ -180,7 +180,7 @@ full_name:keyword          | first_name:keyword   | last_name:keyword | num:inte
 
 
 optionalMatchMv
-from employees | grok job_positions "%{WORD:a}?\\s*%{WORD:b}?\\s*%{WORD:c}?" | project emp_no, a, b, c, job_positions | sort emp_no | limit 5;
+from employees | grok job_positions "%{WORD:a}?\\s*%{WORD:b}?\\s*%{WORD:c}?" | keep emp_no, a, b, c, job_positions | sort emp_no | limit 5;
 
 emp_no:integer | a:keyword      | b:keyword      | c:keyword      | job_positions:keyword                             
 10001          | Accountant     | null           | null           | [Accountant, Senior Python Developer]                                 

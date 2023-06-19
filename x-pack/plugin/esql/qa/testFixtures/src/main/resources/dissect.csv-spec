@@ -18,7 +18,7 @@ complexPattern
 // tag::dissect[]
 ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;" 
 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};" 
-| PROJECT Y, M, D, h, m, s, msg, ip
+| KEEP Y, M, D, h, m, s, msg, ip
 // end::dissect[]
 ;
 
@@ -70,7 +70,7 @@ foo           bar  | foo        | bar
 
 
 evalDissect
-from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort emp_no asc | project full_name, a, b | limit 3;
+from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort emp_no asc | keep full_name, a, b | limit 3;
 
 full_name:keyword | a:keyword | b:keyword
 Georgi Facello    | Georgi    | Facello
@@ -80,7 +80,7 @@ Parto Bamford     | Parto     | Bamford
 
 
 dissectExpression
-from employees | dissect concat(first_name, " ", last_name) "%{a} %{b}" | sort emp_no asc | project a, b | limit 3;
+from employees | dissect concat(first_name, " ", last_name) "%{a} %{b}" | sort emp_no asc | keep a, b | limit 3;
 
 a:keyword | b:keyword
 Georgi    | Facello
@@ -90,7 +90,7 @@ Parto     | Bamford
 
 
 evalDissectSort
-from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort a asc | project full_name, a, b | limit 3;
+from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort a asc | keep full_name, a, b | limit 3;
 
 full_name:keyword     | a:keyword    | b:keyword
 Alejandro McAlpine    | Alejandro    | McAlpine
@@ -100,7 +100,7 @@ Anneke Preusig        | Anneke       | Preusig
 
 
 dissectStats
-from employees | eval x = concat(gender, " foobar") | dissect x "%{a} %{b}" | stats n = max(emp_no) by a | project a, n | sort a asc;
+from employees | eval x = concat(gender, " foobar") | dissect x "%{a} %{b}" | stats n = max(emp_no) by a | keep a, n | sort a asc;
 
 a:keyword  | n:integer
 F          | 10100    
@@ -109,7 +109,7 @@ M          | 10097
 
 
 nullOnePattern
-from employees | where emp_no == 10030 | dissect first_name "%{a}" | project first_name, a;
+from employees | where emp_no == 10030 | dissect first_name "%{a}" | keep first_name, a;
 
 first_name:keyword | a:keyword
 null               | null     
@@ -117,7 +117,7 @@ null               | null
 
 
 nullTwoPatterns
-from employees | where emp_no == 10030 | dissect first_name "%{a} %{b}" | project first_name, a, b;
+from employees | where emp_no == 10030 | dissect first_name "%{a} %{b}" | keep first_name, a, b;
 
 first_name:keyword | a:keyword | b:keyword
 null               | null      | null
@@ -125,7 +125,7 @@ null               | null      | null
 
 
 overwriteName
-from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | project full_name, emp_no, b | limit 3;
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
 Georgi Facello    | Georgi         | Facello
@@ -135,7 +135,7 @@ Parto Bamford     | Parto          | Bamford
 
 
 overwriteNameWhere
-from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | where emp_no == "Bezalel" | project full_name, emp_no, b | limit 3;
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
 Bezalel Simmel    | Bezalel        | Simmel 
@@ -144,7 +144,7 @@ Bezalel Simmel    | Bezalel        | Simmel
 
 # for now it calculates only based on the first value
 multivalueInput
-from employees | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | project emp_no, a, b, c;
+from employees | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | keep emp_no, a, b, c;
 
 emp_no:integer | a:keyword | b:keyword | c:keyword
 10001          | null      | null      | null

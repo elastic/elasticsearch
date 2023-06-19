@@ -545,13 +545,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) { }
+  @Override public void enterKeepCommand(EsqlBaseParser.KeepCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) { }
+  @Override public void exitKeepCommand(EsqlBaseParser.KeepCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *

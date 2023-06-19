@@ -29,7 +29,7 @@ a:integer | b:integer
 
 
 length
-from employees | sort emp_no | limit 3 | eval l = length(first_name) | project emp_no, l;
+from employees | sort emp_no | limit 3 | eval l = length(first_name) | keep emp_no, l;
 
 emp_no:integer | l:integer
 10001 | 6
@@ -38,7 +38,7 @@ emp_no:integer | l:integer
 ;
 
 startsWithConstant
-from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | project emp_no, first_name, f_S;
+from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | keep emp_no, first_name, f_S;
 
 emp_no:integer | first_name:keyword  | f_S:boolean
 10001 | Georgi    | false
@@ -54,7 +54,7 @@ emp_no:integer | first_name:keyword  | f_S:boolean
 ;
 
 startsWithField
-from employees | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | project emp_no, last_name, gender, f_l;
+from employees | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | keep emp_no, last_name, gender, f_l;
 
 emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10001 | Facello   | M    | false
@@ -70,7 +70,7 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 ;
 
 substring
-from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | cello
@@ -86,7 +86,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring with length
-from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | keep emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | c
@@ -102,7 +102,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring negative start
-from employees | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | keep emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | llo
@@ -118,7 +118,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring nested negative start
-from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | o
@@ -134,7 +134,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring length
-from employees | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | keep emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:integer
 10001 | Facello   | 5
@@ -150,7 +150,7 @@ emp_no:integer | last_name:keyword | f_l:integer
 ;
 
 substring pair
-from employees | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | project emp_no, last_name, x, z;
+from employees | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | keep emp_no, last_name, x, z;
 
 emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10001 | Facello   | F | a
@@ -166,7 +166,7 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 ;
 
 concat
-from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | project emp_no, name;
+from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | keep emp_no, name;
 
 emp_no:integer | name:keyword
 10001 | Georgi Facello
@@ -182,7 +182,7 @@ emp_no:integer | name:keyword
 ;
 
 concatComplex
-from employees | sort emp_no | limit 10 | eval foo = " - ", x = concat(gender, foo) | eval name = concat(x, first_name, " ", last_name, ", ", concat(first_name, last_name)) | project emp_no, name;
+from employees | sort emp_no | limit 10 | eval foo = " - ", x = concat(gender, foo) | eval name = concat(x, first_name, " ", last_name, ", ", concat(first_name, last_name)) | keep emp_no, name;
 
 emp_no:integer | name:keyword
 10001          | M - Georgi Facello, GeorgiFacello
@@ -199,7 +199,7 @@ emp_no:integer | name:keyword
 
 // Note: no matches in MV returned
 in
-from employees | where job_positions in ("Internship", first_name) | project emp_no, job_positions;
+from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 
 emp_no:integer |job_positions:keyword
 10048          |Internship
@@ -283,7 +283,7 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 ;
 
 convertFromString
-from employees | eval positions = to_string(job_positions) | project emp_no, positions, job_positions | limit 5;
+from employees | eval positions = to_string(job_positions) | keep emp_no, positions, job_positions | limit 5;
 
 emp_no:integer |positions:keyword                                                     |job_positions:keyword
 10001          |[Accountant, Senior Python Developer]                                 |[Accountant, Senior Python Developer]                                 
@@ -294,7 +294,7 @@ emp_no:integer |positions:keyword                                               
 ;
 
 lessThanMultivalue
-from employees | where job_positions < "C" | project emp_no, job_positions | sort emp_no;
+from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -303,7 +303,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 greaterThanMultivalue
-from employees | where job_positions > "C" | project emp_no, job_positions | sort emp_no | limit 6;
+from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -315,7 +315,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToMultivalue
-from employees | where job_positions == "Accountant" | project emp_no, job_positions | sort emp_no;
+from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -323,7 +323,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToOrEqualToMultivalue
-from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | project emp_no, job_positions | sort emp_no;
+from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -332,7 +332,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 inMultivalue
-from employees | where job_positions in ("Accountant", "Tech Lead") | project emp_no, job_positions | sort emp_no;
+from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -341,7 +341,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notLessThanMultivalue
-from employees | where not(job_positions < "C") | project emp_no, job_positions | sort emp_no | limit 6;
+from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -354,7 +354,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notGreaterThanMultivalue
-from employees | where not(job_positions > "C") | project emp_no, job_positions | sort emp_no | limit 6;
+from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -363,7 +363,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notEqualToMultivalue
-from employees | where not(job_positions == "Accountant") | project emp_no, job_positions | sort emp_no | limit 6;
+from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -376,7 +376,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notEqualToOrEqualToMultivalue-Ignore
-from employees | where not(job_positions == "Accountant" or job_positions == "Tech Lead") | project emp_no, job_positions | sort emp_no | limit 6;
+from employees | where not(job_positions == "Accountant" or job_positions == "Tech Lead") | keep emp_no, job_positions | sort emp_no | limit 6;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -385,7 +385,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notInMultivalue-Ignore
-from employees | where not(job_positions in ("Accountant", "Tech Lead")) | project emp_no, job_positions | sort emp_no | limit 6;
+from employees | where not(job_positions in ("Accountant", "Tech Lead")) | keep emp_no, job_positions | sort emp_no | limit 6;
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -394,7 +394,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 convertFromBoolean
-from employees | eval rehired = to_string(is_rehired) | project emp_no, rehired, is_rehired | limit 5;
+from employees | eval rehired = to_string(is_rehired) | keep emp_no, rehired, is_rehired | limit 5;
 
 emp_no:integer |rehired:string              |is_rehired:boolean
 10001          |[false, true]               |[false, true]
@@ -405,14 +405,14 @@ emp_no:integer |rehired:string              |is_rehired:boolean
 ;
 
 convertFromDatetime
-from employees | sort emp_no| eval hired_at = to_string(hire_date) | project emp_no, hired_at, hire_date  | limit 1;
+from employees | sort emp_no| eval hired_at = to_string(hire_date) | keep emp_no, hired_at, hire_date  | limit 1;
 
 emp_no:integer |hired_at:keyword         |hire_date:date
 10001          |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
 ;
 
 convertFromIP
-from hosts | where host=="epsilon" | eval str0 = to_string(ip0) | project str0, ip0;
+from hosts | where host=="epsilon" | eval str0 = to_string(ip0) | keep str0, ip0;
 
 str0:keyword                                                                            |ip0:ip
 ["fe80::cae2:65ff:fece:feb9", "fe80::cae2:65ff:fece:fec0", "fe80::cae2:65ff:fece:fec1"] |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
@@ -421,7 +421,7 @@ null                                                                            
 ;
 
 convertFromFloats
-from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | project emp_no, double, float, scaled_float, half_float, height  | limit 2;
+from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | keep emp_no, double, float, scaled_float, half_float, height  | limit 2;
 
 emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double
 10001          |2.03           |2.0299999713897705|2.0300000000000002     |2.029296875          |2.03
@@ -429,7 +429,7 @@ emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_
 ;
 
 convertFromInts
-from employees | sort emp_no| eval byte = to_string(languages.byte), short = to_string(languages.short), long = to_string(languages.long), int = to_string(languages) | project emp_no, byte, short, long, int, languages  | limit 2;
+from employees | sort emp_no| eval byte = to_string(languages.byte), short = to_string(languages.short), long = to_string(languages.long), int = to_string(languages) | keep emp_no, byte, short, long, int, languages  | limit 2;
 
 emp_no:integer |byte:keyword   |short:keyword  |long:keyword |int:keyword |languages:integer
 10001          |2              |2              |2            |2           |2

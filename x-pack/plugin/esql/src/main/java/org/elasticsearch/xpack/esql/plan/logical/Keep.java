@@ -16,20 +16,20 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-public class ProjectReorder extends Project {
+public class Keep extends Project {
 
-    public ProjectReorder(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
+    public Keep(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child, projections);
     }
 
     @Override
     protected NodeInfo<Project> info() {
-        return NodeInfo.create(this, ProjectReorder::new, child(), projections());
+        return NodeInfo.create(this, Keep::new, child(), projections());
     }
 
     @Override
     public Project replaceChild(LogicalPlan newChild) {
-        return new ProjectReorder(source(), newChild, projections());
+        return new Keep(source(), newChild, projections());
     }
 
     @Override

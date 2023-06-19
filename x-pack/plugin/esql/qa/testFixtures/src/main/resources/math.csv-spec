@@ -1,5 +1,5 @@
 addIntAndInt
-from employees | eval s = emp_no + languages | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = emp_no + languages | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:integer
          10001 |     10003
@@ -7,7 +7,7 @@ emp_no:integer | s:integer
 ;
 
 addLongAndLong
-from employees | eval s = avg_worked_seconds + languages.long | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = avg_worked_seconds + languages.long | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:long
          10001 | 268728051
@@ -15,7 +15,7 @@ emp_no:integer | s:long
 ;
 
 addDoubleAndDouble
-from employees | eval s = height + 5 | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = height + 5 | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:double
          10001 | 7.029999999999999
@@ -23,7 +23,7 @@ emp_no:integer | s:double
 ;
 
 addIntAndLong
-from employees | eval s = emp_no + languages.long | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = emp_no + languages.long | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:long
          10001 |  10003
@@ -31,7 +31,7 @@ emp_no:integer | s:long
 ;
 
 addLongAndInt
-from employees | eval s = languages.long + emp_no | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = languages.long + emp_no | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:long
          10001 |  10003
@@ -39,7 +39,7 @@ emp_no:integer | s:long
 ;
 
 addIntAndDouble
-from employees | eval s = emp_no + height | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = emp_no + height | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:double
          10001 | 10003.03
@@ -47,7 +47,7 @@ emp_no:integer | s:double
 ;
 
 addDoubleAndInt
-from employees | eval s = height + emp_no | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = height + emp_no | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:double
          10001 | 10003.03
@@ -55,7 +55,7 @@ emp_no:integer | s:double
 ;
 
 addLongAndDouble
-from employees | eval s = languages.long + height | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = languages.long + height | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:double
          10001 | 4.029999999999999
@@ -63,7 +63,7 @@ emp_no:integer | s:double
 ;
 
 addDoubleAndLong
-from employees | eval s = height + languages.long | project emp_no, s | sort emp_no asc | limit 2;
+from employees | eval s = height + languages.long | keep emp_no, s | sort emp_no asc | limit 2;
 
 emp_no:integer | s:double
          10001 | 4.029999999999999
@@ -71,7 +71,7 @@ emp_no:integer | s:double
 ;
 
 absLong
-from employees | eval l = abs(0-languages.long) | project l | sort l asc | limit 3;
+from employees | eval l = abs(0-languages.long) | keep l | sort l asc | limit 3;
 
 l:long
 1
@@ -80,7 +80,7 @@ l:long
 ;
 
 absInt
-from employees | eval s = abs(0-salary) | project s | sort s asc | limit 3;
+from employees | eval s = abs(0-salary) | keep s | sort s asc | limit 3;
 
 s:integer
 25324
@@ -89,7 +89,7 @@ s:integer
 ;
 
 absDouble
-from employees | eval s = abs(0.0-salary) | project s | sort s asc | limit 3;
+from employees | eval s = abs(0.0-salary) | keep s | sort s asc | limit 3;
 
 s:double
 25324.0
@@ -98,7 +98,7 @@ s:double
 ;
 
 powHeightSquared
-from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | project height, s | sort s desc | limit 4;
+from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | keep height, s | sort s desc | limit 4;
 
 height:double | s:double
 1.55          | 0.40
@@ -108,7 +108,7 @@ height:double | s:double
 ;
 
 powSalarySquared
-from employees | eval s = pow(salary - 75000, 2) + 10000 | project salary, s | sort salary desc | limit 4;
+from employees | eval s = pow(salary - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
 salary:integer | s:integer
 74999          | 10001
@@ -188,7 +188,7 @@ s:double
 ;
 
 mvAvg
-from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
 
 emp_no:integer | salary_change.int:integer | salary_change:double
 10009          | null                      | null
@@ -224,7 +224,7 @@ ROW a=[3, 5, 1, 6]
 
 
 mvMax
-from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
 
 emp_no:integer | salary_change.int:integer | salary_change:integer
 10009          | null                      | null
@@ -250,7 +250,7 @@ a:integer | max_a:integer
 ;
 
 mvMedian
-from employees | where emp_no > 10008 | eval med = mv_median(salary_change) | sort emp_no | project emp_no, salary_change, med | limit 7;
+from employees | where emp_no > 10008 | eval med = mv_median(salary_change) | sort emp_no | keep emp_no, salary_change, med | limit 7;
 
 emp_no:integer | salary_change:double         | med:double
 10009          | null                         | null
@@ -289,7 +289,7 @@ ROW a=[3, 7, 1, 6]
 ;
 
 mvMin
-from employees | where emp_no > 10008 | eval salary_change = mv_min(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+from employees | where emp_no > 10008 | eval salary_change = mv_min(salary_change.int) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
 
 emp_no:integer | salary_change.int:integer | salary_change:integer
 10009          |null                       |null           
@@ -315,7 +315,7 @@ a:integer | min_a:integer
 ;
 
 mvSum
-from employees | where emp_no > 10008 | eval salary_change = mv_sum(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+from employees | where emp_no > 10008 | eval salary_change = mv_sum(salary_change.int) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
 
 emp_no:integer | salary_change.int:integer | salary_change:integer
 10009          | null                      | null

@@ -1,5 +1,5 @@
 projectFrom
-from employees | project languages, emp_no, first_name, last_name | limit 10;
+from employees | keep languages, emp_no, first_name, last_name | limit 10;
 
 languages:integer | emp_no:integer | first_name:keyword | last_name:keyword
 2 | 10001 | Georgi | Facello
@@ -15,7 +15,7 @@ languages:integer | emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 projectFromWithFilter
-from employees | project languages, emp_no, first_name, last_name | eval x = emp_no + 10 | where x > 10040 and x < 10050 | limit 5;
+from employees | keep languages, emp_no, first_name, last_name | eval x = emp_no + 10 | where x > 10040 and x < 10050 | limit 5;
 
 languages:integer | emp_no:integer | first_name:keyword | last_name:keyword | x:integer
 4 | 10031 | null | Joslin | 10041
@@ -33,7 +33,7 @@ avg(avg_worked_seconds):double
 ;
 
 whereWithCount
-from employees | where languages == 1 | project languages | stats c=count(languages);
+from employees | where languages == 1 | keep languages | stats c=count(languages);
 
 c : long
 15
@@ -174,7 +174,7 @@ med:double | languages:integer
 ;
 
 multiConditionalWhere
-from employees | eval abc = 1+2 | where (abc + emp_no > 10100 or languages == 1) or (abc + emp_no < 10005 and gender == "F") | project emp_no, languages, gender, first_name, abc;
+from employees | eval abc = 1+2 | where (abc + emp_no > 10100 or languages == 1) or (abc + emp_no < 10005 and gender == "F") | keep emp_no, languages, gender, first_name, abc;
 
 emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:integer
 10005 | 1 | M | Kyoichi | 3
@@ -198,7 +198,7 @@ emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:i
 ;
 
 projectFromWithStatsAfterLimit
-from employees | project gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
+from employees | keep gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
 
 m:long | gender:keyword
 311267831 | M
@@ -207,7 +207,7 @@ m:long | gender:keyword
 
 projectFromWithStatsAndSort-Ignore
 // https://github.com/elastic/elasticsearch-internal/issues/414
-from employees | project gender, avg_worked_seconds, first_name, last_name | stats m = max(avg_worked_seconds) by last_name | sort m desc;
+from employees | keep gender, avg_worked_seconds, first_name, last_name | stats m = max(avg_worked_seconds) by last_name | sort m desc;
 
 m:long | last_name:keyword
 311267831 | M
@@ -219,7 +219,7 @@ m:long | last_name:keyword
 
 sortFirstProjectAfter
 // https://github.com/elastic/elasticsearch-internal/issues/414
-from employees | sort languages asc nulls last, emp_no asc | limit 3 | project emp_no, languages, first_name, last_name;
+from employees | sort languages asc nulls last, emp_no asc | limit 3 | keep emp_no, languages, first_name, last_name;
 
 emp_no:integer | languages:integer | first_name:keyword | last_name:keyword
 10005 | 1 | Kyoichi | Maliniak
@@ -236,7 +236,7 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 
 sortWithLimitFifteenAndProject
 //https://github.com/elastic/elasticsearch-internal/issues/414
-from employees | sort height desc, languages.long nulls last, still_hired | limit 15 | project height, languages.long, still_hired;
+from employees | sort height desc, languages.long nulls last, still_hired | limit 15 | keep height, languages.long, still_hired;
 
 height:double | languages.long:long | still_hired:boolean
 2.1 | 2 | true
@@ -278,7 +278,7 @@ avg(ratio):double
 ;
 
 simpleWhere
-from employees | where salary > 70000 | project first_name, last_name, salary;
+from employees | where salary > 70000 | keep first_name, last_name, salary;
 
 first_name:keyword | last_name:keyword | salary:integer
 Tzvetan | Zielinski | 74572
@@ -292,7 +292,7 @@ Valter | Sullins | 73578
 ;
 
 whereAfterProject
-from employees | project salary | where salary > 70000;
+from employees | keep salary | where salary > 70000;
 
 salary:integer
 74572
@@ -387,7 +387,7 @@ count(height):long | h1:double
 
 
 whereNegatedCondition
-from employees | eval abc=1+2 | where abc + languages > 4 and languages.long != 1 | eval x=abc+languages | project x, languages, languages.long | limit 3;
+from employees | eval abc=1+2 | where abc + languages > 4 and languages.long != 1 | eval x=abc+languages | keep x, languages, languages.long | limit 3;
 
 x:integer | languages:integer | languages.long:long
 5 | 2 | 2
@@ -396,7 +396,7 @@ x:integer | languages:integer | languages.long:long
 ;
 
 evalOverride
-from employees | eval languages = languages + 1 | eval languages = languages + 1 | limit 5 | project l*;
+from employees | eval languages = languages + 1 | eval languages = languages + 1 | limit 5 | keep l*;
 
 languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | languages:integer
 2 | 2 | 2 | Facello  | 4
@@ -407,7 +407,7 @@ languages.byte:integer | languages.long:long | languages.short:integer | last_na
 ;
 
 evalWithNull
-from employees | eval nullsum = salary + null | sort nullsum asc, salary desc | project nullsum, salary | limit 1;
+from employees | eval nullsum = salary + null | sort nullsum asc, salary desc | keep nullsum, salary | limit 1;
 
 nullsum:integer | salary:integer
 null | 74999
@@ -428,7 +428,7 @@ ac:double | languages:integer
 ;
 
 fromLimit
-from employees | project first_name | limit 2;
+from employees | keep first_name | limit 2;
 
 first_name:keyword
 Georgi
@@ -436,35 +436,35 @@ Bezalel
 ;
 
 projectAfterTopN
-from employees | sort salary | limit 1 | project first_name, salary;
+from employees | sort salary | limit 1 | keep first_name, salary;
 
 first_name:keyword | salary:integer
 Guoxiang | 25324
 ;
 
 projectAfterTopNDesc
-from employees | sort salary desc | limit 1 | project first_name, salary;
+from employees | sort salary desc | limit 1 | keep first_name, salary;
 
 first_name:keyword | salary:integer
 Otmar | 74999
 ;
 
 topNProjectEval
-from employees | sort salary | limit 1 | project languages, salary | eval x = languages + 1;
+from employees | sort salary | limit 1 | keep languages, salary | eval x = languages + 1;
 
 languages:integer | salary:integer | x:integer
 5 | 25324 | 6
 ;
 
 topNProjectEvalProject
-from employees | sort salary | limit 1 | project languages, salary | eval x = languages + 1 | project x;
+from employees | sort salary | limit 1 | keep languages, salary | eval x = languages + 1 | keep x;
 
 x:integer
 6
 ;
 
 filterKeyword
-from employees | where first_name != "abc" and emp_no < 10010 | project first_name;
+from employees | where first_name != "abc" and emp_no < 10010 | keep first_name;
 
 first_name:keyword 
 Georgi
@@ -479,7 +479,7 @@ Sumant
 ;
 
 projectMultiValueKeywords
-from employees | project emp_no, job_positions, still_hired | limit 5;
+from employees | keep emp_no, job_positions, still_hired | limit 5;
 
 emp_no:integer |                         job_positions:keyword                        |still_hired:boolean  
 10001          |[Accountant, Senior Python Developer]                                 |true           
@@ -490,7 +490,7 @@ emp_no:integer |                         job_positions:keyword                  
 ;
 
 projectMultiValueBooleans
-from employees | project emp_no, is_rehired, still_hired | limit 5;
+from employees | keep emp_no, is_rehired, still_hired | limit 5;
   
 emp_no:integer |     is_rehired:boolean    |still_hired:boolean
 10001          |[false, true]              |true           
@@ -501,7 +501,7 @@ emp_no:integer |     is_rehired:boolean    |still_hired:boolean
 ;
 
 projectMultiValueNumbers
-from employees | project emp_no, salary_change, salary_change.int, salary_change.long | limit 10;
+from employees | keep emp_no, salary_change, salary_change.int, salary_change.long | limit 10;
   
 emp_no:integer |   salary_change:double   |salary_change.int:integer|salary_change.long:long
 10001          |1.19                      |1                        |1                 

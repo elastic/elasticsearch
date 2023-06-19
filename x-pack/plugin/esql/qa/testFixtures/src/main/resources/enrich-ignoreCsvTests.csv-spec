@@ -1,5 +1,5 @@
 simple
-from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | enrich languages_policy on x  | project emp_no, language_name;
+from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name;
 
 emp_no:integer | language_name:keyword
 10001          | French
@@ -7,14 +7,14 @@ emp_no:integer | language_name:keyword
 
 
 simple2
-from employees | eval x = to_string(languages) | enrich languages_policy on x  | project emp_no, language_name | sort emp_no | limit 1 ;
+from employees | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name | sort emp_no | limit 1 ;
 
 emp_no:integer | language_name:keyword
 10001          | French
 ;
 
 simpleSortLimit
-from employees  | eval x = to_string(languages) | enrich languages_policy on x  | project emp_no, language_name | sort emp_no | limit 1;
+from employees  | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name | sort emp_no | limit 1;
 
 emp_no:integer | language_name:keyword
 10001          | French
@@ -22,7 +22,7 @@ emp_no:integer | language_name:keyword
 
 
 with
-from employees | eval x = to_string(languages) | project emp_no, x | sort emp_no | limit 1 
+from employees | eval x = to_string(languages) | keep emp_no, x | sort emp_no | limit 1 
 | enrich languages_policy on x with language_name;
 
 emp_no:integer | x:keyword | language_name:keyword
@@ -31,7 +31,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 withAlias
-from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | project emp_no, x 
+from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with lang = language_name;
 
 emp_no:integer | x:keyword | lang:keyword
@@ -43,7 +43,7 @@ emp_no:integer | x:keyword | lang:keyword
 
 
 withAliasSort
-from employees | eval x = to_string(languages) | project emp_no, x  | sort emp_no | limit 3 
+from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3 
 | enrich languages_policy on x with lang = language_name;
 
 emp_no:integer | x:keyword | lang:keyword
@@ -54,7 +54,7 @@ emp_no:integer | x:keyword | lang:keyword
 
 
 withAliasAndPlain
-from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | project emp_no, x 
+from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with lang = language_name, language_name;
 
 emp_no:integer | x:keyword | lang:keyword | language_name:keyword
@@ -65,7 +65,7 @@ emp_no:integer | x:keyword | lang:keyword | language_name:keyword
 
 
 withTwoAliasesSameProp
-from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | project emp_no, x 
+from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with lang = language_name, lang2 = language_name;
 
 emp_no:integer | x:keyword | lang:keyword | lang2:keyword
@@ -74,7 +74,7 @@ emp_no:integer | x:keyword | lang:keyword | lang2:keyword
 
 
 redundantWith
-from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | project emp_no, x 
+from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with language_name, language_name;
 
 emp_no:integer | x:keyword | language_name:keyword 
@@ -83,7 +83,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 nullInput
-from employees  | where emp_no == 10017 | project emp_no, gender
+from employees  | where emp_no == 10017 | keep emp_no, gender
 | enrich languages_policy on gender with language_name, language_name;
 
 emp_no:integer | gender:keyword | language_name:keyword 
@@ -92,7 +92,7 @@ emp_no:integer | gender:keyword | language_name:keyword
 
  
 constantNullInput
-from employees  | where emp_no == 10020 | eval x = to_string(languages) | project emp_no, x 
+from employees  | where emp_no == 10020 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with language_name, language_name;
 
 emp_no:integer | x:keyword | language_name:keyword 
@@ -115,7 +115,7 @@ enrichEval
 from employees | eval x = to_string(languages) 
 | enrich languages_policy on x with lang = language_name
 | eval language = concat(x, "-", lang)
-| project emp_no, x, lang, language 
+| keep emp_no, x, lang, language 
 | sort emp_no desc | limit 3;
 
 emp_no:integer | x:keyword | lang:keyword | language:keyword

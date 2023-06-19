@@ -539,7 +539,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMultipleProjectPatterns() {
-        LogicalPlan plan = parse("from a | rename x = y | project abc, xyz*, x, *");
+        LogicalPlan plan = parse("from a | rename x = y | keep abc, xyz*, x, *");
         Project p = as(plan, Project.class);
         List<?> projections = p.projections();
         assertThat(projections.size(), equalTo(4));
@@ -571,7 +571,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private Project projectExpression(String e) {
-        return (Project) parse("from a | project " + e);
+        return (Project) parse("from a | keep " + e);
     }
 
     private LogicalPlan parse(String s) {

@@ -1,7 +1,7 @@
 // Floating point types-specific tests
 
 inDouble
-from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
 10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
@@ -9,7 +9,7 @@ emp_no:integer |height:double  |height.float:double |height.half_float:double |h
 ;
 
 inFloat
-from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height.float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
 10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
@@ -17,7 +17,7 @@ emp_no:integer |height:double  |height.float:double |height.half_float:double |h
 ;
 
 inHalfFloat
-from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height.half_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.half_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
 10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
@@ -25,7 +25,7 @@ emp_no:integer |height:double  |height.float:double |height.half_float:double |h
 ;
 
 inScaledFloat
-from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height.scaled_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.scaled_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
 10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
@@ -47,7 +47,7 @@ ft:boolean    |fd:double |td:double |ftd:double
 ;
 
 convertFromDatetime
-from employees | sort emp_no | eval hire_double = to_double(hire_date) | project emp_no, hire_date, hire_double | limit 3;
+from employees | sort emp_no | eval hire_double = to_double(hire_date) | keep emp_no, hire_date, hire_double | limit 3;
 
 emp_no:integer |hire_date:date          |hire_double:double
 10001          |1986-06-26T00:00:00.000Z|5.20128E11
@@ -85,7 +85,7 @@ int:integer |dbl:double
 ;
 
 lessThanMultivalue
-from employees | where salary_change < 1 | project emp_no, salary_change | sort emp_no | limit 5;
+from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -97,7 +97,7 @@ emp_no:integer |salary_change:double
 ;
 
 greaterThanMultivalue
-from employees | where salary_change > 1 | project emp_no, salary_change | sort emp_no | limit 5;
+from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -109,7 +109,7 @@ emp_no:integer |salary_change:double
 ;
 
 equalToMultivalue
-from employees | where salary_change == 1.19 | project emp_no, salary_change | sort emp_no;
+from employees | where salary_change == 1.19 | keep emp_no, salary_change | sort emp_no;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -117,7 +117,7 @@ emp_no:integer |salary_change:double
 ;
 
 equalToOrEqualToMultivalue
-from employees | where salary_change == 1.19 or salary_change == 7.58 | project emp_no, salary_change | sort emp_no;
+from employees | where salary_change == 1.19 or salary_change == 7.58 | keep emp_no, salary_change | sort emp_no;
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change:double
@@ -126,7 +126,7 @@ emp_no:integer |salary_change:double
 ;
 
 inMultivalue
-from employees | where salary_change in (1.19, 7.58) | project emp_no, salary_change | sort emp_no;
+from employees | where salary_change in (1.19, 7.58) | keep emp_no, salary_change | sort emp_no;
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change:double
@@ -135,7 +135,7 @@ emp_no:integer |salary_change:double
 ;
 
 notLessThanMultivalue
-from employees | where not(salary_change < 1) | project emp_no, salary_change | sort emp_no | limit 5;
+from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -147,7 +147,7 @@ emp_no:integer |salary_change:double
 ;
 
 notGreaterThanMultivalue
-from employees | where not(salary_change > 1) | project emp_no, salary_change | sort emp_no | limit 5;
+from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -159,7 +159,7 @@ emp_no:integer |salary_change:double
 ;
 
 notEqualToMultivalue
-from employees | where not(salary_change == 1.19) | project emp_no, salary_change | sort emp_no | limit 5;
+from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -171,7 +171,7 @@ emp_no:integer |salary_change:double
 ;
 
 notEqualToAndEqualToMultivalue-Ignore
-from employees | where not(salary_change == 1.19 or salary_change == -3.9) | project emp_no, salary_change | sort emp_no;
+from employees | where not(salary_change == 1.19 or salary_change == -3.9) | keep emp_no, salary_change | sort emp_no;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -183,7 +183,7 @@ emp_no:integer |salary_change:double
 ;
 
 notInMultivalue-Ignore
-from employees | where not(salary_change in (1.19, -3.9)) | project emp_no, salary_change | sort emp_no;
+from employees | where not(salary_change in (1.19, -3.9)) | keep emp_no, salary_change | sort emp_no;
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double

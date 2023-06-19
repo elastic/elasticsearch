@@ -46,7 +46,7 @@ a:integer | b:integer | c:integer | d:integer | e:integer
 
 
 multipleDuplicateInterleaved1
-row a = 1 | eval b = a, c = 1, c = 3, d = b + 1, b = c * 2, c = 2, c = d * c + b | project a, b, c, d;
+row a = 1 | eval b = a, c = 1, c = 3, d = b + 1, b = c * 2, c = 2, c = d * c + b | keep a, b, c, d;
 
 a:integer | b:integer | c:integer | d:integer 
 1         | 6         | 10        | 2         
@@ -54,7 +54,7 @@ a:integer | b:integer | c:integer | d:integer
 
 
 multipleDuplicateInterleaved2
-row a = 1 | eval b = a, c = 1 | eval c = 3, d = b + 1 | eval b = c * 2, c = 2 | eval c = d * c + b | project a, b, c, d;
+row a = 1 | eval b = a, c = 1 | eval c = 3, d = b + 1 | eval b = c * 2, c = 2 | eval c = d * c + b | keep a, b, c, d;
 
 a:integer | b:integer | c:integer | d:integer 
 1         | 6         | 10        | 2         
@@ -62,14 +62,14 @@ a:integer | b:integer | c:integer | d:integer
 
 
 multipleDuplicateInterleaved3
-row a = 1 | eval b = a, c = 1, c = 3 | eval d = b + 1 | eval b = c * 2, c = 2, c = d * c + b | project a, b, c, d;
+row a = 1 | eval b = a, c = 1, c = 3 | eval d = b + 1 | eval b = c * 2, c = 2, c = d * c + b | keep a, b, c, d;
 
 a:integer | b:integer | c:integer | d:integer 
 1         | 6         | 10        | 2         
 ;
 
 multipleDuplicateInterleaved4
-row a = 1 | eval b = a | eval c = 1 | eval c = 3 | eval d = b + 1 | eval b = c * 2 | eval c = 2 | eval c = d * c + b | project a, b, c, d;
+row a = 1 | eval b = a | eval c = 1 | eval c = 3 | eval d = b + 1 | eval b = c * 2 | eval c = 2 | eval c = d * c + b | keep a, b, c, d;
 
 a:integer | b:integer | c:integer | d:integer 
 1         | 6         | 10         | 2         
@@ -77,14 +77,14 @@ a:integer | b:integer | c:integer | d:integer
 
 
 projectEval
-row x = 1  | project x | eval a1 = x + 1, a2 = x + 1, a3 = a1 + a2, a1 = a1 + a2;
+row x = 1  | keep x | eval a1 = x + 1, a2 = x + 1, a3 = a1 + a2, a1 = a1 + a2;
 
 x:integer | a2:integer | a3:integer | a1:integer 
 1         | 2          | 4          | 4         
 ;
 
 evalNullSort
-from employees | eval x = null | sort x asc, emp_no desc | project emp_no, x, last_name | limit 2;
+from employees | eval x = null | sort x asc, emp_no desc | keep emp_no, x, last_name | limit 2;
 
 emp_no:integer | x:null | last_name:keyword
 10100          | null   | Haraldson
@@ -93,7 +93,7 @@ emp_no:integer | x:null | last_name:keyword
 
 
 filterEvalFilter
-from employees | where emp_no < 100010 | eval name_len = length(first_name) | where name_len < 4 | project first_name | sort first_name;
+from employees | where emp_no < 100010 | eval name_len = length(first_name) | where name_len < 4 | keep first_name | sort first_name;
 
 first_name:keyword
 Gao

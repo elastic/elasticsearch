@@ -1,5 +1,5 @@
 twoEqualsOr
-from employees | where emp_no == 10010 or emp_no == 10011 | project emp_no, first_name | sort emp_no;  
+from employees | where emp_no == 10010 or emp_no == 10011 | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      
@@ -8,7 +8,7 @@ emp_no:integer | first_name:keyword
 
 
 twoEqualsOrKeyword
-from employees | where first_name == "Duangkaew" or first_name == "Mary" | project emp_no, first_name | sort emp_no;  
+from employees | where first_name == "Duangkaew" or first_name == "Mary" | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      
@@ -17,7 +17,7 @@ emp_no:integer | first_name:keyword
 
 
 twoEqualsAndOr
-from employees | where emp_no == 10010 and first_name == "Duangkaew" or emp_no == 10011 and first_name == "Mary" | project emp_no, first_name | sort emp_no;  
+from employees | where emp_no == 10010 and first_name == "Duangkaew" or emp_no == 10011 and first_name == "Mary" | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      
@@ -26,7 +26,7 @@ emp_no:integer | first_name:keyword
 
 
 twoEqualsAndOr2
-from employees | where emp_no == 10010 and first_name == "Duangkaew" or emp_no == 10011 and first_name == "FooBar" | project emp_no, first_name | sort emp_no;  
+from employees | where emp_no == 10010 and first_name == "Duangkaew" or emp_no == 10011 and first_name == "FooBar" | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew
@@ -34,7 +34,7 @@ emp_no:integer | first_name:keyword
 
 
 twoEqualsOrBraces
-from employees | where (emp_no == 10010 or emp_no == 10011) | project emp_no, first_name | sort emp_no;  
+from employees | where (emp_no == 10010 or emp_no == 10011) | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      
@@ -43,7 +43,7 @@ emp_no:integer | first_name:keyword
 
 
 twoInequalityAnd
-from employees | where emp_no >= 10010 and emp_no <= 10011 | project emp_no, first_name | sort emp_no;  
+from employees | where emp_no >= 10010 and emp_no <= 10011 | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      
@@ -51,7 +51,7 @@ emp_no:integer | first_name:keyword
 ;
 
 threeEqualsOr
-from employees | where emp_no == 10010 or emp_no == 10011 or emp_no == 10012  | project emp_no, first_name | sort emp_no;  
+from employees | where emp_no == 10010 or emp_no == 10011 or emp_no == 10012  | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      
@@ -61,7 +61,7 @@ emp_no:integer | first_name:keyword
 
 
 evalTwoEqualsOr
-from employees | eval x = emp_no + 10010 - emp_no | where emp_no == x or emp_no == 10011 | project emp_no, first_name | sort emp_no;  
+from employees | eval x = emp_no + 10010 - emp_no | where emp_no == x or emp_no == 10011 | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      
@@ -70,7 +70,7 @@ emp_no:integer | first_name:keyword
 
 
 evalTwoInequalityAnd
-from employees | eval x = emp_no + 10010 - emp_no | where emp_no >= x and emp_no <= 10011 | project emp_no, first_name | sort emp_no;  
+from employees | eval x = emp_no + 10010 - emp_no | where emp_no >= x and emp_no <= 10011 | keep emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
 10010          |Duangkaew      

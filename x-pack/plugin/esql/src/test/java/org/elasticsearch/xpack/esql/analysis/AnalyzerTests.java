@@ -187,39 +187,39 @@ public class AnalyzerTests extends ESTestCase {
     public void testProjectBasic() {
         assertProjection("""
             from test
-            | project first_name
+            | keep first_name
             """, "first_name");
     }
 
     public void testProjectBasicPattern() {
         assertProjection("""
             from test
-            | project first*name
+            | keep first*name
             """, "first_name");
         assertProjectionTypes("""
             from test
-            | project first*name
+            | keep first*name
             """, DataTypes.KEYWORD);
     }
 
     public void testProjectIncludePattern() {
         assertProjection("""
             from test
-            | project *name
+            | keep *name
             """, "first_name", "last_name");
     }
 
     public void testProjectIncludeMultiStarPattern() {
         assertProjection("""
             from test
-            | project *t*name
+            | keep *t*name
             """, "first_name", "last_name");
     }
 
     public void testProjectStar() {
         assertProjection("""
             from test
-            | project *
+            | keep *
             """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary");
     }
 
@@ -244,14 +244,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testProjectOrder() {
         assertProjection("""
             from test
-            | project first_name, *, last_name
+            | keep first_name, *, last_name
             """, "first_name", "_meta_field", "emp_no", "gender", "languages", "salary", "last_name");
     }
 
     public void testProjectThenDropName() {
         assertProjection("""
             from test
-            | project *name
+            | keep *name
             | drop first_name
             """, "last_name");
     }
@@ -260,7 +260,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | drop first_name
-            | project *name
+            | keep *name
             """, "last_name");
     }
 
@@ -268,14 +268,14 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | drop first_name
-            | project last_name
+            | keep last_name
             """, "last_name");
     }
 
     public void testProjectDropPattern() {
         assertProjection("""
             from test
-            | project *
+            | keep *
             | drop *_name
             """, "_meta_field", "emp_no", "gender", "languages", "salary");
     }
@@ -290,7 +290,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
-            | project *name, *, emp_no
+            | keep *name, *, emp_no
             """, "first_name", "last_name", "_meta_field", "gender", "languages", "salary", "emp_no");
     }
 
@@ -298,14 +298,14 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | drop l*
-            | project first_name, salary
+            | keep first_name, salary
             """, "first_name", "salary");
     }
 
     public void testErrorOnNoMatchingPatternInclusion() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | project *nonExisting
+            | keep *nonExisting
             """));
         assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
     }
@@ -325,7 +325,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testIncludeUnsupportedFieldExplicit() {
         assertProjectionWithMapping("""
             from test
-            | project unsupported
+            | keep unsupported
             """, "mapping-multi-field-variation.json", "unsupported");
     }
 
@@ -334,7 +334,7 @@ public class AnalyzerTests extends ESTestCase {
 
         verifyUnsupported("""
             from test
-            | project unsupported
+            | keep unsupported
             | eval x = unsupported
             """, errorMessage);
     }
@@ -344,7 +344,7 @@ public class AnalyzerTests extends ESTestCase {
 
         verifyUnsupported("""
             from test
-            | project unsupported
+            | keep unsupported
             | eval x = unsupported + 1
             """, errorMessage);
     }
@@ -354,7 +354,7 @@ public class AnalyzerTests extends ESTestCase {
 
         verifyUnsupported("""
             from test
-            | project unsupported
+            | keep unsupported
             | where unsupported == null
             """, errorMessage);
     }
@@ -364,7 +364,7 @@ public class AnalyzerTests extends ESTestCase {
 
         verifyUnsupported("""
             from test
-            | project unsupported
+            | keep unsupported
             | where length(unsupported) > 0
             """, errorMessage);
     }
@@ -374,7 +374,7 @@ public class AnalyzerTests extends ESTestCase {
 
         verifyUnsupported("""
             from test
-            | project unsupported
+            | keep unsupported
             | sort unsupported
             """, errorMessage);
     }
@@ -382,7 +382,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testIncludeUnsupportedFieldPattern() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | project un*
+            | keep un*
             """));
         assertThat(e.getMessage(), containsString("No match found for [un*]"));
     }
@@ -464,7 +464,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename e = emp_no
-            | project first_name, e
+            | keep first_name, e
             """, "first_name", "e");
     }
 
@@ -472,7 +472,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename r1 = emp_no, r2 = r1, r3 = r2
-            | project first_name, r3
+            | keep first_name, r3
             """, "first_name", "r3");
     }
 
@@ -480,7 +480,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename r1 = emp_no, r2 = r1, r3 = r2, r1 = first_name
-            | project r1, r3
+            | keep r1, r3
             """, "r1", "r3");
     }
 
@@ -488,7 +488,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename r1 = emp_no, emp_no = r1
-            | project emp_no
+            | keep emp_no
             """, "emp_no");
     }
 
@@ -503,7 +503,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjectionWithMapping("""
             from test
             | rename u = unsupported
-            | project int, u, float
+            | keep int, u, float
             """, "mapping-multi-field-variation.json", "int", "u", "float");
     }
 
@@ -511,7 +511,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjectionWithMapping("""
             from test
             | rename u1 = unsupported, u2 = u1
-            | project int, u2, float
+            | keep int, u2, float
             """, "mapping-multi-field-variation.json", "int", "u2", "float");
     }
 
@@ -519,7 +519,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjectionWithMapping("""
             from test
             | rename u = unsupported, f = float
-            | project int, u, f
+            | keep int, u, f
             """, "mapping-multi-field-variation.json", "int", "u", "f");
     }
 
@@ -527,7 +527,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjectionWithMapping("""
             from test
             | rename ss = some.string, f = float
-            | project int, ss, f
+            | keep int, ss, f
             """, "mapping-multi-field-variation.json", "int", "ss", "f");
     }
 
@@ -548,21 +548,21 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldUsedExplicitly() {
         assertProjectionWithMapping("""
             from test
-            | project foo_type
+            | keep foo_type
             """, "mapping-multi-field-variation.json", "foo_type");
     }
 
     public void testUnsupportedFieldTypes() {
         assertProjectionWithMapping("""
             from test
-            | project unsigned_long, date, date_nanos, unsupported, point, version
+            | keep unsigned_long, date, date_nanos, unsupported, point, version
             """, "mapping-multi-field-variation.json", "unsigned_long", "date", "date_nanos", "unsupported", "point", "version");
     }
 
     public void testUnsupportedDottedFieldUsedExplicitly() {
         assertProjectionWithMapping("""
             from test
-            | project some.string
+            | keep some.string
             """, "mapping-multi-field-variation.json", "some.string");
     }
 
@@ -570,9 +570,9 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported(
             """
                 from test
-                | project text, text.keyword
+                | keep text, text.keyword
                 """,
-            "Found 1 problem\n" + "line 2:17: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?",
+            "Found 1 problem\n" + "line 2:14: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?",
             "mapping-multi-field.json"
         );
     }
@@ -580,14 +580,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedParentFieldAndItsSubField() {
         assertProjectionWithMapping("""
             from test
-            | project text, text.english
+            | keep text, text.english
             """, "mapping-multi-field.json", "text", "text.english");
     }
 
     public void testUnsupportedDeepHierarchy() {
         assertProjectionWithMapping("""
             from test
-            | project x.y.z.w, x.y.z, x.y, x
+            | keep x.y.z.w, x.y.z, x.y, x
             """, "mapping-multi-field-with-nested.json", "x.y.z.w", "x.y.z", "x.y", "x");
     }
 
@@ -597,24 +597,24 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedValidFieldTypeInDeepHierarchy() {
         assertProjectionWithMapping("""
             from test
-            | project x.y.z.v
+            | keep x.y.z.v
             """, "mapping-multi-field-with-nested.json", "x.y.z.v");
     }
 
     public void testUnsupportedValidFieldTypeInNestedParentField() {
         verifyUnsupported("""
             from test
-            | project dep.dep_id.keyword
-            """, "Found 1 problem\n" + "line 2:11: Unknown column [dep.dep_id.keyword]", "mapping-multi-field-with-nested.json");
+            | keep dep.dep_id.keyword
+            """, "Found 1 problem\n" + "line 2:8: Unknown column [dep.dep_id.keyword]", "mapping-multi-field-with-nested.json");
     }
 
     public void testUnsupportedObjectAndNested() {
         verifyUnsupported(
             """
                 from test
-                | project dep, some
+                | keep dep, some
                 """,
-            "Found 2 problems\n" + "line 2:11: Unknown column [dep]\n" + "line 2:16: Unknown column [some]",
+            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [some]",
             "mapping-multi-field-with-nested.json"
         );
     }
@@ -640,7 +640,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testSupportedDeepHierarchy() {
         assertProjectionWithMapping("""
             from test
-            | project some.dotted.field, some.string.normalized
+            | keep some.dotted.field, some.string.normalized
             """, "mapping-multi-field-with-nested.json", "some.dotted.field", "some.string.normalized");
     }
 
@@ -769,7 +769,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjectionWithMapping(
             """
                 from test
-                | project *some.string*, *, some.ambiguous.two, keyword
+                | keep *some.string*, *, some.ambiguous.two, keyword
                 """,
             "mapping-multi-field-with-nested.json",
             "some.string",
@@ -803,7 +803,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldUsedExplicitly2() {
         assertProjectionWithMapping("""
             from test
-            | project keyword, point
+            | keep keyword, point
             """, "mapping-multi-field-variation.json", "keyword", "point");
     }
 
@@ -821,7 +821,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | stats c = count(salary) by last_name
             | eval d = c + 1
-            | project d, last_name
+            | keep d, last_name
             """, "d", "last_name");
     }
 
@@ -872,7 +872,7 @@ public class AnalyzerTests extends ESTestCase {
             assertProjectionWithMapping("""
                 from test
                 | where date COMPARISON "1985-01-01T00:00:00Z"
-                | project date
+                | keep date
                 """.replace("COMPARISON", comparison), "mapping-multi-field-variation.json", "date");
         }
     }
@@ -882,7 +882,7 @@ public class AnalyzerTests extends ESTestCase {
             assertProjectionWithMapping("""
                 from test
                 | where "1985-01-01T00:00:00Z" COMPARISON date
-                | project date
+                | keep date
                 """.replace("COMPARISON", comparison), "mapping-multi-field-variation.json", "date");
         }
     }
@@ -892,7 +892,7 @@ public class AnalyzerTests extends ESTestCase {
             verifyUnsupported("""
                 from test
                 | where date COMPARISON "not-a-date"
-                | project date
+                | keep date
                 """.replace("COMPARISON", comparison), "Invalid date [not-a-date]", "mapping-multi-field-variation.json");
         }
     }
@@ -1212,7 +1212,7 @@ public class AnalyzerTests extends ESTestCase {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | enrich languages on languages
-            | project first_name, language_name, id
+            | keep first_name, language_name, id
             """));
         assertThat(
             e.getMessage(),
@@ -1225,21 +1225,21 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | eval x = to_string(languages)
             | enrich languages on x
-            | project first_name, language_name
+            | keep first_name, language_name
             """, "first_name", "language_name");
 
         assertProjection("""
             from test
             | eval x = to_string(languages)
             | enrich languages on x with language_name
-            | project first_name, language_name
+            | keep first_name, language_name
             """, "first_name", "language_name");
 
         assertProjection("""
             from test
             | eval x = to_string(languages)
             | enrich languages on x with y = language_name
-            | project first_name, y
+            | keep first_name, y
             """, "first_name", "y");
     }
 
@@ -1248,7 +1248,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | eval x = to_string(languages)
             | enrich languages on x
-            | project first_name, language_name, id
+            | keep first_name, language_name, id
             """));
         assertThat(e.getMessage(), containsString("Unknown column [id]"));
     }

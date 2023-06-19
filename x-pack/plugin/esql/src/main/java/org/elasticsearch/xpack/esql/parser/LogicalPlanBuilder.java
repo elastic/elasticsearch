@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -252,7 +253,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) {
+    public PlanFactory visitKeepCommand(EsqlBaseParser.KeepCommandContext ctx) {
+        if (ctx.PROJECT() != null) {
+            addWarning("PROJECT command is no longer supported, please use KEEP instead");
+        }
         List<NamedExpression> projections = new ArrayList<>(ctx.sourceIdentifier().size());
         boolean hasSeenStar = false;
         for (var srcIdCtx : ctx.sourceIdentifier()) {
@@ -266,7 +270,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             projections.add(ne);
         }
-        return child -> new ProjectReorder(source(ctx), child, projections);
+        return child -> new Keep(source(ctx), child, projections);
     }
 
     @Override

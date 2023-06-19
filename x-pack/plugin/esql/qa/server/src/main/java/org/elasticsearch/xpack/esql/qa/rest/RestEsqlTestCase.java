@@ -172,7 +172,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(docCount);
 
         boolean columnar = randomBoolean();
-        var query = builder().query(fromIndex() + " | project keyword, integer");
+        var query = builder().query(fromIndex() + " | keep keyword, integer");
         if (columnar || randomBoolean()) {
             query.columnar(columnar);
         }
@@ -202,27 +202,27 @@ public class RestEsqlTestCase extends ESRestTestCase {
     public void testTextMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
         assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
         assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
         assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
     }
 
     public void testCSVNoHeaderMode() throws IOException {
         bulkLoadTestData(1);
-        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
         Request request = prepareRequest();
         String mediaType = attachBody(builder, request);
         RequestOptions.Builder options = request.getOptions().toBuilder();

@@ -686,7 +686,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | sort emp_no
-            | project first_name
+            | keep first_name
             | limit 2
             """));
         var topProject = as(optimized, ProjectExec.class);
@@ -810,7 +810,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | eval x = first_name
-            | project emp_no, x
+            | keep emp_no, x
             | limit 5
             """));
 
@@ -841,7 +841,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort salary
             | limit 1
-            | project languages, salary
+            | keep languages, salary
             | eval x = languages + 1
             """));
 
@@ -1271,9 +1271,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testTopNNotPushedDownOnOverlimit() {
-        var optimized = optimizedPlan(
-            physicalPlan("from test | sort emp_no | limit " + (LuceneOperator.PAGE_SIZE + 1) + " | project emp_no")
-        );
+        var optimized = optimizedPlan(physicalPlan("from test | sort emp_no | limit " + (LuceneOperator.PAGE_SIZE + 1) + " | keep emp_no"));
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);

@@ -1,5 +1,5 @@
 simple
-from employees | eval x = 1, y = to_string(languages) | enrich languages_policy on y | where x > 1 | project emp_no, language_name | limit 1;
+from employees | eval x = 1, y = to_string(languages) | enrich languages_policy on y | where x > 1 | keep emp_no, language_name | limit 1;
 
 emp_no:integer | language_name:keyword
 ;

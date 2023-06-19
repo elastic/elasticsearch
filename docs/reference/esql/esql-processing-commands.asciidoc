@@ -18,9 +18,9 @@ ESQL supports these processing commands:
 * <<esql-drop>>
 * <<esql-eval>>
 * <<esql-grok>>
+* <<esql-keep>>
 * <<esql-limit>>
 * <<esql-mv_expand>>
-* <<esql-project>>
 * <<esql-rename>>
 * <<esql-sort>>
 * <<esql-stats-by>>
@@ -30,9 +30,9 @@ include::processing-commands/dissect.asciidoc[]
 include::processing-commands/drop.asciidoc[]
 include::processing-commands/eval.asciidoc[]
 include::processing-commands/grok.asciidoc[]
+include::processing-commands/keep.asciidoc[]
 include::processing-commands/limit.asciidoc[]
 include::processing-commands/mv_expand.asciidoc[]
-include::processing-commands/project.asciidoc[]
 include::processing-commands/rename.asciidoc[]
 include::processing-commands/sort.asciidoc[]
 include::processing-commands/stats.asciidoc[]

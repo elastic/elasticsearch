@@ -13,5 +13,5 @@ FROM employees
     languages <= 1, "monolingual",
     languages <= 2, "bilingual",
      "polyglot")
-| PROJECT first_name, last_name, type
+| KEEP first_name, last_name, type
 ----

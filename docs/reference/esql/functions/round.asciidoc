@@ -7,6 +7,6 @@ of digits is negative, rounds to the number of digits left of the decimal point.
 [source,esql]
 ----
 FROM employees
-| PROJECT first_name, last_name, height
+| KEEP first_name, last_name, height
 | EVAL height = ROUND(height * 3.281, 1)
 ----

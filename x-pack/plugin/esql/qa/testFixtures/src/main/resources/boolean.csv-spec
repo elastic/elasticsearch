@@ -1,5 +1,5 @@
 simple
-from employees | sort emp_no | project emp_no, still_hired | limit 3;
+from employees | sort emp_no | keep emp_no, still_hired | limit 3;
 
 emp_no:integer | still_hired:boolean
 10001          | true
@@ -8,7 +8,7 @@ emp_no:integer | still_hired:boolean
 ;
 
 directFilter
-from employees | sort emp_no | where still_hired | project emp_no | limit 3;
+from employees | sort emp_no | where still_hired | keep emp_no | limit 3;
 
 emp_no:integer
 10001
@@ -17,7 +17,7 @@ emp_no:integer
 ;
 
 sort
-from employees | sort still_hired, emp_no | project emp_no, still_hired | limit 3;
+from employees | sort still_hired, emp_no | keep emp_no, still_hired | limit 3;
 
 emp_no:integer | still_hired:boolean
 10003          | false
@@ -48,7 +48,7 @@ avg(salary):double | always_false:boolean
 ;
 
 in
-from employees | project emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
+from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
 
 emp_no:integer |is_rehired:boolean |still_hired:boolean
 10021          |true               |false
@@ -59,84 +59,84 @@ emp_no:integer |is_rehired:boolean |still_hired:boolean
 ;
 
 trueTrue
-row lhs=true, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=true, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 true       | true
 ;
 
 trueFalse
-row lhs=true, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=true, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 false      | true
 ;
 
 trueNull
-row lhs=true, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=true, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 null       | true
 ;
 
 falseTrue
-row lhs=false, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=false, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 false      | true
 ;
 
 falseFalse
-row lhs=false, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=false, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 false      | false
 ;
 
 falseNull
-row lhs=false, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=false, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 false      | null
 ;
 
 nullTrue
-row lhs=null, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=null, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 null       | true
 ;
 
 nullFalse
-row lhs=null, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=null, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 false      | null
 ;
 
 nullNull
-row lhs=null, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+row lhs=null, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | keep aa, oo;
 
 aa:boolean | oo:boolean
 null       | null
 ;
 
 notTrue
-row v=true | eval v=NOT v | project v;
+row v=true | eval v=NOT v | keep v;
 
 v:boolean
 false
 ;
 
 notFalse
-row v=false | eval v=NOT v | project v;
+row v=false | eval v=NOT v | keep v;
 
 v:boolean
 true
 ;
 
 notNull
-row v=null | eval v=NOT v | project v;
+row v=null | eval v=NOT v | keep v;
 
 v:boolean
 null
@@ -150,7 +150,7 @@ tf:boolean    |tt:boolean |ff:boolean |ttff:boolean
 ;
 
 convertFromString
-from employees | project emp_no, is_rehired, first_name | eval rehired_str = to_string(is_rehired) | eval rehired_bool = to_boolean(rehired_str) | eval all_false = to_boolean(first_name) | drop first_name | limit 5;
+from employees | keep emp_no, is_rehired, first_name | eval rehired_str = to_string(is_rehired) | eval rehired_bool = to_boolean(rehired_str) | eval all_false = to_boolean(first_name) | drop first_name | limit 5;
 emp_no:integer |is_rehired:boolean         |rehired_str:keyword        |rehired_bool:boolean        |all_false:boolean
 10001          |[false, true]              |[false, true]              |[false, true]               |false
 10002          |[false, false]             |[false, false]             |[false, false]              |false
@@ -173,7 +173,7 @@ str:keyword                                | bool:boolean
 ;
 
 convertFromDouble
-from employees | eval h_2 = height - 2.0, double2bool = to_boolean(h_2) | where emp_no in (10036, 10037, 10038) | project emp_no, height, *2bool;
+from employees | eval h_2 = height - 2.0, double2bool = to_boolean(h_2) | where emp_no in (10036, 10037, 10038) | keep emp_no, height, *2bool;
 
 emp_no:integer |height:double |double2bool:boolean
 10036          |1.61          |true
@@ -182,7 +182,7 @@ emp_no:integer |height:double |double2bool:boolean
 ;
 
 convertFromIntAndLong
-from employees | project emp_no, salary_change* | eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10;
+from employees | keep emp_no, salary_change* | eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10;
 
 emp_no:integer |salary_change:double      |salary_change.int:integer |salary_change.long:long |int2bool:boolean          |long2bool:boolean       
 10001          |1.19                      |1                         |1                       |true                      |true
@@ -199,7 +199,7 @@ emp_no:integer |salary_change:double      |salary_change.int:integer |salary_cha
 
 // short and byte aren't actually tested, these are loaded as int blocks atm
 convertFromByteAndShort
-from employees | eval byte2bool = to_boolean(languages.byte), short2bool = to_boolean(languages.short) | where emp_no in (10019, 10020, 10030) | project emp_no, languages, *2bool;
+from employees | eval byte2bool = to_boolean(languages.byte), short2bool = to_boolean(languages.short) | where emp_no in (10019, 10020, 10030) | keep emp_no, languages, *2bool;
 
 emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
 10019          |1                 |true              |true

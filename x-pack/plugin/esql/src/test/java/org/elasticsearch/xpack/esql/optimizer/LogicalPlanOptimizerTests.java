@@ -143,7 +143,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testEmptyProjections() {
         var plan = plan("""
             from test
-            | project salary
+            | keep salary
             | drop salary
             """);
 
@@ -167,41 +167,41 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineProjections() {
         var plan = plan("""
             from test
-            | project emp_no, *name, salary
-            | project last_name
+            | keep emp_no, *name, salary
+            | keep last_name
             """);
 
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("last_name"));
-        var limit = as(project.child(), Limit.class);
+        var keep = as(plan, Project.class);
+        assertThat(Expressions.names(keep.projections()), contains("last_name"));
+        var limit = as(keep.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
     }
 
     public void testCombineProjectionWithFilterInBetween() {
         var plan = plan("""
             from test
-            | project *name, salary
+            | keep *name, salary
             | where salary > 10
-            | project last_name
+            | keep last_name
             """);
 
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("last_name"));
+        var keep = as(plan, Project.class);
+        assertThat(Expressions.names(keep.projections()), contains("last_name"));
     }
 
     public void testCombineProjectionWhilePreservingAlias() {
         var plan = plan("""
             from test
             | rename x = first_name
-            | project x, salary
+            | keep x, salary
             | where salary > 10
             | rename y = x
-            | project y
+            | keep y
             """);
 
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("y"));
-        var p = project.projections().get(0);
+        var keep = as(plan, Project.class);
+        assertThat(Expressions.names(keep.projections()), contains("y"));
+        var p = keep.projections().get(0);
         var alias = as(p, Alias.class);
         assertThat(Expressions.name(alias.child()), containsString("first_name"));
     }
@@ -239,7 +239,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = plan("""
             from test
             | rename x = first_name
-            | project x, salary, last_name
+            | keep x, salary, last_name
             | stats count(salary) by x
             """);
 
@@ -318,8 +318,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
-        EsqlProject project = new EsqlProject(EMPTY, fa, projections);
-        Filter fb = new Filter(EMPTY, project, conditionB);
+        EsqlProject keep = new EsqlProject(EMPTY, fa, projections);
+        Filter fb = new Filter(EMPTY, keep, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
         assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
@@ -332,8 +332,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
-        EsqlProject project = new EsqlProject(EMPTY, fa, projections);
-        Filter fb = new Filter(EMPTY, project, conditionB);
+        EsqlProject keep = new EsqlProject(EMPTY, fa, projections);
+        Filter fb = new Filter(EMPTY, keep, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
         assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
@@ -502,11 +502,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | rename x = emp_no
-            | project x
+            | keep x
             | where x > 10""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var keep = as(plan, Project.class);
+        var limit = as(keep.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
         assertThat(as(attr, FieldAttribute.class).name(), is("emp_no"));
@@ -516,11 +516,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | rename x = emp_no
-            | project x
+            | keep x
             | eval y = x * 2""");
 
-        var project = as(plan, Project.class);
-        var eval = as(project.child(), Eval.class);
+        var keep = as(plan, Project.class);
+        var eval = as(keep.child(), Eval.class);
         assertThat(
             eval.fields(),
             contains(
@@ -537,12 +537,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | rename x = first_name
-            | project x
+            | keep x
             | dissect x "%{y}"
             """);
 
-        var project = as(plan, Project.class);
-        var dissect = as(project.child(), Dissect.class);
+        var keep = as(plan, Project.class);
+        var dissect = as(keep.child(), Dissect.class);
         assertThat(dissect.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataTypes.KEYWORD)));
     }
 
@@ -550,12 +550,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | rename x = first_name
-            | project x
+            | keep x
             | grok x "%{WORD:y}"
             """);
 
-        var project = as(plan, Project.class);
-        var grok = as(project.child(), Grok.class);
+        var keep = as(plan, Project.class);
+        var grok = as(keep.child(), Grok.class);
         assertThat(grok.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataTypes.KEYWORD)));
     }
 
@@ -566,8 +566,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | rename x = y
             | where x > 10""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var keep = as(plan, Project.class);
+        var limit = as(keep.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
         assertThat(as(attr, ReferenceAttribute.class).name(), is("y"));
@@ -580,12 +580,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | dissect first_name "%{y}"
             | rename x = y
-            | project x
+            | keep x
             | where x == "foo"
             """);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var keep = as(plan, Project.class);
+        var limit = as(keep.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
         assertThat(as(attr, ReferenceAttribute.class).name(), is("y"));
@@ -598,12 +598,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | grok first_name "%{WORD:y}"
             | rename x = y
-            | project x
+            | keep x
             | where x == "foo"
             """);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var keep = as(plan, Project.class);
+        var limit = as(keep.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
         assertThat(as(attr, ReferenceAttribute.class).name(), is("y"));
@@ -645,11 +645,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | rename a = emp_no
-            | project a
+            | keep a
             | limit 10""");
 
-        var project = as(plan, Project.class);
-        as(project.child(), Limit.class);
+        var keep = as(plan, Project.class);
+        as(keep.child(), Limit.class);
     }
 
     public void testDontPushDownLimitPastFilter() {
@@ -798,11 +798,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project salary, emp_no
+            | keep salary, emp_no
             | sort salary""");
 
-        var project = as(plan, Project.class);
-        var topN = as(project.child(), TopN.class);
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
         assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(topN.child(), EsRelation.class);
     }
@@ -812,12 +812,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | rename en = emp_no
-            | project salary, en
+            | keep salary, en
             | eval e = en * 2
             | sort salary""");
 
-        var project = as(plan, Project.class);
-        var topN = as(project.child(), TopN.class);
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
         assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(topN.child(), Eval.class);
     }
@@ -827,11 +827,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | rename l = salary
-            | project l, emp_no
+            | keep l, emp_no
             | sort l""");
 
-        var project = as(plan, Project.class);
-        var topN = as(project.child(), TopN.class);
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
         assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(topN.child(), EsRelation.class);
     }
@@ -871,20 +871,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // | limit 100
         // | where salary > 1
         // | sort emp_no, first_name
-        // | project l = salary, emp_no, first_name
+        // | keep l = salary, emp_no, first_name
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
             | rename l = salary
-            | project l, emp_no, first_name
+            | keep l, emp_no, first_name
             | sort l
             | limit 100
             | sort first_name
             | where l > 1
             | sort emp_no""");
 
-        var project = as(plan, Project.class);
-        var topN = as(project.child(), TopN.class);
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
         assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("emp_no", "first_name"));
         var filter = as(topN.child(), Filter.class);
         var topN2 = as(filter.child(), TopN.class);
@@ -898,11 +898,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort salary nulls last, emp_no desc nulls first
             | where salary > 2
             | eval e = emp_no * 2
-            | project salary, emp_no, e
+            | keep salary, emp_no, e
             | sort e, emp_no, salary desc, emp_no desc""");
 
-        var project = as(plan, Project.class);
-        var topN = as(project.child(), TopN.class);
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
         assertThat(
             topN.order(),
             contains(
@@ -934,11 +934,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no desc
             | rename e = emp_no
-            | project e
+            | keep e
             | sort e""");
 
-        var project = as(plan, Project.class);
-        var topN = as(project.child(), TopN.class);
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
         assertThat(
             topN.order(),
             contains(
@@ -1060,12 +1060,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | eval a = to_string(languages)
             | rename x = a
-            | project x
+            | keep x
             | enrich languages_idx on x
             """);
 
-        var project = as(plan, Project.class);
-        as(project.child(), Enrich.class);
+        var keep = as(plan, Project.class);
+        as(keep.child(), Enrich.class);
     }
 
     public void testTopNEnrich() {
@@ -1073,13 +1073,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | rename x = languages
             | eval x = to_string(x)
-            | project x
+            | keep x
             | enrich languages_idx on x
             | sort language_name
             """);
 
-        var project = as(plan, Project.class);
-        var topN = as(project.child(), TopN.class);
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
         as(topN.child(), Enrich.class);
     }
 

@@ -300,11 +300,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#projectCommand}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#keepCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
+  T visitKeepCommand(EsqlBaseParser.KeepCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#dropCommand}.
    * @param ctx the parse tree

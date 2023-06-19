@@ -3679,7 +3679,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .endObject();
         mappings.endObject();
 
-
         assertAcked(prepareCreate(index).setMapping(mappings));
 
         XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();

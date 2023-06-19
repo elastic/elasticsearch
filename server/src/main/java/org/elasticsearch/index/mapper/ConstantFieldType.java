@@ -54,7 +54,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query termQuery(Object value, SearchExecutionContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, false, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.newMatchAllQueryWrapper(pattern);
         } else {
             return new MatchNoDocsQuery();
         }
@@ -64,7 +64,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, true, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.newMatchAllQueryWrapper(pattern);
         } else {
             return new MatchNoDocsQuery();
         }
@@ -76,7 +76,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {
                 // `terms` queries are a disjunction, so one matching term is enough
-                return Queries.newMatchAllQuery();
+                return Queries.newMatchAllQueryWrapper(pattern);
             }
         }
         return new MatchNoDocsQuery();
@@ -91,7 +91,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     ) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.newMatchAllQueryWrapper(pattern);
         } else {
             return new MatchNoDocsQuery();
         }
@@ -105,7 +105,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         SearchExecutionContext context
     ) {
         if (matches(value, caseInsensitive, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.newMatchAllQueryWrapper(value);
         } else {
             return new MatchNoDocsQuery();
         }

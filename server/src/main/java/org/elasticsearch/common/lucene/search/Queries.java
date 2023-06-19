@@ -23,6 +23,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.query.MatchAllDocumentQueryWrapper;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -33,6 +34,10 @@ public class Queries {
 
     public static Query newMatchAllQuery() {
         return new MatchAllDocsQuery();
+    }
+
+    public static Query newMatchAllQueryWrapper(String pattern) {
+        return new MatchAllDocumentQueryWrapper(pattern);
     }
 
     /** Return a query that matches no document. */

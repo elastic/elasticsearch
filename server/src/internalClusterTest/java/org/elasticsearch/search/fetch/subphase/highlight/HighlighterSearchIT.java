@@ -3640,7 +3640,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder firstDocument = jsonBuilder().startObject().field("foo", "bar").endObject();
+        XContentBuilder firstDocument = jsonBuilder().startObject().field("foo", constantValue).endObject();
         XContentBuilder secondDocument = jsonBuilder().startObject().field("foo", constantValue).endObject();
         saveDocumentIntoIndex(index, "1", firstDocument);
         saveDocumentIntoIndex(index, "2", secondDocument);
@@ -3649,8 +3649,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         assertNoFailures(search);
         assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
-        assertHighlight(search, 1, "foo", 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
+        assertHighlight(search, 0, "foo", 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
         assertHighlight(search, 1, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
+        assertHighlight(search, 1, "foo", 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
     }
 
     public void testDoubleConstantKeywordJustOneHighlighted() throws IOException {

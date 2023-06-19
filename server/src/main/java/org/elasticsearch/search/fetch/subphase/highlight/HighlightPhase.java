@@ -11,14 +11,15 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.MatchAllDocumentQueryWrapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -174,12 +175,14 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     private Query getHighlighterQueryForConstantFieldType(FetchContext context, MappedFieldType fieldType) {
-        if (context.query() instanceof MatchAllDocsQuery) {
-            return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
-        } else if (context.query() instanceof DisjunctionMaxQuery disjunctionMaxQuery) {
-            for (Query anyDisjunctQuery : disjunctionMaxQuery.getDisjuncts()) {
-                if (anyDisjunctQuery instanceof MatchAllDocsQuery) {
-                    return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+        if (context.query() instanceof MatchAllDocumentQueryWrapper persist) {
+            return new TermQuery(new Term(fieldType.name(), persist.getPattern()));
+        } else if (context.query() instanceof DisjunctionMaxQuery changeName) {
+            for (Query query : changeName.getDisjuncts()) {
+                if (query instanceof MatchAllDocumentQueryWrapper anyPersist) {
+                    if (Regex.simpleMatch(anyPersist.getPattern(), getValueForConstantFieldType(context, fieldType))) {
+                        return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+                    }
                 }
             }
         }

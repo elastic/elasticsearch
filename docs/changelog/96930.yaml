@@ -1,0 +1,5 @@
+pr: 96930
+summary: Include more downsampling status statistics
+area: Downsampling
+type: enhancement
+issues: []

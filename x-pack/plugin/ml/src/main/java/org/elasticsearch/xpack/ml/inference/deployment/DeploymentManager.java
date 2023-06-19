@@ -469,8 +469,8 @@ public class DeploymentManager {
         }
 
         private void onProcessCrash(String reason) {
-            String msg = "[" + task.getDeploymentId() + "] inference process crashed due to reason [" + task.getDeploymentId() + "]";
-            logger.error(msg);
+            String msg = "inference process crashed due to reason [" + reason + "]";
+            logger.error("[{}] {}", task.getDeploymentId(), msg);
             processContextByAllocation.remove(task.getId());
             isStopped = true;
             resultProcessor.stop();
@@ -479,8 +479,8 @@ public class DeploymentManager {
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();
             }
-            task.setFailed("inference process crashed due to reason [" + reason + "]");
-            auditor.error(task.getDeploymentId(), msg);
+            task.setFailed(msg);
+            auditor.error(task.getDeploymentId(), "inference process crashed");
         }
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {

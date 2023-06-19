@@ -1,5 +1,5 @@
 pr: 96744
-summary: Role changes to support enforcing workflow restrictions
+summary: Support restricting access of API keys to only certain workflows
 area: Authorization
 type: feature
 issues: []

@@ -299,7 +299,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (sec != null) {
             return doSearchRewrite(sec);
         }
-        final QueryRewriteContext context = queryRewriteContext.convertToMappingMetadataAwareContext();
+        final QueryRewriteContext context = queryRewriteContext.convertToIndexMetadataContext();
         if (context != null) {
             return doIndexMetadataRewrite(context);
         }

@@ -144,7 +144,7 @@ public class QueryRewriteContext {
     /**
      * @return an {@link QueryRewriteContext} instance that is aware of the mapping and other index metadata or <code>null</code> otherwise.
      */
-    public QueryRewriteContext convertToMappingMetadataAwareContext() {
+    public QueryRewriteContext convertToIndexMetadataContext() {
         return mapperService != null ? this : null;
     }
 

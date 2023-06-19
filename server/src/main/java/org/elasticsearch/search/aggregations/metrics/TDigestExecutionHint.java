@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 
 import java.io.IOException;
 
@@ -20,6 +21,24 @@ import java.io.IOException;
 public enum TDigestExecutionHint implements Writeable {
     DEFAULT(0),        // Use a TDigest that is optimized for performance, with a small penalty in accuracy.
     HIGH_ACCURACY(1);  // Use a TDigest that is optimize for accuracy, at the expense of performance.
+
+    public static final Setting<String> SETTING = Setting.simpleString(
+        "search.aggs.tdigest_execution_hint",
+        "",
+        TDigestExecutionHint::parse,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static volatile TDigestExecutionHint defaultHint = DEFAULT;
+
+    public static TDigestExecutionHint getDefaultValue() {
+        return defaultHint;
+    }
+
+    public static void setDefaultValue(String value) {
+        defaultHint = parse(value);
+    }
 
     TDigestExecutionHint(int id) {
         this.id = id;

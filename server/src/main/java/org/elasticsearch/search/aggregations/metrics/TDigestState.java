@@ -38,7 +38,7 @@ public class TDigestState {
         SORTING;
 
         static Type defaultValue() {
-            return AVL_TREE;
+            return HYBRID;
         }
 
         static Type valueForHighAccuracy() {
@@ -76,6 +76,10 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+        if (executionHint == TDigestExecutionHint.DEFAULT) {
+            // Check for overrides through cluster settings.
+            executionHint = TDigestExecutionHint.getDefaultValue();
+        }
         return switch (executionHint) {
             case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
             case DEFAULT -> create(compression);

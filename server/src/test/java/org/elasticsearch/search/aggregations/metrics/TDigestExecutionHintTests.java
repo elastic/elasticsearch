@@ -32,6 +32,17 @@ public class TDigestExecutionHintTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> TDigestExecutionHint.parse("NO SUCH HINT"));
     }
 
+    public void testDefaultValue() {
+        assertEquals(TDigestExecutionHint.DEFAULT, TDigestExecutionHint.getDefaultValue());
+
+        TDigestExecutionHint.setDefaultValue(TDigestExecutionHint.HIGH_ACCURACY.toString());
+        assertEquals(TDigestExecutionHint.HIGH_ACCURACY, TDigestExecutionHint.getDefaultValue());
+
+        TDigestExecutionHint hint = randomFrom(TDigestExecutionHint.values());
+        TDigestExecutionHint.setDefaultValue(hint.toString());
+        assertEquals(hint, TDigestExecutionHint.getDefaultValue());
+    }
+
     private static TDigestExecutionHint writeToAndReadFrom(TDigestExecutionHint state) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             state.writeTo(out);

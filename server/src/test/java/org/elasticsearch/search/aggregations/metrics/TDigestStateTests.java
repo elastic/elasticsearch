@@ -160,6 +160,29 @@ public class TDigestStateTests extends ESTestCase {
         assertEquals(accurate, anotherAccurate);
     }
 
+    public void testOverrideDefaultType() {
+        TDigestState fast = TDigestState.create(100);
+        TDigestState accurate = TDigestState.createOptimizedForAccuracy(100);
+
+        TDigestExecutionHint.setDefaultValue(TDigestExecutionHint.HIGH_ACCURACY.toString());
+        TDigestState anotherAccurate = TDigestState.create(100, TDigestExecutionHint.DEFAULT);
+
+        TDigestExecutionHint.setDefaultValue(TDigestExecutionHint.DEFAULT.toString());
+        TDigestState anotherFast = TDigestState.create(100, TDigestExecutionHint.DEFAULT);
+
+        for (int i = 0; i < 100; i++) {
+            fast.add(i);
+            anotherFast.add(i);
+            accurate.add(i);
+            anotherAccurate.add(i);
+        }
+
+        assertEquals(fast, anotherFast);
+        assertEquals(accurate, anotherAccurate);
+        assertNotEquals(fast, accurate);
+        assertNotEquals(anotherFast, anotherAccurate);
+    }
+
     private static TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
         BytesRef serializedAggs = serialize(state, version);
         try (

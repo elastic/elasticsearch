@@ -12,6 +12,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -49,11 +50,32 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
             }""");
         assertOK(adminClient().performRequest(putRoleRequest));
 
-        final Request indexDocRequestA = new Request("POST", "/index-a/_doc/doc1?refresh=true");
-        indexDocRequestA.setJsonEntity("{\"foo\": \"bar\"}");
-        assertOK(adminClient().performRequest(indexDocRequestA));
+        // Create the index with 2 shards so each node has 1 shard
+        final Request createIndexRequest = new Request("PUT", "index-a");
+        createIndexRequest.setJsonEntity("""
+            {
+              "settings": {
+                "number_of_shards": 2,
+                "number_of_replicas": 0
+              }
+            }""");
+        assertOK(adminClient().performRequest(createIndexRequest));
+        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "index-a", "_id": "doc1" } }
+            { "foo": "bar", "value": 1 }
+            { "index": { "_index": "index-a", "_id": "doc2" } }
+            { "foo": "bar", "value": 2 }
+            { "index": { "_index": "index-a", "_id": "doc3" } }
+            { "foo": "bar", "value": 3 }
+            { "index": { "_index": "index-a", "_id": "doc4" } }
+            { "foo": "bar", "value": 4 }
+            { "index": { "_index": "index-a", "_id": "doc5" } }
+            { "foo": "foo", "value": 5 }
+            """));
+        assertOK(adminClient().performRequest(bulkRequest));
 
-        final Request indexDocRequestB = new Request("POST", "/index-b/_doc/doc2?refresh=true");
+        final Request indexDocRequestB = new Request("POST", "/index-b/_doc/doc20?refresh=true");
         indexDocRequestB.setJsonEntity("{\"baz\": \"qux\"}");
         assertOK(adminClient().performRequest(indexDocRequestB));
     }
@@ -103,7 +125,8 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
                       "term": {
                         "{{field_name}}": "{{field_value}}"
                       }
-                    }
+                    },
+                    "sort": [ "value" ]
                   },
                   "params": {
                     "field_name": "foo",
@@ -117,8 +140,11 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
         ObjectPath queryResponseA = assertOKAndCreateObjectPath(
             performRequestWithApiKey(new Request("GET", "_application/search_application/my-app-a/_search"), apiKeyEncoded)
         );
-        assertThat(queryResponseA.evaluate("hits.total.value"), equalTo(1));
+        assertThat(queryResponseA.evaluate("hits.total.value"), equalTo(4));
         assertThat(queryResponseA.evaluate("hits.hits.0._id"), equalTo("doc1"));
+        assertThat(queryResponseA.evaluate("hits.hits.1._id"), equalTo("doc2"));
+        assertThat(queryResponseA.evaluate("hits.hits.2._id"), equalTo("doc3"));
+        assertThat(queryResponseA.evaluate("hits.hits.3._id"), equalTo("doc4"));
 
         // Check that access is rejected by workflow restriction after successful search application query call.
         // This test additionally proves that the permission check works correctly even after the API key's role is cached.

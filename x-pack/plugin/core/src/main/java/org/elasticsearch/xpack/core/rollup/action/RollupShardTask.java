@@ -22,6 +22,7 @@ public class RollupShardTask extends CancellableTask {
     private long totalShardDocCount;
     private long indexStartTime;
     private long indexEndTime;
+    private float docsProcessedPercentage;
     private final DownsampleConfig config;
     private final ShardId shardId;
     private final long rollupStartTime;
@@ -82,6 +83,7 @@ public class RollupShardTask extends CancellableTask {
             lastIndexingTimestamp.get(),
             indexStartTime,
             indexEndTime,
+            docsProcessedPercentage,
             lastBeforeBulkInfo.get(),
             lastAfterBulkInfo.get(),
             rollupShardIndexerStatus.get()
@@ -178,5 +180,9 @@ public class RollupShardTask extends CancellableTask {
 
     public void setIndexEndTimestampMillis(long endTime) {
         this.indexEndTime = endTime;
+    }
+
+    public void docsProcessedPercentage(float percentage) {
+        this.docsProcessedPercentage = percentage;
     }
 }

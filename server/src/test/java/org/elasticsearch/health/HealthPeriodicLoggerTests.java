@@ -230,7 +230,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 "network_latency",
                 HealthPeriodicLogger.class.getCanonicalName(),
                 Level.INFO,
-                String.format("%s=\"green\"", makeHealthStatusString("network_latency"))
+                String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("network_latency"))
             )
         );
         mockAppender.addExpectation(
@@ -238,7 +238,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 "slow_task_assignment",
                 HealthPeriodicLogger.class.getCanonicalName(),
                 Level.INFO,
-                String.format("%s=\"yellow\"", makeHealthStatusString("slow_task_assignment"))
+                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("slow_task_assignment"))
             )
         );
         mockAppender.addExpectation(
@@ -246,7 +246,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 "ilm",
                 HealthPeriodicLogger.class.getCanonicalName(),
                 Level.INFO,
-                String.format("%s=\"red\"", makeHealthStatusString("ilm"))
+                String.format(Locale.ROOT, "%s=\"red\"", makeHealthStatusString("ilm"))
             )
         );
         Logger periodicLoggerLogger = LogManager.getLogger(HealthPeriodicLogger.class);

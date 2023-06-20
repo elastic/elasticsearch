@@ -82,9 +82,13 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        executionHint = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)
-            ? TDigestExecutionHint.readFrom(in)
-            : TDigestExecutionHint.HIGH_ACCURACY;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+            if (in.readBoolean()) {
+                executionHint = TDigestExecutionHint.readFrom(in);
+            }
+        } else {
+            executionHint = TDigestExecutionHint.HIGH_ACCURACY;
+        }
     }
 
     @Override
@@ -95,8 +99,13 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
-            getExecutionHint().writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+            if (executionHint != null) {
+                out.writeBoolean(true);
+                executionHint.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 
@@ -132,10 +141,6 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         return compression;
     }
 
-    private TDigestExecutionHint getExecutionHint() {
-        return executionHint == null ? TDigestExecutionHint.DEFAULT : executionHint;
-    }
-
     @Override
     protected BoxplotAggregatorFactory innerBuild(
         AggregationContext context,
@@ -163,7 +168,9 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(COMPRESSION_FIELD.getPreferredName(), compression);
-        builder.field(EXECUTION_HINT_FIELD.getPreferredName(), getExecutionHint());
+        if (executionHint != null) {
+            builder.field(EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
+        }
         return builder;
     }
 
@@ -173,12 +180,12 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         BoxplotAggregationBuilder other = (BoxplotAggregationBuilder) obj;
-        return Objects.equals(compression, other.compression) && getExecutionHint().equals(other.getExecutionHint());
+        return Objects.equals(compression, other.compression) && Objects.equals(executionHint, other.executionHint);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), compression, getExecutionHint());
+        return Objects.hash(super.hashCode(), compression, executionHint);
     }
 
     @Override

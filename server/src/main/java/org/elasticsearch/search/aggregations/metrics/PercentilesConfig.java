@@ -143,8 +143,8 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         TDigest(StreamInput in) throws IOException {
             this(
                 in.readDouble(),
-                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)
-                    ? TDigestExecutionHint.readFrom(in)
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)
+                    ? in.readBoolean() ? TDigestExecutionHint.readFrom(in) : null
                     : TDigestExecutionHint.HIGH_ACCURACY
             );
         }
@@ -164,8 +164,11 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             this.executionHint = TDigestExecutionHint.parse(executionHint);
         }
 
-        public TDigestExecutionHint getExecutionHint() {
-            return executionHint == null ? TDigestExecutionHint.DEFAULT : executionHint;
+        public TDigestExecutionHint getExecutionHint(AggregationContext context) {
+            if (executionHint == null) {
+                executionHint = TDigestExecutionHint.parse(context.getClusterSettings().get(TDigestExecutionHint.SETTING));
+            }
+            return executionHint;
         }
 
         @Override
@@ -179,9 +182,6 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) throws IOException {
-            if (executionHint == null) {
-                executionHint = TDigestExecutionHint.parse(context.getClusterSettings().get(TDigestExecutionHint.SETTING));
-            }
             return new TDigestPercentilesAggregator(
                 name,
                 config,
@@ -189,7 +189,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
                 parent,
                 values,
                 compression,
-                executionHint,
+                getExecutionHint(context),
                 keyed,
                 formatter,
                 metadata
@@ -218,9 +218,6 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) throws IOException {
-            if (executionHint == null) {
-                executionHint = TDigestExecutionHint.parse(context.getClusterSettings().get(TDigestExecutionHint.SETTING));
-            }
             return new TDigestPercentileRanksAggregator(
                 name,
                 config,
@@ -228,7 +225,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
                 parent,
                 values,
                 compression,
-                executionHint,
+                getExecutionHint(context),
                 keyed,
                 formatter,
                 metadata
@@ -243,15 +240,21 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) {
-            return InternalTDigestPercentileRanks.empty(name, values, compression, getExecutionHint(), keyed, formatter, metadata);
+            TDigestExecutionHint hint = executionHint == null ? TDigestExecutionHint.DEFAULT : executionHint;
+            return InternalTDigestPercentileRanks.empty(name, values, compression, hint, keyed, formatter, metadata);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
-                getExecutionHint().writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+                if (executionHint != null) {
+                    out.writeBoolean(true);
+                    executionHint.writeTo(out);
+                } else {
+                    out.writeBoolean(false);
+                }
             }
         }
 
@@ -259,6 +262,9 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(getMethod().toString());
             builder.field(PercentilesMethod.COMPRESSION_FIELD.getPreferredName(), compression);
+            if (executionHint != null) {
+                builder.field(PercentilesMethod.EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
+            }
             builder.endObject();
             return builder;
         }
@@ -270,12 +276,12 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             if (super.equals(obj) == false) return false;
 
             TDigest other = (TDigest) obj;
-            return compression == other.getCompression() && getExecutionHint().equals(other.getExecutionHint());
+            return compression == other.getCompression() && Objects.equals(executionHint, other.executionHint);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), compression, getExecutionHint());
+            return Objects.hash(super.hashCode(), compression, executionHint);
         }
     }
 

@@ -1819,12 +1819,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.search.VersionMismatchException::new,
             161,
             Version.V_7_12_0
-        ),
-        HTTP_HEADERS_VALIDATION_EXCEPTION(
-            org.elasticsearch.http.HttpHeadersValidationException.class,
-            org.elasticsearch.http.HttpHeadersValidationException::new,
-            162,
-            Version.V_7_17_11
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

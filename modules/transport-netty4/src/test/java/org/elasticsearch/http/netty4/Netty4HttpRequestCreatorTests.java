@@ -24,7 +24,7 @@ public class Netty4HttpRequestCreatorTests extends ESTestCase {
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpRequestCreator());
         // a request with a decoder error
         final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
-        Exception cause = new ElasticsearchException("Boom");
+        Exception cause = randomFrom(new ElasticsearchException("Boom"), new RuntimeException("Runtime boom"));
         request.setDecoderResult(DecoderResult.failure(cause));
         embeddedChannel.writeInbound(request);
         final Netty4HttpRequest nettyRequest = embeddedChannel.readInbound();

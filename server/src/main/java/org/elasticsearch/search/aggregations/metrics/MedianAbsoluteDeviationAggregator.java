@@ -33,6 +33,8 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     private final double compression;
 
+    private final TDigestExecutionHint executionHint;
+
     private ObjectArray<TDigestState> valueSketches;
 
     MedianAbsoluteDeviationAggregator(
@@ -42,13 +44,15 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        double compression
+        double compression,
+        TDigestExecutionHint executionHint
     ) throws IOException {
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
         this.format = Objects.requireNonNull(format);
         this.compression = compression;
+        this.executionHint = executionHint;
         this.valueSketches = context.bigArrays().newObjectArray(1);
     }
 
@@ -59,7 +63,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     @Override
     public double metric(long owningBucketOrd) {
         if (hasDataForBucket(owningBucketOrd)) {
-            return valueSketches.get(owningBucketOrd).computeMedianAbsoluteDeviation();
+            return InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(valueSketches.get(owningBucketOrd));
         } else {
             return Double.NaN;
         }
@@ -86,7 +90,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
                 TDigestState valueSketch = valueSketches.get(bucket);
                 if (valueSketch == null) {
-                    valueSketch = new TDigestState(compression);
+                    valueSketch = TDigestState.create(compression, executionHint);
                     valueSketches.set(bucket, valueSketch);
                 }
 
@@ -113,7 +117,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalMedianAbsoluteDeviation.empty(name, metadata(), format, compression);
+        return InternalMedianAbsoluteDeviation.empty(name, metadata(), format, compression, executionHint);
     }
 
     @Override

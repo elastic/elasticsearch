@@ -47,7 +47,7 @@ public class TDigestState {
         SORTING;
 
         static Type defaultValue() {
-            return AVL_TREE;
+            return HYBRID;
         }
 
         static Type valueForHighAccuracy() {
@@ -88,6 +88,9 @@ public class TDigestState {
         return switch (executionHint) {
             case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
             case DEFAULT -> create(compression);
+            default -> throw new IllegalArgumentException(
+                "Unexpected TDigestExecutionHint in TDigestState initialization: " + executionHint
+            );
         };
     }
 
@@ -107,6 +110,7 @@ public class TDigestState {
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
             case SORTING -> TDigest.createSortingDigest();
             case MERGING -> TDigest.createMergingDigest(compression);
+            default -> throw new IllegalArgumentException("Unexpected TDigestState type: " + type);
         };
         this.type = type;
         this.compression = compression;
@@ -118,7 +122,7 @@ public class TDigestState {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
             out.writeString(state.type.toString());
             out.writeVLong(state.tdigest.size());
         }
@@ -134,7 +138,7 @@ public class TDigestState {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
             state = new TDigestState(Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {
@@ -204,7 +208,8 @@ public class TDigestState {
     }
 
     /*
-     * Expose the parts of the TDigest API that are used in the ES codebase. Refer to the TDigest API documentation for each.
+     * Expose the parts of the {@link org.elasticsearch.tdigest.TDigest} API that are used in the ES codebase. Refer to the TDigest
+     * API documentation for each method below.
      */
 
     public void add(TDigestState other) {

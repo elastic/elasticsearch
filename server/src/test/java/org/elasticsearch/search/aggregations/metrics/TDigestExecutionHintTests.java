@@ -50,6 +50,9 @@ public class TDigestExecutionHintTests extends ESTestCase {
     public void testSerialization() throws IOException {
         assertEquals(TDigestExecutionHint.DEFAULT, writeToAndReadFrom(TDigestExecutionHint.DEFAULT));
         assertEquals(TDigestExecutionHint.HIGH_ACCURACY, writeToAndReadFrom(TDigestExecutionHint.HIGH_ACCURACY));
+
+        TDigestExecutionHint randomHint = randomFrom(TDigestExecutionHint.values());
+        assertEquals(randomHint, writeToAndReadFrom(randomHint));
     }
 
     public void testUnexpectedSerializedValue() throws IOException {

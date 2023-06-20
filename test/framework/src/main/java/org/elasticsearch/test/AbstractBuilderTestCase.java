@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -73,6 +74,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.After;
@@ -344,6 +346,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return createSearchExecutionContext(null);
     }
 
+    protected static QueryRewriteContext createQueryRewriteContext() {
+        return serviceHolder.createQueryRewriteContext();
+    }
+
     private static class ClientInvocationHandler implements InvocationHandler {
         AbstractBuilderTestCase delegate;
         TestThreadPool testThreadPool;
@@ -569,6 +575,28 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 null,
                 emptyMap()
+            );
+        }
+
+        QueryRewriteContext createQueryRewriteContext() {
+            return new QueryRewriteContext(
+                parserConfiguration,
+                client,
+                () -> nowInMillis,
+                mapperService,
+                mapperService.mappingLookup(),
+                emptyMap(),
+                null,
+                idxSettings,
+                new Index(
+                    RemoteClusterAware.buildRemoteIndexName(null, idxSettings.getIndex().getName()),
+                    idxSettings.getIndex().getUUID()
+                ),
+                indexNameMatcher(),
+                namedWriteableRegistry,
+                null,
+                () -> true,
+                scriptService
             );
         }
 

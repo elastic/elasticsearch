@@ -199,6 +199,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96672")
     public void testGetTimeSeriesMixedDataStream() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStream1 = "ds-1";

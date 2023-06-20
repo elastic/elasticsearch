@@ -1,0 +1,98 @@
+
+
+---
+'Create Query Ruleset':
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-ruleset
+        body:
+          ruleset_id: test-ruleset
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: elastic
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: kibana
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'id3'
+                  - '_index': 'test-index2'
+                    '_id': 'id4'
+
+  - match: { result: 'created' }
+
+---
+'Create Query Ruleset - Resource already exists':
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset-recreating
+        body:
+          ruleset_id: 'test-query-ruleset-recreating'
+          rules:
+            rule_id: 'test-rule-1'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              value: 'elastic'
+            actions:
+              ids:
+                - 'id1'
+
+  - match: { result: 'created' }
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset-recreating
+        body:
+          ruleset_id: 'test-query-ruleset-recreating'
+          rules:
+            rule_id: 'test-rule-1'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              value: 'elastic'
+            actions:
+              ids:
+                - 'id2'
+
+  - match: { result: 'updated' }
+
+---
+'Create Query Ruleset - Insufficient privilege':
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_ruleset.put:
+        ruleset_id: forbidden-query-ruleset
+        body:
+          ruleset_id: 'forbidden-query-ruleset'
+          rules:
+            rule_id: 'test-rule-1'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              value: 'elastic'
+            actions:
+              ids:
+                - 'id1'
+                - 'id2'
+
+  - match: { error.type: 'security_exception' }

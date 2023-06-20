@@ -98,7 +98,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     }
 
     public SnapshotLifecycleStats(StreamInput in) throws IOException {
-        this.policyStats = new ConcurrentHashMap<>(in.readMap(StreamInput::readString, SnapshotPolicyStats::new));
+        this.policyStats = new ConcurrentHashMap<>(in.readMap(SnapshotPolicyStats::new));
         this.retentionRunCount.inc(in.readVLong());
         this.retentionFailedCount.inc(in.readVLong());
         this.retentionTimedOut.inc(in.readVLong());

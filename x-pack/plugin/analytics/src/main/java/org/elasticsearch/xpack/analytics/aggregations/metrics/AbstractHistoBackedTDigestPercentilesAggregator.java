@@ -60,8 +60,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
-        this.executionHint = (executionHint.equals(TDigestExecutionHint.DEFAULT))
-            ? TDigestExecutionHint.parse(TDigestState.EXECUTION_HINT.get(context.getIndexSettings().getNodeSettings())) : executionHint;
+        this.executionHint = executionHint;
     }
 
     @Override

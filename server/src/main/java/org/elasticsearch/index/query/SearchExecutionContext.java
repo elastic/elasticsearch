@@ -132,7 +132,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             shardId,
             shardRequestIndex,
             indexSettings,
-            clusterSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
             mapperService,
@@ -161,7 +160,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardId,
             source.shardRequestIndex,
             source.indexSettings,
-            source.clusterSettings,
             source.bitsetFilterCache,
             source.indexFieldDataLookup,
             source.mapperService,
@@ -218,7 +216,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
-        ClusterSettings clusterSettings,
         BitsetFilterCache bitsetFilterCache,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
@@ -260,7 +257,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
-        this.clusterSettings = clusterSettings;
     }
 
     private void reset() {
@@ -505,15 +501,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public IndexVersion indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
-    }
-
-    /**
-     *  Given an index pattern, checks whether it matches against the current shard. The pattern
-     *  may represent a fully qualified index name if the search targets remote shards.
-     */
-    public boolean indexMatches(String pattern) {
-        assert indexNameMatcher != null;
-        return indexNameMatcher.test(pattern);
     }
 
     public boolean indexSortedOnField(String field) {

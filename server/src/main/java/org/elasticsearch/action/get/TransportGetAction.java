@@ -180,7 +180,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private void handleGetOnUnpromotableShard(GetRequest request, IndexShard indexShard, ActionListener<GetResponse> listener)
         throws IOException {
         ShardId shardId = indexShard.shardId();
-        DiscoveryNode node = getCurrentNodeOfPrimary(shardId);
+        var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
         if (request.refresh()) {
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);
@@ -226,8 +226,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         }
     }
 
-    private DiscoveryNode getCurrentNodeOfPrimary(ShardId shardId) {
-        var clusterState = clusterService.state();
+    static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
         var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
         if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
             throw new NoShardAvailableActionException(shardId, "primary shard is not active");

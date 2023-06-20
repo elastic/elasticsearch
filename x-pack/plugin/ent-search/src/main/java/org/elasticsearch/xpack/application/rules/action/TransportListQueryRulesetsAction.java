@@ -11,15 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
-import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
-import org.elasticsearch.xpack.application.search.action.ListSearchApplicationAction;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 public class TransportListQueryRulesetsAction extends HandledTransportAction<
@@ -33,7 +28,7 @@ public class TransportListQueryRulesetsAction extends HandledTransportAction<
         ActionFilters actionFilters,
         Client client
     ) {
-        super(ListSearchApplicationAction.NAME, transportService, actionFilters, ListQueryRulesetsAction.Request::new);
+        super(ListQueryRulesetsAction.NAME, transportService, actionFilters, ListQueryRulesetsAction.Request::new);
         this.systemIndexService = new QueryRulesIndexService(client);
     }
 
@@ -47,7 +42,7 @@ public class TransportListQueryRulesetsAction extends HandledTransportAction<
         systemIndexService.listQueryRulesets(
             pageParams.getFrom(),
             pageParams.getSize(),
-            listener.map(r -> new ListQueryRulesetsAction.Response(r.rulesetIds(), r.totalResults()))
+            listener.map(r -> new ListQueryRulesetsAction.Response(r.rulesets(), r.totalResults()))
         );
     }
 }

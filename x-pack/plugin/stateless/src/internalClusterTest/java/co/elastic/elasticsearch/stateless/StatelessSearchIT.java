@@ -32,7 +32,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -1083,7 +1085,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
     }
 
-    public void testFastRefreshGet() throws Exception {
+    public void testFastRefreshGetAndMGet() throws Exception {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -1097,34 +1099,67 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .build()
         );
         ensureGreen(indexName);
-        indexDocsAndRefresh(indexName, randomIntBetween(1, 100));
+
+        var bulkRequest = client().prepareBulk();
         int customDocs = randomIntBetween(5, 10);
         for (int i = 0; i < customDocs; i++) {
-            indexDoc(indexName, "myid-" + i, "foo", "bar" + i);
+            var indexRequest = new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+            if (randomBoolean()) {
+                indexRequest.id(String.valueOf(i));
+            }
+            bulkRequest.add(indexRequest);
         }
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
 
-        final AtomicInteger getFromTranslogActionsSent = new AtomicInteger(0);
+        final AtomicInteger fromTranslogActionsSent = new AtomicInteger(0);
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(GetAction.NAME)) {
+                if (action.startsWith(GetAction.NAME) || action.startsWith(MultiGetAction.NAME)) {
                     assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
-                } else if (action.startsWith(TransportGetFromTranslogAction.NAME)) {
-                    getFromTranslogActionsSent.incrementAndGet();
-                }
+                } else if (action.startsWith(TransportGetFromTranslogAction.NAME)
+                    || action.startsWith(TransportShardMultiGetFomTranslogAction.NAME)) {
+                        fromTranslogActionsSent.incrementAndGet();
+                    }
                 connection.sendRequest(requestId, action, request, options);
             });
         }
 
         // Test get
-        for (int i = 0; i < customDocs; i++) {
-            String id = "myid-" + i;
+        {
+            int i = randomInt(customDocs - 1);
+            String id = bulkResponse.getItems()[i].getId();
             boolean realtime = randomBoolean();
             final var get = client().prepareGet(indexName, id).setRealtime(realtime);
-            if (realtime) assertTrue(get.get().isExists());
+            if (realtime) {
+                assertTrue(get.get().isExists());
+                assertThat(get.get().getVersion(), equalTo(bulkResponse.getItems()[i].getVersion()));
+            }
             assertThat(get.get().getId(), equalTo(id));
         }
-        assertThat(getFromTranslogActionsSent.get(), equalTo(0));
+
+        // Test mget
+        {
+            boolean realtime = randomBoolean();
+            final var mget = client().prepareMultiGet().setRealtime(realtime);
+            int idStartInclusive = randomInt(customDocs - 1);
+            int idEndExclusive = randomIntBetween(idStartInclusive + 1, customDocs);
+            int[] ids = IntStream.range(idStartInclusive, idEndExclusive).toArray();
+            String[] stringIds = Arrays.stream(ids).mapToObj(i -> bulkResponse.getItems()[i].getId()).toArray(String[]::new);
+            mget.addIds(indexName, stringIds);
+            MultiGetResponse response = mget.get();
+            Arrays.stream(ids).forEach(i -> {
+                int id = i - idStartInclusive;
+                if (realtime) {
+                    assertTrue(response.getResponses()[id].getResponse().isExists());
+                    assertThat(response.getResponses()[id].getResponse().getVersion(), equalTo(bulkResponse.getItems()[id].getVersion()));
+                }
+                assertThat(response.getResponses()[id].getId(), equalTo(stringIds[id]));
+            });
+        }
+
+        assertThat(fromTranslogActionsSent.get(), equalTo(0));
     }
 
     private static SearchResponse countDocsInRange(Client client, String index, int min, int max) {

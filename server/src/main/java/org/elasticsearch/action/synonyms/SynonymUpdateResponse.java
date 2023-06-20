@@ -14,7 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService.SynonymsReloadResult;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,20 +24,20 @@ import java.util.Objects;
 
 public class SynonymUpdateResponse extends ActionResponse implements StatusToXContentObject {
 
-    private final SynonymsManagementAPIService.UpdateSynonymsResultStatus updateStatus;
+    private final UpdateSynonymsResultStatus updateStatus;
     private final ReloadAnalyzersResponse reloadAnalyzersResponse;
 
     public SynonymUpdateResponse(StreamInput in) throws IOException {
         super(in);
-        this.updateStatus = in.readEnum(SynonymsManagementAPIService.UpdateSynonymsResultStatus.class);
+        this.updateStatus = in.readEnum(UpdateSynonymsResultStatus.class);
         this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
     }
 
-    public SynonymUpdateResponse(SynonymsManagementAPIService.UpdateSynonymsResult updateSynonymsResult) {
+    public SynonymUpdateResponse(SynonymsReloadResult<UpdateSynonymsResultStatus> synonymsReloadResult) {
         super();
-        SynonymsManagementAPIService.UpdateSynonymsResultStatus updateStatus = updateSynonymsResult.updateStatus();
+        UpdateSynonymsResultStatus updateStatus = synonymsReloadResult.synonymsOperationResult();
         Objects.requireNonNull(updateStatus, "Update status must not be null");
-        ReloadAnalyzersResponse reloadResponse = updateSynonymsResult.reloadAnalyzersResponse();
+        ReloadAnalyzersResponse reloadResponse = synonymsReloadResult.reloadAnalyzersResponse();
         Objects.requireNonNull(reloadResponse, "Reload analyzers response must not be null");
 
         this.updateStatus = updateStatus;

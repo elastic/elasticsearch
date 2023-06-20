@@ -1,7 +1,0 @@
-pr: 96963
-summary: Fix double array for `sub_searches` in toXContent
-area: Ranking
-type: bug
-issues:
- - 96896
- - 96910

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -214,20 +213,15 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
      * Internal rollup request executed directly against a specific index shard.
      */
     public static class ShardDownsampleRequest extends BroadcastShardRequest {
-        private final long totalShardDocCount;
         private final Request request;
 
         public ShardDownsampleRequest(StreamInput in) throws IOException {
             super(in);
             this.request = new Request(in);
-            this.totalShardDocCount = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017) && in.readBoolean()
-                ? in.readLong()
-                : -1;
         }
 
-        public ShardDownsampleRequest(final ShardId shardId, long totalShardDocCount, final Request request) {
+        public ShardDownsampleRequest(final ShardId shardId, final Request request) {
             super(shardId, request);
-            this.totalShardDocCount = totalShardDocCount;
             this.request = request;
         }
 
@@ -255,12 +249,6 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             request.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
-                out.writeBoolean(true);
-                out.writeLong(totalShardDocCount);
-            } else {
-                out.writeBoolean(false);
-            }
         }
 
         @Override
@@ -273,8 +261,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
                 request.downsampleRequest.getSourceIndex(),
                 request.downsampleRequest.getDownsampleConfig(),
                 headers,
-                shardId(),
-                totalShardDocCount
+                shardId()
             );
         }
     }

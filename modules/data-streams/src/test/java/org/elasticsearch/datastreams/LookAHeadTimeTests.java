@@ -116,7 +116,7 @@ public class LookAHeadTimeTests extends ESSingleNodeTestCase {
         } catch (ResourceAlreadyExistsException e) {
             // ignore
         }
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(settings)).actionGet();
+        indicesAdmin().updateSettings(new UpdateSettingsRequest(settings)).actionGet();
     }
 
 }

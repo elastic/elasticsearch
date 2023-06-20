@@ -49,7 +49,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         for (int i = 0; i < 100; i++) {
             index(client(), Integer.toString(i), "test", i);
         }
-        RefreshResponse refreshResponse = client().admin().indices().refresh(new RefreshRequest("test")).actionGet();
+        RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(test.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.numPrimaries));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
@@ -86,7 +86,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));
         assertThat(clusterHealth.getActiveShards(), equalTo(test.totalNumShards));
 
-        refreshResponse = client().admin().indices().refresh(new RefreshRequest("test")).actionGet();
+        refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(test.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.totalNumShards));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));

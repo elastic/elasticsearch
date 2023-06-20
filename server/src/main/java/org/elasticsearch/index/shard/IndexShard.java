@@ -595,15 +595,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                              * primary/replica re-sync completes successfully and we are now being promoted, we have to restore
                              * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                              */
-                            final Engine engine = getEngine();
-                            engine.restoreLocalHistoryFromTranslog(
-                                (resettingEngine, snapshot) -> runTranslogRecovery(
-                                    resettingEngine,
-                                    snapshot,
-                                    Engine.Operation.Origin.LOCAL_RESET,
-                                    () -> {}
-                                )
-                            );
+                            final Engine engine = populateEngine();
                             /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
                              * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
                              * as a starting point), but it simplifies reasoning about the relationship between primary terms and
@@ -681,6 +673,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
         }
+    }
+
+    private Engine populateEngine() throws IOException {
+        final Engine engine = getEngine();
+        engine.restoreLocalHistoryFromTranslog(
+            (resettingEngine, snapshot) -> runTranslogRecovery(
+                resettingEngine,
+                snapshot,
+                Engine.Operation.Origin.LOCAL_RESET,
+                () -> {}
+            )
+        );
+        return engine;
     }
 
     private static boolean isValidRelocationTransition(ShardRouting newRouting, ShardRouting currentRouting) {

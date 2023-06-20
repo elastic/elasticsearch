@@ -243,7 +243,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) {
-            return InternalTDigestPercentileRanks.empty(name, values, compression, executionHint, keyed, formatter, metadata);
+            return InternalTDigestPercentileRanks.empty(name, values, compression, getExecutionHint(), keyed, formatter, metadata);
         }
 
         @Override

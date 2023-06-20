@@ -30,13 +30,13 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     private final int numRules;
 
     /**
-     * Constructs a SearchApplicationListItem.
+     * Constructs a QueryRulesetListItem.
      *
      * @param rulesetId The unique identifier for the ruleset
      * @param numRules  The number of rules contained within the ruleset.
      */
     public QueryRulesetListItem(String rulesetId, int numRules) {
-        Objects.requireNonNull(rulesetId, "rulesetId cannot be null on a SearchApplicationListItem");
+        Objects.requireNonNull(rulesetId, "rulesetId cannot be null on a QueryRuleListItem");
         this.rulesetId = rulesetId;
         this.numRules = numRules;
     }

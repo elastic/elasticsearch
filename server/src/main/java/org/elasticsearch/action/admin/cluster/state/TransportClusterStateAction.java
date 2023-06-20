@@ -92,7 +92,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ? acceptableClusterStatePredicate
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
-        if (acceptableClusterStatePredicate.test(state) && cancellableTask.isCancelled() == false) {
+        if (cancellableTask.notifyIfCancelled(listener)) {
+            return;
+        }
+        if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
             assert acceptableClusterStateOrFailedPredicate.test(state) == false;

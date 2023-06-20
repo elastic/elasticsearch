@@ -35,7 +35,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         createRepository(repoName, "fs");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);
         internalCluster().startDataOnlyNodes(randomIntBetween(1, 4));
@@ -67,7 +67,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         createRepository(repoName, "fs");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         final String restoredIndex = mountSnapshot(
             repoName,
             snapshotName,

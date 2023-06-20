@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -182,7 +183,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             if (value == null) {
                 return false;
             }

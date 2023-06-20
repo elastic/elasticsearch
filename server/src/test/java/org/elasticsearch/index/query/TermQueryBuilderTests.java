@@ -205,16 +205,18 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
     }
 
     @Override

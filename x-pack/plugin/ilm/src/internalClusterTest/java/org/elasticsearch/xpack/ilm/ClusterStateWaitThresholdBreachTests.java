@@ -109,7 +109,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
             // configuring the threshold to the minimum value
             .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
             .build();
-        CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
+        CreateIndexResponse res = indicesAdmin().prepareCreate(managedIndex).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
 
         String[] firstAttemptShrinkIndexName = new String[1];

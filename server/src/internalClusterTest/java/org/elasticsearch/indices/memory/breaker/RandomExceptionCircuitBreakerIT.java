@@ -135,7 +135,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         }
         logger.info("Start Refresh");
         // don't assert on failures here
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed: [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
@@ -172,7 +172,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 // breaker adjustment code, it should show up here by the breaker
                 // estimate being either positive or negative.
                 ensureGreen("test");  // make sure all shards are there - there could be shards that are still starting up.
-                assertAllSuccessful(client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet());
+                assertAllSuccessful(indicesAdmin().prepareClearCache("test").setFieldDataCache(true).execute().actionGet());
 
                 // Since .cleanUp() is no longer called on cache clear, we need to call it on each node manually
                 for (String node : internalCluster().getNodeNames()) {

@@ -338,10 +338,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "001";
         String docId = TransformConfig.documentId(transformConfig2.getId());
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformConfig2.getId());
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -406,10 +403,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformId = "transform_42";
         String docId = TransformConfig.documentId(transformId);
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -534,10 +528,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformId = "transform_test_delete_old_configurations";
         String docId = TransformConfig.documentId(transformId);
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig("transform_test_delete_old_configurations");
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -557,7 +548,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformConfigurations(transformId, listener), true, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
         assertThat(
             client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
@@ -570,10 +561,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformId = "transform_test_delete_old_stored_documents";
         String docId = TransformStoredDoc.documentId(transformId);
         TransformStoredDoc transformStoredDoc = TransformStoredDocTests.randomTransformStoredDoc(transformId);
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformStoredDoc.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -593,7 +581,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             null
         );
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
         assertThat(
@@ -603,7 +591,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), 1L, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
         assertThat(
             client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
@@ -710,10 +698,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         TransformConfig transformConfigNew = TransformConfigTests.randomTransformConfig(transformId);
 
         // create config in old index
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfigOld.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));

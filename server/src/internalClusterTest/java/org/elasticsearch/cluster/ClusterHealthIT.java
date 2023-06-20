@@ -98,7 +98,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
 
         createIndex("index-2");
-        assertAcked(client().admin().indices().prepareClose("index-2"));
+        assertAcked(indicesAdmin().prepareClose("index-2"));
 
         {
             ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
@@ -152,7 +152,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
 
         createIndex("index-3", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 50).build());
-        assertAcked(client().admin().indices().prepareClose("index-3"));
+        assertAcked(indicesAdmin().prepareClose("index-3"));
 
         {
             ClusterHealthResponse response = clusterAdmin().prepareHealth()

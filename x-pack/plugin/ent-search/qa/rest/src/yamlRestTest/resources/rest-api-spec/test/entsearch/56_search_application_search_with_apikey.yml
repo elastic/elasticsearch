@@ -288,12 +288,41 @@ teardown:
   - match: { error.root_cause.0.type: role_restriction_exception }
   - match: { error.root_cause.0.reason: "access restricted by workflow" }
 
-# Remove Test API Key:
+# Get API key should not be allowed
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
-      security.invalidate_api_key:
-        body: >
-          {
-            "ids": [ "${api_key_id}" ]
-          }
-  - length: { "invalidated_api_keys": 1 }
+      catch: forbidden
+      headers:
+        Authorization: ApiKey ${api_key_encoded}
+      security.get_api_key:
+        id: "$api_key_id"
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.root_cause.0.type: role_restriction_exception }
+  - match: { error.root_cause.0.reason: "access restricted by workflow" }
+
+# Authenticate with API key should not be allowed
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: ApiKey ${api_key_encoded}
+      security.authenticate: {}
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.root_cause.0.type: role_restriction_exception }
+  - match: { error.root_cause.0.reason: "access restricted by workflow" }
+
+# Direct index search should be rejected due to a workflow restriction
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: ApiKey ${api_key_encoded}
+      search:
+        index: test-search-index1
+        body:
+          query:
+            term:
+              field1: value1
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.root_cause.0.type: role_restriction_exception }
+  - match: { error.root_cause.0.reason: "access restricted by workflow" }

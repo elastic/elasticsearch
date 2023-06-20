@@ -1,0 +1,6 @@
+pr: 96968
+summary: Allow prefix index naming while reindexing from remote
+area: Reindex
+type: bug
+issues:
+ - 89120

@@ -122,6 +122,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
                 PROFILING_TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
+                "profiling-hosts",
+                "/org/elasticsearch/xpack/profiler/component-template/profiling-hosts.json",
+                INDEX_TEMPLATE_VERSION,
+                PROFILING_TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
                 "profiling-stackframes",
                 "/org/elasticsearch/xpack/profiler/component-template/profiling-stackframes.json",
                 INDEX_TEMPLATE_VERSION,
@@ -167,6 +173,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             "profiling-metrics",
             "/org/elasticsearch/xpack/profiler/index-template/profiling-metrics.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-hosts",
+            "/org/elasticsearch/xpack/profiler/index-template/profiling-hosts.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),

@@ -508,25 +508,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 replicationTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
             }
 
-            if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
-                assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
-                assert currentRouting.isRelocationTarget() == false
-                    || currentRouting.primary() == false
-                    || replicationTracker.isPrimaryMode()
-                    : "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
-
-                changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-                startedRelativeTimeInNanos = getRelativeTimeInNanos();
-                indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
-            } else if (isShardRelocated(newRouting, currentRouting)) {
-                    // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
-                    // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
-                    // reactivate primary mode without risking two active primaries.
-                    throw new IndexShardRelocatedException(
-                        shardId(),
-                        "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
-                    );
-                }
+            handleRoutingStateTransition(newRouting, currentRouting);
 
             if (newRouting.active() != false && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
                 // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
@@ -699,6 +681,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
         }
+    }
+
+    private void handleRoutingStateTransition(ShardRouting newRouting, ShardRouting currentRouting) {
+        if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
+            assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
+            assert currentRouting.isRelocationTarget() == false
+                || currentRouting.primary() == false
+                || replicationTracker.isPrimaryMode()
+                : "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
+
+            changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+            startedRelativeTimeInNanos = getRelativeTimeInNanos();
+            indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
+        } else if (isShardRelocated(newRouting, currentRouting)) {
+                // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
+                // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
+                // reactivate primary mode without risking two active primaries.
+                throw new IndexShardRelocatedException(
+                    shardId(),
+                    "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
+                );
+            }
     }
 
     private boolean isShardRelocated(ShardRouting newRouting, ShardRouting currentRouting) {

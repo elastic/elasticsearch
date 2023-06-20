@@ -13,6 +13,8 @@
               id: "test-id"
 
   - match: { result: "created" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
 
   - do:
       synonyms.put:
@@ -22,6 +24,8 @@
             - synonyms: "other, another"
 
   - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
 
 ---
 "Validation fails tests":

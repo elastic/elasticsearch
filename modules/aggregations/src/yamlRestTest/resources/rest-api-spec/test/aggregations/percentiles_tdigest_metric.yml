@@ -46,6 +46,9 @@ setup:
 
 ---
 "Basic test":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -61,21 +64,21 @@ setup:
   - match:  { hits.total: 4 }
   - length: { hits.hits: 4 }
 
-  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_int.values.1\.0: 2.5 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 8.5 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 38.5 }
   - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
-  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 113.5 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 143.5 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 149.5 }
 
-  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.1\.0: 2.5 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 8.5 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 38.5 }
   - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
-  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 113.5 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 143.5 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 149.5 }
 
   - do:
       search:
@@ -97,21 +100,21 @@ setup:
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
 
-  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_int.values.1\.0: 2.5 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 8.5 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 38.5 }
   - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
-  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 113.5 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 143.5 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 149.5 }
 
-  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.1\.0: 2.5 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 8.5 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 38.5 }
   - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
-  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 113.5 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 143.5 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 149.5 }
 
 
 ---

@@ -171,7 +171,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         ensureGreen("index-*");
 
         logger.debug("--> deleting indices");
-        assertAcked(client().admin().indices().prepareDelete("index-*"));
+        assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         logger.debug("--> deleting repository");
         assertAcked(client().admin().cluster().prepareDeleteRepository("repository"));
@@ -240,7 +240,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
                     assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true).get(), docsPerIndex.get(indexName));
 
-                    final GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+                    final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(indexName).get();
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_ENABLED_SETTING.getKey()), equalTo("true"));
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey()), equalTo("true"));
 
@@ -296,7 +296,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         if (deletedIndicesDuringPrewarming.isEmpty() == false) {
             Set<Index> deletedIndices = deletedIndicesDuringPrewarming.stream().map(this::resolveIndex).collect(Collectors.toSet());
             logger.debug("--> deleting indices [{}] before prewarming", deletedIndices);
-            assertAcked(client().admin().indices().prepareDelete(deletedIndicesDuringPrewarming.toArray(String[]::new)));
+            assertAcked(indicesAdmin().prepareDelete(deletedIndicesDuringPrewarming.toArray(String[]::new)));
 
             var indicesService = getInstanceFromNode(IndicesService.class);
             assertBusy(() -> deletedIndices.forEach(deletedIndex -> assertThat(indicesService.hasIndex(deletedIndex), is(false))));
@@ -306,9 +306,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
         // wait for recovery to be DONE
         assertBusy(() -> {
-            var recoveryResponse = client().admin()
-                .indices()
-                .prepareRecoveries(mountedIndices.toArray(String[]::new))
+            var recoveryResponse = indicesAdmin().prepareRecoveries(mountedIndices.toArray(String[]::new))
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .get();
             assertThat(

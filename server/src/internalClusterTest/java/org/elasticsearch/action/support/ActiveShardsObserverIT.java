@@ -110,7 +110,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         );
         waitForIndexCreationToComplete(indexName);
         if (indexExists(indexName)) {
-            client().admin().indices().prepareDelete(indexName).get();
+            indicesAdmin().prepareDelete(indexName).get();
         }
 
         // enough data nodes, all shards are active
@@ -139,7 +139,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertBusy(() -> assertTrue(clusterAdmin().prepareState().get().getState().metadata().hasIndex(indexName)));
 
         logger.info("--> delete the index");
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("--> ensure the create index request completes");
         assertAcked(responseListener.get());

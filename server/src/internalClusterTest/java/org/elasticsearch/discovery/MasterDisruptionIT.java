@@ -249,7 +249,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         disruption.stopDisrupting();
 
         assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test").clear().get();
             for (ShardStats shardStats : stats.getShards()) {
                 assertThat(
                     shardStats.getShardRouting().toString(),

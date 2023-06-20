@@ -13,7 +13,8 @@ initscript {
 boolean USE_ARTIFACTORY = false
 
 if (System.getenv('VAULT_ADDR') == null) {
-  throw new GradleException("You must set the VAULT_ADDR environment variable to use this init script.")
+  return
+  // throw new GradleException("You must set the VAULT_ADDR environment variable to use this init script.")
 }
 
 if (System.getenv('VAULT_ROLE_ID') == null && System.getenv('VAULT_SECRET_ID') == null && System.getenv('VAULT_TOKEN') == null) {

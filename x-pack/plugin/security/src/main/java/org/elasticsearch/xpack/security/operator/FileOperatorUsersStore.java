@@ -142,7 +142,7 @@ public class FileOperatorUsersStore {
         private final String realmName;
         private final String realmType;
         private final String tokenSource;
-        private final List<String> tokenNames;
+        private final Set<String> tokenNames;
         private final Authentication.AuthenticationType authenticationType;
 
         Group(Set<String> usernames) {
@@ -159,7 +159,7 @@ public class FileOperatorUsersStore {
             @Nullable String realmType,
             @Nullable String authenticationType,
             @Nullable String tokenSource,
-            @Nullable List<String> tokenNames
+            @Nullable Set<String> tokenNames
         ) {
             this.usernames = usernames;
             this.realmName = realmName;
@@ -185,11 +185,12 @@ public class FileOperatorUsersStore {
             }
             if (authenticationType == Authentication.AuthenticationType.REALM) {
                 if (false == FileRealmSettings.TYPE.equals(realmType)) {
-                    validationException.addValidationError(
-                        "[realm_type] only supports [file] when [auth_type] is [realm] or not specified"
-                    );
+                    validationException.addValidationError("[realm_type] requires [file] when [auth_type] is [realm] or not specified");
                 }
             } else if (authenticationType == Authentication.AuthenticationType.TOKEN) {
+                if (false == ServiceAccountSettings.REALM_TYPE.equals(realmType)) {
+                    validationException.addValidationError("[realm_type] requires [_service_account] when [auth_type] is [token]");
+                }
                 if (tokenSource == null) {
                     validationException.addValidationError("[token_source] must be set when [auth_type] is [token]");
                 } else if (false == Arrays.stream(TokenInfo.TokenSource.values()).anyMatch(v -> v.name().equalsIgnoreCase(tokenSource))) {
@@ -297,7 +298,7 @@ public class FileOperatorUsersStore {
             (String) arr[2],
             (String) arr[3],
             (String) arr[4],
-            (List<String>) arr[5]
+            arr[5] == null ? Set.of() : Set.copyOf((List<String>) arr[5])
         )
     );
 
@@ -330,7 +331,6 @@ public class FileOperatorUsersStore {
         ParseField AUTH_TYPE = new ParseField("auth_type");
         ParseField TOKEN_SOURCE = new ParseField("token_source");
         ParseField TOKEN_NAMES = new ParseField("token_names");
-
     }
 
     private class FileListener implements FileChangesListener {

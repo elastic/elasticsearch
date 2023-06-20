@@ -292,7 +292,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     "_service_account",
                     "token",
                     "index",
-                    List.of("token1", "token2")
+                    Set.of("token1", "token2")
                 ),
                 groups.get(1)
             );
@@ -307,7 +307,10 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             """;
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
-            assertThat(e.getCause().getCause().getMessage(), containsString("[realm_type] only supports [file]"));
+            assertThat(
+                e.getCause().getCause().getMessage(),
+                containsString("[realm_type] requires [file] when [auth_type] is [realm] or not specified")
+            );
         }
 
         config = """
@@ -336,6 +339,10 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 e.getCause().getCause().getMessage(),
                 containsString("[token_source] must be one of the following values [index,file]")
             );
+            assertThat(
+                e.getCause().getCause().getMessage(),
+                containsString("[realm_type] requires [_service_account] when [auth_type] is [token]")
+            );
         }
         config = """
             operator:
@@ -359,7 +366,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             );
             assertThat(
                 e.getCause().getCause().getMessage(),
-                containsString("[realm_type] only supports [file] when [auth_type] is [realm] or not specified")
+                containsString("[realm_type] requires [file] when [auth_type] is [realm] or not specified")
             );
         }
     }

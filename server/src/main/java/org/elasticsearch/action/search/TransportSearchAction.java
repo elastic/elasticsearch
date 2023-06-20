@@ -334,7 +334,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     clusterState,
                     task,
                     new ArraySearchPhaseResults<>(shardsIts.size()),
-                    1,
+                    searchRequest.getMaxConcurrentShardRequests(),
                     clusters
                 ) {
                     @Override

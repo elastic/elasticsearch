@@ -9,7 +9,7 @@
 package org.elasticsearch.benchmark.vector;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.field.vectors.BinaryDenseVector;
 import org.elasticsearch.script.field.vectors.ByteBinaryDenseVector;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVector;
@@ -242,7 +242,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).dotProduct(queryVector);
+            new BinaryDenseVector(docFloatVector, docVector, dims, IndexVersion.CURRENT).dotProduct(queryVector);
         }
     }
 
@@ -290,7 +290,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).cosineSimilarity(queryVector, false);
+            new BinaryDenseVector(docFloatVector, docVector, dims, IndexVersion.CURRENT).cosineSimilarity(queryVector, false);
         }
     }
 
@@ -338,7 +338,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).l1Norm(queryVector);
+            new BinaryDenseVector(docFloatVector, docVector, dims, IndexVersion.CURRENT).l1Norm(queryVector);
         }
     }
 
@@ -386,7 +386,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).l1Norm(queryVector);
+            new BinaryDenseVector(docFloatVector, docVector, dims, IndexVersion.CURRENT).l1Norm(queryVector);
         }
     }
 

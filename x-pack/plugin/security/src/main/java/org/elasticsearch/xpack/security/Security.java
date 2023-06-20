@@ -856,7 +856,8 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool),
+            workflowService.get()
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -1604,7 +1605,7 @@ public class Security extends Plugin
                 transportReference.set(
                     new SecurityNetty4ServerTransport(
                         settings,
-                        TransportVersion.CURRENT,
+                        TransportVersion.current(),
                         threadPool,
                         networkService,
                         pageCacheRecycler,

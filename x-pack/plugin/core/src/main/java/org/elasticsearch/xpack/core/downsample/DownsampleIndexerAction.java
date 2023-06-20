@@ -221,7 +221,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         public ShardDownsampleRequest(StreamInput in) throws IOException {
             super(in);
             this.request = new Request(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011) && in.readBoolean()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017) && in.readBoolean()) {
                 this.totalDocCount = in.readLong();
                 this.totalShardDocCount = in.readLong();
             } else {
@@ -261,7 +261,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             request.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
                 out.writeBoolean(true);
                 out.writeLong(totalDocCount);
                 out.writeLong(totalShardDocCount);

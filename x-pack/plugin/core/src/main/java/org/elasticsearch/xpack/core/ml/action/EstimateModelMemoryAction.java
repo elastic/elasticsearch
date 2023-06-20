@@ -74,8 +74,8 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         public Request(StreamInput in) throws IOException {
             super(in);
             this.analysisConfig = in.readBoolean() ? new AnalysisConfig(in) : null;
-            this.overallCardinality = in.readMap(StreamInput::readString, StreamInput::readVLong);
-            this.maxBucketCardinality = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            this.overallCardinality = in.readMap(StreamInput::readVLong);
+            this.maxBucketCardinality = in.readMap(StreamInput::readVLong);
         }
 
         @Override

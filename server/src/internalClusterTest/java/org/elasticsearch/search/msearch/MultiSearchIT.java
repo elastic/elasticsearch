@@ -97,7 +97,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             .add(client().prepareSearch("test").setQuery(new DummyQueryBuilder() {
                 @Override
                 public TransportVersion getMinimalSupportedVersion() {
-                    return TransportVersion.CURRENT;
+                    return TransportVersion.current();
                 }
             }))
             .get();

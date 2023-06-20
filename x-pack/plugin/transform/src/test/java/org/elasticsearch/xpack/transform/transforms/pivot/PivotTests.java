@@ -71,6 +71,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -289,12 +290,8 @@ public class PivotTests extends ESTestCase {
         latch.await();
         emptyAggregationClient.close();
 
-        if (exceptionHolder.get() != null) {
-            throw exceptionHolder.get();
-        }
-        if (response.get().isEmpty() == false) {
-            fail("testPreview failed as the response for myMockClientWithEmptyAggregation client should be empty");
-        }
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertThat(response.get(), is(empty()));
     }
 
     public void testPreviewForCompositeAggregation() throws Exception {
@@ -320,12 +317,8 @@ public class PivotTests extends ESTestCase {
         latch.await();
         compositeAggregationClient.close();
 
-        if (exceptionHolder.get() != null) {
-            throw exceptionHolder.get();
-        }
-        if (response.get().isEmpty() == false) {
-            fail("testPreview failed as the response for compositeAggregationClient client should be empty");
-        }
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertThat(response.get(), is(empty()));
     }
 
     private static SearchResponse searchResponseFromAggs(Aggregations aggs) {

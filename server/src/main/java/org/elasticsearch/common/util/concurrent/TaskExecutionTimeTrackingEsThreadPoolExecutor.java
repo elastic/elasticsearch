@@ -15,20 +15,22 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
 /**
- * An extension to thread pool executor, which tracks the exponentially weighted moving average of the task execution time.
+ * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
-public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
     public static double EWMA_ALPHA = 0.3;
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
+    private final LongAdder totalExecutionTime = new LongAdder();
 
-    EWMATrackingEsThreadPoolExecutor(
+    TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
         int corePoolSize,
         int maximumPoolSize,
@@ -68,6 +70,13 @@ public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
     }
 
     /**
+     * Returns the total time (in nanoseconds) spend executing tasks in this executor.
+     */
+    public long getTotalTaskExecutionTime() {
+        return totalExecutionTime.sum();
+    }
+
+    /**
      * Returns the current queue size (operations that are queued)
      */
     public int getCurrentQueueSize() {
@@ -93,12 +102,18 @@ public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
         if (taskExecutionNanos != -1) {
             // taskExecutionNanos may be -1 if the task threw an exception
             executionEWMA.addValue(taskExecutionNanos);
+            totalExecutionTime.add(taskExecutionNanos);
         }
     }
 
     @Override
     protected void appendThreadPoolExecutorDetails(StringBuilder sb) {
-        sb.append("task execution EWMA = ").append(TimeValue.timeValueNanos((long) executionEWMA.getAverage())).append(", ");
+        sb.append("task execution EWMA = ")
+            .append(TimeValue.timeValueNanos((long) executionEWMA.getAverage()))
+            .append(", ")
+            .append("total task execution time = ")
+            .append(TimeValue.timeValueNanos(getTotalTaskExecutionTime()))
+            .append(", ");
     }
 
 }

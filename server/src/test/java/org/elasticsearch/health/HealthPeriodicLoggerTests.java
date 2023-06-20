@@ -118,10 +118,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertEquals("green", loggerResults.get(makeHealthStatusString("shards_availability")));
 
         // test calculated overall status
-        assertEquals(
-            overallStatus.xContentValue(),
-            loggerResults.get(String.format(Locale.ROOT, "%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX))
-        );
+        assertEquals(overallStatus.xContentValue(), loggerResults.get(makeHealthStatusString("overall")));
 
         // test empty results
         {
@@ -219,10 +216,10 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
-                "network_latency",
+                "overall",
                 HealthPeriodicLogger.class.getCanonicalName(),
                 Level.INFO,
-                "health_periodic_logger"
+                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
             )
         );
         mockAppender.addExpectation(

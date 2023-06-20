@@ -58,7 +58,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             if (this.indicatorResults != null && this.indicatorResults.size() > 0) {
                 // overall status
                 final HealthStatus status = HealthStatus.merge(this.indicatorResults.stream().map(HealthIndicatorResult::status));
-                result.put("elasticsearch.health.status", status.xContentValue());
+                result.put("elasticsearch.health.overall.status", status.xContentValue());
 
                 // top-level status for each indicator
                 this.indicatorResults.forEach((indicatorResult) -> {
@@ -198,7 +198,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             Map<String, Object> resultsMap = result.toMap();
             // if we have a valid response, log in JSON format
             if (resultsMap.size() > 0) {
-                ESLogMessage msg = new ESLogMessage("health_periodic_logger").withFields(result.toMap());
+                ESLogMessage msg = new ESLogMessage().withFields(result.toMap());
                 logger.info(msg);
             }
         }

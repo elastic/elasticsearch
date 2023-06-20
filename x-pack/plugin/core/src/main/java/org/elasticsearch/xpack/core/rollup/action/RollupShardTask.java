@@ -31,7 +31,9 @@ public class RollupShardTask extends CancellableTask {
     private final AtomicLong lastSourceTimestamp = new AtomicLong(0);
     private final AtomicLong lastTargetTimestamp = new AtomicLong(0);
     private final AtomicLong lastIndexingTimestamp = new AtomicLong(0);
-    private final AtomicReference<String> rollupShardIndexerStatus = new AtomicReference<>("initializing");
+    private final AtomicReference<RollupShardIndexerStatus> rollupShardIndexerStatus = new AtomicReference<>(
+        RollupShardIndexerStatus.INITIALIZED
+    );
     private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(null);
     private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(null);
 
@@ -128,8 +130,8 @@ public class RollupShardTask extends CancellableTask {
         return rollupStartTime;
     }
 
-    public AtomicReference<String> getRollupShardIndexerStatus() {
-        return rollupShardIndexerStatus;
+    public RollupShardIndexerStatus getRollupShardIndexerStatus() {
+        return rollupShardIndexerStatus.get();
     }
 
     public void addNumReceived(long count) {
@@ -168,7 +170,7 @@ public class RollupShardTask extends CancellableTask {
         lastAfterBulkInfo.set(afterBulkInfo);
     }
 
-    public void setRollupShardIndexerStatus(final String status) {
+    public void setRollupShardIndexerStatus(final RollupShardIndexerStatus status) {
         this.rollupShardIndexerStatus.set(status);
     }
 }

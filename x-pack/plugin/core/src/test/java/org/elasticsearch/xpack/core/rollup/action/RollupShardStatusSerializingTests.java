@@ -55,7 +55,7 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
             System.currentTimeMillis(),
             createTestBeforeBulkInfoInstance(),
             createTestAfterBulkInfoInstance(),
-            randomFrom(List.of("started", "error", "completed", "cancelled"))
+            randomFrom(RollupShardIndexerStatus.values())
         );
         return rollupShardStatus;
     }

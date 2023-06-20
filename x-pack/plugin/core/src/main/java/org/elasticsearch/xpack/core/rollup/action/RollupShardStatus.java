@@ -53,7 +53,7 @@ public class RollupShardStatus implements Task.Status {
     private final RollupBeforeBulkInfo rollupBeforeBulkInfo;
     private final RollupAfterBulkInfo rollupAfterBulkInfo;
 
-    private final String rollupShardIndexerStatus;
+    private final RollupShardIndexerStatus rollupShardIndexerStatus;
 
     private static final ConstructingObjectParser<RollupShardStatus, Void> PARSER;
     static {
@@ -73,7 +73,7 @@ public class RollupShardStatus implements Task.Status {
                 (Long) args[10],
                 (RollupBeforeBulkInfo) args[11],
                 (RollupAfterBulkInfo) args[12],
-                (String) args[13]
+                RollupShardIndexerStatus.valueOf((String) args[13])
             )
         );
 
@@ -116,7 +116,7 @@ public class RollupShardStatus implements Task.Status {
             lastIndexingTimestamp = in.readLong();
             rollupBeforeBulkInfo = in.readNamedWriteable(RollupBeforeBulkInfo.class, RollupBeforeBulkInfo.NAME);
             rollupAfterBulkInfo = in.readNamedWriteable(RollupAfterBulkInfo.class, RollupAfterBulkInfo.NAME);
-            rollupShardIndexerStatus = in.readString();
+            rollupShardIndexerStatus = in.readEnum(RollupShardIndexerStatus.class);
         } else {
             totalDocCount = -1;
             totalShardDocCount = -1;
@@ -143,7 +143,7 @@ public class RollupShardStatus implements Task.Status {
         long lastIndexingTimestamp,
         final RollupBeforeBulkInfo rollupBeforeBulkInfo,
         final RollupAfterBulkInfo rollupAfterBulkInfo,
-        final String rollupShardIndexerStatus
+        final RollupShardIndexerStatus rollupShardIndexerStatus
     ) {
         this.shardId = shardId;
         this.rollupStart = rollupStart;
@@ -207,7 +207,7 @@ public class RollupShardStatus implements Task.Status {
             out.writeLong(lastIndexingTimestamp);
             rollupBeforeBulkInfo.writeTo(out);
             rollupAfterBulkInfo.writeTo(out);
-            out.writeString(rollupShardIndexerStatus);
+            out.writeEnum(rollupShardIndexerStatus);
         } else {
             out.writeBoolean(false);
         }

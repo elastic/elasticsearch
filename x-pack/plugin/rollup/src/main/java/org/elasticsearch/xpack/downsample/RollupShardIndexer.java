@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupAfterBulkInfo;
 import org.elasticsearch.xpack.core.rollup.action.RollupBeforeBulkInfo;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.Closeable;
@@ -134,7 +135,7 @@ class RollupShardIndexer {
 
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
         long startTime = System.currentTimeMillis();
-        task.setRollupShardIndexerStatus("started");
+        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED);
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
@@ -155,7 +156,7 @@ class RollupShardIndexer {
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
-            task.setRollupShardIndexerStatus("error: indexing failure");
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -168,7 +169,7 @@ class RollupShardIndexer {
         }
 
         if (task.getNumFailed() > 0) {
-            task.setRollupShardIndexerStatus("error: indexing failure");
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -180,7 +181,7 @@ class RollupShardIndexer {
             );
         }
 
-        task.setRollupShardIndexerStatus("completed");
+        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED);
 
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
@@ -194,7 +195,7 @@ class RollupShardIndexer {
                 task.getNumIndexed(),
                 task.getNumFailed()
             );
-            task.setRollupShardIndexerStatus("cancelled");
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED);
             throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
         }
     }

@@ -236,7 +236,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
             assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
             assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
         }
-        client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
     public static class SystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {

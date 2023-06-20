@@ -290,7 +290,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
             assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
             assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
         }
-        client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
     static void putComposableIndexTemplate(

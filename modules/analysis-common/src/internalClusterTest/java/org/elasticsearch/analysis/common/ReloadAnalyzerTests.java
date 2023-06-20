@@ -53,9 +53,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         final String synonymAnalyzerName = "synonym_analyzer";
         final String synonymGraphAnalyzerName = "synonym_graph_analyzer";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(5, 0).put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "lowercase", "synonym_filter")
@@ -72,7 +70,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         );
 
         client().prepareIndex(indexName).setId("1").setSource("field", "Foo").get();
-        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
+        assertNoFailures(indicesAdmin().prepareRefresh(indexName).execute().actionGet());
 
         SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
         assertHitCount(response, 1L);
@@ -81,7 +79,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
         {
             for (String analyzerName : new String[] { synonymAnalyzerName, synonymGraphAnalyzerName }) {
-                Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
+                Response analyzeResponse = indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
                 assertEquals(2, analyzeResponse.getTokens().size());
                 Set<String> tokens = new HashSet<>();
                 analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
@@ -108,7 +106,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
         {
             for (String analyzerName : new String[] { synonymAnalyzerName, synonymGraphAnalyzerName }) {
-                Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
+                Response analyzeResponse = indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
                 assertEquals(3, analyzeResponse.getTokens().size());
                 Set<String> tokens = new HashSet<>();
                 analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
@@ -131,9 +129,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         final String indexName = "test";
         final String synonymAnalyzerName = "synonym_in_multiplexer_analyzer";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(5, 0).put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "my_multiplexer")
@@ -147,14 +143,14 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         );
 
         client().prepareIndex(indexName).setId("1").setSource("field", "foo").get();
-        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
+        assertNoFailures(indicesAdmin().prepareRefresh(indexName).execute().actionGet());
 
         SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
         assertHitCount(response, 1L);
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
         assertHitCount(response, 0L);
 
-        Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(synonymAnalyzerName).get();
+        Response analyzeResponse = indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(synonymAnalyzerName).get();
         assertEquals(2, analyzeResponse.getTokens().size());
         final Set<String> tokens = new HashSet<>();
         analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
@@ -176,7 +172,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals(1, reloadedAnalyzers.size());
         assertTrue(reloadedAnalyzers.contains(synonymAnalyzerName));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(synonymAnalyzerName).get();
+        analyzeResponse = indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(synonymAnalyzerName).get();
         assertEquals(3, analyzeResponse.getTokens().size());
         tokens.clear();
         analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
@@ -214,9 +210,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
         MapperException ex = expectThrows(
             MapperException.class,
-            () -> client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            () -> indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(5, 0).put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "synonym_filter")
@@ -237,9 +231,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         // same for synonym filters in multiplexer chain
         ex = expectThrows(
             MapperException.class,
-            () -> client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            () -> indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(5, 0).put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "my_multiplexer")
@@ -267,9 +259,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         final String indexName = "test";
         final String analyzerName = "keyword_maker_analyzer";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(5, 0).put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "keyword_marker_filter", "stemmer")
@@ -280,11 +270,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + analyzerName)
         );
 
-        AnalyzeAction.Response analysisResponse = client().admin()
-            .indices()
-            .prepareAnalyze("test", "running jumping")
-            .setAnalyzer(analyzerName)
-            .get();
+        AnalyzeAction.Response analysisResponse = indicesAdmin().prepareAnalyze("test", "running jumping").setAnalyzer(analyzerName).get();
         List<AnalyzeToken> tokens = analysisResponse.getTokens();
         assertEquals("running", tokens.get(0).getTerm());
         assertEquals("jump", tokens.get(1).getTerm());
@@ -306,7 +292,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals(1, reloadedAnalyzers.size());
         assertTrue(reloadedAnalyzers.contains(analyzerName));
 
-        analysisResponse = client().admin().indices().prepareAnalyze("test", "running jumping").setAnalyzer(analyzerName).get();
+        analysisResponse = indicesAdmin().prepareAnalyze("test", "running jumping").setAnalyzer(analyzerName).get();
         tokens = analysisResponse.getTokens();
         assertEquals("running", tokens.get(0).getTerm());
         assertEquals("jumping", tokens.get(1).getTerm());

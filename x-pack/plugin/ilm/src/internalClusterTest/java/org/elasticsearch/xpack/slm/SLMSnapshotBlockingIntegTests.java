@@ -401,7 +401,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         AtomicReference<String> successfulSnapshotName = new AtomicReference<>();
         {
             logger.info("--> deleting old index [{}], as it is now missing shards", indexName);
-            assertAcked(client().admin().indices().prepareDelete(indexName).get());
+            assertAcked(indicesAdmin().prepareDelete(indexName).get());
             createAndPopulateIndex(indexName);
 
             logger.info("--> unblocking snapshots");

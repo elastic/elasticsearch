@@ -114,16 +114,15 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
         assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse beforeStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final IndicesStatsResponse beforeStatsResponse = indicesAdmin().prepareStats("test*").get();
         assertIdleShard(beforeStatsResponse);
 
         // WHEN
@@ -135,7 +134,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         assertEquals(0, searchResponse.getHits().getHits().length);
 
         // THEN
-        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final IndicesStatsResponse afterStatsResponse = indicesAdmin().prepareStats("test*").get();
 
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
     }
@@ -177,19 +176,18 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
         assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse idleIndexStatsBefore = client().admin().indices().prepareStats("test1").get();
+        final IndicesStatsResponse idleIndexStatsBefore = indicesAdmin().prepareStats("test1").get();
         assertIdleShard(idleIndexStatsBefore);
 
-        final IndicesStatsResponse activeIndexStatsBefore = client().admin().indices().prepareStats("test2").get();
+        final IndicesStatsResponse activeIndexStatsBefore = indicesAdmin().prepareStats("test2").get();
         assertIdleShard(activeIndexStatsBefore);
 
         // WHEN
@@ -200,7 +198,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
 
         // THEN
-        final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
+        final IndicesStatsResponse idleIndexStatsAfter = indicesAdmin().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
 
@@ -241,16 +239,15 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
         assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse beforeStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final IndicesStatsResponse beforeStatsResponse = indicesAdmin().prepareStats("test*").get();
         assertIdleShard(beforeStatsResponse);
 
         // WHEN
@@ -264,7 +261,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             new String[] { "test1", "test2" },
             Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).sorted().toArray()
         );
-        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final IndicesStatsResponse afterStatsResponse = indicesAdmin().prepareStats("test*").get();
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
     }
 
@@ -301,19 +298,18 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", "value").get().status());
         assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", "value").get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse idleIndexStatsBefore = client().admin().indices().prepareStats("test1").get();
+        final IndicesStatsResponse idleIndexStatsBefore = indicesAdmin().prepareStats("test1").get();
         assertIdleShard(idleIndexStatsBefore);
 
-        final IndicesStatsResponse activeIndexStatsBefore = client().admin().indices().prepareStats("test2").get();
+        final IndicesStatsResponse activeIndexStatsBefore = indicesAdmin().prepareStats("test2").get();
         assertIdleShard(activeIndexStatsBefore);
 
         // WHEN
@@ -327,7 +323,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());
         Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
-        final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
+        final IndicesStatsResponse idleIndexStatsAfter = indicesAdmin().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
 

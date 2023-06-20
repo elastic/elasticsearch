@@ -2244,9 +2244,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 threadPool.executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("failed to flush shard on inactive", e);
-                        }
+                        logIfNotClosedState("failed to flush shard on inactive", e);
                     }
 
                     @Override
@@ -2458,9 +2456,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else if (e instanceof RefreshFailedEngineException rfee) {
             handleRefreshFailed(e, rfee);
         } else {
-            if (state != IndexShardState.CLOSED) {
-                logger.warn("Failed to perform engine refresh", e);
-            }
+            logIfNotClosedState("Failed to perform engine refresh", e);
+        }
+    }
+
+    private void logIfNotClosedState(String loggerString, Exception e) {
+        if (state != IndexShardState.CLOSED) {
+            logger.warn(loggerString, e);
         }
     }
 
@@ -2472,9 +2474,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else if (rfee.getCause() instanceof ThreadInterruptedException) {
             // ignore, we are being shutdown
         } else {
-            if (state != IndexShardState.CLOSED) {
-                logger.warn("Failed to perform engine refresh", e);
-            }
+            logIfNotClosedState("Failed to perform engine refresh", e);
         }
     }
 
@@ -3676,9 +3676,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final AbstractRunnable flush = new AbstractRunnable() {
                         @Override
                         public void onFailure(final Exception e) {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("failed to flush index", e);
-                            }
+                            logIfNotClosedState("failed to flush index", e);
                         }
 
                         @Override
@@ -3699,9 +3697,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final AbstractRunnable roll = new AbstractRunnable() {
                         @Override
                         public void onFailure(final Exception e) {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("failed to roll translog generation", e);
-                            }
+                            logIfNotClosedState("failed to roll translog generation", e);
                         }
 
                         @Override

@@ -203,7 +203,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Deleting index [test]");
         // last, lets delete the index
-        AcknowledgedResponse deleteIndexResponse = client().admin().indices().prepareDelete("test").execute().actionGet();
+        AcknowledgedResponse deleteIndexResponse = indicesAdmin().prepareDelete("test").execute().actionGet();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = client().admin().cluster().prepareState().get().getState();

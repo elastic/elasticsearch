@@ -32,9 +32,7 @@ public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
      */
     public void testCustomWordDelimiterQueryString() {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(
                     Settings.builder()
                         .put("analysis.analyzer.my_analyzer.type", "custom")

@@ -506,7 +506,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         snapshotInfo.repository(),
                         snapshotInfo.snapshotId().getName()
                     );
-                    client().admin().indices().prepareClose(indicesToClose).execute(mustSucceed(closeIndexResponse -> {
+                    indicesAdmin().prepareClose(indicesToClose).execute(mustSucceed(closeIndexResponse -> {
                         logger.info(
                             "--> finished closing indices {} in preparation for restoring from [{}:{}]",
                             indicesToRestoreList,
@@ -528,7 +528,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         snapshotInfo.repository(),
                         snapshotInfo.snapshotId().getName()
                     );
-                    client().admin().indices().prepareDelete(indicesToDelete).execute(mustSucceed(deleteIndicesResponse -> {
+                    indicesAdmin().prepareDelete(indicesToDelete).execute(mustSucceed(deleteIndicesResponse -> {
                         logger.info(
                             "--> finished deleting indices {} in preparation for restoring from [{}:{}]",
                             indicesToRestoreList,
@@ -1387,7 +1387,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                             logger.info("--> deleting index [{}]", indexName);
 
-                            client().admin().indices().prepareDelete(indexName).execute(mustSucceed(acknowledgedResponse -> {
+                            indicesAdmin().prepareDelete(indexName).execute(mustSucceed(acknowledgedResponse -> {
                                 logger.info("--> deleting index [{}] finished", indexName);
                                 assertTrue(acknowledgedResponse.isAcknowledged());
                                 createIndexAndContinue(releaseAll);

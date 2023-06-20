@@ -154,7 +154,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     private static Map<String, String> readNodesInfo() {
         Map<String, String> nodeIdToName = new HashMap<>();
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         for (NodeInfo node : nodesInfoResponse.getNodes()) {
             nodeIdToName.put(node.getNode().getId(), node.getNode().getName());
@@ -164,7 +164,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     private static void ensureSearchTaskIsCancelled(String transportAction, Function<String, String> nodeIdToName) throws Exception {
         SetOnce<TaskInfo> searchTask = new SetOnce<>();
-        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
+        ListTasksResponse listTasksResponse = clusterAdmin().prepareListTasks().get();
         for (TaskInfo task : listTasksResponse.getTasks()) {
             if (task.action().equals(transportAction)) {
                 searchTask.set(task);

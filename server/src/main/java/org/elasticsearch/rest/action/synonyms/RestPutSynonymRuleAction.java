@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest.action.synonyms;
 
-import org.elasticsearch.action.synonyms.PutSynonymsAction;
+import org.elasticsearch.action.synonyms.PutSynonymRuleAction;
 import org.elasticsearch.action.synonyms.SynonymUpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -24,26 +24,27 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestPutSynonymsAction extends BaseRestHandler {
+public class RestPutSynonymRuleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "synonyms_put_action";
+        return "synonyms_rule_put_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_synonyms/{synonymsSet}"));
+        return List.of(new Route(PUT, "/_synonyms/{synonymsSet}/{synonymRuleId}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PutSynonymsAction.Request request = new PutSynonymsAction.Request(
+        PutSynonymRuleAction.Request request = new PutSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
+            restRequest.param("synonymRuleId"),
             restRequest.content(),
             restRequest.getXContentType()
         );
-        return channel -> client.execute(PutSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel) {
+        return channel -> client.execute(PutSynonymRuleAction.INSTANCE, request, new RestToXContentListener<>(channel) {
             @Override
             protected RestStatus getStatus(SynonymUpdateResponse response) {
                 return response.status();

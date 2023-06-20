@@ -30,7 +30,7 @@ testClusters.configureEach {
   // disable ILM history, since it disturbs tests using _all
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'xpack.security.enabled', 'true'
-  setting 'indices.dlm.poll_interval', '1000ms'
+  setting 'data_streams.lifecycle.poll_interval', '1000ms'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")

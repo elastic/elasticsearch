@@ -186,7 +186,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> done");
 
         logger.info("--> recreate the index with potentially different shard counts");
-        client().admin().indices().prepareDelete(idxName).get();
+        indicesAdmin().prepareDelete(idxName).get();
         createIndex(idxName);
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 

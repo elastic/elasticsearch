@@ -3749,24 +3749,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void scheduledRefresh(ActionListener<Boolean> listener) {
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
-        if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
+        final Engine engine = getEngine();
+        if (isReadAllowed() && (listenerNeedsRefresh || engine.refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
+                && engine.allowSearchIdleOptimization()
                 && isSearchIdle()
                 && indexSettings.isExplicitRefresh() == false
                 && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.
-                final Engine engine = getEngine();
                 engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                 setRefreshPending(engine);
                 ActionListener.completeWith(listener, () -> false);
             } else {
                 logger.trace("refresh with source [schedule]");
-                getEngine().maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
+                engine.maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
             }
         }
-        final Engine engine = getEngine();
         engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
         ActionListener.completeWith(listener, () -> false);
     }

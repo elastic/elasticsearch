@@ -1,4 +1,8 @@
 
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
 
 ---
 'Create Query Ruleset':
@@ -32,6 +36,35 @@
                     '_id': 'id4'
 
   - match: { result: 'created' }
+
+  - do:
+      query_ruleset.get:
+        ruleset_id: test-ruleset
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              value: elastic
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+        - rule_id: query-rule-id2
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              value: kibana
+          actions:
+            docs:
+              - '_index': 'test-index1'
+                '_id': 'id3'
+              - '_index': 'test-index2'
+                '_id': 'id4'
 
 ---
 'Create Query Ruleset - Resource already exists':

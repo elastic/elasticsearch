@@ -276,7 +276,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             );
             client().index(indexRequest).actionGet();
         }
-        client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();
         return List.copyOf(keys);
     }
 

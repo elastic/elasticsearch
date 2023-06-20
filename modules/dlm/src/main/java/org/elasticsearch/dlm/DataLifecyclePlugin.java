@@ -125,7 +125,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
-        return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
+        return List.of(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
     }
 
     @Override

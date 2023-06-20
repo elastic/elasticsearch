@@ -2975,13 +2975,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
-            final MetadataSnapshot metadata;
-            try {
-                metadata = snapshotStoreMetadata();
-            } catch (IOException e) {
-                logger.warn("check index [failure]", e);
-                throw e;
-            }
+            final MetadataSnapshot metadata = getMetadataSnapshot();
             final List<String> checkedFiles = new ArrayList<>(metadata.size());
             for (Map.Entry<String, StoreFileMetadata> entry : metadata.fileMetadataMap().entrySet()) {
                 try {
@@ -3031,6 +3025,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
+    }
+
+    private MetadataSnapshot getMetadataSnapshot() throws IOException {
+        final MetadataSnapshot metadata;
+        try {
+            metadata = snapshotStoreMetadata();
+        } catch (IOException e) {
+            logger.warn("check index [failure]", e);
+            throw e;
+        }
+        return metadata;
     }
 
     Engine getEngine() {

@@ -48,4 +48,7 @@ public class SearchExecutionContextHelper {
             Collections.emptyMap()
         );
     }
+
+    // Allow no instances of this class.
+    private SearchExecutionContextHelper() {}
 }

@@ -51,7 +51,7 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
         // wait for green and then shrink
         ensureGreen();
-        assertAcked(client().admin().indices().prepareResizeIndex("bigindex", "shrunk_bigindex").setSettings(indexSettings(1, 0).build()));
+        assertAcked(indicesAdmin().prepareResizeIndex("bigindex", "shrunk_bigindex").setSettings(indexSettings(1, 0).build()));
 
         // verify all docs
         ensureGreen();

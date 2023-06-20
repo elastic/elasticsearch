@@ -73,8 +73,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     @After
     public void deleteTemplateAndIndex() {
-        client().admin().indices().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
-        client().admin().indices().prepareDeleteTemplate(SamlServiceProviderIndex.TEMPLATE_NAME).get();
+        indicesAdmin().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
+        indicesAdmin().prepareDeleteTemplate(SamlServiceProviderIndex.TEMPLATE_NAME).get();
         serviceProviderIndex.close();
     }
 
@@ -132,7 +132,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
         // Create an index that will trigger the template, but isn't the standard index name
         final String customIndexName = SamlServiceProviderIndex.INDEX_NAME + "-test";
-        client().admin().indices().create(new CreateIndexRequest(customIndexName)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(customIndexName)).actionGet();
 
         final IndexMetadata indexMetadata = clusterService.state().metadata().index(customIndexName);
         assertThat(indexMetadata, notNullValue());
@@ -158,7 +158,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     public void testInstallTemplateAutomaticallyOnClusterChange() throws Exception {
         // Create an index that will trigger a cluster state change
         final String indexName = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
-        client().admin().indices().create(new CreateIndexRequest(indexName)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(indexName)).actionGet();
 
         ensureGreen(indexName);
 

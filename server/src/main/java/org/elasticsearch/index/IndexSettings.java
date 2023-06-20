@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -128,6 +129,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum value of from + size on an individual inner hit definition or
      * top hits aggregation. The default maximum of 100 is defensive for the reason that the number of inner hit responses
@@ -237,6 +239,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.
@@ -245,20 +248,6 @@ public final class IndexSettings {
         "index.max_rescore_window",
         MAX_RESULT_WINDOW_SETTING,
         1,
-        Property.Dynamic,
-        Property.IndexScope
-    );
-    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
-    public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
-        "node._internal.default_refresh_interval",
-        DEFAULT_REFRESH_INTERVAL,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
-        Property.NodeScope
-    );
-    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
-        "index.refresh_interval",
-        NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -271,6 +260,22 @@ public final class IndexSettings {
         Property.Final,
         Property.IndexScope
     );
+
+    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "node._internal.default_refresh_interval",
+        DEFAULT_REFRESH_INTERVAL,
+        TimeValue.MINUS_ONE,
+        Property.NodeScope
+    ); // TODO: remove setting
+    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5); // TODO: settle on right value
+    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
+        if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
+            return STATELESS_DEFAULT_REFRESH_INTERVAL;
+        }
+        return DEFAULT_REFRESH_INTERVAL;
+    }, TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
+
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
         /*
@@ -315,6 +320,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.

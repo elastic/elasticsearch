@@ -209,7 +209,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         assertHitCount(resp1, index1);
         if (rarely()) {
             assertBusy(() -> {
-                final CommonStats stats = client().admin().indices().prepareStats().setSearch(true).get().getTotal();
+                final CommonStats stats = indicesAdmin().prepareStats().setSearch(true).get().getTotal();
                 assertThat(stats.search.getOpenContexts(), equalTo(0L));
             }, 60, TimeUnit.SECONDS);
         } else {
@@ -245,7 +245,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get();
             assertNoFailures(resp);
             assertHitCount(resp, index1 + index2);
-            client().admin().indices().prepareDelete("index-1").get();
+            indicesAdmin().prepareDelete("index-1").get();
             if (randomBoolean()) {
                 resp = client().prepareSearch("index-*").get();
                 assertNoFailures(resp);
@@ -381,7 +381,7 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testPITTiebreak() throws Exception {
-        assertAcked(client().admin().indices().prepareDelete("index-*").get());
+        assertAcked(indicesAdmin().prepareDelete("index-*").get());
         int numIndex = randomIntBetween(2, 10);
         int expectedNumDocs = 0;
         for (int i = 0; i < numIndex; i++) {

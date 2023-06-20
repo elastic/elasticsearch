@@ -41,7 +41,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         createRepository(repoName, "mock");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);
         final String secondDataNode = internalCluster().startDataOnlyNode();
@@ -115,9 +115,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
     }
 
     private static Stream<RecoveryState> getRelocationsStream(String restoredIndex) {
-        return client().admin()
-            .indices()
-            .prepareRecoveries(restoredIndex)
+        return indicesAdmin().prepareRecoveries(restoredIndex)
             .setDetailed(true)
             .setActiveOnly(true)
             .get()

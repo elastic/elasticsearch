@@ -363,6 +363,10 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 .map(rc -> rc.create(defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep))
                 .toList();
         }
+
+        Collection<RuleConfig> rules() {
+            return rules;
+        }
     }
 
     static boolean isStagnated(Collection<RuleConfig> rules, Long now, IndexMetadata indexMetadata) {

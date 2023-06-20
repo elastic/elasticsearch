@@ -528,7 +528,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (newRouting.primary()) {
                 if (newPrimaryTerm == pendingPrimaryTerm) {
-                    if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
+                    if (isValidRelocationTransition(newRouting, currentRouting)) {
                         // the master started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                         ensurePeerRecoveryRetentionLeasesExist();
@@ -681,6 +681,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
         }
+    }
+
+    private static boolean isValidRelocationTransition(ShardRouting newRouting, ShardRouting currentRouting) {
+        return currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active();
     }
 
     private void handleRoutingStateTransition(ShardRouting newRouting, ShardRouting currentRouting) {

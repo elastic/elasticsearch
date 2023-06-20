@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED;
 
-public class PutSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Response> {
+public class SynonymUpdateResponseSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Response> {
 
     @Override
     protected Writeable.Reader<PutSynonymsAction.Response> instanceReader() {

@@ -196,7 +196,7 @@ public class SynonymsManagementAPIService {
         return new SynonymRule((String) sourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) sourceAsMap.get(SYNONYMS_FIELD));
     }
 
-    public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsSetResult> listener) {
+    public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsResult> listener) {
         deleteSynonymsSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
             boolean created = bulkByScrollResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
@@ -233,7 +233,7 @@ public class SynonymsManagementAPIService {
                             ReloadAnalyzerAction.INSTANCE,
                             reloadAnalyzersRequest,
                             bulkResponseListener.delegateFailure((reloadResponseListener, reloadResponse) -> {
-                                reloadResponseListener.onResponse(new UpdateSynonymsSetResult(updateSynonymsResultStatus, reloadResponse));
+                                reloadResponseListener.onResponse(new UpdateSynonymsResult(updateSynonymsResultStatus, reloadResponse));
                             })
                         );
                     } else {
@@ -252,10 +252,22 @@ public class SynonymsManagementAPIService {
                     WriteRequest.RefreshPolicy.IMMEDIATE
                 );
                 client.index(indexRequest, l1.delegateFailure((l2, indexResponse) -> {
-                    UpdateSynonymsResult result = indexResponse.status() == RestStatus.CREATED
-                        ? UpdateSynonymsResult.CREATED
-                        : UpdateSynonymsResult.UPDATED;
-                    l2.onResponse(result);
+                    UpdateSynonymsResultStatus updateStatus = indexResponse.status() == RestStatus.CREATED
+                        ? UpdateSynonymsResultStatus.CREATED
+                        : UpdateSynonymsResultStatus.UPDATED;
+
+                    // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
+                    // TODO: reload only those analyzers that use this synonymsSet
+                    ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest("*");
+                    client.execute(
+                        ReloadAnalyzerAction.INSTANCE,
+                        reloadAnalyzersRequest,
+                        l2.delegateFailure(
+                            (reloadResponseListener, reloadResponse) -> reloadResponseListener.onResponse(
+                                new UpdateSynonymsResult(updateStatus, reloadResponse)
+                            )
+                        )
+                    );
                 }));
             } catch (IOException e) {
                 l1.onFailure(e);
@@ -305,7 +317,7 @@ public class SynonymsManagementAPIService {
     }
 
     public void deleteSynonymsSet(String resourceName, ActionListener<DeleteSynonymsSetResult> listener) {
-        deleteSynonymSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
+        deleteSynonymsSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
             if (bulkByScrollResponse.getDeleted() == 0) {
                 // If nothing was deleted, synonym set did not exist
                 l.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
@@ -359,7 +371,7 @@ public class SynonymsManagementAPIService {
         UPDATED
     }
 
-    public record UpdateSynonymsSetResult(UpdateSynonymsResultStatus updateStatus, ReloadAnalyzersResponse reloadAnalyzersResponse) {}
+    public record UpdateSynonymsResult(UpdateSynonymsResultStatus updateStatus, ReloadAnalyzersResponse reloadAnalyzersResponse) {}
 
     public record DeleteSynonymsSetResult(AcknowledgedResponse acknowledgedResponse, ReloadAnalyzersResponse reloadAnalyzersResponse) {}
 

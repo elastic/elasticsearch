@@ -258,7 +258,6 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertThat(invoked.get(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96910")
     public void testForceSyntheticUnsupported() throws IOException {
         SearchRequest request = createSearchRequest();
         if (request.source() != null) {

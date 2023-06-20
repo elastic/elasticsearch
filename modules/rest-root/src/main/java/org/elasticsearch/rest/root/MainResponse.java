@@ -147,7 +147,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             response.version = Version.fromString(
                 ((String) value.get("number")).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
             );
-            response.transportVersion = TransportVersion.fromString(((String) value.get("transportVersion")));
+            response.transportVersion = TransportVersion.fromString(((String) value.get("transport_version")));
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 

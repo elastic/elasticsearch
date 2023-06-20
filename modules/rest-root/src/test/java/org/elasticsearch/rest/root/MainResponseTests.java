@@ -77,7 +77,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                                 "lucene_version": "%s",
                                 "minimum_wire_compatibility_version": "%s",
                                 "minimum_index_compatibility_version": "%s",
-                                "transport_version": "%s",
+                                "transport_version": "%s"
                             },
                             "tagline": "You Know, for Search"
                         }

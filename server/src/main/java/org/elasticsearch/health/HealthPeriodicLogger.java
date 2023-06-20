@@ -128,15 +128,6 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             .addSettingsUpdateConsumer(HEALTH_PERIODIC_LOGGER_POLL_INTERVAL_SETTING, this::updatePollInterval);
     }
 
-    private void updatePollInterval(TimeValue newInterval) {
-        this.pollInterval = newInterval;
-        maybeScheduleJob();
-    }
-
-    protected Clock getClock() {
-        return Clock.systemUTC();
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // wait for the cluster state to be recovered
@@ -146,6 +137,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
         DiscoveryNode healthNode = HealthNode.findHealthNode(event.state());
         if (healthNode == null) {
+            this.isHealthNode.set(false);
             this.cancelJob();
             return;
         }
@@ -180,6 +172,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
     }
 
+    protected Clock getClock() {
+        return Clock.systemUTC();
+    }
+
     protected void callGetHealth() {
         this.healthService.getHealth(this.client, null, false, 0, this.resultsListener);
     }
@@ -188,17 +184,34 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         return isHealthNode.get();
     }
 
-    private void cancelJob() {
-        if (scheduler.get() != null) {
-            scheduler.get().remove(HEALTH_PERIODIC_LOGGER_JOB_NAME);
+    protected SchedulerEngine getScheduler() {
+        return this.scheduler.get();
+    }
+
+    /**
+     * Handle the result of the Health Service getHealth call
+     */
+    protected final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
+        @Override
+        public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
+            HealthPeriodicLoggerResult result = new HealthPeriodicLoggerResult(healthIndicatorResults);
+            Map<String, Object> resultsMap = result.toMap();
+            // if we have a valid response, log in JSON format
+            if (resultsMap.size() > 0) {
+                ESLogMessage msg = new ESLogMessage("health_periodic_logger").withFields(result.toMap());
+                logger.info(msg);
+            }
         }
-    }
 
-    private boolean isClusterServiceStoppedOrClosed() {
-        final Lifecycle.State state = clusterService.lifecycleState();
-        return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
-    }
+        @Override
+        public void onFailure(Exception e) {
+            logger.warn("Health Service logging error:{}", e.toString());
+        }
+    };
 
+    /**
+     * Create the SchedulerEngine.Job if this node is the health node
+     */
     private void maybeScheduleJob() {
         if (this.getIsHealthNode() == false) {
             return;
@@ -226,20 +239,19 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-    protected final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
-        @Override
-        public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
-            HealthPeriodicLoggerResult result = new HealthPeriodicLoggerResult(healthIndicatorResults);
-            Map<String, Object> resultsMap = result.toMap();
-            if (resultsMap.size() > 0) {
-                ESLogMessage msg = new ESLogMessage("health_periodic_logger").withFields(result.toMap());
-                logger.info(msg);
-            }
+    private void cancelJob() {
+        if (scheduler.get() != null) {
+            scheduler.get().remove(HEALTH_PERIODIC_LOGGER_JOB_NAME);
         }
+    }
 
-        @Override
-        public void onFailure(Exception e) {
-            logger.warn("Health Service logging error:{}", e.toString());
-        }
-    };
+    private void updatePollInterval(TimeValue newInterval) {
+        this.pollInterval = newInterval;
+        maybeScheduleJob();
+    }
+
+    private boolean isClusterServiceStoppedOrClosed() {
+        final Lifecycle.State state = clusterService.lifecycleState();
+        return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
+    }
 }

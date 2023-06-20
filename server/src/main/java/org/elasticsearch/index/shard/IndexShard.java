@@ -2987,16 +2987,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
-            if (status.clean == false) {
-                if (state == IndexShardState.CLOSED) {
-                    // ignore if closed....
-                    return;
-                }
-                logger.warn("check index [failure]");
-                // report details in a separate message, it might contain control characters which mess up detection of the failure message
-                logger.warn("{}", os.bytes().utf8ToString());
-                throw new IOException("index check failure");
-            }
+            if (isUnCleanedShardClosed(os, status)) return;
 
             if (logger.isDebugEnabled()) {
                 logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
@@ -3004,6 +2995,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
+    }
+
+    private boolean isUnCleanedShardClosed(BytesStreamOutput os, CheckIndex.Status status) throws IOException {
+        if (status.clean == false) {
+            if (state == IndexShardState.CLOSED) {
+                // ignore if closed....
+                return true;
+            }
+            logger.warn("check index [failure]");
+            // report details in a separate message, it might contain control characters which mess up detection of the failure message
+            logger.warn("{}", os.bytes().utf8ToString());
+            throw new IOException("index check failure");
+        }
+        return false;
     }
 
     private void logChecksumPassed(List<String> checkedFiles) {

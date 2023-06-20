@@ -143,7 +143,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         TDigest(StreamInput in) throws IOException {
             this(
                 in.readDouble(),
-                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)
                     ? in.readOptionalWriteable(TDigestExecutionHint::readFrom)
                     : TDigestExecutionHint.HIGH_ACCURACY
             );
@@ -248,7 +248,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)) {
                 out.writeOptionalWriteable(executionHint);
             }
         }

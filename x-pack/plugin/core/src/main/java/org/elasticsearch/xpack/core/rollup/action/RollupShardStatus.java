@@ -109,8 +109,8 @@ public class RollupShardStatus implements Task.Status {
             lastSourceTimestamp = in.readLong();
             lastTargetTimestamp = in.readLong();
             lastIndexingTimestamp = in.readLong();
-            rollupBeforeBulkInfo = in.readNamedWriteable(RollupBeforeBulkInfo.class, RollupBeforeBulkInfo.NAME);
-            rollupAfterBulkInfo = in.readNamedWriteable(RollupAfterBulkInfo.class, RollupAfterBulkInfo.NAME);
+            rollupBeforeBulkInfo = new RollupBeforeBulkInfo(in);
+            rollupAfterBulkInfo = new RollupAfterBulkInfo(in);
             rollupShardIndexerStatus = in.readEnum(RollupShardIndexerStatus.class);
         } else {
             totalShardDocCount = -1;

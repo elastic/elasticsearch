@@ -165,7 +165,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         PutMappingRequest request2 = new PutMappingRequest("pre_agg").source(xContentBuilder2);
         client().admin().indices().putMapping(request2).actionGet();
 
-        TDigestState histogram = new TDigestState(compression);
+        TDigestState histogram = TDigestState.create(compression);
         BulkRequest bulkRequest = new BulkRequest();
 
         int numDocs = 10000;
@@ -201,7 +201,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
-                histogram = new TDigestState(compression);
+                histogram = TDigestState.create(compression);
             }
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();

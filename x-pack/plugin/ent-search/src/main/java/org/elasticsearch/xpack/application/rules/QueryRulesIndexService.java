@@ -312,5 +312,5 @@ public class QueryRulesIndexService {
         }
     }
 
-    public record QueryRulesetResult(List<String> rulesetIds, long totalResults) {}
+    public record QueryRulesetResult(List<QueryRulesetListItem> rulesets) {}
 }

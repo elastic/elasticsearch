@@ -201,6 +201,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public IlmHealthIndicatorService(ClusterService clusterService, StagnatingIndicesFinder stagnatingIndicesFinder) {
         this.clusterService = clusterService;
         this.stagnatingIndicesFinder = stagnatingIndicesFinder;
+        var clusterSettings = this.clusterService.getClusterSettings();
+
+        clusterSettings.addSettingsUpdateConsumer(MAX_TIME_ON_ACTION_SETTING, stagnatingIndicesFinder::recreateRules);
+        clusterSettings.addSettingsUpdateConsumer(MAX_TIME_ON_STEP_SETTING, stagnatingIndicesFinder::recreateRules);
+        clusterSettings.addSettingsUpdateConsumer(MAX_RETRIES_PER_STEP_SETTING, stagnatingIndicesFinder::recreateRules);
     }
 
     @Override
@@ -318,13 +323,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
      */
     static class StagnatingIndicesFinder {
         private final ClusterService clusterService;
-        private final Collection<RuleCreator> rules;
         private final LongSupplier nowSupplier;
+        private final Collection<RuleCreator> rulesCreators;
+        private Collection<RuleConfig> rules;
 
-        StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleCreator> rules, LongSupplier nowSupplier) {
+        StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleCreator> rulesCreators, LongSupplier nowSupplier) {
             this.clusterService = clusterService;
-            this.rules = rules;
+            this.rulesCreators = rulesCreators;
             this.nowSupplier = nowSupplier;
+
+            recreateRules(null);
         }
 
         /**
@@ -333,31 +341,32 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         public List<IndexMetadata> find() {
             var metadata = clusterService.state().metadata();
             var now = nowSupplier.getAsLong();
-            var clusterSettings = clusterService.getClusterSettings();
-            var defaultMaxTimeOnAction = clusterSettings.get(MAX_TIME_ON_ACTION_SETTING);
-            var defaultMaxTimeOnStep = clusterSettings.get(MAX_TIME_ON_STEP_SETTING);
-            var defaultMaxRetriesPerStep = clusterSettings.get(MAX_RETRIES_PER_STEP_SETTING);
 
             return metadata.indices()
                 .values()
                 .stream()
                 .filter(metadata::isIndexManagedByILM)
-                .filter(md -> isStagnated(rules, defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep, now, md))
+                .filter(md -> isStagnated(rules, now, md))
+                .toList();
+        }
+
+        /**
+         *  We don't actually care what setting is updated, we just grab all the values from the `ClusterSettings` and recreate the rules
+         *  from scratch */
+        <T> void recreateRules(T ignored) {
+            var clusterSettings = clusterService.getClusterSettings();
+            var defaultMaxTimeOnAction = clusterSettings.get(MAX_TIME_ON_ACTION_SETTING);
+            var defaultMaxTimeOnStep = clusterSettings.get(MAX_TIME_ON_STEP_SETTING);
+            var defaultMaxRetriesPerStep = clusterSettings.get(MAX_RETRIES_PER_STEP_SETTING);
+
+            rules = rulesCreators.stream()
+                .map(rc -> rc.create(defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep))
                 .toList();
         }
     }
 
-    static boolean isStagnated(
-        Collection<RuleCreator> rules,
-        TimeValue defaultMaxTimeOnAction,
-        TimeValue defaultMaxTimeOnStep,
-        Long defaultMaxRetriesPerStep,
-        Long now,
-        IndexMetadata indexMetadata
-    ) {
-        return rules.stream()
-            .map(rc -> rc.create(defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep))
-            .anyMatch(r -> r.test(now, indexMetadata));
+    static boolean isStagnated(Collection<RuleConfig> rules, Long now, IndexMetadata indexMetadata) {
+        return rules.stream().anyMatch(r -> r.test(now, indexMetadata));
     }
 
     @FunctionalInterface

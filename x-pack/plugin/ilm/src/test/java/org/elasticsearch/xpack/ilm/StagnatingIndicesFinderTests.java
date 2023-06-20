@@ -90,27 +90,16 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
             // no rule matches
             var executions = randomIntBetween(3, 200);
             var calls = new AtomicInteger(0);
-            var defaultMaxTimeOnAction = randomTimeValueInDays();
-            var defaultMaxTimeOnStep = randomTimeValueInDays();
-            Long defaultMaxRetriesPerStep = randomLongBetween(2, 100);
             var rules = IntStream.range(0, executions).mapToObj(i -> (IlmHealthIndicatorService.RuleConfig) (now, idxMd) -> {
                 assertEquals(now, moment);
                 assertSame(idxMd, indexMetadata);
                 calls.incrementAndGet();
                 return false;
-            }).map(rc -> (IlmHealthIndicatorService.RuleCreator) (maxTimeOnAction, maxTimeOnStep, maxRetriesPerStep) -> {
-                assertEquals(defaultMaxTimeOnAction, maxTimeOnAction);
-                assertEquals(defaultMaxTimeOnStep, maxTimeOnStep);
-                assertEquals(defaultMaxRetriesPerStep, maxRetriesPerStep);
-                return rc;
             }).toList();
-            assertFalse(isStagnated(rules, defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep, moment, indexMetadata));
+            assertFalse(isStagnated(rules, moment, indexMetadata));
             assertEquals(calls.get(), executions);
         }
         {
-            var defaultMaxTimeOnAction = randomTimeValueInDays();
-            var defaultMaxTimeOnStep = randomTimeValueInDays();
-            Long defaultMaxRetriesPerStep = randomLongBetween(2, 100);
             var calls = new AtomicReference<>(new ArrayList<Integer>());
             var rules = Stream.<IlmHealthIndicatorService.RuleConfig>of((now, idxMd) -> { // will be called
                 assertEquals(now, moment);
@@ -132,14 +121,9 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
                 assertSame(idxMd, indexMetadata);
                 calls.get().add(4);
                 return false;
-            }).map(rc -> (IlmHealthIndicatorService.RuleCreator) (maxTimeOnAction, maxTimeOnStep, maxRetriesPerStep) -> {
-                assertEquals(defaultMaxTimeOnAction, maxTimeOnAction);
-                assertEquals(defaultMaxTimeOnStep, maxTimeOnStep);
-                assertEquals(defaultMaxRetriesPerStep, maxRetriesPerStep);
-                return rc;
             }).toList();
 
-            assertTrue(isStagnated(rules, defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep, moment, indexMetadata));
+            assertTrue(isStagnated(rules, moment, indexMetadata));
             assertEquals(calls.get(), List.of(1, 2));
         }
     }

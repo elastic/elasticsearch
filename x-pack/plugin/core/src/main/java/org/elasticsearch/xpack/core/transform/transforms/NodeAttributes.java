@@ -83,7 +83,7 @@ public class NodeAttributes implements ToXContentObject, Writeable {
         this.name = in.readString();
         this.ephemeralId = in.readString();
         this.transportAddress = in.readString();
-        this.attributes = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        this.attributes = in.readImmutableMap(StreamInput::readString);
     }
 
     /**

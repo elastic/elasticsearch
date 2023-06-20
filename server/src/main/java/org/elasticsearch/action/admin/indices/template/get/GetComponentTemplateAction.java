@@ -120,7 +120,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
+            componentTemplates = in.readMap(ComponentTemplate::new);
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {

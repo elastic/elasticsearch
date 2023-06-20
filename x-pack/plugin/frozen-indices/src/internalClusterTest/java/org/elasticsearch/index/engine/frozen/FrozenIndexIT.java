@@ -79,8 +79,8 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureGreen("index");
 
-        assertThat(client().admin().indices().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
-        assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
+        assertThat(indicesAdmin().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
+        assertThat(indicesAdmin().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
 
         final String excludeSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey();
         updateIndexSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)), "index");
@@ -220,9 +220,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         final String assignedNode = randomFrom(dataNodes);
         final String indexName = "test";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
@@ -293,7 +291,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            client().admin().indices().prepareDelete("index-1").get();
+            indicesAdmin().prepareDelete("index-1").get();
             // Return partial results if allow partial search result is allowed
             SearchResponse resp = client().prepareSearch()
                 .setPreference(null)

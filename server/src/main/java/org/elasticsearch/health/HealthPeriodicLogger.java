@@ -76,7 +76,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     public static final String HEALTH_PERIODIC_LOGGER_POLL_INTERVAL = "health_periodic_logger.poll_interval";
     public static final Setting<TimeValue> HEALTH_PERIODIC_LOGGER_POLL_INTERVAL_SETTING = Setting.timeSetting(
         HEALTH_PERIODIC_LOGGER_POLL_INTERVAL,
-        TimeValue.timeValueSeconds(15),
+        TimeValue.timeValueSeconds(60),
         TimeValue.timeValueSeconds(15),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

@@ -18,7 +18,9 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIn
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -85,16 +87,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
-        client().admin()
-            .indices()
-            .preparePutTemplate("one_shard_index_template")
+        indicesAdmin().preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
             .get();
-        client().admin()
-            .indices()
-            .preparePutTemplate("random-soft-deletes-template")
+        indicesAdmin().preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
@@ -145,9 +143,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteComposableIndexTemplateRequest).actionGet());
         var deleteComponentTemplateRequest = new DeleteComponentTemplateAction.Request("*");
         assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, deleteComponentTemplateRequest).actionGet());
-        assertAcked(
-            client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
-        );
+        assertAcked(indicesAdmin().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get());
         Metadata metadata = client().admin().cluster().prepareState().get().getState().getMetadata();
         assertThat(
             "test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
@@ -159,9 +155,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             metadata.transientSettings().size(),
             equalTo(0)
         );
-        GetIndexResponse indices = client().admin()
-            .indices()
-            .prepareGetIndex()
+        GetIndexResponse indices = indicesAdmin().prepareGetIndex()
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .addIndices("*")
             .get();
@@ -282,6 +276,20 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return wrapClient(NODE.client());
     }
 
+    /**
+     * Returns an admin client.
+     */
+    protected AdminClient admin() {
+        return client().admin();
+    }
+
+    /**
+     * Returns an indices admin client.
+     */
+    protected IndicesAdminClient indicesAdmin() {
+        return admin().indices();
+    }
+
     public Client wrapClient(final Client client) {
         return client;
     }
@@ -318,7 +326,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
         if (mappings != null) {
             createIndexRequestBuilder.setMapping(mappings);
         }
@@ -329,7 +337,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
         if (type != null) {
             createIndexRequestBuilder.setMapping(mappings);
         }
@@ -351,7 +359,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     public Index resolveIndex(String index) {
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);

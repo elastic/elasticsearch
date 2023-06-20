@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {

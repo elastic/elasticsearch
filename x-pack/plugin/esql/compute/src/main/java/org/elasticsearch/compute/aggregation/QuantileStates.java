@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 
@@ -48,7 +49,7 @@ public final class QuantileStates {
 
     static TDigestState deserializeDigest(byte[] ba, int offset) {
         final double compression = (double) doubleHandle.get(ba, offset);
-        final TDigestState digest = new TDigestState(compression);
+        final TDigestState digest = TDigestState.createOptimizedForAccuracy(compression);
         final int positions = (int) intHandle.get(ba, offset + 8);
         offset += 12;
         for (int i = 0; i < positions; i++) {
@@ -71,7 +72,7 @@ public final class QuantileStates {
         private final Double percentile;
 
         SingleState(double percentile) {
-            this.digest = new TDigestState(DEFAULT_COMPRESSION);
+            this.digest = TDigestState.createOptimizedForAccuracy(DEFAULT_COMPRESSION);
             this.percentile = percentileParam(percentile);
         }
 
@@ -95,7 +96,7 @@ public final class QuantileStates {
 
         Block evaluateMedianAbsoluteDeviation() {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
-            double result = digest.computeMedianAbsoluteDeviation();
+            double result = InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
             return DoubleBlock.newConstantBlockWith(result, 1);
         }
 
@@ -153,7 +154,7 @@ public final class QuantileStates {
             }
             TDigestState qs = digests.get(groupId);
             if (qs == null) {
-                qs = new TDigestState(DEFAULT_COMPRESSION);
+                qs = TDigestState.createOptimizedForAccuracy(DEFAULT_COMPRESSION);
                 digests.set(groupId, qs);
             }
             return qs;
@@ -181,7 +182,7 @@ public final class QuantileStates {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 final TDigestState digest = digests.get(selected.getInt(i));
                 if (digest != null && digest.size() > 0) {
-                    builder.appendDouble(digest.computeMedianAbsoluteDeviation());
+                    builder.appendDouble(InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest));
                 } else {
                     builder.appendNull();
                 }

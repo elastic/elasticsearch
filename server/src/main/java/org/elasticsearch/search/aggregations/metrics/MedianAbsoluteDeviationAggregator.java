@@ -63,7 +63,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     @Override
     public double metric(long owningBucketOrd) {
         if (hasDataForBucket(owningBucketOrd)) {
-            return valueSketches.get(owningBucketOrd).computeMedianAbsoluteDeviation();
+            return InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(valueSketches.get(owningBucketOrd));
         } else {
             return Double.NaN;
         }

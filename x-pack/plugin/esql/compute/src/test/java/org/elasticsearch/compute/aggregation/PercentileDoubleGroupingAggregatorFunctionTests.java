@@ -50,7 +50,7 @@ public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAgg
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        TDigestState td = new TDigestState(QuantileStates.DEFAULT_COMPRESSION);
+        TDigestState td = TDigestState.createOptimizedForAccuracy(QuantileStates.DEFAULT_COMPRESSION);
         input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(td::add);
         if (td.size() > 0) {
             double expected = td.quantile(percentile / 100);

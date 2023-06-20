@@ -176,7 +176,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        SearchExecutionContext context = SearchExecutionContext.newDummyForTests(
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             indexSettings,
             XContentParserConfiguration.EMPTY,
             new NamedWriteableRegistry(Collections.emptyList())

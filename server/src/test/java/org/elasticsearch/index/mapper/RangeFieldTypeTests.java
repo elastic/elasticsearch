@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -202,7 +203,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     private SearchExecutionContext createContext() {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return SearchExecutionContext.newDummyForTests(idxSettings, parserConfig(), writableRegistry());
+        return SearchExecutionContextHelper.createSimple(idxSettings, parserConfig(), writableRegistry());
     }
 
     public void testDateRangeQueryUsingMappingFormat() {

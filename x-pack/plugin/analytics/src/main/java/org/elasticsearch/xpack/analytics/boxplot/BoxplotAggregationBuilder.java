@@ -83,9 +83,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         super(in);
         compression = in.readDouble();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
-            if (in.readBoolean()) {
-                executionHint = TDigestExecutionHint.readFrom(in);
-            }
+            in.readOptionalWriteable(TDigestExecutionHint::readFrom);
         } else {
             executionHint = TDigestExecutionHint.HIGH_ACCURACY;
         }
@@ -100,12 +98,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
-            if (executionHint != null) {
-                out.writeBoolean(true);
-                executionHint.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeOptionalWriteable(executionHint);
         }
     }
 

@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -90,7 +91,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     @Before
     private void setup() {
         settings = createIndexSettings();
-        searchExecutionContext = SearchExecutionContext.newDummyForTests(settings, null, null);
+        searchExecutionContext = SearchExecutionContextHelper.createSimple(settings, null, null);
     }
 
     public void testSimpleDateHisto() throws Exception {

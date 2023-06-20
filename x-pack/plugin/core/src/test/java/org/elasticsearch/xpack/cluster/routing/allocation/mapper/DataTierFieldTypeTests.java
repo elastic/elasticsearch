@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -112,7 +113,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
-        return SearchExecutionContext.newDummyForTests(indexSettings, parserConfig(), writableRegistry());
+        return SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
     }
 
     private SearchExecutionContext createContextWithoutSetting() {
@@ -122,6 +123,6 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
             .numberOfReplicas(0)
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        return SearchExecutionContext.newDummyForTests(indexSettings, parserConfig(), writableRegistry());
+        return SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
     }
 }

@@ -182,38 +182,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         );
     }
 
-    /**
-     * Factory method generating a dummy context with partial functionality. Strictly test-only.
-     */
-    public static SearchExecutionContext newDummyForTests(
-        IndexSettings indexSettings,
-        XContentParserConfiguration parserConfiguration,
-        NamedWriteableRegistry namedWriteableRegistry
-    ) {
-        return new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfiguration,
-            namedWriteableRegistry,
-            null,
-            null,
-            System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Collections.emptyMap()
-        );
-    }
-
     private SearchExecutionContext(
         int shardId,
         int shardRequestIndex,

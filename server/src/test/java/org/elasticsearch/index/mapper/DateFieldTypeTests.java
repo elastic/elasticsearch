@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -170,7 +171,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
-        SearchExecutionContext context = SearchExecutionContext.newDummyForTests(
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
             parserConfig(),
             writableRegistry()
@@ -285,7 +286,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
-        SearchExecutionContext context = SearchExecutionContext.newDummyForTests(indexSettings, parserConfig(), writableRegistry());
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
 
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";

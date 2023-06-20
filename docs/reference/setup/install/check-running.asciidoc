@@ -42,7 +42,7 @@ GET /
     "lucene_version" : "{lucene_version}",
     "minimum_wire_compatibility_version" : "1.2.3",
     "minimum_index_compatibility_version" : "1.2.3",
-    "transport_version": "123456"
+    "transport_version" : "123456"
   },
   "tagline" : "You Know, for Search"
 }

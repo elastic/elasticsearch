@@ -25,9 +25,11 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.io.IOException;
@@ -35,10 +37,13 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -129,12 +134,15 @@ public class FileOperatorUsersStore {
         private static final Set<String> SINGLETON_REALM_TYPES = Set.of(
             FileRealmSettings.TYPE,
             NativeRealmSettings.TYPE,
-            ReservedRealm.TYPE
+            ReservedRealm.TYPE,
+            ServiceAccountSettings.REALM_TYPE
         );
 
         private final Set<String> usernames;
         private final String realmName;
         private final String realmType;
+        private final String tokenSource;
+        private final List<String> tokenNames;
         private final Authentication.AuthenticationType authenticationType;
 
         Group(Set<String> usernames) {
@@ -142,36 +150,64 @@ public class FileOperatorUsersStore {
         }
 
         Group(Set<String> usernames, @Nullable String realmName) {
-            this(usernames, realmName, null, null);
+            this(usernames, realmName, null, null, null, null);
         }
 
-        Group(Set<String> usernames, @Nullable String realmName, @Nullable String realmType, @Nullable String authenticationType) {
+        Group(
+            Set<String> usernames,
+            @Nullable String realmName,
+            @Nullable String realmType,
+            @Nullable String authenticationType,
+            @Nullable String tokenSource,
+            @Nullable List<String> tokenNames
+        ) {
             this.usernames = usernames;
             this.realmName = realmName;
             this.realmType = realmType == null ? FileRealmSettings.TYPE : realmType;
             this.authenticationType = authenticationType == null
                 ? Authentication.AuthenticationType.REALM
                 : Authentication.AuthenticationType.valueOf(authenticationType.toUpperCase(Locale.ROOT));
+            this.tokenSource = tokenSource;
+            this.tokenNames = tokenNames;
             validate();
         }
 
         private void validate() {
             final ValidationException validationException = new ValidationException();
-            if (false == FileRealmSettings.TYPE.equals(realmType)) {
-                validationException.addValidationError("[realm_type] only supports [file]");
-            }
-            if (Authentication.AuthenticationType.REALM != authenticationType) {
-                validationException.addValidationError("[auth_type] only supports [realm]");
-            }
             if (realmName == null) {
                 if (false == SINGLETON_REALM_TYPES.contains(realmType)) {
                     validationException.addValidationError(
                         "[realm_name] must be specified for realm types other than ["
-                            + Strings.collectionToCommaDelimitedString(SINGLETON_REALM_TYPES)
+                            + Strings.collectionToCommaDelimitedString(new TreeSet<>(SINGLETON_REALM_TYPES))
                             + "]"
                     );
                 }
             }
+            if (authenticationType == Authentication.AuthenticationType.REALM) {
+                if (false == FileRealmSettings.TYPE.equals(realmType)) {
+                    validationException.addValidationError(
+                        "[realm_type] only supports [file] when [auth_type] is [realm] or not specified"
+                    );
+                }
+            } else if (authenticationType == Authentication.AuthenticationType.TOKEN) {
+                if (tokenSource == null) {
+                    validationException.addValidationError("[token_source] must be set when [auth_type] is [token]");
+                } else if (false == Arrays.stream(TokenInfo.TokenSource.values()).anyMatch(v -> v.name().equalsIgnoreCase(tokenSource))) {
+                    validationException.addValidationError(
+                        "[token_source] must be one of the following values ["
+                            + Arrays.stream(TokenInfo.TokenSource.values())
+                                .map(v -> v.name().toLowerCase(Locale.ROOT))
+                                .collect(Collectors.joining(","))
+                            + "]"
+                    );
+                }
+                if (tokenNames == null || tokenNames.isEmpty()) {
+                    validationException.addValidationError("[token_names] must be set when [auth_type] is [token]");
+                }
+            } else {
+                validationException.addValidationError("[auth_type] only supports [realm] or [token]");
+            }
+
             if (false == validationException.validationErrors().isEmpty()) {
                 throw validationException;
             }
@@ -189,6 +225,12 @@ public class FileOperatorUsersStore {
             }
             if (authenticationType != null) {
                 sb.append(", auth_type=").append(authenticationType.name().toLowerCase(Locale.ROOT));
+            }
+            if (tokenSource != null) {
+                sb.append(", token_source=").append(tokenSource);
+            }
+            if (tokenNames != null) {
+                sb.append(", token_names=").append(tokenNames);
             }
             sb.append("]");
             return sb.toString();
@@ -249,7 +291,14 @@ public class FileOperatorUsersStore {
     private static final ConstructingObjectParser<Group, Void> GROUP_PARSER = new ConstructingObjectParser<>(
         "operator_privileges.operator.group",
         false,
-        (Object[] arr) -> new Group(Set.copyOf((List<String>) arr[0]), (String) arr[1], (String) arr[2], (String) arr[3])
+        (Object[] arr) -> new Group(
+            Set.copyOf((List<String>) arr[0]),
+            (String) arr[1],
+            (String) arr[2],
+            (String) arr[3],
+            (String) arr[4],
+            (List<String>) arr[5]
+        )
     );
 
     @SuppressWarnings("unchecked")
@@ -264,6 +313,8 @@ public class FileOperatorUsersStore {
         GROUP_PARSER.declareString(optionalConstructorArg(), Fields.REALM_NAME);
         GROUP_PARSER.declareString(optionalConstructorArg(), Fields.REALM_TYPE);
         GROUP_PARSER.declareString(optionalConstructorArg(), Fields.AUTH_TYPE);
+        GROUP_PARSER.declareString(optionalConstructorArg(), Fields.TOKEN_SOURCE);
+        GROUP_PARSER.declareStringArray(optionalConstructorArg(), Fields.TOKEN_NAMES);
         OPERATOR_USER_PARSER.declareObjectArray(constructorArg(), (parser, ignore) -> GROUP_PARSER.parse(parser, null), Fields.OPERATOR);
     }
 
@@ -277,6 +328,9 @@ public class FileOperatorUsersStore {
         ParseField REALM_NAME = new ParseField("realm_name");
         ParseField REALM_TYPE = new ParseField("realm_type");
         ParseField AUTH_TYPE = new ParseField("auth_type");
+        ParseField TOKEN_SOURCE = new ParseField("token_source");
+        ParseField TOKEN_NAMES = new ParseField("token_names");
+
     }
 
     private class FileListener implements FileChangesListener {

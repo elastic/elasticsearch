@@ -269,6 +269,34 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             assertEquals(new FileOperatorUsersStore.Group(Set.of("internal_system"), "file1"), groups.get(0));
             assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_1", "operator_2")), groups.get(1));
         }
+
+        config = """
+            operator:
+              - realm_name: "file1"
+                usernames: ["internal_system"]
+              - realm_type: "_service_account"
+                usernames: ["elastic/fleet-server"]
+                auth_type: "token"
+                token_source: "index"
+                token_names: ["token1", "token2"]
+            """;
+
+        try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
+            final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
+            assertEquals(2, groups.size());
+            assertEquals(new FileOperatorUsersStore.Group(Set.of("internal_system"), "file1"), groups.get(0));
+            assertEquals(
+                new FileOperatorUsersStore.Group(
+                    Set.of("elastic/fleet-server"),
+                    null,
+                    "_service_account",
+                    "token",
+                    "index",
+                    List.of("token1", "token2")
+                ),
+                groups.get(1)
+            );
+        }
     }
 
     public void testParseInvalidConfig() throws IOException {
@@ -290,9 +318,25 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
-            assertThat(e.getCause().getCause().getMessage(), containsString("[auth_type] only supports [realm]"));
+            assertThat(e.getCause().getCause().getMessage(), containsString("[token_source] must be set when [auth_type] is [token]"));
+            assertThat(e.getCause().getCause().getMessage(), containsString("[token_names] must be set when [auth_type] is [token]"));
         }
 
+        config = """
+            operator:
+              - usernames: ["operator_1"]
+                auth_type: "token"
+                token_source: "invalid"
+                token_names: ["token1", "token2"]
+            """;
+
+        try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
+            final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
+            assertThat(
+                e.getCause().getCause().getMessage(),
+                containsString("[token_source] must be one of the following values [index,file]")
+            );
+        }
         config = """
             operator:
                 auth_type: "realm"
@@ -300,6 +344,23 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(e.getCause().getMessage(), containsString("Required [usernames]"));
+        }
+
+        config = """
+            operator:
+              - usernames: ["operator_1"]
+                realm_type: "jwt"
+            """;
+        try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
+            final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
+            assertThat(
+                e.getCause().getCause().getMessage(),
+                containsString("[realm_name] must be specified for realm types other than [_service_account,file,native,reserved]")
+            );
+            assertThat(
+                e.getCause().getCause().getMessage(),
+                containsString("[realm_type] only supports [file] when [auth_type] is [realm] or not specified")
+            );
         }
     }
 

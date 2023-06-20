@@ -6,7 +6,9 @@ issues: []
 breaking:
   title: Remove the unused executor builder for vector tile plugin
   area: Geo
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: The threadpool called `vectortile` is a left over from the original development of the vector tile search
+           end point and it is used nowhere. It can still be a breaking change if it is configured on the
+           elasticsearch yml file, for example by changing the threadpool size `thread_pool.vectortile.size=8`
+  impact: In the case the threadpool appears on the yaml file, Elasticsearch will not start until those lines
+          are removed.
   notable: false

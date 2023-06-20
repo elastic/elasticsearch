@@ -74,7 +74,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String index3 = ".marvel-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(2));
         createIndex(index1, index2, index3);
 
-        GetSettingsResponse getSettingsResponse = dateSensitiveGet(client().admin().indices().prepareGetSettings(index1, index2, index3));
+        GetSettingsResponse getSettingsResponse = dateSensitiveGet(indicesAdmin().prepareGetSettings(index1, index2, index3));
         assertEquals(index1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(index2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(index3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
@@ -113,9 +113,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[2].getResponse().isExists(), is(true));
         assertThat(mgetResponse.getResponses()[2].getResponse().getId(), equalTo("3"));
 
-        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(
-            client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3)
-        );
+        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(indicesAdmin().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3));
         assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
@@ -150,9 +148,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(
-            client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3)
-        );
+        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(indicesAdmin().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3));
         assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
@@ -168,7 +164,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
         createIndex(dateMathExp1, dateMathExp2, dateMathExp3);
 
-        GetSettingsResponse getSettingsResponse = dateSensitiveGet(client().admin().indices().prepareGetSettings(index1, index2, index3));
+        GetSettingsResponse getSettingsResponse = dateSensitiveGet(indicesAdmin().prepareGetSettings(index1, index2, index3));
         assertEquals(dateMathExp1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(dateMathExp2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(dateMathExp3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));

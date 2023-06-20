@@ -27,9 +27,7 @@ public class ArchiveSettingValidationIntegTests extends AbstractArchiveTestCase 
 
         final IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
+            () -> indicesAdmin().prepareUpdateSettings(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false))
                 .get()
         );

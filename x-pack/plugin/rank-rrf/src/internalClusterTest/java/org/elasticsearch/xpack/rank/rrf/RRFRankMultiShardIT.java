@@ -86,7 +86,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         client().prepareIndex("tiny_index").setSource("vector", new float[] { 1.0f }, "text", "other").get();
         client().prepareIndex("tiny_index").setSource("vector", new float[] { 2.0f }, "text", "term").get();
 
-        client().admin().indices().prepareRefresh("tiny_index").get();
+        indicesAdmin().prepareRefresh("tiny_index").get();
 
         // Set up an index with non-random data, so we can
         // do direct tests against expected results.
@@ -138,7 +138,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .get();
         }
 
-        client().admin().indices().prepareRefresh("nrd_index").get();
+        indicesAdmin().prepareRefresh("nrd_index").get();
     }
 
     public void testTotalDocsSmallerThanSize() {

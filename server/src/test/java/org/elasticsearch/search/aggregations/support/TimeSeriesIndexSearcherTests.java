@@ -16,10 +16,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
@@ -31,13 +30,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -56,7 +51,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.Mockito.mock;
 
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
@@ -177,50 +171,20 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
-        indexSearcher.setMinimumScore(0.99f);
+        indexSearcher.setMinimumScore(2f);
 
-        // Total count including arbitrary score filtering.
-        BucketCollector collector = getBucketCollector(1);
-
-        ScoreFunction scoreFunction = new ScoreFunction(CombineFunction.REPLACE) {
-            @Override
-            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
-                return new LeafScoreFunction() {
-
-                    @Override
-                    public double score(int docId, float subQueryScore) throws IOException {
-                        return docId == 1 ? 1 : 0;
-                    }
-
-                    @Override
-                    public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            public boolean needsScores() {
-                return false;
-            }
-
-            @Override
-            protected boolean doEquals(ScoreFunction other) {
-                return false;
-            }
-
-            @Override
-            protected int doHashCode() {
-                return 0;
-            }
-        };
-
-        StaticScoreFunctionBuilder scoreFunctionBuilder = new StaticScoreFunctionBuilder(scoreFunction);
-
-        FunctionScoreQueryBuilder functionScoreQuery = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(), scoreFunctionBuilder);
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        indexSearcher.search(functionScoreQuery.toQuery(searchExecutionContext), collector);
-        collector.postCollection();
+        {
+            var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
+            var query = new BoostQuery(new MatchAllDocsQuery(), 2f);
+            indexSearcher.search(query, collector);
+            assertEquals(collector.count.get(), DOC_COUNTS);
+        }
+        {
+            var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
+            var query = new BoostQuery(new MatchAllDocsQuery(), 1f);
+            indexSearcher.search(query, collector);
+            assertEquals(collector.count.get(), 0);
+        }
 
         reader.close();
         dir.close();

@@ -78,7 +78,7 @@ public class TimeSeriesIndexSearcher {
         this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
     }
 
-    public void setMinimumScore(float minimumScore) {
+    public void setMinimumScore(Float minimumScore) {
         this.minimumScore = minimumScore;
     }
 

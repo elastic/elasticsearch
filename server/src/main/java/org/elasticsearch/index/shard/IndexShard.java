@@ -571,44 +571,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (resyncStarted == false) {
                         throw new IllegalStateException("cannot start resync while it's already in progress");
                     }
-                    bumpPrimaryTerm(newPrimaryTerm, () -> {
-                        shardStateUpdated.await();
-                        assert pendingPrimaryTerm == newPrimaryTerm
-                            : "shard term changed on primary. expected ["
-                                + newPrimaryTerm
-                                + "] but was ["
-                                + pendingPrimaryTerm
-                                + "]"
-                                + ", current routing: "
-                                + currentRouting
-                                + ", new routing: "
-                                + newRouting;
-                        assert getOperationPrimaryTerm() == newPrimaryTerm;
-                        try {
-                            replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                            ensurePeerRecoveryRetentionLeasesExist();
-                            /*
-                             * If this shard was serving as a replica shard when another shard was promoted to primary then
-                             * its Lucene index was reset during the primary term transition. In particular, the Lucene index
-                             * on this shard was reset to the global checkpoint and the operations above the local checkpoint
-                             * were reverted. If the other shard that was promoted to primary subsequently fails before the
-                             * primary/replica re-sync completes successfully and we are now being promoted, we have to restore
-                             * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
-                             */
-                            final Engine engine = populateEngine();
-                            /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
-                             * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
-                             * as a starting point), but it simplifies reasoning about the relationship between primary terms and
-                             * translog generations.
-                             */
-                            engine.rollTranslogGeneration();
-                            engine.fillSeqNoGaps(newPrimaryTerm);
-                            replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
-                            initiatePrimaryReplicaSyncer(primaryReplicaSyncer);
-                        } catch (final AlreadyClosedException e) {
-                            // okay, the index was deleted
-                        }
-                    }, null);
+                    getBumpPrimaryTerm(newRouting, newPrimaryTerm, primaryReplicaSyncer, currentRouting, shardStateUpdated);
                 }
             }
             // set this last, once we finished updating all internal state.
@@ -631,6 +594,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             useRetentionLeasesInPeerRecovery = isAllShardsUseRetentionLeases(routingTable);
         }
+    }
+
+    private void getBumpPrimaryTerm(ShardRouting newRouting, long newPrimaryTerm, BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer, ShardRouting currentRouting, CountDownLatch shardStateUpdated) {
+        bumpPrimaryTerm(newPrimaryTerm, () -> {
+            shardStateUpdated.await();
+            assert pendingPrimaryTerm == newPrimaryTerm
+                : "shard term changed on primary. expected ["
+                    + newPrimaryTerm
+                    + "] but was ["
+                    + pendingPrimaryTerm
+                    + "]"
+                    + ", current routing: "
+                    + currentRouting
+                    + ", new routing: "
+                    + newRouting;
+            assert getOperationPrimaryTerm() == newPrimaryTerm;
+            try {
+                replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                ensurePeerRecoveryRetentionLeasesExist();
+                /*
+                 * If this shard was serving as a replica shard when another shard was promoted to primary then
+                 * its Lucene index was reset during the primary term transition. In particular, the Lucene index
+                 * on this shard was reset to the global checkpoint and the operations above the local checkpoint
+                 * were reverted. If the other shard that was promoted to primary subsequently fails before the
+                 * primary/replica re-sync completes successfully and we are now being promoted, we have to restore
+                 * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
+                 */
+                final Engine engine = populateEngine();
+                /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
+                 * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
+                 * as a starting point), but it simplifies reasoning about the relationship between primary terms and
+                 * translog generations.
+                 */
+                engine.rollTranslogGeneration();
+                engine.fillSeqNoGaps(newPrimaryTerm);
+                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
+                initiatePrimaryReplicaSyncer(primaryReplicaSyncer);
+            } catch (final AlreadyClosedException e) {
+                // okay, the index was deleted
+            }
+        }, null);
     }
 
     private void initiatePrimaryReplicaSyncer(BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer) {

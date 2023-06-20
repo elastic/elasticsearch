@@ -502,24 +502,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             currentRouting = this.shardRouting;
             assert currentRouting != null;
 
-            if (newRouting.shardId().equals(shardId()) == false) {
-                throw new IllegalArgumentException(
-                    "Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId()
-                );
-            }
-            if (newRouting.isSameAllocation(currentRouting) == false) {
-                throw new IllegalArgumentException(
-                    "Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting
-                );
-            }
-            if (currentRouting.primary() && newRouting.primary() == false) {
-                throw new IllegalArgumentException(
-                    "illegal state: trying to move shard from primary mode to replica mode. Current "
-                        + currentRouting
-                        + ", new "
-                        + newRouting
-                );
-            }
+            validateRoutingEntry(newRouting, currentRouting);
 
             if (newRouting.primary()) {
                 replicationTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
@@ -718,6 +701,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
             useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
+        }
+    }
+
+    private void validateRoutingEntry(ShardRouting newRouting, ShardRouting currentRouting) {
+        if (newRouting.shardId().equals(shardId()) == false) {
+            throw new IllegalArgumentException(
+                "Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId()
+            );
+        }
+        if (newRouting.isSameAllocation(currentRouting) == false) {
+            throw new IllegalArgumentException(
+                "Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting
+            );
+        }
+        if (currentRouting.primary() && newRouting.primary() == false) {
+            throw new IllegalArgumentException(
+                "illegal state: trying to move shard from primary mode to replica mode. Current "
+                    + currentRouting
+                    + ", new "
+                    + newRouting
+            );
         }
     }
 

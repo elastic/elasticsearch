@@ -93,7 +93,10 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         }
         if (request.includeDefaults() && DataLifecycle.isEnabled()) {
             listener.onResponse(
-                new GetComponentTemplateAction.Response(results, clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING))
+                new GetComponentTemplateAction.Response(
+                    results,
+                    clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                )
             );
         } else {
             listener.onResponse(new GetComponentTemplateAction.Response(results));

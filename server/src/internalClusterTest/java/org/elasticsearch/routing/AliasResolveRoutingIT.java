@@ -33,8 +33,8 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test-0");
         createIndex("test-1");
         ensureGreen();
-        client().admin().indices().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
-        client().admin().indices().prepareClose("test-1").get();
+        indicesAdmin().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
+        indicesAdmin().prepareClose("test-1").get();
         indexRandom(
             true,
             client().prepareIndex("test-0").setId("1").setSource("field1", "the quick brown fox jumps"),

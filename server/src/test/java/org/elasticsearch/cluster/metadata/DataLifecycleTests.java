@@ -94,7 +94,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     public void testDefaultClusterSetting() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RolloverConfiguration rolloverConfiguration = clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        RolloverConfiguration rolloverConfiguration = clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         assertThat(rolloverConfiguration.getAutomaticConditions(), equalTo(Set.of("max_age")));
         RolloverConditions concreteConditions = rolloverConfiguration.getConcreteConditions();
         assertThat(concreteConditions.getMaxPrimaryShardSize(), equalTo(ByteSizeValue.ofGb(50)));
@@ -113,8 +113,8 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.get(
-                    Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "").build()
+                () -> DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.get(
+                    Settings.builder().put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "").build()
                 )
             );
             assertThat(exception.getMessage(), equalTo("The rollover conditions cannot be null or blank"));

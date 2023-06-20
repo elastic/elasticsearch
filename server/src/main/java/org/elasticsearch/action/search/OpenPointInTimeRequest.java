@@ -32,7 +32,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private TimeValue keepAlive;
-    private int maxConcurrentShardRequests = 5;
+    private int maxConcurrentShardRequests = SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
     @Nullable
     private String routing;
     @Nullable

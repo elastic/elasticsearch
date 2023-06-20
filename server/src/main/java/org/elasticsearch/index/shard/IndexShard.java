@@ -584,6 +584,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 : "a started primary with non-pending operation term must be in primary mode " + this.shardRouting;
             shardStateUpdated.countDown();
         }
+        handleRoutingUpdate(newRouting, routingTable, currentRouting);
+    }
+
+    private void handleRoutingUpdate(ShardRouting newRouting, IndexShardRoutingTable routingTable, ShardRouting currentRouting) {
         if (currentRouting.active() == false && newRouting.active()) {
             indexEventListener.afterIndexShardStarted(this);
         }

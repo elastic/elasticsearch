@@ -24,7 +24,7 @@ public enum TDigestExecutionHint implements Writeable {
 
     public static final Setting<String> SETTING = Setting.simpleString(
         "search.aggs.tdigest_execution_hint",
-        "",
+        TDigestExecutionHint.DEFAULT.toString(),
         TDigestExecutionHint::parse,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

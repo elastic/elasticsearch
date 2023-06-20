@@ -84,6 +84,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         compression = in.readDouble();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)) {
             executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+            executionHint = TDigestExecutionHint.readFrom(in);
         } else {
             executionHint = TDigestExecutionHint.HIGH_ACCURACY;
         }
@@ -99,6 +101,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         out.writeDouble(compression);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)) {
             out.writeOptionalWriteable(executionHint);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+            (executionHint == null ? TDigestExecutionHint.DEFAULT : executionHint).writeTo(out);
         }
     }
 

@@ -251,7 +251,6 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
-
     /**
      * Only intended for stateless.
      */
@@ -263,10 +262,16 @@ public final class IndexSettings {
     );
 
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
-    public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
+    public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "node._internal.default_refresh_interval",
+        DEFAULT_REFRESH_INTERVAL,
+        TimeValue.MINUS_ONE,
+        Property.NodeScope
+    ); // TODO: remove setting
+    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5); // TODO: settle on right value
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
         if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
-            return STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
+            return STATELESS_DEFAULT_REFRESH_INTERVAL;
         }
         return DEFAULT_REFRESH_INTERVAL;
     }, TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);

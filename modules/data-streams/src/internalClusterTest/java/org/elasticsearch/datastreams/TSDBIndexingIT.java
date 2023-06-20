@@ -142,7 +142,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         }
 
         // fetch end time
-        var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndexName)).actionGet();
+        var getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndexName)).actionGet();
         Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(getIndexResponse.getSettings().get(backingIndexName));
 
         // index another doc and verify index
@@ -177,11 +177,11 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         // rollover
         var rolloverRequest = new RolloverRequest("k8s", null);
-        var rolloverResponse = client().admin().indices().rolloverIndex(rolloverRequest).actionGet();
+        var rolloverResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
         var newBackingIndexName = rolloverResponse.getNewIndex();
 
         // index and check target index is new
-        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(newBackingIndexName)).actionGet();
+        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(newBackingIndexName)).actionGet();
         Instant newStartTime = IndexSettings.TIME_SERIES_START_TIME.get(getIndexResponse.getSettings().get(newBackingIndexName));
         Instant newEndTime = IndexSettings.TIME_SERIES_END_TIME.get(getIndexResponse.getSettings().get(newBackingIndexName));
 

@@ -33,7 +33,7 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> create index");
         createIndexWithRandomDocs("test-idx", 100);
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test-idx").get();
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats("test-idx").get();
         IndexStats indexStats = indicesStats.getIndex("test-idx");
         long totalSizeInBytes = 0;
         for (ShardStats shard : indexStats.getShards()) {

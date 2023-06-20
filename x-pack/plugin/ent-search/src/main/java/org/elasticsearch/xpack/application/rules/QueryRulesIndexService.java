@@ -249,8 +249,6 @@ public class QueryRulesIndexService {
      * @param from From index to start the search from.
      * @param size The maximum number of {@link QueryRuleset}s to return.
      * @param listener The action listener to invoke on response/failure.
-     *
-     * TODO add total number of rules per ruleset - We can add this when implementing the List command.
      */
     public void listQueryRulesets(int from, int size, ActionListener<QueryRulesetResult> listener) {
         try {

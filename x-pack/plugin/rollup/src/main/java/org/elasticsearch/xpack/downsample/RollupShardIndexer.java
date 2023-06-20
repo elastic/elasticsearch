@@ -137,6 +137,8 @@ class RollupShardIndexer {
         long startTime = System.currentTimeMillis();
         task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
         task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED);
+        task.setIndexStartTimestampMillis(searchExecutionContext.getIndexSettings().getTimestampBounds().startTime());
+        task.setIndexEndTimestampMillis(searchExecutionContext.getIndexSettings().getTimestampBounds().endTime());
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));

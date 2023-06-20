@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class RollupShardTask extends CancellableTask {
     private final String rollupIndex;
     private long totalShardDocCount;
+    private long indexStartTime;
+    private long indexEndTime;
     private final DownsampleConfig config;
     private final ShardId shardId;
     private final long rollupStartTime;
@@ -78,6 +80,8 @@ public class RollupShardTask extends CancellableTask {
             lastSourceTimestamp.get(),
             lastTargetTimestamp.get(),
             lastIndexingTimestamp.get(),
+            indexStartTime,
+            indexEndTime,
             lastBeforeBulkInfo.get(),
             lastAfterBulkInfo.get(),
             rollupShardIndexerStatus.get()
@@ -166,5 +170,13 @@ public class RollupShardTask extends CancellableTask {
 
     public void setTotalShardDocCount(int totalShardDocCount) {
         this.totalShardDocCount = totalShardDocCount;
+    }
+
+    public void setIndexStartTimestampMillis(long startTime) {
+        this.indexStartTime = startTime;
+    }
+
+    public void setIndexEndTimestampMillis(long endTime) {
+        this.indexEndTime = endTime;
     }
 }

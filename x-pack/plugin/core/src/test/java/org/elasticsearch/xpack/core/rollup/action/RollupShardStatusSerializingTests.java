@@ -52,6 +52,8 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
             System.currentTimeMillis(),
             System.currentTimeMillis(),
             System.currentTimeMillis(),
+            System.currentTimeMillis() - randomLongBetween(200_000, 300_000),
+            System.currentTimeMillis() + randomLongBetween(200_000, 300_000),
             createTestBeforeBulkInfoInstance(),
             createTestAfterBulkInfoInstance(),
             randomFrom(RollupShardIndexerStatus.values())

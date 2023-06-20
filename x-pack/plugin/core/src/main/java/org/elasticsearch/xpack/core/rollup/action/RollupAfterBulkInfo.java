@@ -19,6 +19,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * This class includes statistics collected by the downsampling task after
+ * a bulk indexing operation ends.
+ */
 public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
     public static final String NAME = "rollup_after_bulk";
     private final long currentTimeMillis;

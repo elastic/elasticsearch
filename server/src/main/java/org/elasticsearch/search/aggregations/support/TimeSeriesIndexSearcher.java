@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -96,7 +97,10 @@ public class TimeSeriesIndexSearcher {
             }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, minimumScore, bucketCollector, () -> tsidOrd[0]);
+                if (minimumScore != null) {
+                    scorer = new MinScoreScorer(weight, scorer, minimumScore);
+                }
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -206,8 +210,6 @@ public class TimeSeriesIndexSearcher {
 
         private final Scorer scorer;
 
-        private final Float minimumScore;
-
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -215,7 +217,6 @@ public class TimeSeriesIndexSearcher {
         LeafWalker(
             LeafReaderContext context,
             Scorer scorer,
-            Float minimumScore,
             BucketCollector bucketCollector,
             IntSupplier tsidOrdSupplier
         ) throws IOException {
@@ -224,7 +225,6 @@ public class TimeSeriesIndexSearcher {
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             this.scorer = scorer;
-            this.minimumScore = minimumScore;
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
@@ -242,8 +242,7 @@ public class TimeSeriesIndexSearcher {
             }
             do {
                 docId = iterator.nextDoc();
-            } while (docId != DocIdSetIterator.NO_MORE_DOCS
-                && (isInvalidDoc(docId) || (minimumScore != null && scorer.score() < minimumScore)));
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId));
             if (docId != DocIdSetIterator.NO_MORE_DOCS) {
                 timestamp = timestamps.nextValue();
             }

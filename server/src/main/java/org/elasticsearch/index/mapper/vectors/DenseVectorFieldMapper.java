@@ -12,12 +12,14 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
@@ -171,6 +173,40 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    private static FieldType getDenseVectorFieldType(
+        int dimension,
+        VectorEncoding vectorEncoding,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        if (dimension == 0) {
+            throw new IllegalArgumentException("cannot index an empty vector");
+        }
+        if (dimension > DenseVectorFieldMapper.MAX_DIMS_COUNT) {
+            throw new IllegalArgumentException("cannot index vectors with dimension greater than " + DenseVectorFieldMapper.MAX_DIMS_COUNT);
+        }
+        if (similarityFunction == null) {
+            throw new IllegalArgumentException("similarity function must not be null");
+        }
+        FieldType fieldType = new FieldType() {
+            @Override
+            public int vectorDimension() {
+                return dimension;
+            }
+
+            @Override
+            public VectorEncoding vectorEncoding() {
+                return vectorEncoding;
+            }
+
+            @Override
+            public VectorSimilarityFunction vectorSimilarityFunction() {
+                return similarityFunction;
+            }
+        };
+        fieldType.freeze();
+        return fieldType;
+    }
+
     public enum ElementType {
 
         BYTE(1) {
@@ -192,7 +228,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
-                return new XKnnByteVectorField(name, vector, function);
+                if (vector == null) {
+                    throw new IllegalArgumentException("vector value must not be null");
+                }
+                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.BYTE, function);
+                return new KnnByteVectorField(name, vector, denseVectorFieldType);
             }
 
             @Override
@@ -382,7 +422,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
-                return new XKnnFloatVectorField(name, vector, function);
+                if (vector == null) {
+                    throw new IllegalArgumentException("vector value must not be null");
+                }
+                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.FLOAT32, function);
+                return new KnnFloatVectorField(name, vector, denseVectorFieldType);
             }
 
             @Override

@@ -166,7 +166,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95436")
     public void testInitialFileWorks() throws Exception {
         ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
 
@@ -187,7 +186,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             invocation.callRealMethod();
             latch.countDown();
             return null;
-        }).when(service).processFileChanges();
+        }).when(service).notifyListeners();
 
         Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist

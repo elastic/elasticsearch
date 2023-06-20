@@ -262,7 +262,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         SearchRequest request = createSearchRequest();
         if (request.source() != null) {
             request.source().rankBuilder(null);
-            request.source().subSearches(new ArrayList<>());
+            if (request.source().subSearches().size() >= 2) {
+                request.source().subSearches(new ArrayList<>());
+            }
         }
         request.setForceSyntheticSource(true);
         ShardSearchRequest shardRequest = createShardSearchReqest(request);

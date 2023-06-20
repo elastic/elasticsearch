@@ -94,7 +94,7 @@ PUT my-index-000001
 
 Malformed fields are silently ignored at indexing time when `ignore_malformed`
 is turned on. Whenever possible it is recommended to keep the number of
-documents that have a malformed field contained, or queries on this field will
+documents that have a malformed field contained small, or queries on this field will
 become meaningless. Elasticsearch makes it easy to check how many documents
 have malformed fields by using `exists`,`term` or `terms` queries on the special
 <<mapping-ignored-field,`_ignored`>> field.

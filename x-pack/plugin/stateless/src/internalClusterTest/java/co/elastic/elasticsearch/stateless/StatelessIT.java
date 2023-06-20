@@ -24,7 +24,9 @@ import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,11 +39,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -52,6 +56,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -110,11 +115,12 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertThat(plugins.size(), greaterThan(0));
     }
 
-    public void testRefreshIntervalSetting() {
+    public void testRefreshIntervalSetting() throws Exception {
         startMasterOnlyNode();
         startIndexNodes(1);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         String refreshIntervalSetting = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey();
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
             Settings.builder()
@@ -124,20 +130,9 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 .build()
         );
 
-        final String indexNameWithExplicit = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String fastIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
-            indexNameWithExplicit,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .put(refreshIntervalSetting, "10s")
-                .build()
-        );
-
-        final String fastRefreshIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            fastRefreshIndex,
+            fastIndexName,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -146,25 +141,78 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 .build()
         );
 
-        ensureGreen(indexName, indexNameWithExplicit, fastRefreshIndex);
+        final Map<Index, Integer> indices = resolveIndices();
+        Index index = indices.entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        Index fastIndex = indices.entrySet().stream().filter(e -> e.getKey().getName().equals(fastIndexName)).findAny().get().getKey();
 
-        GetSettingsResponse response = client().admin()
-            .indices()
-            .prepareGetSettings(indexName, indexNameWithExplicit, fastRefreshIndex)
-            .get();
-        TimeValue refreshInterval = TimeValue.parseTimeValue(
-            response.getSetting(indexName, refreshIntervalSetting),
-            refreshIntervalSetting
+        // Non fast refresh index
+
+        assertNull("setting should not be set", getRefreshIntervalSetting(indexName, false));
+        assertEquals(
+            "unexpected default value for non fast refresh indices",
+            STATELESS_DEFAULT_REFRESH_INTERVAL,
+            getRefreshIntervalSetting(indexName, true)
         );
-        assertEquals(TimeValue.timeValueSeconds(5), refreshInterval);
+        assertRefreshIntervalConcreteValue(index, STATELESS_DEFAULT_REFRESH_INTERVAL);
+        assertTrue(setRefreshIntervalSetting(indexName, TimeValue.timeValueSeconds(120)));
+        assertEquals(TimeValue.timeValueSeconds(120), getRefreshIntervalSetting(indexName, false));
+        assertRefreshIntervalConcreteValue(index, TimeValue.timeValueSeconds(120));
+        // TODO (ES-6244): try setting to less than 5sec and assert there is a validation exception.
+        assertTrue(setRefreshIntervalSetting(indexName, TimeValue.MINUS_ONE));
+        assertEquals(TimeValue.MINUS_ONE, getRefreshIntervalSetting(indexName, false));
+        assertRefreshIntervalConcreteValue(index, TimeValue.MINUS_ONE);
+        assertTrue(setRefreshIntervalSetting(indexName, null));
+        assertEquals(STATELESS_DEFAULT_REFRESH_INTERVAL, getRefreshIntervalSetting(indexName, true));
+        assertRefreshIntervalConcreteValue(index, STATELESS_DEFAULT_REFRESH_INTERVAL);
 
-        TimeValue refreshIntervalWithExplicit = TimeValue.parseTimeValue(
-            response.getSetting(indexNameWithExplicit, refreshIntervalSetting),
-            refreshIntervalSetting
+        // Fast refresh index. The refresh interval setting should behave similarly to stateful.
+
+        assertNull("setting should not be set", getRefreshIntervalSetting(fastIndexName, false));
+        assertEquals(
+            "unexpected default value for non fast refresh indices",
+            TimeValue.timeValueSeconds(1),
+            getRefreshIntervalSetting(fastIndexName, true)
         );
-        assertEquals(TimeValue.timeValueSeconds(10), refreshIntervalWithExplicit);
+        assertRefreshIntervalConcreteValue(fastIndex, TimeValue.timeValueSeconds(1));
+        assertTrue(setRefreshIntervalSetting(fastIndexName, TimeValue.timeValueSeconds(120)));
+        assertEquals(TimeValue.timeValueSeconds(120), getRefreshIntervalSetting(fastIndexName, false));
+        assertRefreshIntervalConcreteValue(fastIndex, TimeValue.timeValueSeconds(120));
+        assertTrue(setRefreshIntervalSetting(fastIndexName, TimeValue.timeValueMillis(100)));
+        assertEquals(TimeValue.timeValueMillis(100), getRefreshIntervalSetting(fastIndexName, false));
+        assertRefreshIntervalConcreteValue(fastIndex, TimeValue.timeValueMillis(100));
+        assertTrue(setRefreshIntervalSetting(fastIndexName, TimeValue.MINUS_ONE));
+        assertEquals(TimeValue.MINUS_ONE, getRefreshIntervalSetting(fastIndexName, false));
+        assertRefreshIntervalConcreteValue(fastIndex, TimeValue.MINUS_ONE);
+        assertTrue(setRefreshIntervalSetting(fastIndexName, null));
+        assertEquals(TimeValue.timeValueSeconds(1), getRefreshIntervalSetting(fastIndexName, true));
+        assertRefreshIntervalConcreteValue(fastIndex, TimeValue.timeValueSeconds(1));
+    }
 
-        assertNull(response.getSetting(fastRefreshIndex, refreshIntervalSetting));
+    public void testScheduledRefreshBypassesSearchIdleness() throws Exception {
+        startMasterOnlyNode();
+        startIndexNodes(1);
+        String refreshIntervalSetting = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey();
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(1)).build()
+        );
+
+        indexDocs(indexName, randomIntBetween(1, 5));
+
+        final Map<Index, Integer> indices = resolveIndices();
+        Index index = indices.entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        IndexShard indexShard = findIndexShard(index, 0);
+        long genBefore = indexShard.commitStats().getGeneration();
+
+        assertBusy(
+            () -> assertThat(
+                "expected a scheduled refresh to cause the non fast refresh shard to flush and produce a new commit generation",
+                indexShard.commitStats().getGeneration(),
+                greaterThan(genBefore)
+            )
+        );
     }
 
     public void testUploadToObjectStore() {
@@ -533,4 +581,40 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {
+        var request = new GetSettingsRequest();
+        request = request.indices(index).includeDefaults(includeDefaults);
+        GetSettingsResponse response = client().admin().indices().getSettings(request).get();
+        String value = response.getSetting(index, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());
+        return TimeValue.parseTimeValue(value, null, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());
+    };
+
+    protected static void assertRefreshIntervalConcreteValue(Index index, TimeValue refreshInterval) throws Exception {
+        boolean found = false;
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            IndexService indexService = indicesService.indexService(index);
+            if (indexService != null) {
+                found = true;
+                assertThat(
+                    indexService + " did not match refresh interval",
+                    indexService.getIndexSettings().getRefreshInterval(),
+                    equalTo(refreshInterval)
+                );
+            }
+        }
+        assertThat(found, equalTo(true));
+    };
+
+    protected static boolean setRefreshIntervalSetting(String index, TimeValue timeValue) throws Exception {
+        var response = client().admin()
+            .indices()
+            .updateSettings(
+                new UpdateSettingsRequest(index).settings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), timeValue == null ? null : timeValue.getStringRep())
+                )
+            )
+            .get();
+        return response.isAcknowledged();
+    };
 }

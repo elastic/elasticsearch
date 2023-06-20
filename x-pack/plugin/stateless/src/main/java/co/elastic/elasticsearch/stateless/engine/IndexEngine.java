@@ -107,6 +107,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public boolean allowSearchIdleOptimization() {
+        return false;
+    }
+
+    @Override
     public void externalRefresh(String source, ActionListener<RefreshResult> listener) {
         // TODO: should we first check if a flush/refresh is needed or not? If not we could simply not go
         // through the throttler.

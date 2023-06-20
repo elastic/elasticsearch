@@ -604,29 +604,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             engine.rollTranslogGeneration();
                             engine.fillSeqNoGaps(newPrimaryTerm);
                             replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
-                            primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
-                                @Override
-                                public void onResponse(ResyncTask resyncTask) {
-                                    logger.info("primary-replica resync completed with {} operations", resyncTask.getResyncedOperations());
-                                    boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                    assert resyncCompleted : "primary-replica resync finished but was not started";
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                    assert resyncCompleted : "primary-replica resync finished but was not started";
-                                    if (state == IndexShardState.CLOSED) {
-                                        // ignore, shutting down
-                                    } else {
-                                        try {
-                                            failShard("exception during primary-replica resync", e);
-                                        } catch (AlreadyClosedException ace) {
-                                            // okay, the index was deleted
-                                        }
-                                    }
-                                }
-                            });
+                            initiatePrimaryReplicaSyncer(primaryReplicaSyncer);
                         } catch (final AlreadyClosedException e) {
                             // okay, the index was deleted
                         }
@@ -653,6 +631,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             useRetentionLeasesInPeerRecovery = isAllShardsUseRetentionLeases(routingTable);
         }
+    }
+
+    private void initiatePrimaryReplicaSyncer(BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer) {
+        primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
+            @Override
+            public void onResponse(ResyncTask resyncTask) {
+                logger.info("primary-replica resync completed with {} operations", resyncTask.getResyncedOperations());
+                boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                assert resyncCompleted : "primary-replica resync finished but was not started";
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                assert resyncCompleted : "primary-replica resync finished but was not started";
+                if (state == IndexShardState.CLOSED) {
+                    // ignore, shutting down
+                } else {
+                    try {
+                        failShard("exception during primary-replica resync", e);
+                    } catch (AlreadyClosedException ace) {
+                        // okay, the index was deleted
+                    }
+                }
+            }
+        });
     }
 
     private boolean isAllShardsUseRetentionLeases(IndexShardRoutingTable routingTable) {

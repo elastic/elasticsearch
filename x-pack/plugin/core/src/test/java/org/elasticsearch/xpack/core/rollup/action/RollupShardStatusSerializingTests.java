@@ -41,7 +41,7 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
 
     @Override
     protected RollupShardStatus createTestInstance() {
-        RollupShardStatus rollupShardStatus = new RollupShardStatus(
+        return new RollupShardStatus(
             new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(5)),
             randomMillisUpToYear9999(),
             randomNonNegativeLong(),
@@ -57,7 +57,6 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
             createTestAfterBulkInfoInstance(),
             randomFrom(RollupShardIndexerStatus.values())
         );
-        return rollupShardStatus;
     }
 
     private RollupBeforeBulkInfo createTestBeforeBulkInfoInstance() {

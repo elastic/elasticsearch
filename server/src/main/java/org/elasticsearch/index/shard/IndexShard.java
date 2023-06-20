@@ -2980,11 +2980,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             for (Map.Entry<String, StoreFileMetadata> entry : metadata.fileMetadataMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
-                    if (corrupt == null) {
-                        checkedFiles.add(entry.getKey());
-                    } else {
-                        logger.info("check index [ok]: checksum check passed on [{}]", entry.getKey());
-                    }
+                    addEntryInCheckFiles(corrupt, checkedFiles, entry);
                 } catch (IOException ioException) {
                     for (final String checkedFile : checkedFiles) {
                         logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
@@ -3025,6 +3021,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
+    }
+
+    private void addEntryInCheckFiles(IOException corrupt, List<String> checkedFiles, Map.Entry<String, StoreFileMetadata> entry) {
+        if (corrupt == null) {
+            checkedFiles.add(entry.getKey());
+        } else {
+            logger.info("check index [ok]: checksum check passed on [{}]", entry.getKey());
+        }
     }
 
     private MetadataSnapshot getMetadataSnapshot() throws IOException {

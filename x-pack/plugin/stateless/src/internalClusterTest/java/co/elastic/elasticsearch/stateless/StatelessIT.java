@@ -85,7 +85,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
         String commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
-        assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+        assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
             new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
             blobContainerForCommit.listBlobs().get(commitFile).length()

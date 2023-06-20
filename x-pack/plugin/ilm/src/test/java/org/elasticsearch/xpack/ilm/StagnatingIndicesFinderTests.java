@@ -13,17 +13,23 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.isStagnated;
@@ -41,9 +47,14 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         var stagnatingIndices = List.of(idxMd1.indexName, idxMd3.indexName);
         var mockedTimeSupplier = mock(LongSupplier.class);
         var instant = (long) randomIntBetween(100000, 200000);
-        var ruleEvaluator = List.<IlmHealthIndicatorService.RuleConfig>of(
+        var ruleEvaluator = Stream.<IlmHealthIndicatorService.RuleConfig>of(
             (now, indexMetadata) -> now == instant && stagnatingIndices.contains(indexMetadata.getIndex().getName())
-        );
+        ).map(rc -> (IlmHealthIndicatorService.RuleCreator) (a, b, c) -> {
+            assertEquals(a, TimeValue.timeValueDays(1));
+            assertEquals(b, TimeValue.timeValueDays(1));
+            assertEquals(c, Long.valueOf(100));
+            return rc;
+        }).collect(Collectors.toList());
         // Per the evaluator, the timeSupplier _must_ be called only twice
         when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
 
@@ -73,18 +84,29 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
             // no rule matches
             var executions = randomIntBetween(3, 200);
             var calls = new AtomicInteger(0);
+            var defaultMaxTimeOnAction = randTimeValue();
+            var defaultMaxTimeOnStep = randTimeValue();
+            Long defaultMaxRetriesPerStep = randomLongBetween(2, 100);
             var rules = IntStream.range(0, executions).mapToObj(i -> (IlmHealthIndicatorService.RuleConfig) (now, idxMd) -> {
                 assertEquals(now, moment);
                 assertSame(idxMd, indexMetadata);
                 calls.incrementAndGet();
                 return false;
+            }).map(rc -> (IlmHealthIndicatorService.RuleCreator) (a, b, c) -> {
+                assertEquals(defaultMaxTimeOnAction, a);
+                assertEquals(defaultMaxTimeOnStep, b);
+                assertEquals(defaultMaxRetriesPerStep, c);
+                return rc;
             }).toList();
-            assertFalse(isStagnated(rules, moment, indexMetadata));
+            assertFalse(isStagnated(rules, defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep, moment, indexMetadata));
             assertEquals(calls.get(), executions);
         }
         {
+            var defaultMaxTimeOnAction = randTimeValue();
+            var defaultMaxTimeOnStep = randTimeValue();
+            Long defaultMaxRetriesPerStep = randomLongBetween(2, 100);
             var calls = new AtomicReference<>(new ArrayList<Integer>());
-            var rules = List.<IlmHealthIndicatorService.RuleConfig>of((now, idxMd) -> { // will be called
+            var rules = Stream.<IlmHealthIndicatorService.RuleConfig>of((now, idxMd) -> { // will be called
                 assertEquals(now, moment);
                 assertSame(idxMd, indexMetadata);
                 calls.get().add(1);
@@ -104,11 +126,20 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
                 assertSame(idxMd, indexMetadata);
                 calls.get().add(4);
                 return false;
-            });
+            }).map(rc -> (IlmHealthIndicatorService.RuleCreator) (a, b, c) -> {
+                assertEquals(defaultMaxTimeOnAction, a);
+                assertEquals(defaultMaxTimeOnStep, b);
+                assertEquals(defaultMaxRetriesPerStep, c);
+                return rc;
+            }).toList();
 
-            assertTrue(isStagnated(rules, moment, indexMetadata));
+            assertTrue(isStagnated(rules, defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep, moment, indexMetadata));
             assertEquals(calls.get(), List.of(1, 2));
         }
+    }
+
+    private static TimeValue randTimeValue() {
+        return TimeValue.parseTimeValue(randomTimeValue(), "some.name");
     }
 
     private static IndexMetadata indexMetadataUnmanaged(String indexName) {
@@ -131,7 +162,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     }
 
     private IlmHealthIndicatorService.StagnatingIndicesFinder createStagnatingIndicesFinder(
-        Collection<IlmHealthIndicatorService.RuleConfig> evaluator,
+        Collection<IlmHealthIndicatorService.RuleCreator> evaluator,
         LongSupplier timeSupplier,
         IndexMetadata... indicesMetadata
     ) {
@@ -143,6 +174,18 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         when(state.metadata()).thenReturn(metadataBuilder.build());
 
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                Settings.EMPTY,
+                new HashSet<>(
+                    List.of(
+                        IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
+                        IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
+                        IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
+                    )
+                )
+            )
+        );
 
         return new IlmHealthIndicatorService.StagnatingIndicesFinder(clusterService, evaluator, timeSupplier);
     }

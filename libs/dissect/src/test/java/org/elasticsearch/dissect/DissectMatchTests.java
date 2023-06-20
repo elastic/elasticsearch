@@ -8,7 +8,6 @@
 
 package org.elasticsearch.dissect;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -57,7 +56,7 @@ public class DissectMatchTests extends ESTestCase {
         dissectMatch.add(new DissectKey("+a"), "z");
         Map<String, String> results = dissectMatch.getResults();
         assertThat(dissectMatch.isValid(results), equalTo(true));
-        assertThat(results, equalTo(MapBuilder.newMapBuilder().put("a", "x-y-z").map()));
+        assertThat(results, equalTo(Map.of("a", "x-y-z")));
     }
 
     public void testAppendWithOrder() {
@@ -67,7 +66,7 @@ public class DissectMatchTests extends ESTestCase {
         dissectMatch.add(new DissectKey("+a/1"), "z");
         Map<String, String> results = dissectMatch.getResults();
         assertThat(dissectMatch.isValid(results), equalTo(true));
-        assertThat(results, equalTo(MapBuilder.newMapBuilder().put("a", "y-z-x").map()));
+        assertThat(results, equalTo(Map.of("a", "y-z-x")));
     }
 
     public void testReference() {
@@ -76,7 +75,7 @@ public class DissectMatchTests extends ESTestCase {
         dissectMatch.add(new DissectKey("*a"), "y");
         Map<String, String> results = dissectMatch.getResults();
         assertThat(dissectMatch.isValid(results), equalTo(true));
-        assertThat(results, equalTo(MapBuilder.newMapBuilder().put("y", "x").map()));
+        assertThat(results, equalTo(Map.of("y", "x")));
     }
 
 }

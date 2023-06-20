@@ -15,7 +15,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -130,17 +129,8 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                         new Multi(
                             new PreProcessor[] {
                                 new NGram(TEXT_FIELD, "ngram", new int[] { 2 }, 0, 3, true),
-                                new FrequencyEncoding(
-                                    "ngram.20",
-                                    "frequency",
-                                    MapBuilder.<String, Double>newMapBuilder().put("ca", 5.0).put("do", 1.0).map(),
-                                    true
-                                ),
-                                new OneHotEncoding(
-                                    "ngram.21",
-                                    MapBuilder.<String, String>newMapBuilder().put("at", "is_cat").map(),
-                                    true
-                                ) },
+                                new FrequencyEncoding("ngram.20", "frequency", Map.of("ca", 5.0, "do", 1.0), true),
+                                new OneHotEncoding("ngram.21", Map.of("at", "is_cat"), true) },
                             true
                         )
                     ),

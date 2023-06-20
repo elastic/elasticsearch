@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -476,7 +477,7 @@ public final class DataStreamTestHelper {
             null,
             ScriptCompiler.NONE,
             false,
-            Version.CURRENT
+            IndexVersion.CURRENT
         ).build(MapperBuilderContext.root(false));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
@@ -494,7 +495,7 @@ public final class DataStreamTestHelper {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
                     true,
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();

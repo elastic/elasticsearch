@@ -20,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -95,7 +94,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.shards = Collections.unmodifiableSet(in.readSet(ShardId::new));
+            this.shards = in.readImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
         }
 

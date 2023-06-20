@@ -130,7 +130,8 @@ SELECT COUNT(*), TRUNCATE(emp_no, -2) t FROM test_emp WHERE 'aaabbb' RLIKE 'a{2,
 1              |10100
 ;
 
-inWithCompatibleDateTypes
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/96805
+inWithCompatibleDateTypes-Ignore
 SELECT birth_date FROM test_emp WHERE birth_date IN ({d '1959-07-23'}, CAST('1959-12-25T00:00:00' AS TIMESTAMP), '1964-06-02T00:00:00.000Z') OR birth_date IS NULL ORDER BY birth_date;
 
      birth_date:ts

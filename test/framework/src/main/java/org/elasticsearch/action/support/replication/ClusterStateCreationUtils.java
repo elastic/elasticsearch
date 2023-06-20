@@ -500,7 +500,7 @@ public class ClusterStateCreationUtils {
         DiscoveryNode healthNode,
         DiscoveryNode... allNodes
     ) {
-        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.CURRENT);
+        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.current());
     }
 
     /**

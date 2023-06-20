@@ -477,7 +477,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
-                () -> TransportVersion.CURRENT,
+                () -> TransportVersion.current(),
                 searchExecutionContextSupplier,
                 ScriptCompiler.NONE,
                 indexAnalyzers,

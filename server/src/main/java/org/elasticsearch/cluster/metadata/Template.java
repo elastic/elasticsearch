@@ -145,7 +145,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             this.mappings = null;
         }
         if (in.readBoolean()) {
-            this.aliases = in.readMap(StreamInput::readString, AliasMetadata::new);
+            this.aliases = in.readMap(AliasMetadata::new);
         } else {
             this.aliases = null;
         }

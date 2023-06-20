@@ -15,10 +15,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -193,7 +193,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(Version.CURRENT, fieldMapping(b -> {
+            () -> createDocumentMapper(IndexVersion.CURRENT, fieldMapping(b -> {
                 b.field("type", "ip");
                 b.field("null_value", ":1");
             }))
@@ -203,7 +203,7 @@ public class IpFieldMapperTests extends MapperTestCase {
             "Failed to parse mapping: Error parsing [null_value] on field [field]: ':1' is not an IP string literal."
         );
 
-        createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> {
+        createDocumentMapper(IndexVersion.V_7_9_0, fieldMapping(b -> {
             b.field("type", "ip");
             b.field("null_value", ":1");
         }));

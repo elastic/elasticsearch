@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
@@ -26,14 +25,6 @@ import java.util.List;
  * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
 public class TDigestState {
-
-    public static final Setting<String> EXECUTION_HINT = Setting.simpleString(
-        "search.aggs.tdigest_execution_hint",
-        "",
-        TDigestExecutionHint::parse,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     private final double compression;
 

@@ -110,7 +110,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
@@ -578,7 +578,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING,
         IngestSettings.GROK_WATCHDOG_INTERVAL,
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
-        TDigestState.EXECUTION_HINT
+        TDigestExecutionHint.SETTING
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

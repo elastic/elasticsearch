@@ -132,6 +132,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             shardId,
             shardRequestIndex,
             indexSettings,
+            clusterSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
             mapperService,
@@ -160,6 +161,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardId,
             source.shardRequestIndex,
             source.indexSettings,
+            source.clusterSettings,
             source.bitsetFilterCache,
             source.indexFieldDataLookup,
             source.mapperService,
@@ -216,6 +218,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
+        ClusterSettings clusterSettings,
         BitsetFilterCache bitsetFilterCache,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
@@ -257,6 +260,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
+        this.clusterSettings = clusterSettings;
     }
 
     private void reset() {
@@ -631,14 +635,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Override
     public final SearchExecutionContext convertToSearchExecutionContext() {
         return this;
-    }
-
-    /**
-     * Returns the index settings for this context. This might return null if the
-     * context has not index scope.
-     */
-    public IndexSettings getIndexSettings() {
-        return indexSettings;
     }
 
     /**

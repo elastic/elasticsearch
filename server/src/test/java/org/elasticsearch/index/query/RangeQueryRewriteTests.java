@@ -75,7 +75,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             0,
             0,
             indexService.getIndexSettings(),
-            null,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             indexService.mapperService(),

@@ -42,7 +42,16 @@ public @interface MvEvaluator {
     String extraName() default "";
 
     /**
-     * Method called to convert state into result.
+     * Optional method called to convert state into result.
      */
     String finish() default "";
+
+    /**
+     * Optional method called to process single valued fields. If this
+     * is missing then blocks containing only single valued fields will
+     * be returned exactly as is. If this is present then single valued
+     * fields will not call the process or finish function and instead
+     * just call this function.
+     */
+    String single() default "";
 }

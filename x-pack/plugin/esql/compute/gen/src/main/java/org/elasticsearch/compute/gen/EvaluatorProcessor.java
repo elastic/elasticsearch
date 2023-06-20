@@ -91,7 +91,8 @@ public class EvaluatorProcessor implements Processor {
                             env.getElementUtils(),
                             (ExecutableElement) evaluatorMethod,
                             mvEvaluatorAnn.extraName(),
-                            mvEvaluatorAnn.finish()
+                            mvEvaluatorAnn.finish(),
+                            mvEvaluatorAnn.single()
                         ).sourceFile(),
                         env
                     );

@@ -39,6 +39,12 @@ public final class MvAvgLongEvaluator extends AbstractMultivalueFunction.Abstrac
         continue;
       }
       int first = v.getFirstValueIndex(p);
+      if (valueCount == 1) {
+        long value = v.getLong(first);
+        double result = MvAvg.single(value);
+        builder.appendDouble(result);
+        continue;
+      }
       int end = first + valueCount;
       long value = v.getLong(first);
       for (int i = first + 1; i < end; i++) {
@@ -59,6 +65,12 @@ public final class MvAvgLongEvaluator extends AbstractMultivalueFunction.Abstrac
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
+      if (valueCount == 1) {
+        long value = v.getLong(first);
+        double result = MvAvg.single(value);
+        values[p] = result;
+        continue;
+      }
       int end = first + valueCount;
       long value = v.getLong(first);
       for (int i = first + 1; i < end; i++) {
@@ -66,6 +78,42 @@ public final class MvAvgLongEvaluator extends AbstractMultivalueFunction.Abstrac
         value = MvAvg.process(value, next);
       }
       double result = MvAvg.finish(value, valueCount);
+      values[p] = result;
+    }
+    return new DoubleArrayVector(values, positionCount);
+  }
+
+  @Override
+  public Block evalSingleValuedNullable(Block fieldVal) {
+    LongBlock v = (LongBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      if (valueCount == 0) {
+        builder.appendNull();
+        continue;
+      }
+      assert valueCount == 1;
+      int first = v.getFirstValueIndex(p);
+      long value = v.getLong(first);
+      double result = MvAvg.single(value);
+      builder.appendDouble(result);
+    }
+    return builder.build();
+  }
+
+  @Override
+  public Vector evalSingleValuedNotNullable(Block fieldVal) {
+    LongBlock v = (LongBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    double[] values = new double[positionCount];
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      assert valueCount == 1;
+      int first = v.getFirstValueIndex(p);
+      long value = v.getLong(first);
+      double result = MvAvg.single(value);
       values[p] = result;
     }
     return new DoubleArrayVector(values, positionCount);

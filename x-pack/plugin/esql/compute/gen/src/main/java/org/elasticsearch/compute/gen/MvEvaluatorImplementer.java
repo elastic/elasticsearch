@@ -15,6 +15,7 @@ import com.squareup.javapoet.TypeSpec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -40,12 +41,19 @@ public class MvEvaluatorImplementer {
     private final TypeElement declarationType;
     private final ExecutableElement processFunction;
     private final FinishFunction finishFunction;
+    private final SingleValueFunction singleValueFunction;
     private final ClassName implementation;
     private final TypeName workType;
     private final TypeName fieldType;
     private final TypeName resultType;
 
-    public MvEvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName, String finishMethodName) {
+    public MvEvaluatorImplementer(
+        Elements elements,
+        ExecutableElement processFunction,
+        String extraName,
+        String finishMethodName,
+        String singleValueFunction
+    ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = processFunction;
         if (processFunction.getParameters().size() != 2) {
@@ -75,6 +83,20 @@ public class MvEvaluatorImplementer {
             this.finishFunction = new FinishFunction(fn);
         }
 
+        if (singleValueFunction.equals("")) {
+            this.singleValueFunction = null;
+        } else {
+            ExecutableElement fn = findMethod(
+                declarationType,
+                new String[] { singleValueFunction },
+                m -> m.getParameters().size() == 1 && TypeName.get(m.getParameters().get(0).asType()).equals(fieldType)
+            );
+            if (fn == null) {
+                throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + singleValueFunction + "(" + fieldType + ")");
+            }
+            this.singleValueFunction = new SingleValueFunction(fn);
+        }
+
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             declarationType.getSimpleName() + extraName + "Evaluator"
@@ -102,6 +124,10 @@ public class MvEvaluatorImplementer {
         builder.addMethod(name());
         builder.addMethod(eval("evalNullable", true));
         builder.addMethod(eval("evalNotNullable", false));
+        if (singleValueFunction != null) {
+            builder.addMethod(evalSingleValued("evalSingleValuedNullable", true));
+            builder.addMethod(evalSingleValued("evalSingleValuedNotNullable", false));
+        }
         return builder.build();
     }
 
@@ -119,7 +145,7 @@ public class MvEvaluatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec eval(String name, boolean nullable) {
+    private MethodSpec evalShell(String name, boolean nullable, Consumer<MethodSpec.Builder> body) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(name).addModifiers(Modifier.PUBLIC);
         builder.addAnnotation(Override.class).returns(nullable ? BLOCK : VECTOR).addParameter(BLOCK, "fieldVal");
         TypeName blockType = blockType(fieldType);
@@ -161,9 +187,32 @@ public class MvEvaluatorImplementer {
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
-            builder.addStatement("int first = v.getFirstValueIndex(p)");
-            builder.addStatement("int end = first + valueCount");
+            body.accept(builder);
+        }
+        builder.endControlFlow();
 
+        if (nullable) {
+            builder.addStatement("return builder.build()");
+        } else {
+            builder.addStatement("return new $T(values, positionCount)", arrayVectorType(resultType));
+        }
+        return builder.build();
+    }
+
+    private MethodSpec eval(String name, boolean nullable) {
+        return evalShell(name, nullable, builder -> {
+            builder.addStatement("int first = v.getFirstValueIndex(p)");
+
+            if (singleValueFunction != null) {
+                builder.beginControlFlow("if (valueCount == 1)");
+                fetch(builder, "value", "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
+                singleValueFunction.call(builder);
+                writeResult(builder, nullable);
+                builder.addStatement("continue");
+                builder.endControlFlow();
+            }
+
+            builder.addStatement("int end = first + valueCount");
             if (workType.equals(fieldType)) {
                 // process function evaluates pairwise
                 fetch(builder, "value", "first", "firstScratch");
@@ -191,22 +240,18 @@ public class MvEvaluatorImplementer {
                 builder.endControlFlow();
                 finishFunction.call(builder, "work");
             }
+            writeResult(builder, nullable);
+        });
+    }
 
-            if (nullable) {
-                builder.addStatement("builder.$L(result)", appendMethod(resultType));
-            } else if (fieldType.equals(BYTES_REF)) {
-                builder.addStatement("values.append(result)");
-            } else {
-                builder.addStatement("values[p] = result");
-            }
-        }
-        builder.endControlFlow();
-        if (nullable) {
-            builder.addStatement("return builder.build()");
-        } else {
-            builder.addStatement("return new $T(values, positionCount)", arrayVectorType(resultType));
-        }
-        return builder.build();
+    private MethodSpec evalSingleValued(String name, boolean nullable) {
+        return evalShell(name, nullable, builder -> {
+            builder.addStatement("assert valueCount == 1");
+            builder.addStatement("int first = v.getFirstValueIndex(p)");
+            fetch(builder, "value", "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
+            singleValueFunction.call(builder);
+            writeResult(builder, nullable);
+        });
     }
 
     private void fetch(MethodSpec.Builder builder, String into, String index, String scratchName) {
@@ -214,6 +259,16 @@ public class MvEvaluatorImplementer {
             builder.addStatement("$T $L = v.getBytesRef($L, $L)", fieldType, into, index, scratchName);
         } else {
             builder.addStatement("$T $L = v.$L($L)", fieldType, into, getMethod(fieldType), index);
+        }
+    }
+
+    private void writeResult(MethodSpec.Builder builder, boolean nullable) {
+        if (nullable) {
+            builder.addStatement("builder.$L(result)", appendMethod(resultType));
+        } else if (fieldType.equals(BYTES_REF)) {
+            builder.addStatement("values.append(result)");
+        } else {
+            builder.addStatement("values[p] = result");
         }
     }
 
@@ -251,6 +306,22 @@ public class MvEvaluatorImplementer {
 
         private void call(MethodSpec.Builder builder, String workName) {
             builder.addStatement(invocationPattern.replace("$work$", workName), invocationArgs.toArray());
+        }
+    }
+
+    private class SingleValueFunction {
+        private final String invocationPattern;
+        private final List<Object> invocationArgs = new ArrayList<>();
+
+        private SingleValueFunction(ExecutableElement fn) {
+            invocationPattern = "$T result = $T.$L(value)";
+            invocationArgs.add(resultType);
+            invocationArgs.add(declarationType);
+            invocationArgs.add(fn.getSimpleName());
+        }
+
+        private void call(MethodSpec.Builder builder) {
+            builder.addStatement(invocationPattern, invocationArgs.toArray());
         }
     }
 }

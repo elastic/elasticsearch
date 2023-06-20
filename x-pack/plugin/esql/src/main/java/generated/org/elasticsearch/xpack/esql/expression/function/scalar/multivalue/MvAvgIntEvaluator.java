@@ -39,6 +39,12 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
         continue;
       }
       int first = v.getFirstValueIndex(p);
+      if (valueCount == 1) {
+        int value = v.getInt(first);
+        double result = MvAvg.single(value);
+        builder.appendDouble(result);
+        continue;
+      }
       int end = first + valueCount;
       int value = v.getInt(first);
       for (int i = first + 1; i < end; i++) {
@@ -59,6 +65,12 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
+      if (valueCount == 1) {
+        int value = v.getInt(first);
+        double result = MvAvg.single(value);
+        values[p] = result;
+        continue;
+      }
       int end = first + valueCount;
       int value = v.getInt(first);
       for (int i = first + 1; i < end; i++) {
@@ -66,6 +78,42 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
         value = MvAvg.process(value, next);
       }
       double result = MvAvg.finish(value, valueCount);
+      values[p] = result;
+    }
+    return new DoubleArrayVector(values, positionCount);
+  }
+
+  @Override
+  public Block evalSingleValuedNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      if (valueCount == 0) {
+        builder.appendNull();
+        continue;
+      }
+      assert valueCount == 1;
+      int first = v.getFirstValueIndex(p);
+      int value = v.getInt(first);
+      double result = MvAvg.single(value);
+      builder.appendDouble(result);
+    }
+    return builder.build();
+  }
+
+  @Override
+  public Vector evalSingleValuedNotNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    double[] values = new double[positionCount];
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      assert valueCount == 1;
+      int first = v.getFirstValueIndex(p);
+      int value = v.getInt(first);
+      double result = MvAvg.single(value);
       values[p] = result;
     }
     return new DoubleArrayVector(values, positionCount);

@@ -73,21 +73,30 @@ public class MvAvg extends AbstractMultivalueFunction {
         return value / valueCount;
     }
 
-    @MvEvaluator(extraName = "Int", finish = "finish")
+    @MvEvaluator(extraName = "Int", finish = "finish", single = "single")
     static int process(int current, int v) {
         return current + v;
     }
 
-    public static double finish(int sum, int valueCount) {
+    static double finish(int sum, int valueCount) {
         return ((double) sum) / valueCount;
     }
 
-    @MvEvaluator(extraName = "Long", finish = "finish")
+    static double single(int value) {
+        return value;
+    }
+
+    @MvEvaluator(extraName = "Long", finish = "finish", single = "single")
     static long process(long current, long v) {
         return current + v;
     }
 
-    public static double finish(long sum, int valueCount) {
+    static double finish(long sum, int valueCount) {
         return ((double) sum) / valueCount;
     }
+
+    static double single(long value) {
+        return value;
+    }
+
 }

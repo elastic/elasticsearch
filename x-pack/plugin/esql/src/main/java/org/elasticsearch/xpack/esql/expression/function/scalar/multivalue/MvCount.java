@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
@@ -68,14 +69,6 @@ public class MvCount extends AbstractMultivalueFunction {
         }
 
         @Override
-        protected Block evalSingleValued(Block fieldVal) {
-            if (fieldVal.mayHaveNulls()) {
-                return evalNullable(fieldVal);
-            }
-            return IntBlock.newConstantBlockWith(1, fieldVal.getPositionCount());
-        }
-
-        @Override
         protected Block evalNullable(Block fieldVal) {
             IntBlock.Builder builder = IntBlock.newBlockBuilder(fieldVal.getPositionCount());
             for (int p = 0; p < fieldVal.getPositionCount(); p++) {
@@ -96,6 +89,16 @@ public class MvCount extends AbstractMultivalueFunction {
                 values[p] = fieldVal.getValueCount(p);
             }
             return new IntArrayVector(values, values.length);
+        }
+
+        @Override
+        protected Block evalSingleValuedNullable(Block fieldVal) {
+            return evalNullable(fieldVal);
+        }
+
+        @Override
+        protected Vector evalSingleValuedNotNullable(Block fieldVal) {
+            return new ConstantIntVector(1, fieldVal.getPositionCount());
         }
     }
 }

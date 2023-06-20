@@ -22,7 +22,6 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -36,8 +35,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     /**
      * Matcher for single valued fields.
      */
-    protected Matcher<Object> singleValueMatcher(Object o) {
-        return equalTo(o);
+    private Matcher<Object> singleValueMatcher(Object o) {
+        return o == null ? nullValue() : resultMatcherForInput(List.of(o));
     }
 
     @Override

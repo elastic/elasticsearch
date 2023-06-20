@@ -68,21 +68,30 @@ public class FileOperatorUsersStore {
     }
 
     public boolean isOperatorUser(Authentication authentication) {
-        // Other than realm name, other criteria must always be an exact match for the user to be an operator.
-        // Realm name of a descriptor can be null. When it is null, it is ignored for comparison.
-        // If not null, it will be compared exactly as well.
-        // The special handling for realm name is because there can only be one file or native realm and it does
-        // not matter what the name is.
+
         final Authentication.RealmRef realm = authentication.getEffectiveSubject().getRealm();
         if (realm == null) {
             return false;
         }
+        // Validation per-group is done early and once. This allows this anyMatch to be agnostic to the specific rules
+        // for any specific group. For example, token_source is not allowed to be null when authentication is done via a token but
+        // null is allowed here for a generic anyMatch across any group. This safe because we require token_source to be configured
+        // when auth_type is token.
         return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
             final boolean match = group.usernames.contains(authentication.getEffectiveSubject().getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
-                && (group.realmName == null || group.realmName.equals(realm.getName()));
-            logger.trace(
+                && (group.realmName == null || group.realmName.equals(realm.getName()))
+                && (group.tokenSource == null
+                    || group.tokenSource.equalsIgnoreCase(
+                        (String) authentication.getEffectiveSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD)
+                    ))
+                && (group.tokenNames == null
+                    || group.tokenNames.isEmpty()
+                    || group.tokenNames.contains(
+                        authentication.getEffectiveSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD)
+                    ));
+            logger.error(
                 "Matching user [{}] against operator rule [{}] is [{}]",
                 authentication.getEffectiveSubject().getUser(),
                 group,

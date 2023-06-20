@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
@@ -37,6 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -106,6 +108,54 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
         // user operator_1 with non realm auth type is not an operator
         assertFalse(fileOperatorUsersStore.isOperatorUser(Authentication.newRealmAuthentication(operator_1, fileRealm).token()));
+
+        assertTrue(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .serviceAccount(new User("elastic/kibana"))
+                    .metadata(
+                        Map.of(ServiceAccountSettings.TOKEN_SOURCE_FIELD, "file", ServiceAccountSettings.TOKEN_NAME_FIELD, "kibana-token")
+                    )
+                    .build(false)
+            )
+        );
+
+        assertFalse(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .serviceAccount(new User("not/listed"))
+                    .metadata(
+                        Map.of(ServiceAccountSettings.TOKEN_SOURCE_FIELD, "file", ServiceAccountSettings.TOKEN_NAME_FIELD, "kibana-token")
+                    )
+                    .build(false)
+            )
+        );
+
+        assertFalse(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .serviceAccount(new User("elastic/kibana"))
+                    .metadata(
+                        Map.of(ServiceAccountSettings.TOKEN_SOURCE_FIELD, "index", ServiceAccountSettings.TOKEN_NAME_FIELD, "kibana-token")
+                    )
+                    .build(false)
+            )
+        );
+        assertFalse(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .serviceAccount(new User("elastic/kibana"))
+                    .metadata(
+                        Map.of(ServiceAccountSettings.TOKEN_SOURCE_FIELD, "file", ServiceAccountSettings.TOKEN_NAME_FIELD, "not-listed")
+                    )
+                    .build(false)
+            )
+        );
+
     }
 
     public void testFileAutoReload() throws Exception {
@@ -125,16 +175,27 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     "1st file parsing",
                     logger.getName(),
                     Level.INFO,
-                    "parsed [2] group(s) with a total of [3] operator user(s) from file [" + inUseFile.toAbsolutePath() + "]"
+                    "parsed [3] group(s) with a total of [4] operator user(s) from file [" + inUseFile.toAbsolutePath() + "]"
                 )
             );
 
             final FileOperatorUsersStore fileOperatorUsersStore = new FileOperatorUsersStore(env, watcherService);
             final List<FileOperatorUsersStore.Group> groups = fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups();
 
-            assertEquals(2, groups.size());
+            assertEquals(3, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_1", "operator_2"), "file"), groups.get(0));
             assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_3"), null), groups.get(1));
+            assertEquals(
+                new FileOperatorUsersStore.Group(
+                    Set.of("elastic/kibana"),
+                    null,
+                    "_service_account",
+                    "token",
+                    "file",
+                    Set.of("kibana-token")
+                ),
+                groups.get(2)
+            );
             appender.assertAllExpectationsMatched();
 
             // Content does not change, the groups should not be updated
@@ -159,8 +220,8 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             }
             assertBusy(() -> {
                 final List<FileOperatorUsersStore.Group> newGroups = fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups();
-                assertEquals(3, newGroups.size());
-                assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_4")), newGroups.get(2));
+                assertEquals(4, newGroups.size());
+                assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_4")), newGroups.get(3));
             });
             appender.assertAllExpectationsMatched();
 
@@ -172,14 +233,14 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     Level.ERROR,
                     "Failed to parse operator users file",
                     XContentParseException.class,
-                    "[10:1] [operator_privileges.operator] failed to parse field [operator]"
+                    "[15:1] [operator_privileges.operator] failed to parse field [operator]"
                 )
             );
             try (BufferedWriter writer = Files.newBufferedWriter(inUseFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.append("  - blah\n");
             }
             watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
-            assertEquals(3, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size());
+            assertEquals(4, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size());
             appender.assertAllExpectationsMatched();
 
             // Delete the file will remove all the operator users
@@ -198,7 +259,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
             // Back to original content
             Files.copy(sampleFile, inUseFile, StandardCopyOption.REPLACE_EXISTING);
-            assertBusy(() -> assertEquals(2, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size()));
+            assertBusy(() -> assertEquals(3, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size()));
         } finally {
             Loggers.removeAppender(logger, appender);
             appender.stop();

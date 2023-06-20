@@ -394,10 +394,12 @@ public class AutodetectResultProcessor {
             try {
                 bulkResultsPersister.executeRequest();
                 bulkAnnotationsPersister.executeRequest();
-                persister.commitWrites(
-                    jobId,
-                    EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
-                );
+                if (flushAcknowledgement.getRefreshRequired()) {
+                    persister.commitWrites(
+                        jobId,
+                        EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
+                    );
+                }
             } catch (Exception e) {
                 logger.error(
                     "["

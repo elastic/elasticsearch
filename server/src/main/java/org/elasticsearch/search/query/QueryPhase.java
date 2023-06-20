@@ -102,7 +102,7 @@ public class QueryPhase {
         long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
         int nodeQueueSize = querySearchResult.nodeQueueSize();
 
-        // run each of the rrf queries
+        // run each of the rank queries
         for (Query rankQuery : rankShardContext.queries()) {
             // if a search timeout occurs, exit with partial results
             if (searchTimedOut) {

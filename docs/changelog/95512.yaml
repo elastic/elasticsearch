@@ -1,5 +1,5 @@
 pr: 95512
-summary: Adding `manage_dlm` index privilege and expanding `view_index_metadata` for access to data lifecycle APIs
+summary: Adding `manage_lifecycle` index privilege and expanding `view_index_metadata` for access to data stream lifecycle APIs
 area: DLM
 type: enhancement
 issues: []

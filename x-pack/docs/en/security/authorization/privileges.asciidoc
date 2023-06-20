@@ -304,8 +304,8 @@ or data stream. This includes operations such as retrying policies and removing
 a policy from an index or data stream.
 
 ifeval::["{release-state}"!="released"]
-`manage_dlm`::
-All {Dlm} operations relating to reading and managing the lifecycle of a data stream.
+`manage_lifecycle`::
+All data stream lifecycle operations relating to reading and managing the built-in lifecycle of a data stream.
 This includes operations such as adding and removing a lifecycle from a data stream.
 endif::[]
 

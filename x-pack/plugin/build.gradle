@@ -69,7 +69,7 @@ if (BuildParams.isSnapshotBuild() == false) {
   // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
   //  which require snapshot builds:
   // * RCS 2.0. cross_cluster_search is only available with untrusted_remote_cluster_feature_flag_registered set
-  // * DLM. manage_dlm privilege is only available with dlm_feature_flag_enabled set
+  // * Data Stream Lifecycle. manage_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
   restTestBlacklist.add('api_key/50_cross_cluster/*')

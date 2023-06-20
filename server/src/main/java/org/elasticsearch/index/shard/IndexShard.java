@@ -2974,22 +2974,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
-            IOException corrupt = null;
             final MetadataSnapshot metadata = getMetadataSnapshot();
             final List<String> checkedFiles = new ArrayList<>(metadata.size());
-            for (Map.Entry<String, StoreFileMetadata> entry : metadata.fileMetadataMap().entrySet()) {
-                try {
-                    Store.checkIntegrity(entry.getValue(), store.directory());
-                    addEntryInCheckFiles(corrupt, checkedFiles, entry);
-                } catch (IOException ioException) {
-                    for (final String checkedFile : checkedFiles) {
-                        logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
-                    }
-                    checkedFiles.clear();
-                    logger.warn(() -> "check index [failure]: checksum failed on [" + entry.getKey() + "]", ioException);
-                    corrupt = ioException;
-                }
-            }
+            IOException corrupt = getCorrupt(metadata, checkedFiles);
             if (corrupt != null) {
                 throw corrupt;
             }
@@ -3021,6 +3008,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
+    }
+
+    private IOException getCorrupt(MetadataSnapshot metadata, List<String> checkedFiles) {
+        IOException corrupt = null;
+        for (Map.Entry<String, StoreFileMetadata> entry : metadata.fileMetadataMap().entrySet()) {
+            try {
+                Store.checkIntegrity(entry.getValue(), store.directory());
+                addEntryInCheckFiles(corrupt, checkedFiles, entry);
+            } catch (IOException ioException) {
+                for (final String checkedFile : checkedFiles) {
+                    logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
+                }
+                checkedFiles.clear();
+                logger.warn(() -> "check index [failure]: checksum failed on [" + entry.getKey() + "]", ioException);
+                corrupt = ioException;
+            }
+        }
+        return corrupt;
     }
 
     private void addEntryInCheckFiles(IOException corrupt, List<String> checkedFiles, Map.Entry<String, StoreFileMetadata> entry) {

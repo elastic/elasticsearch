@@ -518,10 +518,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
                 startedRelativeTimeInNanos = getRelativeTimeInNanos();
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
-            } else if (currentRouting.primary()
-                && currentRouting.relocating()
-                && replicationTracker.isRelocated()
-                && (newRouting.relocating() == false || newRouting.equalsIgnoringMetadata(currentRouting) == false)) {
+            } else if (isShardRelocated(newRouting, currentRouting)) {
                     // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
                     // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
                     // reactivate primary mode without risking two active primaries.
@@ -702,6 +699,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
         }
+    }
+
+    private boolean isShardRelocated(ShardRouting newRouting, ShardRouting currentRouting) {
+        return currentRouting.primary()
+            && currentRouting.relocating()
+            && replicationTracker.isRelocated()
+            && (newRouting.relocating() == false || newRouting.equalsIgnoringMetadata(currentRouting) == false);
     }
 
     private void validateRoutingEntry(ShardRouting newRouting, ShardRouting currentRouting) {

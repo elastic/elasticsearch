@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -44,6 +45,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -79,6 +82,30 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         null
     );
 
+    static final Setting<TimeValue> MAX_TIME_ON_ACTION_SETTING = Setting.timeSetting(
+        "health.ilm.max_time_on_action",
+        new TimeValue(1, TimeUnit.DAYS),
+        new TimeValue(1, TimeUnit.DAYS),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    static final Setting<TimeValue> MAX_TIME_ON_STEP_SETTING = Setting.timeSetting(
+        "health.ilm.max_time_on_step",
+        new TimeValue(1, TimeUnit.DAYS),
+        new TimeValue(1, TimeUnit.DAYS),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    static final Setting<Long> MAX_RETRIES_PER_STEP_SETTING = Setting.longSetting(
+        "health.ilm.max_retries_per_step",
+        100,
+        2,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
     public static final String STAGNATING_INDEX_IMPACT_ID = "stagnating_index";
     public static final List<HealthIndicatorImpact> AUTOMATION_DISABLED_IMPACT = List.of(
@@ -103,62 +130,63 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         )
     );
 
-    private static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
-    private static final long MAX_RETRIES = 100;
-
-    static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
+    static final Map<String, RuleCreator> RULES_BY_ACTION_CONFIG = Map.of(
         RolloverAction.NAME,
-        actionRule(RolloverAction.NAME).stepRules(
-            stepRuleFullChecks(WaitForActiveShardsStep.NAME, ONE_DAY, MAX_RETRIES),
-            stepRuleOnlyCheckRetries(WaitForRolloverReadyStep.NAME, MAX_RETRIES),
-            stepRuleFullChecks(RolloverStep.NAME, ONE_DAY, MAX_RETRIES)
+        (maxTimeOnAction, maxTimeOnStep, maxRetries) -> actionRule(RolloverAction.NAME).stepRules(
+            stepRuleFullChecks(WaitForActiveShardsStep.NAME, maxTimeOnStep, maxRetries),
+            stepRuleOnlyCheckRetries(WaitForRolloverReadyStep.NAME, maxRetries),
+            stepRuleFullChecks(RolloverStep.NAME, maxTimeOnStep, maxRetries)
         ),
         //
         MigrateAction.NAME,
-        actionRule(MigrateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
+        (maxTimeOnAction, maxTimeOnStep, maxRetries) -> actionRule(MigrateAction.NAME).maxTimeOnAction(maxTimeOnAction).noStepRules(),
         //
         SearchableSnapshotAction.NAME,
-        actionRule(SearchableSnapshotAction.NAME).maxTimeOnAction(ONE_DAY)
+        (maxTimeOnAction, maxTimeOnStep, maxRetries) -> actionRule(SearchableSnapshotAction.NAME).maxTimeOnAction(maxTimeOnAction)
             .stepRules(
-                stepRuleFullChecks(WaitForDataTierStep.NAME, ONE_DAY, MAX_RETRIES),
-                stepRuleFullChecks(WaitForIndexColorStep.NAME, ONE_DAY, MAX_RETRIES),
-                stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)
+                stepRuleFullChecks(WaitForDataTierStep.NAME, maxTimeOnStep, maxRetries),
+                stepRuleFullChecks(WaitForIndexColorStep.NAME, maxTimeOnStep, maxRetries),
+                stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, maxRetries)
             ),
         //
         DeleteAction.NAME,
-        actionRule(DeleteAction.NAME).stepRules(stepRuleFullChecks(DeleteStep.NAME, ONE_DAY, MAX_RETRIES)),
+        (maxTimeOnAction, maxTimeOnStep, maxRetries) -> actionRule(DeleteAction.NAME).stepRules(
+            stepRuleFullChecks(DeleteStep.NAME, maxTimeOnStep, maxRetries)
+        ),
         //
         ShrinkAction.NAME,
-        actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY)
-            .stepRules(stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)),
+        (maxTimeOnAction, maxTimeOnStep, maxRetries) -> actionRule(ShrinkAction.NAME).maxTimeOnAction(
+            maxTimeOnAction
+
+        ).stepRules(stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, maxRetries)),
         //
         AllocateAction.NAME,
-        actionRule(AllocateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
+        (maxTimeOnAction, maxTimeOnStep, maxRetries) -> actionRule(AllocateAction.NAME).maxTimeOnAction(maxTimeOnAction).noStepRules(),
         //
         ForceMergeAction.NAME,
-        actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY)
+        (maxTimeOnAction, maxTimeOnStep, maxRetries) -> actionRule(ForceMergeAction.NAME).maxTimeOnAction(maxTimeOnAction)
             .stepRules(
-                stepRuleFullChecks(WaitForIndexColorStep.NAME, ONE_DAY, MAX_RETRIES),
-                stepRuleFullChecks(ForceMergeStep.NAME, ONE_DAY, MAX_RETRIES),
-                stepRuleFullChecks(SegmentCountStep.NAME, ONE_DAY, MAX_RETRIES)
+                stepRuleFullChecks(WaitForIndexColorStep.NAME, maxTimeOnStep, maxRetries),
+                stepRuleFullChecks(ForceMergeStep.NAME, maxTimeOnStep, maxRetries),
+                stepRuleFullChecks(SegmentCountStep.NAME, maxTimeOnStep, maxRetries)
             )
         //
         // The next rule has to be commented because of this issue https://github.com/elastic/elasticsearch/issues/96705
         // DownsampleAction.NAME,
-        // actionRule(DownsampleAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME, ONE_DAY))
+        // (maxTimeOnAction, maxTimeOnStep, maxRetries) ->
+        // actionRule(DownsampleAction.NAME).maxTimeOnAction(maxTimeOnAction).stepRules(stepRule(WaitForNoFollowersStep.NAME,
+        // maxTimeOnAction))
     );
 
-    public static final Collection<RuleConfig> ILM_RULE_EVALUATOR = RULES_BY_ACTION_CONFIG.values();
-
-    static final Map<String, Diagnosis.Definition> STAGNATING_ACTION_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
+    static final Map<String, Diagnosis.Definition> STAGNATING_ACTION_DEFINITIONS = RULES_BY_ACTION_CONFIG.keySet()
         .stream()
         .collect(
             Collectors.toUnmodifiableMap(
-                Map.Entry::getKey,
-                entry -> new Diagnosis.Definition(
+                Function.identity(),
+                action -> new Diagnosis.Definition(
                     NAME,
-                    "stagnating_action:" + entry.getKey(),
-                    "Some indices have been stagnated on the action [" + entry.getKey() + "] longer than the expected time.",
+                    "stagnating_action:" + action,
+                    "Some indices have been stagnated on the action [" + action + "] longer than the expected time.",
                     "Check the current status of the Index Lifecycle Management for every affected index using the "
                         + "[GET /<affected_index_name>/_ilm/explain] API. Please replace the <affected_index_name> in the API "
                         + "with the actual index name.",
@@ -290,10 +318,10 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
      */
     static class StagnatingIndicesFinder {
         private final ClusterService clusterService;
-        private final Collection<RuleConfig> rules;
+        private final Collection<RuleCreator> rules;
         private final LongSupplier nowSupplier;
 
-        StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleConfig> rules, LongSupplier nowSupplier) {
+        StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleCreator> rules, LongSupplier nowSupplier) {
             this.clusterService = clusterService;
             this.rules = rules;
             this.nowSupplier = nowSupplier;
@@ -305,17 +333,36 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         public List<IndexMetadata> find() {
             var metadata = clusterService.state().metadata();
             var now = nowSupplier.getAsLong();
+            var clusterSettings = clusterService.getClusterSettings();
+            var defaultMaxTimeOnAction = clusterSettings.get(MAX_TIME_ON_ACTION_SETTING);
+            var defaultMaxTimeOnStep = clusterSettings.get(MAX_TIME_ON_STEP_SETTING);
+            var defaultMaxRetriesPerStep = clusterSettings.get(MAX_RETRIES_PER_STEP_SETTING);
+
             return metadata.indices()
                 .values()
                 .stream()
                 .filter(metadata::isIndexManagedByILM)
-                .filter(md -> isStagnated(rules, now, md))
+                .filter(md -> isStagnated(rules, defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep, now, md))
                 .toList();
         }
     }
 
-    static boolean isStagnated(Collection<RuleConfig> rules, Long now, IndexMetadata indexMetadata) {
-        return rules.stream().anyMatch(r -> r.test(now, indexMetadata));
+    static boolean isStagnated(
+        Collection<RuleCreator> rules,
+        TimeValue defaultMaxTimeOnAction,
+        TimeValue defaultMaxTimeOnStep,
+        Long defaultMaxRetriesPerStep,
+        Long now,
+        IndexMetadata indexMetadata
+    ) {
+        return rules.stream()
+            .map(rc -> rc.create(defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep))
+            .anyMatch(r -> r.test(now, indexMetadata));
+    }
+
+    @FunctionalInterface
+    interface RuleCreator {
+        RuleConfig create(TimeValue defaultMaxTimeOnAction, TimeValue defaultMaxTimeOnStep, Long defaultMaxRetriesPerStep);
     }
 
     @FunctionalInterface

@@ -9,12 +9,9 @@
 package org.elasticsearch.ingest;
 
 /**
- * This bridge class exposes package-private components of Ingest in a way
- * that can be consumed by Logstash's Elastic Integration Filter without
- * expanding our externally-consumable API.
- *
- * @apiNote this is an Elastic-internal API bridge intended for exclusive use by
- *          Logstash and its Elastic Integration Filter.
+ * This Elastic-internal API bridge class exposes package-private components of Ingest
+ * in a way that can be consumed by Logstash's Elastic Integration Filter without
+ * expanding Elasticsearch's externally-consumable API.
  */
 public class LogstashInternalBridge {
 

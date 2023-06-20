@@ -17,23 +17,24 @@ import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutSynonymsAction extends HandledTransportAction<PutSynonymsAction.Request, SynonymUpdateResponse> {
+public class TransportPutSynonymRuleAction extends HandledTransportAction<PutSynonymRuleAction.Request, SynonymUpdateResponse> {
 
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
     @Inject
-    public TransportPutSynonymsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutSynonymsAction.NAME, transportService, actionFilters, PutSynonymsAction.Request::new);
+    public TransportPutSynonymRuleAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(PutSynonymRuleAction.NAME, transportService, actionFilters, PutSynonymRuleAction.Request::new);
 
         this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
     }
 
     @Override
-    protected void doExecute(Task task, PutSynonymsAction.Request request, ActionListener<SynonymUpdateResponse> listener) {
-        synonymsManagementAPIService.putSynonymsSet(
+    protected void doExecute(Task task, PutSynonymRuleAction.Request request, ActionListener<SynonymUpdateResponse> listener) {
+        synonymsManagementAPIService.putSynonymRule(
             request.synonymsSetId(),
-            request.synonymRules(),
-            listener.map(SynonymUpdateResponse::new)
+            request.synonymRule(),
+            listener.map(updateResponse -> new SynonymUpdateResponse(updateResponse))
         );
+
     }
 }

@@ -1,0 +1,5 @@
+pr: 96953
+summary: Support time-series (simplify) version of `MergedGeoLines`
+area: Geo
+type: enhancement
+issues: []

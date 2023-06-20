@@ -12,8 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class ListQueryRulesetsActionRequestSerializingTests extends AbstractWireSerializingTestCase<
-    ListQueryRulesetsAction.Request> {
+public class ListQueryRulesetsActionRequestSerializingTests extends AbstractWireSerializingTestCase<ListQueryRulesetsAction.Request> {
 
     @Override
     protected Writeable.Reader<ListQueryRulesetsAction.Request> instanceReader() {

@@ -75,7 +75,9 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
      *
      * @return the total number of rules.
      */
-    public int numRules() { return numRules; }
+    public int numRules() {
+        return numRules;
+    }
 
     @Override
     public boolean equals(Object o) {

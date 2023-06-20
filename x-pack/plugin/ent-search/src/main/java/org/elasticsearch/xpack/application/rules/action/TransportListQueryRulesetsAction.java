@@ -23,11 +23,7 @@ public class TransportListQueryRulesetsAction extends HandledTransportAction<
     protected final QueryRulesIndexService systemIndexService;
 
     @Inject
-    public TransportListQueryRulesetsAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportListQueryRulesetsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(ListQueryRulesetsAction.NAME, transportService, actionFilters, ListQueryRulesetsAction.Request::new);
         this.systemIndexService = new QueryRulesIndexService(client);
     }

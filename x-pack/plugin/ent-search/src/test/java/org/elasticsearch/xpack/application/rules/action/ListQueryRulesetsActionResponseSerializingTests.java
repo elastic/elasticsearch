@@ -13,8 +13,7 @@ import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
 import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 
-public class ListQueryRulesetsActionResponseSerializingTests extends AbstractWireSerializingTestCase<
-    ListQueryRulesetsAction.Response> {
+public class ListQueryRulesetsActionResponseSerializingTests extends AbstractWireSerializingTestCase<ListQueryRulesetsAction.Response> {
 
     @Override
     protected Writeable.Reader<ListQueryRulesetsAction.Response> instanceReader() {
@@ -34,5 +33,7 @@ public class ListQueryRulesetsActionResponseSerializingTests extends AbstractWir
     }
 
     @Override
-    protected ListQueryRulesetsAction.Response createTestInstance() { return randomQueryRulesetListItem(); }
+    protected ListQueryRulesetsAction.Response createTestInstance() {
+        return randomQueryRulesetListItem();
+    }
 }

@@ -257,7 +257,7 @@ public class QueryRulesIndexService {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(new MatchAllQueryBuilder())
-                .fetchSource(new String[] {QueryRuleset.ID_FIELD.getPreferredName(), QueryRuleset.RULES_FIELD.getPreferredName()},null)
+                .fetchSource(new String[] { QueryRuleset.ID_FIELD.getPreferredName(), QueryRuleset.RULES_FIELD.getPreferredName() }, null)
                 .sort(QueryRuleset.ID_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(QUERY_RULES_ALIAS_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
@@ -282,12 +282,13 @@ public class QueryRulesIndexService {
 
     private static QueryRulesetResult mapSearchResponseToQueryRulesetList(SearchResponse response) {
         final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
-            .map(QueryRulesIndexService::hitToQueryRulesetListItem).toList();
+            .map(QueryRulesIndexService::hitToQueryRulesetListItem)
+            .toList();
         return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value);
     }
 
     private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {
-        final Map<String,Object> sourceMap = searchHit.getSourceAsMap();
+        final Map<String, Object> sourceMap = searchHit.getSourceAsMap();
         final String rulesetId = (String) sourceMap.get(QueryRuleset.ID_FIELD.getPreferredName());
         @SuppressWarnings("unchecked")
         final int numRules = ((List<QueryRule>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName())).size();

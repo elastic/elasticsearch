@@ -61,7 +61,7 @@ class JULBridge extends Handler {
         Logger logger = LogManager.getLogger(record.getLoggerName());
         Level level = translateJulLevel(record.getLevel());
         Throwable thrown = record.getThrown();
-        
+
         String rawMessage = record.getMessage();
         final String message;
         if (rawMessage == null) {
@@ -78,9 +78,9 @@ class JULBridge extends Handler {
     }
 
     private Level translateJulLevel(java.util.logging.Level julLevel) {
-        Level log4jLevel = levelMap.get(julLevel);
-        if (log4jLevel != null) {
-            return log4jLevel;
+        Level esLevel = levelMap.get(julLevel);
+        if (esLevel != null) {
+            return esLevel;
         }
         // no matching known level, so find the closest level by int value
         var closestEntry = sortedLevelMap.lowerEntry(julLevel.intValue());

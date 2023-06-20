@@ -2456,17 +2456,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (e instanceof AlreadyClosedException) {
             // ignore
         } else if (e instanceof RefreshFailedEngineException rfee) {
-            if (rfee.getCause() instanceof InterruptedException) {
-                // ignore, we are being shutdown
-            } else if (rfee.getCause() instanceof ClosedByInterruptException) {
-                // ignore, we are being shutdown
-            } else if (rfee.getCause() instanceof ThreadInterruptedException) {
-                // ignore, we are being shutdown
-            } else {
-                if (state != IndexShardState.CLOSED) {
-                    logger.warn("Failed to perform engine refresh", e);
-                }
+            handleRefreshFailed(e, rfee);
+        } else {
+            if (state != IndexShardState.CLOSED) {
+                logger.warn("Failed to perform engine refresh", e);
             }
+        }
+    }
+
+    private void handleRefreshFailed(Exception e, RefreshFailedEngineException rfee) {
+        if (rfee.getCause() instanceof InterruptedException) {
+            // ignore, we are being shutdown
+        } else if (rfee.getCause() instanceof ClosedByInterruptException) {
+            // ignore, we are being shutdown
+        } else if (rfee.getCause() instanceof ThreadInterruptedException) {
+            // ignore, we are being shutdown
         } else {
             if (state != IndexShardState.CLOSED) {
                 logger.warn("Failed to perform engine refresh", e);

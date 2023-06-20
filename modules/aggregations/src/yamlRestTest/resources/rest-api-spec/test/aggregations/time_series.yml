@@ -236,3 +236,20 @@ setup:
                     sum:
                       sum:
                         field: val
+---
+"Configure with no synthetic source":
+  - skip:
+      version: " - 8.8.99"
+      reason: "Error message fix in 8.9"
+
+  - do:
+      catch: '/Time series indices only support synthetic source./'
+      indices.create:
+        index: tsdb_error
+        body:
+          settings:
+            mode: time_series
+            routing_path: [key]
+          mappings:
+            _source:
+              enabled: false

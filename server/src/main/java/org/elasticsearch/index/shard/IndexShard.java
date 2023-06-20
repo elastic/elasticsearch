@@ -2976,15 +2976,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // physical verification only: verify all checksums for the latest commit
             final MetadataSnapshot metadata = getMetadataSnapshot();
             final List<String> checkedFiles = new ArrayList<>(metadata.size());
-            IOException corrupt = getCorrupt(metadata, checkedFiles);
+            IOException corrupt = checkIndexIntegrity(metadata, checkedFiles);
             if (corrupt != null) {
                 throw corrupt;
             }
-            if (logger.isDebugEnabled()) {
-                for (final String checkedFile : checkedFiles) {
-                    logger.debug("check index [ok]: checksum check passed on [{}]", checkedFile);
-                }
-            }
+            logChecksumPassed(checkedFiles);
         } else {
             // full checkindex
             final BytesStreamOutput os = new BytesStreamOutput();
@@ -3010,7 +3006,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
-    private IOException getCorrupt(MetadataSnapshot metadata, List<String> checkedFiles) {
+    private void logChecksumPassed(List<String> checkedFiles) {
+        if (logger.isDebugEnabled()) {
+            for (final String checkedFile : checkedFiles) {
+                logger.debug("check index [ok]: checksum check passed on [{}]", checkedFile);
+            }
+        }
+    }
+
+    private IOException checkIndexIntegrity(MetadataSnapshot metadata, List<String> checkedFiles) {
         IOException corrupt = null;
         for (Map.Entry<String, StoreFileMetadata> entry : metadata.fileMetadataMap().entrySet()) {
             try {

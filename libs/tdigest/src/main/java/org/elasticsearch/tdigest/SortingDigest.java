@@ -52,11 +52,11 @@ public class SortingDigest extends AbstractTDigest {
 
     @Override
     public void add(List<? extends TDigest> others) {
-        int valuesToAddCount = 0;
+        long valuesToAddCount = 0;
         for (TDigest other : others) {
             valuesToAddCount += other.size();
         }
-        values.ensureCapacity(valuesToAddCount + values.size());
+        reserve(valuesToAddCount);
 
         for (TDigest other : others) {
             for (Centroid centroid : other.centroids()) {

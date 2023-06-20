@@ -30,7 +30,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -147,7 +146,7 @@ public class HighlightPhase implements FetchSubPhase {
                     sourceRequired = true;
                 }
 
-                Query highlightQuery = getHighlighterQuery(context, field, fieldType);
+                Query highlightQuery = getHighlightQuery(context, field, fieldType);
 
                 builders.put(
                     fieldName,
@@ -167,33 +166,25 @@ public class HighlightPhase implements FetchSubPhase {
         return new FieldContext(storedFieldsSpec, builders);
     }
 
-    private Query getHighlighterQuery(FetchContext context, SearchHighlightContext.Field field, MappedFieldType fieldType) {
-        if (fieldType instanceof ConstantFieldType) {
-            return getHighlighterQueryForConstantFieldType(context, fieldType);
+    private Query getHighlightQuery(FetchContext context, SearchHighlightContext.Field field, MappedFieldType fieldType) {
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            return getHighlightQueryForConstantFieldType(context, constantFieldType);
         }
         return field.fieldOptions().highlightQuery();
     }
 
-    private Query getHighlighterQueryForConstantFieldType(FetchContext context, MappedFieldType fieldType) {
+    private Query getHighlightQueryForConstantFieldType(FetchContext context, ConstantFieldType fieldType) {
         if (context.query() instanceof MatchAllDocumentQueryWrapper matchAllDocumentQueryWrapper) {
             return new TermQuery(new Term(fieldType.name(), matchAllDocumentQueryWrapper.getPattern()));
         } else if (context.query() instanceof DisjunctionMaxQuery unionOfQueries) {
             for (Query query : unionOfQueries.getDisjuncts()) {
                 if (query instanceof MatchAllDocumentQueryWrapper matchAllDocumentQueryWrapper) {
-                    if (Regex.simpleMatch(matchAllDocumentQueryWrapper.getPattern(), getValueForConstantFieldType(context, fieldType))) {
-                        return new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
+                    if (Regex.simpleMatch(matchAllDocumentQueryWrapper.getPattern(), fieldType.getConstantValue(context))) {
+                        return new TermQuery(new Term(fieldType.name(), fieldType.getConstantValue(context)));
                     }
                 }
             }
         }
         return new MatchNoDocsQuery();
-    }
-
-    private String getValueForConstantFieldType(FetchContext context, MappedFieldType fieldType) {
-        try {
-            return (String) fieldType.valueFetcher(context.getSearchExecutionContext(), null).fetchValues(null, 0, List.of()).get(0);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

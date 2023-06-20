@@ -18,8 +18,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.FetchContext;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -117,6 +120,14 @@ public abstract class ConstantFieldType extends MappedFieldType {
             return Queries.newMatchAllQueryWrapper(value);
         } else {
             return new MatchNoDocsQuery();
+        }
+    }
+
+    public final String getConstantValue(FetchContext context) {
+        try {
+            return (String) valueFetcher(context.getSearchExecutionContext(), null).fetchValues(null, 0, List.of()).get(0);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

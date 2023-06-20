@@ -214,25 +214,19 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
      * Internal rollup request executed directly against a specific index shard.
      */
     public static class ShardDownsampleRequest extends BroadcastShardRequest {
-        private final long totalDocCount;
         private final long totalShardDocCount;
         private final Request request;
 
         public ShardDownsampleRequest(StreamInput in) throws IOException {
             super(in);
             this.request = new Request(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017) && in.readBoolean()) {
-                this.totalDocCount = in.readLong();
-                this.totalShardDocCount = in.readLong();
-            } else {
-                this.totalDocCount = -1;
-                this.totalShardDocCount = -1;
-            }
+            this.totalShardDocCount = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017) && in.readBoolean()
+                ? in.readLong()
+                : -1;
         }
 
-        public ShardDownsampleRequest(final ShardId shardId, long totalDocCount, long totalShardDocCount, final Request request) {
+        public ShardDownsampleRequest(final ShardId shardId, long totalShardDocCount, final Request request) {
             super(shardId, request);
-            this.totalDocCount = totalDocCount;
             this.totalShardDocCount = totalShardDocCount;
             this.request = request;
         }
@@ -263,7 +257,6 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
             request.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
                 out.writeBoolean(true);
-                out.writeLong(totalDocCount);
                 out.writeLong(totalShardDocCount);
             } else {
                 out.writeBoolean(false);
@@ -281,7 +274,6 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
                 request.downsampleRequest.getDownsampleConfig(),
                 headers,
                 shardId(),
-                totalDocCount,
                 totalShardDocCount
             );
         }

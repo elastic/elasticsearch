@@ -30,7 +30,6 @@ public class RollupShardStatus implements Task.Status {
     private static final ParseField OUT_NUM_DOCS_SENT_FIELD = new ParseField("out_num_docs_sent");
     private static final ParseField OUT_NUM_DOCS_INDEXED_FIELD = new ParseField("out_num_docs_indexed");
     private static final ParseField OUT_NUM_DOCS_FAILED_FIELD = new ParseField("out_num_docs_failed");
-    private static final ParseField TOTAL_DOC_COUNT = new ParseField("total_doc_count");
     private static final ParseField TOTAL_SHARD_DOC_COUNT = new ParseField("total_shard_doc_count");
     private static final ParseField LAST_SOURCE_TIMESTAMP = new ParseField("last_source_timestamp");
     private static final ParseField LAST_TARGET_TIMESTAMP = new ParseField("last_target_timestamp");
@@ -45,7 +44,6 @@ public class RollupShardStatus implements Task.Status {
     private final long numSent;
     private final long numIndexed;
     private final long numFailed;
-    private final long totalDocCount;
     private final long totalShardDocCount;
     private final long lastSourceTimestamp;
     private final long lastTargetTimestamp;
@@ -70,10 +68,9 @@ public class RollupShardStatus implements Task.Status {
                 (Long) args[7],
                 (Long) args[8],
                 (Long) args[9],
-                (Long) args[10],
-                (RollupBeforeBulkInfo) args[11],
-                (RollupAfterBulkInfo) args[12],
-                RollupShardIndexerStatus.valueOf((String) args[13])
+                (RollupBeforeBulkInfo) args[10],
+                (RollupAfterBulkInfo) args[11],
+                RollupShardIndexerStatus.valueOf((String) args[12])
             )
         );
 
@@ -83,7 +80,6 @@ public class RollupShardStatus implements Task.Status {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), OUT_NUM_DOCS_SENT_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), OUT_NUM_DOCS_INDEXED_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), OUT_NUM_DOCS_FAILED_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_DOC_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_SHARD_DOC_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SOURCE_TIMESTAMP);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_TARGET_TIMESTAMP);
@@ -109,7 +105,6 @@ public class RollupShardStatus implements Task.Status {
         numIndexed = in.readLong();
         numFailed = in.readLong();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017) && in.readBoolean()) {
-            totalDocCount = in.readLong();
             totalShardDocCount = in.readLong();
             lastSourceTimestamp = in.readLong();
             lastTargetTimestamp = in.readLong();
@@ -118,7 +113,6 @@ public class RollupShardStatus implements Task.Status {
             rollupAfterBulkInfo = in.readNamedWriteable(RollupAfterBulkInfo.class, RollupAfterBulkInfo.NAME);
             rollupShardIndexerStatus = in.readEnum(RollupShardIndexerStatus.class);
         } else {
-            totalDocCount = -1;
             totalShardDocCount = -1;
             lastSourceTimestamp = -1;
             lastTargetTimestamp = -1;
@@ -136,7 +130,6 @@ public class RollupShardStatus implements Task.Status {
         long numSent,
         long numIndexed,
         long numFailed,
-        long totalDocCount,
         long totalShardDocCount,
         long lastSourceTimestamp,
         long lastTargetTimestamp,
@@ -151,7 +144,6 @@ public class RollupShardStatus implements Task.Status {
         this.numSent = numSent;
         this.numIndexed = numIndexed;
         this.numFailed = numFailed;
-        this.totalDocCount = totalDocCount;
         this.totalShardDocCount = totalShardDocCount;
         this.lastSourceTimestamp = lastSourceTimestamp;
         this.lastTargetTimestamp = lastTargetTimestamp;
@@ -174,7 +166,6 @@ public class RollupShardStatus implements Task.Status {
         builder.field(OUT_NUM_DOCS_SENT_FIELD.getPreferredName(), numSent);
         builder.field(OUT_NUM_DOCS_INDEXED_FIELD.getPreferredName(), numIndexed);
         builder.field(OUT_NUM_DOCS_FAILED_FIELD.getPreferredName(), numFailed);
-        builder.field(TOTAL_DOC_COUNT.getPreferredName(), totalDocCount);
         builder.field(TOTAL_SHARD_DOC_COUNT.getPreferredName(), totalShardDocCount);
         builder.field(LAST_SOURCE_TIMESTAMP.getPreferredName(), lastSourceTimestamp);
         builder.field(LAST_TARGET_TIMESTAMP.getPreferredName(), lastTargetTimestamp);
@@ -200,7 +191,6 @@ public class RollupShardStatus implements Task.Status {
         out.writeLong(numFailed);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
             out.writeBoolean(true);
-            out.writeLong(totalDocCount);
             out.writeLong(totalShardDocCount);
             out.writeLong(lastSourceTimestamp);
             out.writeLong(lastTargetTimestamp);
@@ -223,7 +213,6 @@ public class RollupShardStatus implements Task.Status {
             && numSent == that.numSent
             && numIndexed == that.numIndexed
             && numFailed == that.numFailed
-            && totalDocCount == that.totalDocCount
             && totalShardDocCount == that.totalShardDocCount
             && lastSourceTimestamp == that.lastSourceTimestamp
             && lastTargetTimestamp == that.lastTargetTimestamp
@@ -245,7 +234,6 @@ public class RollupShardStatus implements Task.Status {
             numSent,
             numIndexed,
             numFailed,
-            totalDocCount,
             totalShardDocCount,
             lastSourceTimestamp,
             lastTargetTimestamp,

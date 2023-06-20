@@ -48,7 +48,6 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomLongBetween(1_000_000, 2_000_000),
             randomLongBetween(500_000, 800_000),
             System.currentTimeMillis(),
             System.currentTimeMillis(),

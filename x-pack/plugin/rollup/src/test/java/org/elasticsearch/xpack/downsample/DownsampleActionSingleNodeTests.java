@@ -588,8 +588,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         int shardNum = randomIntBetween(0, numOfShards - 1);
         IndexShard shard = indexService.getShard(shardNum);
 
-        long totalDocCount = client().admin().indices().stats(new IndicesStatsRequest().indices(sourceIndex)).actionGet().getTotal().docs
-            .getCount();
         long totalShardDocCount = Arrays.stream(
             client().admin().indices().stats(new IndicesStatsRequest().indices(sourceIndex)).actionGet().getShards()
         ).filter(shardStats -> shardStats.getShardRouting().shardId().equals(shard.shardId())).toList().get(0).getStats().docs.getCount();
@@ -602,7 +600,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             config,
             emptyMap(),
             shard.shardId(),
-            totalDocCount,
             totalShardDocCount
         );
         TaskCancelHelper.cancel(task, "test cancel");
@@ -680,7 +677,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             config,
             emptyMap(),
             shard.shardId(),
-            totalDocCount,
             totalShardDocCount
         );
 

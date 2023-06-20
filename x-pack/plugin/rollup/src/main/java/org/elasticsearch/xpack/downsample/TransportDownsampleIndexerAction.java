@@ -126,11 +126,6 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
         ShardRouting shard,
         DownsampleIndexerAction.Request request
     ) {
-        long totalDocCount = client.admin()
-            .indices()
-            .stats(new IndicesStatsRequest().indices(request.getDownsampleRequest().getSourceIndex()))
-            .actionGet()
-            .getTotal().docs.getCount();
         long totalShardDocCount = Arrays.stream(
             client.admin()
                 .indices()
@@ -138,7 +133,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
                 .actionGet()
                 .getShards()
         ).filter(shardStats -> shardStats.getShardRouting().shardId().equals(shard.shardId())).toList().get(0).getStats().docs.getCount();
-        return new DownsampleIndexerAction.ShardDownsampleRequest(shard.shardId(), totalDocCount, totalShardDocCount, request);
+        return new DownsampleIndexerAction.ShardDownsampleRequest(shard.shardId(), totalShardDocCount, request);
     }
 
     @Override

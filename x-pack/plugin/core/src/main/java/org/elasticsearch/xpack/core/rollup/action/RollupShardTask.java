@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RollupShardTask extends CancellableTask {
     private final String rollupIndex;
-    private final long totalDocCount;
     private final long totalShardDocCount;
     private final DownsampleConfig config;
     private final ShardId shardId;
@@ -46,7 +45,6 @@ public class RollupShardTask extends CancellableTask {
         DownsampleConfig config,
         Map<String, String> headers,
         ShardId shardId,
-        long totalDocCount,
         long totalShardDocCount
     ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
@@ -54,7 +52,6 @@ public class RollupShardTask extends CancellableTask {
         this.config = config;
         this.shardId = shardId;
         this.rollupStartTime = System.currentTimeMillis();
-        this.totalDocCount = totalDocCount;
         this.totalShardDocCount = totalShardDocCount;
     }
 
@@ -64,10 +61,6 @@ public class RollupShardTask extends CancellableTask {
 
     public DownsampleConfig config() {
         return config;
-    }
-
-    public long getTotalDocCount() {
-        return totalDocCount;
     }
 
     public long getTotalShardDocCount() {
@@ -83,7 +76,6 @@ public class RollupShardTask extends CancellableTask {
             numSent.get(),
             numIndexed.get(),
             numFailed.get(),
-            totalDocCount,
             totalShardDocCount,
             lastSourceTimestamp.get(),
             lastTargetTimestamp.get(),

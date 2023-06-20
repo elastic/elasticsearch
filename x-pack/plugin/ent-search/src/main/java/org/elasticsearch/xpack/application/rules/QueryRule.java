@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -56,6 +57,11 @@ public class QueryRule implements Writeable, ToXContentObject {
                 }
             }
             throw new IllegalArgumentException("Unknown QueryRuleType: " + type);
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

@@ -953,7 +953,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .execute();
         waitForBlockOnAnyDataNode(repoName);
         awaitNumberOfSnapshotsInProgress(1);
-        final ActionFuture<RolloverResponse> rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("ds", null));
+        final ActionFuture<RolloverResponse> rolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest("ds", null));
 
         if (partial) {
             assertTrue(rolloverResponse.get().isRolledOver());
@@ -995,11 +995,11 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .execute();
         waitForBlockOnAnyDataNode(repoName);
         awaitNumberOfSnapshotsInProgress(1);
-        final RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("ds", null)).get();
+        final RolloverResponse rolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest("ds", null)).get();
         assertTrue(rolloverResponse.isRolledOver());
 
         logger.info("--> deleting former write index");
-        assertAcked(client().admin().indices().prepareDelete(rolloverResponse.getOldIndex()));
+        assertAcked(indicesAdmin().prepareDelete(rolloverResponse.getOldIndex()));
 
         unblockAllDataNodes(repoName);
         final SnapshotInfo snapshotInfo = assertSuccessful(snapshotFuture);

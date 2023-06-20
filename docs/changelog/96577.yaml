@@ -1,0 +1,12 @@
+pr: 96577
+summary: Remove the unused executor builder for vector tile plugin
+area: Geo
+type: breaking
+issues: []
+breaking:
+  title: Remove the unused executor builder for vector tile plugin
+  area: Geo
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

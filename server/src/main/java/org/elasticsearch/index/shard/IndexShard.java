@@ -651,28 +651,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
-            final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-            boolean allShardsUseRetentionLeases = true;
-            for (int copy = 0; copy < routingTable.size(); copy++) {
-                ShardRouting shardRouting = routingTable.shard(copy);
-                if (shardRouting.isPromotableToPrimary()) {
-                    if (shardRouting.assignedToNode() == false
-                        || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting)) == false) {
+            useRetentionLeasesInPeerRecovery = isAllShardsUseRetentionLeases(routingTable);
+        }
+    }
+
+    private boolean isAllShardsUseRetentionLeases(IndexShardRoutingTable routingTable) {
+        final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
+        boolean allShardsUseRetentionLeases = true;
+        for (int copy = 0; copy < routingTable.size(); copy++) {
+            ShardRouting shardRouting = routingTable.shard(copy);
+            if (shardRouting.isPromotableToPrimary()) {
+                if (shardRouting.assignedToNode() == false
+                    || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting)) == false) {
+                    allShardsUseRetentionLeases = false;
+                    break;
+                }
+                if (this.shardRouting.relocating()) {
+                    ShardRouting shardRoutingReloc = this.shardRouting.getTargetRelocatingShard();
+                    if (shardRoutingReloc.assignedToNode() == false
+                        || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRoutingReloc)) == false) {
                         allShardsUseRetentionLeases = false;
                         break;
                     }
-                    if (this.shardRouting.relocating()) {
-                        ShardRouting shardRoutingReloc = this.shardRouting.getTargetRelocatingShard();
-                        if (shardRoutingReloc.assignedToNode() == false
-                            || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRoutingReloc)) == false) {
-                            allShardsUseRetentionLeases = false;
-                            break;
-                        }
-                    }
                 }
             }
-            useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
         }
+        return allShardsUseRetentionLeases;
     }
 
     private Engine populateEngine() throws IOException {

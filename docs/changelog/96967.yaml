@@ -1,0 +1,6 @@
+pr: 96967
+summary: Skip redundant sorting in `SortingDigest`
+area: Aggregations
+type: enhancement
+issues:
+ - 96961

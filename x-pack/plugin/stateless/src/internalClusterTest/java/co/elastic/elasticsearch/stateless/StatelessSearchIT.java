@@ -1101,7 +1101,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         indexDocsAndRefresh(indexName, randomIntBetween(1, 100));
         int customDocs = randomIntBetween(5, 10);
         for (int i = 0; i < customDocs; i++) {
-            indexDoc(indexName, "myid-" + Integer.toString(i), "foo", "bar" + i);
+            indexDoc(indexName, "myid-" + i, "foo", "bar" + i);
         }
 
         final AtomicInteger getFromTranslogActionsSent = new AtomicInteger(0);
@@ -1119,7 +1119,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         // Test get
         for (int i = 0; i < customDocs; i++) {
-            String id = "myid-" + Integer.toString(i);
+            String id = "myid-" + i;
             boolean realtime = randomBoolean();
             final var get = client().prepareGet(indexName, id).setRealtime(realtime);
             if (realtime) assertTrue(get.get().isExists());

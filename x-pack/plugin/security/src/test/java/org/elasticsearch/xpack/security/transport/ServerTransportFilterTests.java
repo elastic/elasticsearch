@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
-import static org.elasticsearch.xpack.security.transport.CrossClusterAccessServerTransportFilter.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,35 +108,22 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testCrossClusterAccessInbound() {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
-        boolean allowlisted = randomBoolean();
-        String action = allowlisted ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = randomAlphaOfLengthBetween(10, 20);
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeCrossClusterAccessFilter();
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
-        if (allowlisted) {
-            verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
-            verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
-            verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-        } else {
-            var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
-            assertThat(
-                actual.getMessage(),
-                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
-            );
-            verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
-            verifyNoMoreInteractions(authzService);
-        }
+        verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
+        verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
+        verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
     }
 
     public void testCrossClusterAccessInboundInvalidHeadersFail() {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
-        boolean allowlisted = randomBoolean();
-        String action = allowlisted ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = randomAlphaOfLengthBetween(10, 20);
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
@@ -145,30 +131,19 @@ public class ServerTransportFilterTests extends ESTestCase {
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
         filter.inbound(action, request, channel, listener);
         var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
-        if (allowlisted) {
-            verifyNoMoreInteractions(authcService);
-            verifyNoMoreInteractions(authzService);
-            assertThat(
-                actual.getMessage(),
-                containsString("is not allowed for cross cluster requests through the dedicated remote cluster server port")
-            );
-        } else {
-            verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
-            verifyNoMoreInteractions(authzService);
-            assertThat(
-                actual.getMessage(),
-                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
-            );
-        }
+        verifyNoMoreInteractions(authcService);
+        verifyNoMoreInteractions(authzService);
+        assertThat(
+            actual.getMessage(),
+            containsString("is not allowed for cross cluster requests through the dedicated remote cluster server port")
+        );
         verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
     }
 
     public void testCrossClusterAccessInboundMissingHeadersFail() {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
-        boolean allowlisted = randomBoolean();
-        String action = allowlisted ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = randomAlphaOfLengthBetween(10, 20);
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
@@ -198,27 +173,17 @@ public class ServerTransportFilterTests extends ESTestCase {
         filter.inbound(action, request, channel, listener);
         var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
 
-        if (allowlisted) {
-            verifyNoMoreInteractions(authcService);
-            verifyNoMoreInteractions(authzService);
-            assertThat(
-                actual.getMessage(),
-                equalTo(
-                    "Cross cluster requests through the dedicated remote cluster server port require transport header ["
-                        + firstMissingHeader
-                        + "] but none found. "
-                        + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
-                )
-            );
-        } else {
-            verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
-            verifyNoMoreInteractions(authzService);
-            assertThat(
-                actual.getMessage(),
-                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
-            );
-        }
+        verifyNoMoreInteractions(authcService);
+        verifyNoMoreInteractions(authzService);
+        assertThat(
+            actual.getMessage(),
+            equalTo(
+                "Cross cluster requests through the dedicated remote cluster server port require transport header ["
+                    + firstMissingHeader
+                    + "] but none found. "
+                    + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
+            )
+        );
         verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
     }
 
@@ -281,7 +246,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         Exception authE = authenticationError("authc failed");
         // Only pick allowlisted action -- it does not make sense to pick one that isn't because we will never get to authenticate in that
         // case
-        String action = randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST);
+        String action = randomAlphaOfLengthBetween(10, 20);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(3));
@@ -344,7 +309,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
         ServerTransportFilter crossClusterAccessFilter = getNodeCrossClusterAccessFilter(unsupportedLicenseState);
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
-        String action = randomBoolean() ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = randomAlphaOfLengthBetween(10, 20);
         crossClusterAccessFilter.inbound(action, mock(TransportRequest.class), channel, listener);
 
         ElasticsearchSecurityException actualException = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);

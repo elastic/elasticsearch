@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.text.MessageFormat;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.logging.Handler;
@@ -67,7 +68,7 @@ class JULBridge extends Handler {
         if (rawMessage == null) {
             message = "<null message>";
         } else {
-            message = MessageFormat.format(rawMessage, record.getParameters());
+            message = new MessageFormat(rawMessage, Locale.ROOT).format(record.getParameters());
         }
 
         if (thrown == null) {

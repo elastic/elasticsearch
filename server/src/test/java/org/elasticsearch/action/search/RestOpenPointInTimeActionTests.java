@@ -33,8 +33,11 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
             return new OpenPointInTimeResponse("n/a");
         }));
         {
+            Map<String, String> params = new HashMap<>();
+            params.put("keep_alive", "1m");
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
                 .withPath("/_pit")
+                .withParams(params)
                 .build();
             dispatchRequest(request);
             assertThat(transportRequests, hasSize(1));
@@ -45,6 +48,7 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
             int maxConcurrentRequests = randomIntBetween(1, 100);
             Map<String, String> params = new HashMap<>();
             params.put("max_concurrent_shard_requests", Integer.toString(maxConcurrentRequests));
+            params.put("keep_alive", "1m");
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
                 .withPath("/_pit")
                 .withParams(params)

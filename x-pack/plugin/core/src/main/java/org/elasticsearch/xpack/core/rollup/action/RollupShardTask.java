@@ -130,6 +130,10 @@ public class RollupShardTask extends CancellableTask {
         return rollupShardIndexerStatus.get();
     }
 
+    public float getDocsProcessedPercentage() {
+        return docsProcessedPercentage;
+    }
+
     public void addNumReceived(long count) {
         numReceived.addAndGet(count);
     }
@@ -182,7 +186,7 @@ public class RollupShardTask extends CancellableTask {
         this.indexEndTime = endTime;
     }
 
-    public void docsProcessedPercentage(float percentage) {
+    public void setDocsProcessedPercentage(float percentage) {
         this.docsProcessedPercentage = percentage;
     }
 }

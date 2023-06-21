@@ -120,6 +120,11 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
             }
+
+            @Override
+            public String getResourceName() {
+                return rulesFromSettings.resource();
+            }
         };
     }
 
@@ -158,7 +163,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             for (String line : rulesList) {
                 sb.append(line).append(System.lineSeparator());
             }
-            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
+            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings", null);
         } else if ((settings.get("synonyms_set") != null) && SynonymsAPI.isEnabled()) {
             if (analysisMode != AnalysisMode.SEARCH_TIME) {
                 throw new IllegalArgumentException(
@@ -170,21 +175,23 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             if (MasterService.isMasterUpdateThread()) {
                 return new ReaderWithOrigin(
                     new StringReader("fake rule => fake"),
-                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index"
+                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index",
+                    null
                 );
             }
             return new ReaderWithOrigin(
                 Analysis.getReaderFromIndex(synonymsSet, threadPool, synonymsManagementAPIService),
-                "[" + synonymsSet + "] synonyms_set in .synonyms index"
+                "[" + synonymsSet + "] synonyms_set in .synonyms index",
+                synonymsSet
             );
         } else if (settings.get("synonyms_path") != null) {
             String synonyms_path = settings.get("synonyms_path", null);
-            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
+            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path, null);
         } else {
             String err = SynonymsAPI.isEnabled() ? "`synonyms_set`," : "";
             throw new IllegalArgumentException("synonym requires either `synonyms`," + err + " or `synonyms_path` to be configured");
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin) {};
+    record ReaderWithOrigin(Reader reader, String origin, String resource) {}
 }

@@ -1,0 +1,124 @@
+---
+"Reload analyzers for specific synonym set":
+  - skip:
+      version: " - 8.8.99" # TODO: modify this to 8.9.99
+      reason: Reloading analyzers for specific synonym set is introduced in 8.10.0
+
+  # Create synonyms_set1
+  - do:
+      synonyms.put:
+        synonyms_set: synonyms_set1
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "synonym-rule-1"
+            - synonyms: "bye => goodbye"
+              id: "synonym-rule-2"
+
+  # Create synonyms synonyms_set2
+  - do:
+      synonyms.put:
+        synonyms_set: synonyms_set2
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "synonym-rule-1"
+            - synonyms: "bye => goodbye"
+              id: "synonym-rule-2"
+
+  # Create my_index1 with synonym_filter that uses synonyms_set1
+  - do:
+      indices.create:
+        index: my_index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym
+                  synonyms_set: synonyms_set1
+                  updateable: true
+              analyzer:
+                my_analyzer1:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer1
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "my_index1", "_id": "1"}}'
+          - '{"my_field": "hello"}'
+          - '{"index": {"_index": "my_index1", "_id": "2"}}'
+          - '{"my_field": "goodbye"}'
+
+  # Create my_index2 with synonym_filter that uses synonyms_set2
+  - do:
+      indices.create:
+        index: my_index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym
+                  synonyms_set: synonyms_set2
+                  updateable: true
+              analyzer:
+                my_analyzer2:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer2
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "my_index2", "_id": "1"}}'
+          - '{"my_field": "hello"}'
+          - '{"index": {"_index": "my_index2", "_id": "2"}}'
+          - '{"my_field": "goodbye"}'
+
+
+  # Update synonyms_set1 which must trigger auto-reloading of analyzers that only use synonyms_set1
+  - do:
+      synonyms.put:
+        synonyms_set: synonyms_set1
+        body:
+          synonyms_set:
+            - synonyms: "hello, salute"
+            - synonyms: "ciao => goodbye"
+  - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.total: 2 } # shard requests are still sent to 2 indices
+  - match: { reload_analyzers_details._shards.successful: 2 }
+  - length: { reload_analyzers_details.reload_details: 1 } # reload details contain only a single index
+  - match: { reload_analyzers_details.reload_details.0.index: "my_index1" }
+  - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0: "my_analyzer1" }
+
+  # Confirm that the index analyzers are reloaded for my_index1
+  - do:
+      search:
+        index: my_index1
+        body:
+          query:
+            match:
+              my_field:
+                query: salute
+  - match: { hits.total.value: 1 }
+

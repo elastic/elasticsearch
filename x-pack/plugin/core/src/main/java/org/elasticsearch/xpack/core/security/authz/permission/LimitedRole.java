@@ -305,26 +305,24 @@ public final class LimitedRole implements Role {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        boolean baseRoleCheck = baseRole.application()
-            .checkResourcePrivileges(
-                applicationName,
-                checkForResources,
-                checkForPrivilegeNames,
-                storedPrivileges,
-                resourcePrivilegesMapBuilder
-            );
+        boolean baseRoleCheck = baseRole.checkApplicationResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges,
+            resourcePrivilegesMapBuilder
+        );
         if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
             // short-circuit only if not interested in the detailed individual check results
             return false;
         }
-        boolean limitedByRoleCheck = limitedByRole.application()
-            .checkResourcePrivileges(
-                applicationName,
-                checkForResources,
-                checkForPrivilegeNames,
-                storedPrivileges,
-                resourcePrivilegesMapBuilder
-            );
+        boolean limitedByRoleCheck = limitedByRole.checkApplicationResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges,
+            resourcePrivilegesMapBuilder
+        );
         return baseRoleCheck && limitedByRoleCheck;
     }
 

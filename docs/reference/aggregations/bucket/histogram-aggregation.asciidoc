@@ -345,7 +345,6 @@ PUT metrics_index
       },
       "latency_histo": {
          "type": "histogram"
-        }
       }
     }
   }

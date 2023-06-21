@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -72,15 +71,9 @@ public class SearchApplication implements Writeable, ToXContentObject {
         long updatedAtMillis,
         @Nullable SearchApplicationTemplate searchApplicationTemplate
     ) {
-        if (Strings.isNullOrEmpty(name)) {
-            throw new IllegalArgumentException("Search Application name cannot be null or blank");
-        }
         this.name = name;
-
-        Objects.requireNonNull(indices, "Search Application indices cannot be null");
         this.indices = indices.clone();
         Arrays.sort(this.indices);
-
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;
         this.searchApplicationTemplate = searchApplicationTemplate != null
@@ -111,22 +104,23 @@ public class SearchApplication implements Writeable, ToXContentObject {
         (params, resourceName) -> {
             final String name = (String) params[0];
             // If name is provided, check that it matches the resource name. We don't want it to be updatable
-            if (name != null) {
-                if (name.equals(resourceName) == false) {
-                    throw new IllegalArgumentException(
-                        "Search Application name [" + name + "] does not match the resource name: [" + resourceName + "]"
-                    );
-                }
-            }
+            // TODO - verify we still want this check here
+            // if (name != null) {
+            // if (name.equals(resourceName) == false) {
+            // throw new IllegalArgumentException(
+            // "Search Application name [" + name + "] does not match the resource name: [" + resourceName + "]"
+            // );
+            // }
+            // }
             @SuppressWarnings("unchecked")
-            final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
+            final List<String> maybeIndices = (List<String>) params[1];
+            final String[] indices = (maybeIndices != null ? maybeIndices.toArray(String[]::new) : new String[0]);
             final String analyticsCollectionName = (String) params[2];
             final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
             final SearchApplicationTemplate template = (SearchApplicationTemplate) params[4];
 
-            SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
-            return newApp;
+            return new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
         }
     );
 
@@ -140,7 +134,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
-        PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
         PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> SearchApplicationTemplate.parse(p), null, TEMPLATE_FIELD);

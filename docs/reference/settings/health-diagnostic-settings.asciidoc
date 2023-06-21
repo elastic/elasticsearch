@@ -35,3 +35,13 @@ cluster wide health aspects such as disk space.
 `health.reporting.local.monitor.interval`::
 (<<cluster-update-settings,Dynamic>>) Determines the interval in which each node of the cluster monitors aspects that
 comprise its local health such as its disk usage.
+
+`health.ilm.max_time_on_action`::
+(<<cluster-update-settings,Dynamic>>) The minimum amount of time an index has to be in an ILM action before it is considered stagnant. Defaults to `1d` (1 day).
+
+`health.ilm.max_time_on_step`::
+(<<cluster-update-settings,Dynamic>>) The minimum amount of time an index has to be in an ILM step before it is considered stagnant. Defaults to `1d` (1 day).
+
+`health.ilm.max_retries_per_step`::
+(<<cluster-update-settings,Dynamic>>) The minimum amount of times an index has retried by an ILM step before it is considered stagnant. Defaults to `100`
+

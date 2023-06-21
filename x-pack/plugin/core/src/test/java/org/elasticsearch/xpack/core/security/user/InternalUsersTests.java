@@ -214,8 +214,8 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(role, randomFrom(sampleDeniedActions), INTERNAL_SECURITY_MAIN_INDEX_7, false);
     }
 
-    public void testDlmUser() {
-        assertThat(InternalUsers.getUser("_dlm"), is(InternalUsers.DATA_STREAM_LIFECYCLE_USER));
+    public void testDataStreamLifecycleUser() {
+        assertThat(InternalUsers.getUser("_data_stream_lifecycle"), is(InternalUsers.DATA_STREAM_LIFECYCLE_USER));
         assertThat(
             InternalUsers.DATA_STREAM_LIFECYCLE_USER.getLocalClusterRoleDescriptor().get().getMetadata(),
             equalTo(MetadataUtils.DEFAULT_RESERVED_METADATA)

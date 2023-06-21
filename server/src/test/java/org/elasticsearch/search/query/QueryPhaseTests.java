@@ -89,7 +89,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.search.query.TopDocsCollectorManagerFactory.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
@@ -355,28 +354,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
      * A match all query is used to leverage the hit count shortcut as it enables retrieving the count from the index statistics.
      */
     public void testTerminateAfterSize0HitCountShortcut() throws Exception {
-        indexDocs();
-        // TotalHitCountCollector (used when size==0) shortcuts total hit count (using Weight#count) segment by segment.
-        // With shortcut enabled, PartialHitCountCollector will figure out that the threshold is reached at the beginning
-        // of the following leaf collection. That's why the returned total hit count may be higher than terminate_after
-        // (or track_total_hits), yet lower than the number of docs depending on number of segments and documents distribution.
-        IntUnaryOperator countDocUpTo = terminateAfter -> {
-            int total = 0;
-            for (LeafReaderContext leaf : reader.leaves()) {
-                total += leaf.reader().numDocs();
-                if (total >= terminateAfter) {
-                    break;
-                }
-            }
-            return total;
-        };
+        int numDocs = indexDocs();
         {
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 1), new MatchAllDocsQuery());
             context.terminateAfter(1);
             context.setSize(0);
             QueryPhase.addCollectorsAndSearch(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(1)));
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(getExpectedTotalHitCountWithShortcut(reader, 1)));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
@@ -401,9 +386,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.trackTotalHitsUpTo(trackTotalHits);
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(trackTotalHits)));
-            // TODO this looks off, total hits tracking was early terminated, should be greater than or equal to?
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(
+                context.queryResult().topDocs().topDocs.totalHits.value,
+                equalTo(getExpectedTotalHitCountWithShortcut(reader, trackTotalHits))
+            );
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
         {
@@ -411,13 +398,54 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is greater than terminate_after but lower than the number of docs
-            context.trackTotalHitsUpTo(randomIntBetween(11, 1000));
+            int totalHitsThreshold = randomIntBetween(11, numDocs - 1);
+            context.trackTotalHitsUpTo(totalHitsThreshold);
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(10)));
+            long expectedTotalHitCount = getExpectedTotalHitCountWithShortcut(reader, 10);
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(expectedTotalHitCount));
+            // we return GREATER_THAN_OR_EQUAL_TO whenever PartialHitCountCollector early terminates total hits tracking because it detects
+            // that total hits went above the provided threshold. Depending on number of docs in segments, it can happen that
+            // terminate_after
+            // kicks in first, in which case we'll return EQUAL_TO.
+            // TODO Ideally, the behaviour would be consistent here. It looks odd that we return EQUAL_TO when we early terminate.
+            TotalHits.Relation expectedRelation = expectedTotalHitCount <= totalHitsThreshold
+                ? TotalHits.Relation.EQUAL_TO
+                : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(expectedRelation));
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+        }
+        {
+            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 10), new MatchAllDocsQuery());
+            context.terminateAfter(10);
+            context.setSize(0);
+            // track total hits is greater than or equal to the number of docs
+            context.trackTotalHitsUpTo(randomIntBetween(numDocs, Integer.MAX_VALUE));
+            QueryPhase.executeQuery(context);
+            assertTrue(context.queryResult().terminatedEarly());
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(getExpectedTotalHitCountWithShortcut(reader, 10)));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
+    }
+
+    /**
+     * Computes the expected early terminated hit count when retrieved from {@link Weight#count(LeafReaderContext)}, given the
+     * <code>totalHitsThreshold</code>.
+     * {@link org.apache.lucene.search.TotalHitCountCollector} (used when size==0) shortcuts total hit count via
+     * {@link Weight#count(LeafReaderContext)} segment by segment. When that happens, {@link PartialHitCountCollector} will detect that
+     * the threshold is reached at the beginning of the following leaf collection. That means that the returned total hit count may be
+     * higher than <code>terminate_after</code> or <code>track_total_hits</code> (yet lower than the number of docs).
+     */
+    private static long getExpectedTotalHitCountWithShortcut(IndexReader reader, int totalHitsThreshold) {
+        int total = 0;
+        for (LeafReaderContext leaf : reader.leaves()) {
+            total += leaf.reader().numDocs();
+            if (total >= totalHitsThreshold) {
+                break;
+            }
+        }
+        return total;
     }
 
     /**
@@ -471,7 +499,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is higher than terminate_after
-            context.trackTotalHitsUpTo(randomIntBetween(11, 1000));
+            context.trackTotalHitsUpTo(randomIntBetween(11, Integer.MAX_VALUE));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(10L));
@@ -548,10 +576,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), new MatchAllDocsQuery());
             context.terminateAfter(7);
             context.setSize(10);
-            // track_total_hits is greater than terminate_after yet lower than the number of documents
-            context.trackTotalHitsUpTo(randomIntBetween(8, 1000));
+            // track_total_hits is greater than terminate_after
+            context.trackTotalHitsUpTo(randomIntBetween(8, Integer.MAX_VALUE));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
+            // this is from our own shortcutTotalHitCount, which does not early terminate based on track_total_hits
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
@@ -624,7 +653,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             // size is greater than terminate_after
             context.setSize(10);
             // track_total_hits is also greater than terminate_after
-            context.trackTotalHitsUpTo(randomIntBetween(8, 1000));
+            context.trackTotalHitsUpTo(randomIntBetween(8, Integer.MAX_VALUE));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(7L));

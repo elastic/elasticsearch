@@ -18,7 +18,10 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import java.io.IOException;
 
 /**
- * Extension of {@link TotalHitCountCollector} that supports early termination of total hits tracking based on a provided threshold
+ * Extension of {@link TotalHitCountCollector} that supports early termination of total hits tracking based on a provided threshold.
+ * Supports early termination when the total hit count is retrieved via {@link org.apache.lucene.search.Weight#count(LeafReaderContext)},
+ * in which case though the termination will be detected in-between segments and the partial total hit count will likely be higher than
+ * the <code>totalHitsThreshold</code>.
  */
 class PartialHitCountCollector extends TotalHitCountCollector {
 
@@ -37,24 +40,30 @@ class PartialHitCountCollector extends TotalHitCountCollector {
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        if (getTotalHits() >= totalHitsThreshold) {
-            earlyTerminate();
+        earlyTerminateIfNeeded();
+        LeafCollector leafCollector;
+        try {
+            leafCollector = super.getLeafCollector(context);
+        } catch (CollectionTerminatedException e) {
+            if (getTotalHits() > totalHitsThreshold) {
+                earlyTerminated = true;
+            }
+            throw e;
         }
-        LeafCollector leafCollector = super.getLeafCollector(context);
         return new FilterLeafCollector(leafCollector) {
             @Override
             public void collect(int doc) throws IOException {
+                earlyTerminateIfNeeded();
                 super.collect(doc);
-                if (getTotalHits() >= totalHitsThreshold) {
-                    earlyTerminate();
-                }
             }
         };
     }
 
-    private void earlyTerminate() {
-        earlyTerminated = true;
-        throw new CollectionTerminatedException();
+    private void earlyTerminateIfNeeded() {
+        if (getTotalHits() >= totalHitsThreshold) {
+            earlyTerminated = true;
+            throw new CollectionTerminatedException();
+        }
     }
 
     boolean hasEarlyTerminated() {

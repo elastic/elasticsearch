@@ -29,6 +29,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -122,7 +123,7 @@ public class FetchPhase {
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
-                profiler.startNextReader();
+                Timer timer = profiler.startNextReader();
                 this.ctx = ctx;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
@@ -131,7 +132,7 @@ public class FetchPhase {
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);
                 }
-                profiler.stopNextReader();
+                timer.stop();
             }
 
             @Override
@@ -235,11 +236,11 @@ public class FetchPhase {
             SearchHit hit = new SearchHit(docId, leafStoredFieldLoader.id());
             Source source;
             if (requiresSource) {
+                Timer timer = profiler.startLoadingSource();
                 try {
-                    profiler.startLoadingSource();
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                 } finally {
-                    profiler.stopLoadingSource();
+                    timer.stop();
                 }
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
@@ -318,13 +319,9 @@ public class FetchPhase {
 
         StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader);
 
-        void startLoadingSource();
+        Timer startLoadingSource();
 
-        void stopLoadingSource();
-
-        void startNextReader();
-
-        void stopNextReader();
+        Timer startNextReader();
 
         Profiler NOOP = new Profiler() {
             @Override
@@ -343,16 +340,14 @@ public class FetchPhase {
             }
 
             @Override
-            public void startLoadingSource() {}
+            public Timer startLoadingSource() {
+                return null;
+            }
 
             @Override
-            public void stopLoadingSource() {}
-
-            @Override
-            public void startNextReader() {}
-
-            @Override
-            public void stopNextReader() {}
+            public Timer startNextReader() {
+                return null;
+            }
 
             @Override
             public String toString() {

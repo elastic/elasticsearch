@@ -47,7 +47,8 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-        Timer timer = profile.getTimer(QueryTimingType.BUILD_SCORER);
+        // TODO this is called concurrently now but we only have one timer!
+        final Timer timer = profile.getNewTimer(QueryTimingType.BUILD_SCORER);
         timer.start();
         final ScorerSupplier subQueryScorerSupplier;
         try {
@@ -103,7 +104,7 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public int count(LeafReaderContext context) throws IOException {
-        Timer timer = profile.getTimer(QueryTimingType.COUNT_WEIGHT);
+        Timer timer = profile.getNewTimer(QueryTimingType.COUNT_WEIGHT);
         timer.start();
         try {
             return subQueryWeight.count(context);

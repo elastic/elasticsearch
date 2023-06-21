@@ -82,4 +82,9 @@ public class Timer {
         }
         return timing;
     }
+
+    @Override
+    public String toString() {
+        return "time=" + getApproximateTiming();
+    }
 }

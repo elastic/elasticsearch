@@ -11,6 +11,7 @@ package org.elasticsearch.search.profile.dfs;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -44,12 +45,16 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         totalTime = System.nanoTime() - startTime;
     }
 
-    public void startTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).start();
+    public Timer startTimer(DfsTimingType dfsTimingType) {
+        Timer newTimer = getNewTimer(dfsTimingType);
+        newTimer.start();
+        return newTimer;
     }
 
-    public void stopTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).stop();
+    public Timer stopTimer(DfsTimingType dfsTimingType) {
+        Timer newTimer = getNewTimer(dfsTimingType);
+        newTimer.stop();
+        return newTimer;
     }
 
     public QueryProfiler addQueryProfiler(ProfileCollectorManager collectorManager) {

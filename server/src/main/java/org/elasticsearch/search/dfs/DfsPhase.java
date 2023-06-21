@@ -24,6 +24,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
@@ -40,7 +41,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -68,15 +69,11 @@ public class DfsPhase {
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         Map<Term, TermStatistics> stats = new HashMap<>();
-        final Consumer<DfsTimingType> maybeStart = dtt -> {
+        final Function<DfsTimingType, Timer> maybeStart = dtt -> {
             if (profiler != null) {
-                profiler.startTimer(dtt);
+                return profiler.startTimer(dtt);
             }
-        };
-        final Consumer<DfsTimingType> maybeStop = dtt -> {
-            if (profiler != null) {
-                profiler.stopTimer(dtt);
-            }
+            return null;
         };
 
         IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
@@ -85,7 +82,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                maybeStart.accept(DfsTimingType.TERM_STATISTICS);
+                Timer timer = maybeStart.apply(DfsTimingType.TERM_STATISTICS);
                 try {
                     TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
@@ -93,7 +90,9 @@ public class DfsPhase {
                     }
                     return ts;
                 } finally {
-                    maybeStop.accept(DfsTimingType.TERM_STATISTICS);
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             }
 
@@ -102,7 +101,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                maybeStart.accept(DfsTimingType.COLLECTION_STATISTICS);
+                Timer timer = maybeStart.apply(DfsTimingType.COLLECTION_STATISTICS);
                 try {
                     CollectionStatistics cs = super.collectionStatistics(field);
                     if (cs != null) {
@@ -110,7 +109,9 @@ public class DfsPhase {
                     }
                     return cs;
                 } finally {
-                    maybeStop.accept(DfsTimingType.COLLECTION_STATISTICS);
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             }
         };
@@ -120,26 +121,32 @@ public class DfsPhase {
         }
 
         try {
+            Timer timer = maybeStart.apply(DfsTimingType.CREATE_WEIGHT);
             try {
-                maybeStart.accept(DfsTimingType.CREATE_WEIGHT);
                 searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
             } finally {
-                maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
+                if (timer != null) {
+                    timer.stop();
+                }
             }
             for (RescoreContext rescoreContext : context.rescore()) {
                 for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
                     final Query rewritten;
+                    timer = maybeStart.apply(DfsTimingType.REWRITE);
                     try {
-                        maybeStart.accept(DfsTimingType.REWRITE);
                         rewritten = searcher.rewrite(parsedQuery.query());
                     } finally {
-                        maybeStop.accept(DfsTimingType.REWRITE);
+                        if (timer != null) {
+                            timer.stop();
+                        }
                     }
+                    timer = maybeStart.apply(DfsTimingType.CREATE_WEIGHT);
                     try {
-                        maybeStart.accept(DfsTimingType.CREATE_WEIGHT);
                         searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
                     } finally {
-                        maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
+                        if (timer != null) {
+                            timer.stop();
+                        }
                     }
                 }
             }

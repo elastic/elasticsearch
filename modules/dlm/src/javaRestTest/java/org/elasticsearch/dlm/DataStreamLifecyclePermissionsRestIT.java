@@ -141,12 +141,15 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
             makeRequest(client(), putLifecycleRequest, true);
 
             try (
-                RestClient nonDlmManagerClient = buildClient(restUnprivilegedClientSettings(), getClusterHosts().toArray(new HttpHost[0]))
+                RestClient nonDataStreamLifecycleManagerClient = buildClient(
+                    restUnprivilegedClientSettings(),
+                    getClusterHosts().toArray(new HttpHost[0])
+                )
             ) {
-                makeRequest(nonDlmManagerClient, explainLifecycleRequest, true);
-                makeRequest(nonDlmManagerClient, getLifecycleRequest, true);
-                makeRequest(nonDlmManagerClient, deleteLifecycleRequest, false);
-                makeRequest(nonDlmManagerClient, putLifecycleRequest, false);
+                makeRequest(nonDataStreamLifecycleManagerClient, explainLifecycleRequest, true);
+                makeRequest(nonDataStreamLifecycleManagerClient, getLifecycleRequest, true);
+                makeRequest(nonDataStreamLifecycleManagerClient, deleteLifecycleRequest, false);
+                makeRequest(nonDataStreamLifecycleManagerClient, putLifecycleRequest, false);
             }
         }
         {

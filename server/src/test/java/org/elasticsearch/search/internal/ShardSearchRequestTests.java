@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -257,11 +258,13 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertThat(invoked.get(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96910")
     public void testForceSyntheticUnsupported() throws IOException {
         SearchRequest request = createSearchRequest();
         if (request.source() != null) {
             request.source().rankBuilder(null);
+            if (request.source().subSearches().size() >= 2) {
+                request.source().subSearches(new ArrayList<>());
+            }
         }
         request.setForceSyntheticSource(true);
         ShardSearchRequest shardRequest = createShardSearchReqest(request);

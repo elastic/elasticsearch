@@ -14,9 +14,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -351,10 +351,15 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
     }
 
-    public void testWriteThreadPoolUsesEWMATrackingEsThreadPoolExecutor() {
+    public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
-            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(EWMATrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(
+                threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
+                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+            );
         } finally {
             assertTrue(terminate(threadPool));
         }

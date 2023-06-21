@@ -284,13 +284,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         stopInternal();
     }
 
-    /**
-     * Close the client channel after a new request.
-     */
-    void gracefullyCloseConnections() {
-        shuttingDown = true;
-    }
-
     public boolean isAcceptingConnections() {
         return shuttingDown == false;
     }
@@ -578,7 +571,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         final RefCounted refCounted = AbstractRefCounted.of(this::closeInner);
         final HttpChannel inner;
 
-        public RequestTrackingHttpChannel(HttpChannel inner) {
+        RequestTrackingHttpChannel(HttpChannel inner) {
             this.inner = inner;
         }
 

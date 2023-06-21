@@ -422,7 +422,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 headers
             );
 
-            transport.incomingRequest(fakeHttpRequest, null);
+            transport.incomingRequest(fakeHttpRequest, new TestHttpChannel());
         }
     }
 
@@ -444,7 +444,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 headers
             );
 
-            transport.incomingRequest(fakeHttpRequest, null);
+            transport.incomingRequest(fakeHttpRequest, new TestHttpChannel());
         }
         try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Content-Type"))) {
             Map<String, List<String>> headers = new HashMap<>();
@@ -460,7 +460,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 headers
             );
 
-            transport.incomingRequest(fakeHttpRequest, null);
+            transport.incomingRequest(fakeHttpRequest, new TestHttpChannel());
         }
     }
 
@@ -904,33 +904,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public void testSetGracefulClose() {
-        try (AbstractHttpServerTransport transport = new TestHttpServerTransport(Settings.EMPTY)) {
-            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-
-            HttpChannel httpChannel = mock(HttpChannel.class);
-            transport.incomingRequest(httpRequest, httpChannel);
-
-            var response = ArgumentCaptor.forClass(TestHttpResponse.class);
-            var listener = ArgumentCaptor.forClass(ActionListener.class);
-            verify(httpChannel).sendResponse(response.capture(), listener.capture());
-
-            listener.getValue().onResponse(null);
-            assertThat(response.getValue().containsHeader(CONNECTION), is(false));
-            verify(httpChannel, never()).close();
-
-            httpChannel = mock(HttpChannel.class);
-            transport.gracefullyCloseConnections();
-            transport.incomingRequest(httpRequest, httpChannel);
-            verify(httpChannel).sendResponse(response.capture(), listener.capture());
-
-            listener.getValue().onResponse(null);
-            assertThat(response.getValue().headers().get(CONNECTION), containsInAnyOrder(DefaultRestChannel.CLOSE));
-            verify(httpChannel).close();
-        }
-    }
-
     public void testStopDoesntWaitIfGraceIsZero() {
         try (TestHttpServerTransport transport = new TestHttpServerTransport(Settings.EMPTY)) {
             transport.bindServer();
@@ -1092,12 +1065,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertFalse(idleChannel.isOpen());
 
             assertThat(httpChannel.responses, hasSize(2));
-            HttpResponse first = httpChannel.responses.get(0);
-            HttpResponse last = httpChannel.responses.get(1);
-            assertFalse(first.containsHeader(CONNECTION));
-            assertTrue(last.containsHeader(CONNECTION));
-            assertThat(last, instanceOf(TestHttpResponse.class));
-            assertThat(((TestHttpResponse) last).headers().get(CONNECTION).get(0), equalTo(CLOSE));
         }
     }
 
@@ -1139,9 +1106,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             HttpResponse first = httpChannel.responses.get(0);
             HttpResponse last = httpChannel.responses.get(1);
             assertFalse(first.containsHeader(CONNECTION));
-            assertTrue(last.containsHeader(CONNECTION));
             assertThat(last, instanceOf(TestHttpResponse.class));
-            assertThat(((TestHttpResponse) last).headers().get(CONNECTION).get(0), equalTo(CLOSE));
         }
 
     }

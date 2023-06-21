@@ -361,7 +361,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 )
         );
 
-        client().admin().indices().prepareAliases().addAlias("test", "alias1", QueryBuilders.termQuery("field1", "value1")).get();
+        indicesAdmin().prepareAliases().addAlias("test", "alias1", QueryBuilders.termQuery("field1", "value1")).get();
 
         ensureGreen();
 
@@ -1564,7 +1564,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
 
         // Now add nested mapping
-        assertAcked(client().admin().indices().preparePutMapping("test").setSource("array1", "type=nested"));
+        assertAcked(indicesAdmin().preparePutMapping("test").setSource("array1", "type=nested"));
 
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("array1")
@@ -1596,16 +1596,15 @@ public class SimpleNestedIT extends ESIntegTestCase {
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0L));
 
-        assertAcked(client().admin().indices().prepareDelete("test"));
+        assertAcked(indicesAdmin().prepareDelete("test"));
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
     }
 
     private void assertDocumentCount(String index, long numdocs) {
-        IndicesStatsResponse stats = admin().indices().prepareStats(index).clear().setDocs(true).get();
+        IndicesStatsResponse stats = indicesAdmin().prepareStats(index).clear().setDocs(true).get();
         assertNoFailures(stats);
         assertThat(stats.getIndex(index).getPrimaries().docs.getCount(), is(numdocs));
-
     }
 
 }

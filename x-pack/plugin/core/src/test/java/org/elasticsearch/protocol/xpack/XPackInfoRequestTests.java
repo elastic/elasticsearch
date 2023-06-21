@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class XPackInfoRequestTests extends ESTestCase {
 
     public void testSerializeToCurrentVersion() throws Exception {
-        assertSerialization(TransportVersion.CURRENT);
+        assertSerialization(TransportVersion.current());
     }
 
     public void testSerializeUsing7xVersion() throws Exception {

@@ -388,7 +388,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         client().prepareUpdate(indexOrAlias(), "1").setRouting(routingValue).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").get();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             try {

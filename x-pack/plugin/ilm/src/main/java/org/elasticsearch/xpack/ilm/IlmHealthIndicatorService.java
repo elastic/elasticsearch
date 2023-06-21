@@ -53,7 +53,8 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.RuleConfig.Builder.actionRule;
-import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.StepRule.stepRule;
+import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.StepRule.stepRuleFullChecks;
+import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.StepRule.stepRuleOnlyCheckRetries;
 
 /**
  * This indicator reports health for index lifecycle management component.
@@ -103,13 +104,14 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     private static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
+    private static final long MAX_RETRIES = 100;
 
     static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
         RolloverAction.NAME,
         actionRule(RolloverAction.NAME).stepRules(
-            stepRule(WaitForActiveShardsStep.NAME, ONE_DAY),
-            stepRule(WaitForRolloverReadyStep.NAME, ONE_DAY),
-            stepRule(RolloverStep.NAME, ONE_DAY)
+            stepRuleFullChecks(WaitForActiveShardsStep.NAME, ONE_DAY, MAX_RETRIES),
+            stepRuleOnlyCheckRetries(WaitForRolloverReadyStep.NAME, MAX_RETRIES),
+            stepRuleFullChecks(RolloverStep.NAME, ONE_DAY, MAX_RETRIES)
         ),
         //
         MigrateAction.NAME,
@@ -118,22 +120,17 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         SearchableSnapshotAction.NAME,
         actionRule(SearchableSnapshotAction.NAME).maxTimeOnAction(ONE_DAY)
             .stepRules(
-                stepRule(WaitForDataTierStep.NAME, ONE_DAY),
-                stepRule(WaitForIndexColorStep.NAME, ONE_DAY),
-                // The no-follower step is added here because an `UnfollowAction` is added before the `shrinkAction` in the follower cluster
-                stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)
+                stepRuleFullChecks(WaitForDataTierStep.NAME, ONE_DAY, MAX_RETRIES),
+                stepRuleFullChecks(WaitForIndexColorStep.NAME, ONE_DAY, MAX_RETRIES),
+                stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)
             ),
         //
         DeleteAction.NAME,
-        actionRule(DeleteAction.NAME).stepRules(stepRule(DeleteStep.NAME, ONE_DAY)),
+        actionRule(DeleteAction.NAME).stepRules(stepRuleFullChecks(DeleteStep.NAME, ONE_DAY, MAX_RETRIES)),
         //
         ShrinkAction.NAME,
         actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY)
-            .stepRules(
-                // The no-follower step is added here because an `unfollowAction` is added before the `shrinkAction` in the follower
-                // cluster.
-                stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)
-            ),
+            .stepRules(stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)),
         //
         AllocateAction.NAME,
         actionRule(AllocateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
@@ -141,9 +138,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         ForceMergeAction.NAME,
         actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY)
             .stepRules(
-                stepRule(WaitForIndexColorStep.NAME, ONE_DAY),
-                stepRule(ForceMergeStep.NAME, ONE_DAY),
-                stepRule(SegmentCountStep.NAME, ONE_DAY)
+                stepRuleFullChecks(WaitForIndexColorStep.NAME, ONE_DAY, MAX_RETRIES),
+                stepRuleFullChecks(ForceMergeStep.NAME, ONE_DAY, MAX_RETRIES),
+                stepRuleFullChecks(SegmentCountStep.NAME, ONE_DAY, MAX_RETRIES)
             )
         //
         // The next rule has to be commented because of this issue https://github.com/elastic/elasticsearch/issues/96705
@@ -409,16 +406,33 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
      * @param maxTimeOn  Maximum time that an index should spend on this step.
      * @param maxRetries Maximum number of times that a step should be retried.
      */
-    public record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
-        static StepRule stepRule(String name, TimeValue maxTimeOn) {
-            return new StepRule(name, maxTimeOn, 100);
+    public record StepRule(String step, TimeValue maxTimeOn, Long maxRetries) implements RuleConfig {
+
+        public StepRule {
+            if (maxTimeOn == null && maxRetries == null) {
+                throw new IllegalArgumentException("At least one of [maxTimeOne or maxRetries] must be defined.");
+            }
+        }
+
+        static StepRule stepRuleFullChecks(String name, TimeValue maxTimeOn, long maxRetries) {
+            return new StepRule(name, maxTimeOn, maxRetries);
+        }
+
+        static StepRule stepRuleOnlyCheckPassedTime(String name, TimeValue maxTimeOn) {
+            return new StepRule(name, maxTimeOn, null);
+        }
+
+        static StepRule stepRuleOnlyCheckRetries(String name, long maxRetries) {
+            return new StepRule(name, null, maxRetries);
         }
 
         @Override
         public boolean test(Long now, IndexMetadata indexMetadata) {
+            var failedStepRetryCount = indexMetadata.getLifecycleExecutionState().failedStepRetryCount();
             return step.equals(indexMetadata.getLifecycleExecutionState().step())
-                && (maxTimeOn.compareTo(RuleConfig.getElapsedTime(now, indexMetadata.getLifecycleExecutionState().stepTime())) < 0
-                    || indexMetadata.getLifecycleExecutionState().failedStepRetryCount() > maxRetries);
+                && (maxTimeOn != null
+                    && maxTimeOn.compareTo(RuleConfig.getElapsedTime(now, indexMetadata.getLifecycleExecutionState().stepTime())) < 0
+                    || (maxRetries != null && failedStepRetryCount != null && failedStepRetryCount > maxRetries));
         }
     }
 }

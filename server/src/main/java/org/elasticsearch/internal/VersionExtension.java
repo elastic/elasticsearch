@@ -8,6 +8,8 @@
 
 package org.elasticsearch.internal;
 
+import org.elasticsearch.TransportVersion;
+
 import java.util.ServiceLoader;
 
 /**
@@ -15,11 +17,11 @@ import java.util.ServiceLoader;
  */
 public interface VersionExtension {
     /**
-     * Returns the version id of the current transport version.
-     * Note this cannot return a TransportVersion object because it needs to be
-     * called during static initialization of TransportVersion.
+     * Returns the {@link TransportVersion} that Elasticsearch should use.
+     * <p>
+     * This must be at least equal to the latest version found in {@link TransportVersion} V_* constants.
      */
-    int getCurrentTransportVersionId();
+    TransportVersion getCurrentTransportVersion();
 
     /**
      * Loads a single VersionExtension, or returns {@code null} if none are found.

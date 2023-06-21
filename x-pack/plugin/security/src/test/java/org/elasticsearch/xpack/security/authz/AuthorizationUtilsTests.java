@@ -120,7 +120,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchWithDlmOrigin() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(DataLifecycle.DLM_ORIGIN, InternalUsers.DLM_USER, randomTransportVersion());
+        assertSwitchBasedOnOriginAndExecute(DataLifecycle.DLM_ORIGIN, InternalUsers.DATA_STREAM_LIFECYCLE_USER, randomTransportVersion());
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {

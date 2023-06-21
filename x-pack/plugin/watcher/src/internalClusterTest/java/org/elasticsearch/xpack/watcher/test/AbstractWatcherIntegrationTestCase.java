@@ -223,9 +223,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             String triggeredWatchIndexName;
             if (randomBoolean()) {
                 // Create an index to get the template
-                CreateIndexResponse response = client().admin()
-                    .indices()
-                    .prepareCreate(Watch.INDEX)
+                CreateIndexResponse response = indicesAdmin().prepareCreate(Watch.INDEX)
                     .setCause("Index to test aliases with .watches index")
                     .get();
                 assertAcked(response);
@@ -241,14 +239,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 if (randomBoolean()) {
                     builder.put("index.number_of_shards", scaledRandomIntBetween(1, 5));
                 }
-                assertAcked(client().admin().indices().prepareCreate(watchIndexName).setSettings(builder));
+                assertAcked(indicesAdmin().prepareCreate(watchIndexName).setSettings(builder));
             }
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (randomBoolean()) {
-                CreateIndexResponse response = client().admin()
-                    .indices()
-                    .prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
+                CreateIndexResponse response = indicesAdmin().prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
                     .setCause("Index to test aliases with .triggered-watches index")
                     .get();
                 assertAcked(response);
@@ -262,13 +258,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 logger.info("set alias for .triggered-watches index to [{}]", triggeredWatchIndexName);
             } else {
                 triggeredWatchIndexName = TriggeredWatchStoreField.INDEX_NAME;
-                assertAcked(client().admin().indices().prepareCreate(triggeredWatchIndexName));
+                assertAcked(indicesAdmin().prepareCreate(triggeredWatchIndexName));
             }
         }
     }
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
-        GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
+        GetIndexResponse index = indicesAdmin().prepareGetIndex().setIndices(originalIndexOrAlias).get();
         MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
@@ -278,9 +274,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.creation_date");
         newSettings.remove("index.version.created");
 
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .prepareCreate(to)
+        CreateIndexResponse createIndexResponse = indicesAdmin().prepareCreate(to)
             .setMapping(mapping.sourceAsMap())
             .setSettings(newSettings)
             .get();
@@ -288,17 +282,17 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
+        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
         if (watchesIsAlias) {
-            GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
+            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
             aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
                 assertEquals(1, aliasRecord.getValue().size());
                 originalIndex.set(aliasRecord.getKey());
             });
         }
-        client().admin().indices().prepareDelete(originalIndex.get()).get();
-        client().admin().indices().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareDelete(originalIndex.get()).get();
+        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {

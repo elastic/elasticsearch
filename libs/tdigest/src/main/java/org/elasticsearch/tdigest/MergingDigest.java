@@ -313,8 +313,6 @@ public class MergingDigest extends AbstractTDigest {
     ) {
         // when our incoming buffer fills up, we combine our existing centroids with the incoming data,
         // and then reduce the centroids by merging if possible
-        assert lastUsedCell <= 0 || weight[0] == 1;
-        assert lastUsedCell <= 0 || weight[lastUsedCell - 1] == 1;
         System.arraycopy(mean, 0, incomingMean, incomingCount, lastUsedCell);
         System.arraycopy(weight, 0, incomingWeight, incomingCount, lastUsedCell);
         incomingCount += lastUsedCell;

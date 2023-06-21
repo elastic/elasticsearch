@@ -47,9 +47,7 @@ public class CartesianShapeIT extends CartesianShapeIntegTestCase {
     public void testMappingUpdate() {
         // create index
         Version version = randomSupportedVersion();
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setSettings(settings(version).build()).setMapping("shape", "type=shape").get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings(version).build()).setMapping("shape", "type=shape").get());
         ensureGreen();
 
         String update = """
@@ -64,7 +62,7 @@ public class CartesianShapeIT extends CartesianShapeIntegTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> client().admin().indices().preparePutMapping("test").setSource(update, XContentType.JSON).get()
+            () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
         );
         assertThat(e.getMessage(), containsString("unknown parameter [strategy] on mapper [shape] of type [shape]"));
     }

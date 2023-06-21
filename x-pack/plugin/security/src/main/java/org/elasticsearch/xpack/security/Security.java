@@ -859,7 +859,8 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool),
+            workflowService.get()
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 

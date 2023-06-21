@@ -43,7 +43,7 @@ public class IndexSettingsIT extends ESIntegTestCase {
         try {
             internalCluster().fullRestart();
 
-            final var indicesClient = client().admin().indices();
+            final var indicesClient = indicesAdmin();
             assertThat(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"), equalTo("true"));
             updateIndexSettings(Settings.builder().putNull("archived.*"), "test");
             assertNull(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"));

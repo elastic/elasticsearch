@@ -36,7 +36,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testIndexingBeforeAndAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());
-        client().admin().indices().create(new CreateIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
         try {
             client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1))).actionGet();
             fail("no allocation should happen");

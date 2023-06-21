@@ -20,19 +20,19 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
  * based on the time taken for each event.
  */
-public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
+public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCase {
 
     public void testExecutionEWMACalculation() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
 
-        EWMATrackingEsThreadPoolExecutor executor = new EWMATrackingEsThreadPoolExecutor(
+        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
             1000,
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
-            fastWrapper(),
+            settableWrapper(TimeUnit.NANOSECONDS.toNanos(100)),
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context
@@ -41,16 +41,33 @@ public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
         logger.info("--> executor: {}", executor);
 
         assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
+        assertThat(executor.getTotalTaskExecutionTime(), equalTo(0L));
+        // Using the settableWrapper each task would take 100ns
         executeTask(executor, 1);
-        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(30L)); });
+        assertBusy(() -> {
+            assertThat((long) executor.getTaskExecutionEWMA(), equalTo(30L));
+            assertThat(executor.getTotalTaskExecutionTime(), equalTo(100L));
+        });
         executeTask(executor, 1);
-        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(51L)); });
+        assertBusy(() -> {
+            assertThat((long) executor.getTaskExecutionEWMA(), equalTo(51L));
+            assertThat(executor.getTotalTaskExecutionTime(), equalTo(200L));
+        });
         executeTask(executor, 1);
-        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(65L)); });
+        assertBusy(() -> {
+            assertThat((long) executor.getTaskExecutionEWMA(), equalTo(65L));
+            assertThat(executor.getTotalTaskExecutionTime(), equalTo(300L));
+        });
         executeTask(executor, 1);
-        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(75L)); });
+        assertBusy(() -> {
+            assertThat((long) executor.getTaskExecutionEWMA(), equalTo(75L));
+            assertThat(executor.getTotalTaskExecutionTime(), equalTo(400L));
+        });
         executeTask(executor, 1);
-        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(83L)); });
+        assertBusy(() -> {
+            assertThat((long) executor.getTaskExecutionEWMA(), equalTo(83L));
+            assertThat(executor.getTotalTaskExecutionTime(), equalTo(500L));
+        });
 
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
@@ -59,7 +76,7 @@ public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        EWMATrackingEsThreadPoolExecutor executor = new EWMATrackingEsThreadPoolExecutor(
+        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -74,14 +91,23 @@ public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
+        // Using the exceptionalWrapper each task's execution time is -1 to simulate unknown failures/rejections.
         assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
-        executeTask(executor, 1);
+        int taskCount = randomIntBetween(1, 100);
+        executeTask(executor, taskCount);
+        assertBusy(() -> assertThat(executor.getCompletedTaskCount(), equalTo((long) taskCount)));
+        assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
+        assertThat(executor.getTotalTaskExecutionTime(), equalTo(0L));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
-    private Function<Runnable, WrappedRunnable> fastWrapper() {
-        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100), false);
+    /**
+     * The returned function outputs a WrappedRunnabled that simulates the case
+     * where {@link TimedRunnable#getTotalExecutionNanos()} always returns {@code timeTakenNanos}.
+     */
+    private Function<Runnable, WrappedRunnable> settableWrapper(long timeTakenNanos) {
+        return (runnable) -> new SettableTimedRunnable(timeTakenNanos, false);
     }
 
     /**
@@ -94,7 +120,7 @@ public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
     }
 
     /** Execute a blank task {@code times} times for the executor */
-    private void executeTask(EWMATrackingEsThreadPoolExecutor executor, int times) {
+    private void executeTask(TaskExecutionTimeTrackingEsThreadPoolExecutor executor, int times) {
         logger.info("--> executing a task [{}] times", times);
         for (int i = 0; i < times; i++) {
             executor.execute(() -> {});

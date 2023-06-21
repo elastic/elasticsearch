@@ -45,7 +45,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
         assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -71,7 +71,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
         assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);

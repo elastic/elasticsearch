@@ -15,6 +15,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -202,6 +203,11 @@ public abstract class AggregationContext implements Releasable {
      * The settings for the index against which this search is running.
      */
     public abstract IndexSettings getIndexSettings();
+
+    /**
+     * The settings for the cluster against which this search is running.
+     */
+    public abstract ClusterSettings getClusterSettings();
 
     /**
      * Compile a sort.
@@ -498,6 +504,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public IndexSettings getIndexSettings() {
             return context.getIndexSettings();
+        }
+
+        @Override
+        public ClusterSettings getClusterSettings() {
+            return context.getClusterSettings();
         }
 
         @Override

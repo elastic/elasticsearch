@@ -321,7 +321,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} with the provided searcher
      */
     protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
-        return serviceHolder.createShardContext(searcher);
+        return serviceHolder.createShardContext(searcher, null);
     }
 
     protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
@@ -336,7 +336,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
     protected static SearchExecutionContext createShardContextWithNoType() {
-        return serviceHolderWithNoType.createShardContext(null);
+        return serviceHolderWithNoType.createShardContext(null, null);
     }
 
     /**
@@ -462,7 +462,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 parserConfiguration,
                 similarityService,
                 mapperRegistry,
-                () -> createShardContext(null),
+                () -> createShardContext(null, clusterService.getClusterSettings()),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE
             );
@@ -553,11 +553,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         @Override
         public void close() throws IOException {}
 
-        SearchExecutionContext createShardContext(IndexSearcher searcher) {
+        SearchExecutionContext createShardContext(IndexSearcher searcher, ClusterSettings clusterSettings) {
             return new SearchExecutionContext(
                 0,
                 0,
                 idxSettings,
+                clusterSettings == null ? ClusterSettings.createBuiltInClusterSettings() : clusterSettings,
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
                 mapperService,

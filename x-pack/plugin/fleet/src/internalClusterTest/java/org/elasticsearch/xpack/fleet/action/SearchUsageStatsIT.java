@@ -46,7 +46,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
             assertEquals(0, stats.getSectionsUsage().size());
         }
 
-        client().admin().indices().prepareCreate("index").get();
+        indicesAdmin().prepareCreate("index").get();
         ensureGreen("index");
 
         // doesn't get counted because it doesn't specify a request body

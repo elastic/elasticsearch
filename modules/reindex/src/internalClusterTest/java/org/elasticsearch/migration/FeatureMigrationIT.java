@@ -330,9 +330,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             createSystemIndexForDescriptor(descriptor);
         }
 
-        client().admin()
-            .indices()
-            .preparePutTemplate("bad_template")
+        indicesAdmin().preparePutTemplate("bad_template")
             .setPatterns(Collections.singletonList(templatePrefix + "*"))
             .addAlias(new Alias(templatePrefix + "-legacy-alias"))
             .get();

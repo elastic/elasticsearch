@@ -183,7 +183,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().get();
         assertThat(clusterStateResponseUnfiltered.getState().metadata().templates().size(), is(greaterThanOrEqualTo(2)));
 
-        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates("foo_template").get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates("foo_template").get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "foo_template");
     }
 
@@ -258,7 +258,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .get()
         );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetadata masterMappingMetadata = client().admin().indices().prepareGetMappings("test").get().getMappings().get("test");
+        MappingMetadata masterMappingMetadata = indicesAdmin().prepareGetMappings("test").get().getMappings().get("test");
         for (Client client : clients()) {
             MappingMetadata mappingMetadata = client.admin()
                 .indices()
@@ -278,7 +278,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         ensureGreen("fuu");
 
         // close one index
-        assertAcked(client().admin().indices().close(new CloseIndexRequest("fuu")).get());
+        assertAcked(indicesAdmin().close(new CloseIndexRequest("fuu")).get());
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metadata().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));

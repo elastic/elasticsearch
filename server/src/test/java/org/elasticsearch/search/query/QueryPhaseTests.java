@@ -382,8 +382,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is lower than terminate_after
-            int trackTotalHits = randomIntBetween(1, 9);
-            context.trackTotalHitsUpTo(trackTotalHits);
+            context.trackTotalHitsUpTo(randomIntBetween(1, 9));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             // Given that total hit count does not require collection, PartialHitCountCollector does not early terminate.
@@ -397,8 +396,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is greater than terminate_after but lower than the number of docs
-            int totalHitsThreshold = randomIntBetween(11, Integer.MAX_VALUE);
-            context.trackTotalHitsUpTo(totalHitsThreshold);
+            context.trackTotalHitsUpTo(randomIntBetween(11, Integer.MAX_VALUE));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(getExpectedTotalHitCountWithShortcut(reader, 10)));

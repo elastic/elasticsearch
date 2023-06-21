@@ -119,8 +119,8 @@ public final class IndexPrivilege extends Privilege {
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,
-        "indices:admin/dlm/get",
-        "indices:admin/dlm/explain",
+        "indices:admin/data_stream/lifecycle/get",
+        "indices:admin/data_stream/lifecycle/explain",
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
         FieldCapabilitiesAction.NAME + "*",
@@ -136,7 +136,7 @@ public final class IndexPrivilege extends Privilege {
     );
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
-    private static final Automaton MANAGE_LIFECYCLE_AUTOMATON = patterns("indices:admin/dlm/*");
+    private static final Automaton MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON = patterns("indices:admin/data_stream/lifecycle/*");
     private static final Automaton MAINTENANCE_AUTOMATON = patterns(
         "indices:admin/refresh*",
         "indices:admin/flush*",

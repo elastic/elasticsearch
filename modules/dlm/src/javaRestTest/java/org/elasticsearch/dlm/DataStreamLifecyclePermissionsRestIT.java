@@ -150,8 +150,8 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
             }
         }
         {
-            // Now test that the user who has the manage_data_stream_lifecycle privilege on data-stream-lifecycle-* data streams cannot manage other data
-            // streams:
+            // Now test that the user who has the manage_data_stream_lifecycle privilege on data-stream-lifecycle-* data streams cannot
+            // manage other data streams:
             String otherDataStreamName = "other-data-stream-lifecycle-test";
             createDataStreamAsAdmin(otherDataStreamName);
             Response getOtherDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + otherDataStreamName));

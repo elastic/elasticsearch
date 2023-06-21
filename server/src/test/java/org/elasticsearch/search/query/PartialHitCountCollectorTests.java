@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -20,7 +19,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
@@ -45,6 +43,10 @@ public class PartialHitCountCollectorTests extends ESTestCase {
             doc.add(new StringField("string", "b" + i, Field.Store.NO));
             writer.addDocument(doc);
         }
+        if (randomBoolean()) {
+            writer.deleteDocuments(new Term("string", "a10"));
+            numDocs--;
+        }
         IndexReader reader = writer.getReader();
         writer.close();
         searcher = newSearcher(reader);
@@ -57,9 +59,22 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         dir.close();
     }
 
-    public void testHitCountFromWeight() throws IOException {
+    public void testHitCountFromWeightNoTracking() throws IOException {
+        PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(0);
+        searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
+        assertEquals(0, partialHitCountCollector.getTotalHits());
+        assertTrue(partialHitCountCollector.hasEarlyTerminated());
+    }
+
+    public void testHitCountFromWeightDoesNotEarlyTerminate() throws IOException {
         {
             PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(numDocs);
+            searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
+            assertEquals(numDocs, partialHitCountCollector.getTotalHits());
+            assertFalse(partialHitCountCollector.hasEarlyTerminated());
+        }
+        {
+            PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(randomIntBetween(1, numDocs - 1));
             searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
             assertEquals(numDocs, partialHitCountCollector.getTotalHits());
             assertFalse(partialHitCountCollector.hasEarlyTerminated());
@@ -72,43 +87,6 @@ public class PartialHitCountCollectorTests extends ESTestCase {
             assertEquals(numDocs, partialHitCountCollector.getTotalHits());
             assertFalse(partialHitCountCollector.hasEarlyTerminated());
         }
-    }
-
-    public void testHitCountFromWeightEarlyTerminatedNoTracking() throws IOException {
-        PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(0);
-        searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
-        assertEquals(0, partialHitCountCollector.getTotalHits());
-        assertTrue(partialHitCountCollector.hasEarlyTerminated());
-    }
-
-    public void testHitCountFromWeightEarlyTerminated() throws IOException {
-        int totalHitsThreshold = randomIntBetween(1, numDocs - 1);
-        PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(totalHitsThreshold);
-        searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
-        assertEquals(
-            getExpectedTotalHitCountWithShortcut(searcher.getIndexReader(), totalHitsThreshold),
-            partialHitCountCollector.getTotalHits()
-        );
-        assertTrue(partialHitCountCollector.hasEarlyTerminated());
-    }
-
-    /**
-     * Computes the expected early terminated hit count when retrieved from {@link Weight#count(LeafReaderContext)}, given the
-     * <code>totalHitsThreshold</code>.
-     * {@link org.apache.lucene.search.TotalHitCountCollector} (used when size==0) shortcuts total hit count via
-     * {@link Weight#count(LeafReaderContext)} segment by segment. When that happens, {@link PartialHitCountCollector} will detect that
-     * the threshold is reached at the beginning of the following leaf collection. That means that the returned total hit count may be
-     * higher than <code>terminate_after</code> or <code>track_total_hits</code> (yet lower than the number of docs).
-     */
-    private static int getExpectedTotalHitCountWithShortcut(IndexReader reader, int totalHitsThreshold) {
-        int total = 0;
-        for (LeafReaderContext leaf : reader.leaves()) {
-            total += leaf.reader().numDocs();
-            if (total >= totalHitsThreshold) {
-                break;
-            }
-        }
-        return total;
     }
 
     public void testCollectedHitCount() throws Exception {

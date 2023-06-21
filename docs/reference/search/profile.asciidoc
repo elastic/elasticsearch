@@ -1283,7 +1283,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "collector" : [
             {
                 "name" : "ProfileCollectorManager",
-                "reason" : "search_top_hits_max",
+                "reason" : "segment_search",
                 "time_in_nanos" : 17163,
                 "children" : [
                     {

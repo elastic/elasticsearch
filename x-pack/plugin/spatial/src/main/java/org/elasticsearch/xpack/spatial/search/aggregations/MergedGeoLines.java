@@ -217,7 +217,12 @@ abstract class MergedGeoLines {
                 case DESC -> new TreeSet<>((o1, o2) -> Double.compare(o2.sortVals()[0], o1.sortVals()[0]));
                 default -> new TreeSet<>(Comparator.comparingDouble(o -> o.sortVals()[0]));
             };
-            sorted.addAll(geoLines);
+            // The Comparator above relies on each line having at least one point, so filter out empty geo_lines
+            for (InternalGeoLine line : geoLines) {
+                if (line.length() > 0) {
+                    sorted.add(line);
+                }
+            }
             if (simplify) {
                 mergeAndSimplify(sorted);
             } else {

@@ -417,7 +417,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             }
                         }
                         final StatelessCompoundCommit commit = latestCommit;
-
                         logger.debug(() -> {
                             var segments = commit == null
                                 ? Optional.empty()
@@ -428,11 +427,17 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                                 return format("[%s] bootstrapping shard from object store using empty commit", shardId);
                             }
                         });
-                        if (commit != null) {
+
+                        if (indexShard.routingEntry().isSearchable() && commit != null) {
                             searchDirectory.updateCommit(commit);
                         }
+
                         if (indexShard.routingEntry().isPromotableToPrimary()) {
-                            final var segmentInfos = SegmentInfos.readLatestCommit(searchDirectory);
+                            final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
+                            if (commit != null) {
+                                indexDirectory.updateCommit(commit);
+                            }
+                            final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
                             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
                             final var checkPoint = segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
                             if (translogUUID != null) {
@@ -450,6 +455,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             if (commit != null) {
                                 statelessCommitService.markRecoveredCommit(shardId, commit);
                             }
+                            statelessCommitService.addConsumerForNewUploadedCommit(shardId, indexDirectory::updateCommit);
                         }
                     } finally {
                         store.decRef();

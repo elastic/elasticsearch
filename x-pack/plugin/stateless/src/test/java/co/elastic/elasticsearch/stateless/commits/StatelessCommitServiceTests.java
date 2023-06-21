@@ -115,7 +115,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
             for (StatelessCommitRef commitRef : commitRefs) {
                 PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
+                testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
                 future.actionGet();
             }
 
@@ -169,7 +169,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
             for (StatelessCommitRef commitRef : commitRefs) {
                 PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
+                testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
                 future.actionGet();
             }
 
@@ -262,7 +262,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             for (StatelessCommitRef commitRef : commitRefs) {
                 PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
+                testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
                 future.actionGet();
             }
 
@@ -302,13 +302,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.onCommitCreation(firstCommit);
 
             PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            testHarness.commitService.addOrNotify(testHarness.shardId, firstCommit.getGeneration(), future);
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, firstCommit.getGeneration(), future);
             future.actionGet();
 
             testHarness.commitService.onCommitCreation(secondCommit);
 
             PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
-            testHarness.commitService.addOrNotify(testHarness.shardId, firstCommit.getGeneration(), future2);
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, firstCommit.getGeneration(), future2);
             future2.actionGet();
 
             Set<String> files = testHarness.commitService.getFileToBlobFile(testHarness.shardId).keySet();
@@ -359,7 +359,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.onCommitCreation(commitRef);
             PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
             future.actionGet();
 
             ArrayList<String> uploadedFiles = new ArrayList<>();
@@ -395,7 +395,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.onCommitCreation(commitRef);
             PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
-            testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future2);
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future2);
             future2.actionGet();
 
             assertThat(uploadedBlobs, empty());
@@ -407,10 +407,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ShardId unregisteredShardId = new ShardId("index", "uuid", 0);
             expectThrows(
                 AlreadyClosedException.class,
-                () -> testHarness.commitService.addOrNotify(unregisteredShardId, 1, PlainActionFuture.newFuture())
+                () -> testHarness.commitService.addListenerForUploadedGeneration(unregisteredShardId, 1, PlainActionFuture.newFuture())
             );
             PlainActionFuture<Void> failedFuture = PlainActionFuture.newFuture();
-            testHarness.commitService.addOrNotify(testHarness.shardId, 1, failedFuture);
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, 1, failedFuture);
 
             testHarness.commitService.unregister(testHarness.shardId);
             expectThrows(AlreadyClosedException.class, failedFuture::actionGet);

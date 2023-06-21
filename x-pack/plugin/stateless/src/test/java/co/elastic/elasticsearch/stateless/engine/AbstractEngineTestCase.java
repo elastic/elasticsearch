@@ -151,7 +151,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             ActionListener<Void> argument = invocation.getArgument(2);
             argument.onResponse(null);
             return null;
-        }).when(commitService).addOrNotify(any(ShardId.class), anyLong(), any());
+        }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
         return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class), commitService);
     }
 

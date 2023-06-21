@@ -18,8 +18,10 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
+import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -27,6 +29,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +40,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -47,19 +51,25 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -542,4 +552,69 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             .get();
         return response.isAcknowledged();
     };
+
+    @TestLogging(reason = "dd", value = "co.elastic.elasticsearch.stateless.lucene.IndexDirectory:TRACE")
+    public void testSegmentsFilesDeletedAfterUpload() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        var shard = findIndexShard(resolveIndex(indexName), 0);
+        assertNotNull(shard);
+        var engine = shard.getEngineOrNull();
+        assertThat(engine, instanceOf(IndexEngine.class));
+        var statelessCommitService = ((IndexEngine) engine).getStatelessCommitService();
+        assertNotNull(statelessCommitService);
+
+        final Set<String> uploadedFiles = ConcurrentCollections.newConcurrentSet();
+        statelessCommitService.addConsumerForNewUploadedCommit(
+            shard.shardId(),
+            commit -> uploadedFiles.addAll(commit.commitFiles().keySet())
+        );
+
+        var numDocs = 100;
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest(indexName).id(String.valueOf(i)).source("foo", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        assertNoFailures(bulkRequest.get());
+        assertNoFailures(indicesAdmin().prepareFlush(indexName).setForce(true).get());
+
+        assertBusy(() -> assertThat(uploadedFiles.isEmpty(), is(false)));
+        assertSegmentsFilesDeletedAfterUpload(shard);
+
+        var numUpdates = randomIntBetween(1, 100);
+        bulkRequest = client().prepareBulk();
+        for (int i = 0; i < numUpdates; i++) {
+            bulkRequest.add(
+                new IndexRequest(indexName).id(String.valueOf(randomIntBetween(0, numDocs - 1)))
+                    .source("foo", randomUnicodeOfCodepointLengthBetween(1, 25), "bar", randomUnicodeOfCodepointLengthBetween(1, 25))
+            );
+        }
+        assertNoFailures(bulkRequest.get());
+        flush(indexName);
+
+        assertSegmentsFilesDeletedAfterUpload(shard);
+    }
+
+    private static void assertSegmentsFilesDeletedAfterUpload(IndexShard indexShard) throws Exception {
+        assertBusy(() -> {
+            try (var dir = Files.list(indexShard.shardPath().resolveIndex())) {
+                var files = dir.map(path -> path.getFileName().toString())
+                    .filter(fileName -> fileName.equals("write.lock") == false)
+                    .filter(fileName -> IndexDirectory.isGenerationalDocsValuesFile(fileName) == false)
+                    .collect(Collectors.toSet());
+                assertThat("Lucene files should have been deleted from shard but got: " + files, files.isEmpty(), is(true));
+            }
+        });
+    }
 }

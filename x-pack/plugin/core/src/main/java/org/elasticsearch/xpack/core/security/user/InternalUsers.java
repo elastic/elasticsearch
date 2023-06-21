@@ -126,12 +126,12 @@ public class InternalUsers {
     );
 
     /**
-     * Internal user that manages DLM. Has all indices permissions to perform DLM runtime tasks.
+     * Internal user that manages the data stream lifecycle. Has all indices permissions to perform data stream lifecycle runtime tasks.
      */
-    public static final InternalUser DLM_USER = new InternalUser(
-        UsernamesField.DLM_NAME,
+    public static final InternalUser DATA_STREAM_LIFECYCLE_USER = new InternalUser(
+        UsernamesField.DATA_STREAM_LIFECYCLE_NAME,
         new RoleDescriptor(
-            UsernamesField.DLM_ROLE,
+            UsernamesField.DATA_STREAM_LIFECYCLE_ROLE,
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -197,7 +197,7 @@ public class InternalUsers {
             SECURITY_PROFILE_USER,
             ASYNC_SEARCH_USER,
             STORAGE_USER,
-            DLM_USER,
+            DATA_STREAM_LIFECYCLE_USER,
             SYNONYMS_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }

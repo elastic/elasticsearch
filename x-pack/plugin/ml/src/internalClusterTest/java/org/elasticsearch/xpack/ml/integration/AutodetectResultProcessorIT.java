@@ -575,7 +575,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant());
+        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant(), true);
     }
 
     private static class ResultsBuilder {
@@ -773,9 +773,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private List<Annotation> getAnnotations() throws Exception {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
-        client().admin()
-            .indices()
-            .prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
             .execute()
             .actionGet();

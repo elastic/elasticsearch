@@ -45,7 +45,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, clusterStateResponse.getState().metadata());
         String watchIndexName = metadata.getIndex().getName();
-        assertAcked(client().admin().indices().prepareDelete(watchIndexName));
+        assertAcked(indicesAdmin().prepareDelete(watchIndexName));
         startWatcher();
 
         String watchId = randomAlphaOfLength(20);
@@ -60,7 +60,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
         assertThat(putWatchResponse.isCreated(), is(true));
 
         assertBusy(() -> {
-            client().admin().indices().prepareRefresh(".watcher-history*").get();
+            indicesAdmin().prepareRefresh(".watcher-history*").get();
             SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
         }, 30, TimeUnit.SECONDS);

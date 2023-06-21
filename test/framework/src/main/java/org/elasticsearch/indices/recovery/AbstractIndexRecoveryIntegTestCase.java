@@ -108,9 +108,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
@@ -224,9 +222,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
@@ -335,9 +331,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
@@ -477,9 +471,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
     private void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
         // Ensure that the safe commit == latest commit
         assertBusy(() -> {
-            ShardStats stats = client().admin()
-                .indices()
-                .prepareStats(indexName)
+            ShardStats stats = indicesAdmin().prepareStats(indexName)
                 .clear()
                 .get()
                 .asMap()

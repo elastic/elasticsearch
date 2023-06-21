@@ -38,7 +38,7 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
 
     public void testSeekTrackerPlugin() throws InterruptedException {
 
-        assertAcked(client().admin().indices().prepareCreate("index"));
+        assertAcked(indicesAdmin().prepareCreate("index"));
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             docs.add(client().prepareIndex("index").setSource("field", "term" + i % 5));

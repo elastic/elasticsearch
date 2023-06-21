@@ -33,7 +33,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
 
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("field", "type=text").get();
+        indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("field", "type=text").get();
         ensureGreen("test");
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
@@ -106,7 +106,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             }
             if (i > 0 && i % 5 == 0) {
                 logger.info("--> [iteration {}] flushing index", i);
-                client().admin().indices().prepareFlush("test").get();
+                indicesAdmin().prepareFlush("test").get();
             }
         }
         finished.set(true);

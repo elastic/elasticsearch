@@ -74,9 +74,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.description = in.readString();
         this.nodeTime = in.readLong();
-        breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
+        breakdown = in.readMap(StreamInput::readLong);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
-            debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+            debug = in.readMap(StreamInput::readGenericValue);
         } else {
             debug = Map.of();
         }

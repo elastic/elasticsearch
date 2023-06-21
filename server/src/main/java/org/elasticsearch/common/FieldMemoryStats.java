@@ -39,7 +39,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      * Creates a new FieldMemoryStats instance from a stream
      */
     public FieldMemoryStats(StreamInput input) throws IOException {
-        stats = input.readMap(StreamInput::readString, StreamInput::readVLong);
+        stats = input.readMap(StreamInput::readVLong);
     }
 
     /**

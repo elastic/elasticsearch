@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
 
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also
@@ -29,18 +30,18 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     /**
      * The root Collector used in the search
      */
-    private InternalProfileCollectorManager collectorManager;
+    private Supplier<CollectorResult> collectorResultSupplier;
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
 
     /** Set the collector manager that is associated with this profiler. */
-    public void setCollectorManager(InternalProfileCollectorManager collectorManager) {
-        if (this.collectorManager != null) {
-            throw new IllegalStateException("The collector manager can only be set once.");
+    public void setCollectorManager(Supplier<CollectorResult> collectorResultSupplier) {
+        if (this.collectorResultSupplier != null) {
+            throw new IllegalStateException("The collector result supplier can only be set once.");
         }
-        this.collectorManager = Objects.requireNonNull(collectorManager);
+        this.collectorResultSupplier = Objects.requireNonNull(collectorResultSupplier);
     }
 
     /**
@@ -71,8 +72,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     /**
      * Return the current root Collector for this search
      */
-    public CollectorResult getCollector() {
-        return collectorManager.getCollectorTree();
+    public CollectorResult getCollectorResult() {
+        return this.collectorResultSupplier.get();
     }
 
 }

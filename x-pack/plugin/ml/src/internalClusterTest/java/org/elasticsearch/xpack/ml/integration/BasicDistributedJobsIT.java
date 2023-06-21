@@ -362,9 +362,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         // Create the indices (using installed templates) and set the routing to specific nodes
         // State and results go on the state-and-results node, config goes on the config node
-        client().admin()
-            .indices()
-            .prepareCreate(".ml-anomalies-shared")
+        indicesAdmin().prepareCreate(".ml-anomalies-shared")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
@@ -372,9 +370,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                     .build()
             )
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate(".ml-state")
+        indicesAdmin().prepareCreate(".ml-state")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
@@ -382,9 +378,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                     .build()
             )
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate(".ml-config")
+        indicesAdmin().prepareCreate(".ml-config")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.exclude.ml-indices", "state-and-results")

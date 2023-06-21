@@ -355,6 +355,11 @@ public class ThreadPoolTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
             assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(
+                threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
+                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+            );
         } finally {
             assertTrue(terminate(threadPool));
         }

@@ -132,7 +132,9 @@ public class FetchPhase {
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);
                 }
-                timer.stop();
+                if (timer != null) {
+                    timer.stop();
+                }
             }
 
             @Override
@@ -240,7 +242,9 @@ public class FetchPhase {
                 try {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                 } finally {
-                    timer.stop();
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));

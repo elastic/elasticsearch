@@ -115,10 +115,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         List.copyOf(ALL_RESERVED_ROLES.keySet()),
         Function.identity(),
         value -> {
-            if (false == value.contains("superuser")) {
+            final Set<String> valueSet = Set.copyOf(value);
+            if (false == valueSet.contains("superuser")) {
                 throw new IllegalArgumentException("the [superuser] reserved role must be included");
             }
-            final Set<String> unknownRoles = Sets.sortedDifference(Set.copyOf(value), ALL_RESERVED_ROLES.keySet());
+            final Set<String> unknownRoles = Sets.sortedDifference(valueSet, ALL_RESERVED_ROLES.keySet());
             if (false == unknownRoles.isEmpty()) {
                 throw new IllegalArgumentException(
                     "unknown reserved roles to include [" + Strings.collectionToCommaDelimitedString(unknownRoles)

@@ -122,7 +122,7 @@ public class EsExecutors {
         int queueCapacity,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        boolean trackEWMA
+        boolean trackExecutionTime
     ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
@@ -130,8 +130,8 @@ public class EsExecutors {
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        if (trackEWMA) {
-            return new EWMATrackingEsThreadPoolExecutor(
+        if (trackExecutionTime) {
+            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
                 size,

@@ -56,7 +56,7 @@ The response will look like:
   "indices": {
     ".ds-my-data-stream-2023.04.19-000002": {
       "index": ".ds-my-data-stream-2023.04.19-000002",  <1>
-      "managed_by_dlm": true,                           <2>
+      "managed_by_lifecycle": true,                           <2>
       "index_creation_date_millis": 1681919221417,
       "time_since_index_creation": "6.85s",             <3>
       "lifecycle": {
@@ -65,7 +65,7 @@ The response will look like:
     },
     ".ds-my-data-stream-2023.04.17-000001": {
       "index": ".ds-my-data-stream-2023.04.17-000001",  <5>
-      "managed_by_dlm": true,                           <6>
+      "managed_by_lifecycle": true,                           <6>
       "index_creation_date_millis": 1681745209501,
       "time_since_index_creation": "48d",               <7>
       "rollover_date_millis": 1681919221419,
@@ -120,11 +120,11 @@ GET .ds-my-data-stream-*/_lifecycle/explain
   "indices": {
     ".ds-my-data-stream-2023.04.19-000002": {
       "index": ".ds-my-data-stream-2023.04.19-000002",  <1>
-      "managed_by_dlm": false                           <2>
+      "managed_by_lifecycle": false                           <2>
     },
     ".ds-my-data-stream-2023.04.17-000001": {
       "index": ".ds-my-data-stream-2023.04.19-000001",  <3>
-      "managed_by_dlm": false                           <4>
+      "managed_by_lifecycle": false                           <4>
     }
   }
 }

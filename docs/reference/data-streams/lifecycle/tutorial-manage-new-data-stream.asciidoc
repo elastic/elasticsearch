@@ -121,7 +121,7 @@ The result will look like this:
   "indices": {
     ".ds-my-data-stream-2023.04.19-000001": {
       "index": ".ds-my-data-stream-2023.04.19-000001",      <1>
-      "managed_by_dlm": true,                               <2>
+      "managed_by_lifecycle": true,                               <2>
       "index_creation_date_millis": 1681918009501,
       "time_since_index_creation": "1.6m",                  <3>
       "lifecycle": {                                        <4>

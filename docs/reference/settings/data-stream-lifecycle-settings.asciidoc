@@ -1,5 +1,5 @@
 [role="xpack"]
-[[data-stream-lifecyclesettings]]
+[[data-stream-lifecycle-settings]]
 === Data stream lifecycle settings in {es}
 [subs="attributes"]
 ++++

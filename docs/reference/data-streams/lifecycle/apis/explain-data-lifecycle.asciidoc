@@ -53,9 +53,9 @@ The following example retrieves the lifecycle state of the index `.ds-metrics-20
 --------------------------------------------------
 GET .ds-metrics-2023.03.22-000001/_lifecycle/explain
 --------------------------------------------------
-// TEST[skip:we're not setting up DLM in these tests]
+// TEST[skip:we're not setting up data stream lifecycle in these tests]
 
-If the index is managed by {dlm-init} `explain` will show the `managed_by_lifecycle` field
+If the index is managed by a data stream lifecycle `explain` will show the `managed_by_lifecycle` field
 set to `true` and the rest of the response will contain information about the
 lifecycle execution status for this index:
 
@@ -77,8 +77,8 @@ lifecycle execution status for this index:
 --------------------------------------------------
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 
-<1> Shows if the index is being managed by {dlm-init}. If the index is not managed by
-{dlm-init} the other fields will not be shown
+<1> Shows if the index is being managed by data stream lifecycle. If the index is not managed by
+a data stream lifecycle the other fields will not be shown
 <2> When the index was created, this timestamp is used to determine when to
 rollover
 <3> The time since the index creation (used for calculating when to rollover

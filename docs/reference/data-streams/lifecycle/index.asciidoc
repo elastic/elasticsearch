@@ -19,7 +19,7 @@ and backwards incompatible mapping changes.
 {es} is allowed at a later time to delete data older than this time period.
 
 [discrete]
-[[dlm-how-it-works]]
+[[data-streams-lifecycle-how-it-works]]
 === How does it work?
 
 In intervals configured by <<data-streams-lifecycle-poll-interval,`data_streams.lifecycle.poll_interval`>>, {es} goes over
@@ -42,7 +42,7 @@ not have an {ilm-init} policy defined, or if they do, they have <<index-lifecycl
 set to `false`.
 
 [discrete]
-[[dlm-configuration]]
+[[data-stream-lifecycle-configuration]]
 === Configuring data stream lifecycle
 
 Since the lifecycle is configured on the data stream level, the process to configure a lifecycle on a new data stream and

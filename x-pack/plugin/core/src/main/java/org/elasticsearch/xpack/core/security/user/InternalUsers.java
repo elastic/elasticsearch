@@ -197,7 +197,7 @@ public class InternalUsers {
             SECURITY_PROFILE_USER,
             ASYNC_SEARCH_USER,
             STORAGE_USER,
-                DATA_STREAM_LIFECYCLE_USER,
+            DATA_STREAM_LIFECYCLE_USER,
             SYNONYMS_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }

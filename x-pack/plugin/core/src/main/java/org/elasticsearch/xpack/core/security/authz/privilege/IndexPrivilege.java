@@ -177,7 +177,10 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
-    public static final IndexPrivilege MANAGE_LIFECYCLE = new IndexPrivilege("manage_data_stream_lifecycle", MANAGE_LIFECYCLE_AUTOMATON);
+    public static final IndexPrivilege MANAGE_DATA_STREAM_LIFECYCLE = new IndexPrivilege(
+        "manage_data_stream_lifecycle",
+        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON
+    );
     public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
     public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
     public static final IndexPrivilege CROSS_CLUSTER_REPLICATION = new IndexPrivilege(
@@ -209,7 +212,7 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
-            DataLifecycle.isEnabled() ? entry("manage_data_stream_lifecycle", MANAGE_LIFECYCLE) : null,
+            DataLifecycle.isEnabled() ? entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE) : null,
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE),
             TcpTransport.isUntrustedRemoteClusterEnabled() ? entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION) : null,

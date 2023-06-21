@@ -7,9 +7,11 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class MergedGeoLinesTests extends ESTestCase {
@@ -101,12 +104,14 @@ public class MergedGeoLinesTests extends ESTestCase {
         int docsPerLine = 10;
         int numLines = 10;
         int finalLength = docsPerLine * numLines; // all docs included, only append, no truncation
-        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC }) {
+        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
             boolean simplify = randomBoolean();
-            List<InternalGeoLine> lines = makeGeoLines(docsPerLine, numLines, simplify, sortOrder);
-            MergedGeoLines mergedGeoLines = new MergedGeoLines.NonOverlapping(lines, finalLength, sortOrder, simplify);
+            List<InternalGeoLine> sorted = makeGeoLines(docsPerLine, numLines, simplify, sortOrder);
+            // Shuffle to ensure the tests cover geo_lines coming from data nodes in random order
+            List<InternalGeoLine> shuffled = shuffleGeoLines(sorted);
+            MergedGeoLines mergedGeoLines = new MergedGeoLines.NonOverlapping(shuffled, finalLength, sortOrder, simplify);
             mergedGeoLines.merge();
-            assertLinesTruncated(lines, docsPerLine, finalLength, mergedGeoLines);
+            assertLinesTruncated(sorted, docsPerLine, finalLength, mergedGeoLines);
         }
     }
 
@@ -115,10 +120,14 @@ public class MergedGeoLinesTests extends ESTestCase {
         int numLines = 10;
         int finalLength = 25;  // should get two and a half geolines appended and truncated
         boolean simplify = false;
-        List<InternalGeoLine> lines = makeGeoLines(docsPerLine, numLines, simplify, SortOrder.ASC);
-        MergedGeoLines mergedGeoLines = new MergedGeoLines.NonOverlapping(lines, finalLength, SortOrder.ASC, simplify);
-        mergedGeoLines.merge();
-        assertLinesTruncated(lines, docsPerLine, finalLength, mergedGeoLines);
+        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+            List<InternalGeoLine> sorted = makeGeoLines(docsPerLine, numLines, simplify, sortOrder);
+            // Shuffle to ensure the tests cover geo_lines coming from data nodes in random order
+            List<InternalGeoLine> shuffled = shuffleGeoLines(sorted);
+            MergedGeoLines mergedGeoLines = new MergedGeoLines.NonOverlapping(shuffled, finalLength, sortOrder, simplify);
+            mergedGeoLines.merge();
+            assertLinesTruncated(sorted, docsPerLine, finalLength, mergedGeoLines);
+        }
     }
 
     public void testMergeNonOverlappingGeoLinesAppendAndSimplify() {
@@ -126,10 +135,14 @@ public class MergedGeoLinesTests extends ESTestCase {
         int numLines = 10;
         int finalLength = 25;  // should get entire 100 points simplified down to 25
         boolean simplify = true;
-        List<InternalGeoLine> lines = makeGeoLines(docsPerLine, numLines, simplify, SortOrder.ASC);
-        MergedGeoLines mergedGeoLines = new MergedGeoLines.NonOverlapping(lines, finalLength, SortOrder.ASC, simplify);
-        mergedGeoLines.merge();
-        assertLinesSimplified(lines, SortOrder.ASC, finalLength, mergedGeoLines);
+        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+            List<InternalGeoLine> sorted = makeGeoLines(docsPerLine, numLines, simplify, sortOrder);
+            // Shuffle to ensure the tests cover geo_lines coming from data nodes in random order
+            List<InternalGeoLine> shuffled = shuffleGeoLines(sorted);
+            MergedGeoLines mergedGeoLines = new MergedGeoLines.NonOverlapping(shuffled, finalLength, sortOrder, simplify);
+            mergedGeoLines.merge();
+            assertLinesSimplified(sorted, sortOrder, finalLength, mergedGeoLines);
+        }
     }
 
     private void assertLinesTruncated(List<InternalGeoLine> lines, int docsPerLine, int finalLength, MergedGeoLines mergedGeoLines) {
@@ -193,16 +206,46 @@ public class MergedGeoLinesTests extends ESTestCase {
             lines.add(lineConfig.makeGeoLine("test", sortOrder, simplify));
             lineConfig = lineConfig.nextNonOverlapping();
         }
-        for (int line = 1; line < lines.size(); line++) {
-            InternalGeoLine previous = lines.get(line - 1);
-            InternalGeoLine current = lines.get(line);
+        // Sort so we can make validity assertions
+        List<InternalGeoLine> sorted = sortGeoLines(lines, sortOrder);
+        for (int line = 1; line < sorted.size(); line++) {
+            InternalGeoLine previous = sorted.get(line - 1);
+            InternalGeoLine current = sorted.get(line);
             double[] pv = previous.sortVals();
             double[] cv = current.sortVals();
-            assertThat("Previous line ordered", pv[0], lessThan(pv[pv.length - 1]));
-            assertThat("Current line ordered", cv[0], lessThan(cv[cv.length - 1]));
-            assertThat("Lines non-overlapping", pv[pv.length - 1], lessThan(cv[0]));
+            assertThat("Previous line ordered", pv[0], compareTo(pv[pv.length - 1], sortOrder));
+            assertThat("Current line ordered", cv[0], compareTo(cv[cv.length - 1], sortOrder));
+            assertThat("Lines non-overlapping", pv[pv.length - 1], compareTo(cv[0], sortOrder));
         }
-        return lines;
+        return sorted;
+    }
+
+    private static Matcher<Double> compareTo(double v, SortOrder sortOrder) {
+        if (sortOrder == SortOrder.ASC) {
+            return lessThan(v);
+        } else {
+            return greaterThan(v);
+        }
+    }
+
+    private static List<InternalGeoLine> sortGeoLines(List<InternalGeoLine> lines, SortOrder sortOrder) {
+        TreeSet<InternalGeoLine> sorted = switch (sortOrder) {
+            case DESC -> new TreeSet<>((o1, o2) -> Double.compare(o2.sortVals()[0], o1.sortVals()[0]));
+            default -> new TreeSet<>(Comparator.comparingDouble(o -> o.sortVals()[0]));
+        };
+        // The Comparator above relies on each line having at least one point, so filter out empty geo_lines
+        for (InternalGeoLine line : lines) {
+            if (line.length() > 0) {
+                sorted.add(line);
+            }
+        }
+        return new ArrayList<>(sorted);
+    }
+
+    private static List<InternalGeoLine> shuffleGeoLines(List<InternalGeoLine> lines) {
+        ArrayList<InternalGeoLine> shuffled = new ArrayList<>(lines);
+        Collections.shuffle(shuffled, random());
+        return shuffled;
     }
 
     private record NonOverlappingConfig(int docs, double startX, double startY, double dX, double dY, double startValue, double dV) {
@@ -222,6 +265,11 @@ public class MergedGeoLinesTests extends ESTestCase {
                 double y = startY + i * dY;
                 points[i] = (((long) GeoEncodingUtils.encodeLongitude(x)) << 32) | GeoEncodingUtils.encodeLatitude(y) & 0xffffffffL;
                 values[i] = startValue + i * dV;
+            }
+            if (sortOrder == SortOrder.DESC) {
+                // We created 'ASC' above, so reverse the arrays
+                ArrayUtils.reverseSubArray(values, 0, values.length);
+                ArrayUtils.reverseSubArray(points, 0, points.length);
             }
             return new InternalGeoLine(
                 name,

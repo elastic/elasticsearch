@@ -62,7 +62,7 @@ final class VerifyingIndexOutput extends FilterIndexOutput {
 
         if (writtenBytes < checksumPosition) {
             // we are writing the body (before the checksum)
-            final var lengthToCopy = Math.toIntExact(Math.min(length, checksumPosition - writtenBytes));
+            final var lengthToCopy = Math.toIntExact(Math.min(length, checksumPosition - writtenBytes)); // no overflow
             out.writeBytes(b, offset, lengthToCopy);
             writtenBytes += lengthToCopy;
             offset += lengthToCopy;
@@ -79,10 +79,10 @@ final class VerifyingIndexOutput extends FilterIndexOutput {
         if (0 < length) {
             assert writtenBytes >= checksumPosition; // past start of checksum
 
-            final var checksumIndex = Math.toIntExact(Math.min(writtenBytes - checksumPosition, CHECKSUM_LENGTH)); // no overflow
+            final var checksumIndex = Math.toIntExact(Math.min(CHECKSUM_LENGTH, writtenBytes - checksumPosition)); // no overflow
             if (checksumIndex < CHECKSUM_LENGTH) {
                 // we are writing the checksum
-                final var lengthToCopy = Math.toIntExact(Math.min(CHECKSUM_LENGTH - checksumIndex, length));
+                final var lengthToCopy = Math.toIntExact(Math.min(length, CHECKSUM_LENGTH - checksumIndex)); // no overflow
                 footerChecksum.put(b, offset, lengthToCopy);
                 out.writeBytes(b, offset, lengthToCopy);
                 writtenBytes += lengthToCopy;
@@ -107,6 +107,7 @@ final class VerifyingIndexOutput extends FilterIndexOutput {
     private static String checksumString(ByteBuffer byteBuffer) {
         assert byteBuffer.remaining() == 0;
         byteBuffer.flip();
+        assert byteBuffer.remaining() == CHECKSUM_LENGTH;
         return Store.digestToString(byteBuffer.getLong());
     }
 

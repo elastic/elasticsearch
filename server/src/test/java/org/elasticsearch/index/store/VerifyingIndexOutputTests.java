@@ -55,7 +55,10 @@ public class VerifyingIndexOutputTests extends ESTestCase {
                     }
                 }
 
-                verifyingOutput.verify(); // should not throw
+                for (int i = 0; i < 2; i++) {
+                    // check twice to make sure the first call doesn't leave things in a broken state
+                    verifyingOutput.verify(); // should not throw
+                }
 
                 ensureCorruptAfterRandomWrite(verifyingOutput);
             }
@@ -89,10 +92,13 @@ public class VerifyingIndexOutputTests extends ESTestCase {
                 }
             }
 
-            assertThat(
-                expectThrows(CorruptIndexException.class, verifyingOutput::verify).getMessage(),
-                allOf(VERIFICATION_FAILURE, containsString("actual=<too short>"))
-            );
+            for (int i = 0; i < 2; i++) {
+                // check twice to make sure the first call doesn't leave things in a broken state
+                assertThat(
+                    expectThrows(CorruptIndexException.class, verifyingOutput::verify).getMessage(),
+                    allOf(VERIFICATION_FAILURE, containsString("actual=<too short>"))
+                );
+            }
 
             ensureCorruptAfterRandomWrite(verifyingOutput);
         }
@@ -137,7 +143,10 @@ public class VerifyingIndexOutputTests extends ESTestCase {
 
                 assertEquals(metadata.length(), verifyingOutput.getFilePointer());
 
-                assertThat(expectThrows(CorruptIndexException.class, verifyingOutput::verify).getMessage(), isExpectedMessage);
+                for (int i = 0; i < 2; i++) {
+                    // check twice to make sure the first call doesn't leave things in a broken state
+                    assertThat(expectThrows(CorruptIndexException.class, verifyingOutput::verify).getMessage(), isExpectedMessage);
+                }
 
                 ensureCorruptAfterRandomWrite(verifyingOutput);
             }

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -103,6 +104,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         IndexSettings.FINAL_PIPELINE.getKey(),
         IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
     );
+
+    private static final Set<String> OVERRIDE_SETTINGS = Set.of(DataTier.TIER_PREFERENCE);
 
     /**
      * This is the cluster state task executor for cluster state update actions.
@@ -594,6 +597,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // Do not copy index settings which are valid for the source index but not for the target index
             if (FORBIDDEN_SETTINGS.contains(key)) {
                 continue;
+            }
+
+            if (OVERRIDE_SETTINGS.contains(key)) {
+                targetSettings.put(key, sourceIndexMetadata.getSettings().get(key));
             }
             // Do not override settings that have already been set in the rollup index.
             if (targetSettings.keys().contains(key)) {

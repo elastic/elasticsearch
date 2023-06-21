@@ -344,13 +344,7 @@ PUT metrics_index
         }
       },
       "latency_hist": {
-        "properties": {
-          "values": {
-            "type": "histogram"
-          },
-          "counts": {
-            "type": "histogram"
-          }
+         "type": "histogram"
         }
       }
     }
@@ -380,7 +374,7 @@ POST /metrics_index/_search?size=0
   "aggs": {
     "latency_buckets": {
       "histogram": {
-        "field": "latency_histo.values",
+        "field": "latency_histo",
         "interval": 5
       }
     }

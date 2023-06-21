@@ -787,11 +787,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
 ========
-`bert-ja`::::
+`bert_ja`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
-.Properties of bert-ja
+.Properties of bert_ja
 [%collapsible%open]
 ========
 `do_lower_case`::::

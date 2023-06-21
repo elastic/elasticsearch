@@ -958,7 +958,7 @@ values are
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
 * experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
-* experimental:[] `bert-ja`: Use for BERT-style models trained for the Japanese
+* experimental:[] `bert_ja`: Use for BERT-style models trained for the Japanese
 language.
 --
 end::inference-config-nlp-tokenization-text-embedding[]

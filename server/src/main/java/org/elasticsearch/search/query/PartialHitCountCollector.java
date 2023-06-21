@@ -18,9 +18,9 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import java.io.IOException;
 
 /**
- * Extension of {@link TotalHitCountCollector} that supports early termination of total hits tracking based on a provided threshold.
+ * Extension of {@link TotalHitCountCollector} that supports early termination of total hits counting based on a provided threshold.
  * Note that the total hit count may be retrieved from {@link org.apache.lucene.search.Weight#count(LeafReaderContext)},
- * in which case the early termination happens only if documents are collected for some of the subsequent leaves.
+ * in which case early termination is only applied to the leaves that do collect documents.
  */
 class PartialHitCountCollector extends TotalHitCountCollector {
 

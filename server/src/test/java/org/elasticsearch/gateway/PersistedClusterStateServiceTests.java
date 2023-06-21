@@ -57,6 +57,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -1488,12 +1489,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final Path[] dataPaths2 = createDataPaths();
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
-        Version oldVersion = Version.fromId(Version.CURRENT.minimumIndexCompatibilityVersion().id - 1);
+        IndexVersion oldVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1);
 
-        final Version[] indexVersions = new Version[] { oldVersion, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) };
+        final IndexVersion[] indexVersions = new IndexVersion[] {
+            oldVersion,
+            IndexVersion.CURRENT,
+            IndexVersion.fromId(IndexVersion.CURRENT.id() + 1) };
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
-        for (Version indexVersion : indexVersions) {
+        for (IndexVersion indexVersion : indexVersions) {
             String indexUUID = UUIDs.randomBase64UUID(random());
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .putMapping(randomMappingMetadataOrNull())

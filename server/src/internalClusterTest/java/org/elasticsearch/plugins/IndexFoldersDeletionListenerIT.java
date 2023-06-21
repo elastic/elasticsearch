@@ -94,7 +94,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
             assertNoDeletions(shardsByNode.getKey());
         }
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
         assertPendingDeletesProcessed();
 
         assertBusy(() -> {
@@ -236,7 +236,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         internalCluster().stopNode(stoppedNode);
         ensureStableCluster(3 + 1, masterNode);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final String restartedNode = internalCluster().startNode(stoppedNodeDataPathSettings);
         ensureStableCluster(4 + 1, masterNode);
@@ -276,7 +276,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(1, masterNode);
 
         logger.debug("--> deleting leftover indices");
-        assertAcked(client().admin().indices().prepareDelete("index-*"));
+        assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 

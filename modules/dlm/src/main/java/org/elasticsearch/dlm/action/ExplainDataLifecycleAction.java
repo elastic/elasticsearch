@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public class ExplainDataLifecycleAction extends ActionType<ExplainDataLifecycleAction.Response> {
     public static final ExplainDataLifecycleAction INSTANCE = new ExplainDataLifecycleAction();
-    public static final String NAME = "indices:admin/dlm/explain";
+    public static final String NAME = "indices:admin/data_stream/lifecycle/explain";
 
     public ExplainDataLifecycleAction() {
         super(NAME, Response::new);

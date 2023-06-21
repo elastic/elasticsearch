@@ -12,7 +12,7 @@ Gets the lifecycle of a set of data streams.
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have at least one of the `manage`
-<<privileges-list-indices,index privilege>>, the `manage_dlm` index privilege, or the
+<<privileges-list-indices,index privilege>>, the `manage_data_stream_lifecycle` index privilege, or the
 `view_index_metadata` privilege to use this API. For more information, see <<security-privileges>>.
 
 [[dlm-get-lifecycle-request]]
@@ -75,7 +75,7 @@ duration the document could be deleted. When undefined, every document in this d
 `rollover`::
 (Optional, object)
 The conditions which will trigger the rollover of a backing index as configured by the cluster setting
-`cluster.dlm.default.rollover`. This property is an implementation detail and it will only be retrieved when the query
+`cluster.lifecycle.default.rollover`. This property is an implementation detail and it will only be retrieved when the query
 param `include_defaults` is set to `true`. The contents of this field are subject to change.
 =====
 ====

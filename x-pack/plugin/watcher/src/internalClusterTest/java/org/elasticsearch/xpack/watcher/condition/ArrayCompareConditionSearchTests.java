@@ -31,7 +31,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
     public void testExecuteWithAggs() throws Exception {
         String index = "test-index";
-        client().admin().indices().prepareCreate(index).get();
+        indicesAdmin().prepareCreate(index).get();
 
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());

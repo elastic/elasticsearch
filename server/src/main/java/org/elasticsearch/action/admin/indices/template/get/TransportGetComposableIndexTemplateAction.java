@@ -93,7 +93,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
             listener.onResponse(
                 new GetComposableIndexTemplateAction.Response(
                     results,
-                    clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
+                    clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                 )
             );
         } else {

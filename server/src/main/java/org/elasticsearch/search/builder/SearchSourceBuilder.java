@@ -21,6 +21,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -83,6 +84,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
     public static final ParseField RANK_FIELD = new ParseField("rank");
@@ -129,7 +131,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return new HighlightBuilder();
     }
 
-    private QueryBuilder queryBuilder;
+    private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
     private QueryBuilder postQueryBuilder;
 
@@ -214,7 +216,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
+            subSearchSourceBuilders = in.readList(SubSearchSourceBuilder::new);
+        } else {
+            QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+            if (queryBuilder != null) {
+                subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
+            }
+        }
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableList(RescorerBuilder.class);
         }
@@ -281,7 +290,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeList(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        out.writeOptionalNamedWriteable(queryBuilder);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
+            out.writeList(subSearchSourceBuilders);
+        } else if (out.getTransportVersion().before(TransportVersion.V_8_8_0) && subSearchSourceBuilders.size() >= 2) {
+            throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");
+        } else {
+            out.writeOptionalNamedWriteable(query());
+        }
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
@@ -353,20 +368,53 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Sets the search query for this request.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * Sets the query for this request.
      */
-    public SearchSourceBuilder query(QueryBuilder query) {
-        this.queryBuilder = query;
+    public SearchSourceBuilder query(QueryBuilder queryBuilder) {
+        subSearchSourceBuilders = new ArrayList<>();
+        if (queryBuilder != null) {
+            subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
+        }
         return this;
     }
 
     /**
-     * Gets the query for this request
+     * Gets the query for this request.
+     *
+     * @return This will return {@code null} if there are no
+     * sub searches, a single {@link QueryBuilder} if there is only
+     * one sub search, and a combined {@link BoolQueryBuilder} if
+     * there are multiple sub searches where each sub search becomes
+     * a query with a should clause.
      */
     public QueryBuilder query() {
-        return queryBuilder;
+        if (subSearchSourceBuilders.isEmpty()) {
+            return null;
+        } else if (subSearchSourceBuilders.size() == 1) {
+            return subSearchSourceBuilders.get(0).getQueryBuilder();
+        } else {
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            for (SubSearchSourceBuilder subSearchSourceBuilder : subSearchSourceBuilders) {
+                boolQueryBuilder.should(subSearchSourceBuilder.getQueryBuilder());
+            }
+            return boolQueryBuilder;
+        }
+    }
+
+    /**
+     * Sets the sub searches for this request.
+     */
+    public SearchSourceBuilder subSearches(List<SubSearchSourceBuilder> subSearchSourceBuilders) {
+        Objects.requireNonNull(subSearchSourceBuilders);
+        this.subSearchSourceBuilders = subSearchSourceBuilders;
+        return this;
+    }
+
+    /**
+     * Gets the sub searches for this request.
+     */
+    public List<SubSearchSourceBuilder> subSearches() {
+        return subSearchSourceBuilders;
     }
 
     /**
@@ -1024,7 +1072,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return true if the source only has suggest
      */
     public boolean isSuggestOnly() {
-        return suggestBuilder != null && queryBuilder == null && knnSearch.isEmpty() && aggregations == null;
+        return suggestBuilder != null && query() == null && knnSearch.isEmpty() && aggregations == null;
     }
 
     /**
@@ -1067,12 +1115,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public SearchSourceBuilder rewrite(QueryRewriteContext context) throws IOException {
         assert (this.equals(
-            shallowCopy(queryBuilder, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder)
+            shallowCopy(
+                subSearchSourceBuilders,
+                postQueryBuilder,
+                knnSearch,
+                aggregations,
+                sliceBuilder,
+                sorts,
+                rescoreBuilders,
+                highlightBuilder
+            )
         ));
-        QueryBuilder queryBuilder = null;
-        if (this.queryBuilder != null) {
-            queryBuilder = this.queryBuilder.rewrite(context);
-        }
+        List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
         QueryBuilder postQueryBuilder = null;
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
@@ -1090,7 +1144,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             highlightBuilder = this.highlightBuilder.rewrite(context);
         }
 
-        boolean rewritten = queryBuilder != this.queryBuilder
+        boolean rewritten = subSearchSourceBuilders != this.subSearchSourceBuilders
             || postQueryBuilder != this.postQueryBuilder
             || knnSearch != this.knnSearch
             || aggregations != this.aggregations
@@ -1099,7 +1153,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             || this.highlightBuilder != highlightBuilder;
         if (rewritten) {
             return shallowCopy(
-                queryBuilder,
+                subSearchSourceBuilders,
                 postQueryBuilder,
                 knnSearch,
                 aggregations,
@@ -1116,16 +1170,25 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Create a shallow copy of this builder with a new slice configuration.
      */
     public SearchSourceBuilder shallowCopy() {
-        return shallowCopy(queryBuilder, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
+        return shallowCopy(
+            subSearchSourceBuilders,
+            postQueryBuilder,
+            knnSearch,
+            aggregations,
+            sliceBuilder,
+            sorts,
+            rescoreBuilders,
+            highlightBuilder
+        );
     }
 
     /**
-     * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@link #sliceBuilder}. Used by
-     * {@link #rewrite(QueryRewriteContext)}}.
+     * Create a shallow copy of this source replaced {@link #subSearchSourceBuilders}, {@link #postQueryBuilder}, and {@link #sliceBuilder}.
+     * Used by {@link #rewrite(QueryRewriteContext)}}.
      */
     @SuppressWarnings("rawtypes")
     private SearchSourceBuilder shallowCopy(
-        QueryBuilder queryBuilder,
+        List<SubSearchSourceBuilder> subSearchSourceBuilders,
         QueryBuilder postQueryBuilder,
         List<KnnSearchBuilder> knnSearch,
         AggregatorFactories.Builder aggregations,
@@ -1150,7 +1213,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.knnSearch = knnSearch;
         rewrittenBuilder.rankBuilder = rankBuilder;
         rewrittenBuilder.profile = profile;
-        rewrittenBuilder.queryBuilder = queryBuilder;
+        rewrittenBuilder.subSearchSourceBuilders = subSearchSourceBuilders;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
         rewrittenBuilder.scriptFields = scriptFields;
         rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
@@ -1273,7 +1336,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
+                    if (subSearchSourceBuilders.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"
+                        );
+                    }
+                    QueryBuilder queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
+                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
                     searchUsage.trackSectionUsage(QUERY_FIELD.getPreferredName());
                 } else if (POST_FILTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
@@ -1485,6 +1554,23 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         }
                     }
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
+                } else if (SUB_SEARCHES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (subSearchSourceBuilders.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "cannot specify field [" + currentFieldName + "] and field [" + QUERY_FIELD.getPreferredName() + "]"
+                        );
+                    }
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            subSearchSourceBuilders.add(SubSearchSourceBuilder.fromXContent(parser, searchUsage));
+                        } else {
+                            throw new XContentParseException(
+                                parser.getTokenLocation(),
+                                "malformed query within the [sub_searches] field; found " + token
+                            );
+                        }
+                    }
+                    searchUsage.trackSectionUsage(SUB_SEARCHES_FIELD.getPreferredName());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -1526,8 +1612,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(TERMINATE_AFTER_FIELD.getPreferredName(), terminateAfter);
         }
 
-        if (queryBuilder != null) {
-            builder.field(QUERY_FIELD.getPreferredName(), queryBuilder);
+        if (subSearchSourceBuilders.isEmpty() == false) {
+            if (subSearchSourceBuilders.size() == 1) {
+                builder.field(QUERY_FIELD.getPreferredName(), subSearchSourceBuilders.get(0).getQueryBuilder());
+            } else {
+                builder.xContentList(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders);
+            }
         }
 
         if (postQueryBuilder != null) {
@@ -1921,8 +2011,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             highlightBuilder,
             indexBoosts,
             minScore,
+            subSearchSourceBuilders,
             postQueryBuilder,
-            queryBuilder,
             knnSearch,
             rankBuilder,
             rescoreBuilders,
@@ -1966,8 +2056,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(highlightBuilder, other.highlightBuilder)
             && Objects.equals(indexBoosts, other.indexBoosts)
             && Objects.equals(minScore, other.minScore)
+            && Objects.equals(subSearchSourceBuilders, other.subSearchSourceBuilders)
             && Objects.equals(postQueryBuilder, other.postQueryBuilder)
-            && Objects.equals(queryBuilder, other.queryBuilder)
             && Objects.equals(knnSearch, other.knnSearch)
             && Objects.equals(rankBuilder, other.rankBuilder)
             && Objects.equals(rescoreBuilders, other.rescoreBuilders)

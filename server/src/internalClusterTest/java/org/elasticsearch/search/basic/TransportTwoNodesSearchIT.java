@@ -101,7 +101,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
     public void testDfsQueryThenFetch() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder().put(indexSettings());
-        client().admin().indices().create(new CreateIndexRequest("test").settings(settingsBuilder)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest("test").settings(settingsBuilder)).actionGet();
         ensureGreen();
 
         // we need to have age (ie number of repeats of "test" term) high enough

@@ -1,5 +1,5 @@
 pr: 96924
-summary: Interpret microseconds cpu stats properly as nanos from cgroups2
+summary: Interpret microseconds cpu stats from cgroups2 properly as nanos
 area: Infra/Core
 type: bug
 issues:

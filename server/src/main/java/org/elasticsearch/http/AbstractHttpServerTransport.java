@@ -511,8 +511,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     maybeHttpLogger,
-                    tracer,
-                    shuttingDown
+                    tracer
                 );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
@@ -526,8 +525,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     httpLogger,
-                    tracer,
-                    shuttingDown
+                    tracer
                 );
             }
             channel = innerChannel;

@@ -172,8 +172,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         RestResponse resp = testRestResponse();
         final String customHeader = "custom-header";
@@ -208,8 +207,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            true
+            tracer
         );
 
         RestResponse resp = testRestResponse();
@@ -237,8 +235,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
 
         RestResponse resp = testRestResponse();
@@ -269,8 +266,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         channel.sendResponse(testRestResponse());
 
@@ -299,8 +295,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         final RestResponse response = new RestResponse(
             RestStatus.INTERNAL_SERVER_ERROR,
@@ -368,8 +363,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         channel.sendResponse(testRestResponse());
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
@@ -401,8 +395,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         doAnswer(invocationOnMock -> {
             ActionListener<?> listener = invocationOnMock.getArgument(1);
@@ -449,8 +442,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
@@ -497,8 +489,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
@@ -547,8 +538,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         ArgumentCaptor<HttpResponse> requestCaptor = ArgumentCaptor.forClass(HttpResponse.class);
         {
@@ -608,8 +598,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(Settings.EMPTY)),
             new HttpTracer(),
-            tracer,
-            false
+            tracer
         );
 
         final MockLogAppender sendingResponseMockLog = new MockLogAppender();
@@ -671,8 +660,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(Settings.EMPTY)),
             new HttpTracer(),
-            tracer,
-            false
+            tracer
         );
 
         MockLogAppender mockLogAppender = new MockLogAppender();
@@ -728,8 +716,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             new HttpTracer(),
-            tracer,
-            false
+            tracer
         );
 
         var responseBody = new BytesArray(randomUnicodeOfLengthBetween(1, 100).getBytes(StandardCharsets.UTF_8));
@@ -799,8 +786,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(settings)),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         channel.sendResponse(testRestResponse());
 

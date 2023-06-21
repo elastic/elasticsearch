@@ -439,7 +439,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getExpirationTime(), greaterThan(now));
 
         // remove the async search index
-        client().admin().indices().prepareDelete(XPackPlugin.ASYNC_RESULTS_INDEX).get();
+        indicesAdmin().prepareDelete(XPackPlugin.ASYNC_RESULTS_INDEX).get();
 
         Exception exc = expectThrows(Exception.class, () -> getAsyncSearch(response.getId()));
         Throwable cause = exc instanceof ExecutionException

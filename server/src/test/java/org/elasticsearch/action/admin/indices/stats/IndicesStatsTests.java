@@ -40,7 +40,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
 
     public void testSegmentStatsEmptyIndex() {
         createIndex("test");
-        IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
+        IndicesStatsResponse rsp = indicesAdmin().prepareStats("test").get();
         SegmentsStats stats = rsp.getTotal().getSegments();
         assertEquals(0, stats.getCount());
     }
@@ -67,25 +67,23 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping(mapping)
                 .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey()))
         );
         ensureGreen("test");
         client().prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
-        IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
+        IndicesStatsResponse rsp = indicesAdmin().prepareStats("test").get();
         SegmentsStats stats = rsp.getIndex("test").getTotal().getSegments();
         assertThat(stats.getCount(), greaterThan(0L));
 
         // now check multiple segments stats are merged together
         client().prepareIndex("test").setId("2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
-        rsp = client().admin().indices().prepareStats("test").get();
+        rsp = indicesAdmin().prepareStats("test").get();
         SegmentsStats stats2 = rsp.getIndex("test").getTotal().getSegments();
         assertThat(stats2.getCount(), greaterThan(stats.getCount()));
     }
@@ -94,7 +92,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen("test");
 
-        IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
+        IndicesStatsResponse rsp = indicesAdmin().prepareStats("test").get();
         for (ShardStats shardStats : rsp.getIndex("test").getShards()) {
             final CommitStats commitStats = shardStats.getCommitStats();
             assertNotNull(commitStats);
@@ -119,7 +117,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         logger.info("starting to wait");
         long end = System.nanoTime() + TimeUnit.MINUTES.toNanos(1);
         while (true) {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().setRefresh(true).setDocs(true).get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test").clear().setRefresh(true).setDocs(true).get();
             CommonStats common = stats.getIndices().get("test").getTotal();
             // There shouldn't be a doc. If there is then we did *something* weird.
             assertEquals(0, common.docs.getCount());
@@ -133,11 +131,11 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         }
 
         // Refresh the index and wait for the request to come back
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
         index.get();
 
         // The document should appear in the statistics and the refresh listener should be gone
-        IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().setRefresh(true).setDocs(true).get();
+        IndicesStatsResponse stats = indicesAdmin().prepareStats("test").clear().setRefresh(true).setDocs(true).get();
         CommonStats common = stats.getIndices().get("test").getTotal();
         assertEquals(1, common.docs.getCount());
         assertEquals(0, common.refresh.getListeners());
@@ -145,7 +143,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
 
     public void testUuidOnRootStatsIndices() {
         String uuid = createIndex("test").indexUUID();
-        IndicesStatsResponse rsp = client().admin().indices().prepareStats().get();
+        IndicesStatsResponse rsp = indicesAdmin().prepareStats().get();
         assertEquals(uuid, rsp.getIndex("test").getUuid());
     }
 
@@ -155,7 +153,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         String yellowIndex = "yellow-index";
         createIndex(yellowIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
 
-        IndicesStatsResponse rsp = client().admin().indices().prepareStats().all().get();
+        IndicesStatsResponse rsp = indicesAdmin().prepareStats().all().get();
 
         IndexStats greenIndexStats = rsp.getIndex(greenIndex);
         assertEquals(ClusterHealthStatus.GREEN, greenIndexStats.getHealth());
@@ -170,13 +168,9 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         String closeIndex = "close-index";
         createIndex(closeIndex);
 
-        client().admin().indices().close(new CloseIndexRequest(closeIndex)).get();
+        indicesAdmin().close(new CloseIndexRequest(closeIndex)).get();
 
-        IndicesStatsResponse rsp = client().admin()
-            .indices()
-            .prepareStats()
-            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED)
-            .get();
+        IndicesStatsResponse rsp = indicesAdmin().prepareStats().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED).get();
         IndexStats openIndexStats = rsp.getIndex(openIndex);
         assertEquals(IndexMetadata.State.OPEN, openIndexStats.getState());
 

@@ -75,7 +75,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
         new LifecyclePolicyConfig(
-            "profiling",
+            "profiling-60-days",
             "/org/elasticsearch/xpack/profiler/ilm-policy/profiling-60-days.json",
             Map.of(PROFILING_TEMPLATE_VERSION_VARIABLE, String.valueOf(INDEX_TEMPLATE_VERSION))
         ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)
@@ -118,6 +118,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 "profiling-metrics",
                 "/org/elasticsearch/xpack/profiler/component-template/profiling-metrics.json",
+                INDEX_TEMPLATE_VERSION,
+                PROFILING_TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                "profiling-hosts",
+                "/org/elasticsearch/xpack/profiler/component-template/profiling-hosts.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE
             ),
@@ -167,6 +173,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             "profiling-metrics",
             "/org/elasticsearch/xpack/profiler/index-template/profiling-metrics.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-hosts",
+            "/org/elasticsearch/xpack/profiler/index-template/profiling-hosts.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),

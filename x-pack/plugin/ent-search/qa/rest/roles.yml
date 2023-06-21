@@ -2,6 +2,7 @@ admin:
   cluster:
     - manage_search_application
     - manage_behavioral_analytics
+    - manage
     - monitor
   indices:
     - names: [
@@ -32,6 +33,7 @@ admin:
 user:
   cluster:
     - post_behavioral_analytics_event
+    - manage_api_key
   indices:
     - names: [
       "test-search-application",

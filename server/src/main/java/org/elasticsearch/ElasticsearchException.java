@@ -145,8 +145,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
+        headers.putAll(in.readMapOfLists(StreamInput::readString));
+        metadata.putAll(in.readMapOfLists(StreamInput::readString));
     }
 
     /**
@@ -1838,6 +1838,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.http.HttpHeadersValidationException::new,
             169,
             TransportVersion.V_8_9_0
+        ),
+        ROLE_RESTRICTION_EXCEPTION(
+            ElasticsearchRoleRestrictionException.class,
+            ElasticsearchRoleRestrictionException::new,
+            170,
+            TransportVersion.V_8_500_016
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

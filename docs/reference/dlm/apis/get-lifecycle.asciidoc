@@ -1,4 +1,4 @@
-[[dlm-get-lifecycle]]
+[[data-streams-get-lifecycle]]
 === Get the lifecycle of a data stream
 ++++
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
@@ -15,12 +15,12 @@ Gets the lifecycle of a set of data streams.
 <<privileges-list-indices,index privilege>>, the `manage_data_stream_lifecycle` index privilege, or the
 `view_index_metadata` privilege to use this API. For more information, see <<security-privileges>>.
 
-[[dlm-get-lifecycle-request]]
+[[data-streams-get-lifecycle-request]]
 ==== {api-request-title}
 
 `GET _data_stream/<data-stream>/_lifecycle`
 
-[[dlm-get-lifecycle-desc]]
+[[data-streams-get-lifecycle-desc]]
 ==== {api-description-title}
 
 Gets the lifecycle of the specified data streams. If multiple data streams are requested but at least one of them
@@ -28,7 +28,7 @@ does not exist, then the API will respond with `404` since at least one of the r
 If the requested data streams do not have a lifecycle configured they will still be included in the API response but the
 `lifecycle` key will be missing.
 
-[[dlm-get-lifecycle-path-params]]
+[[data-streams-get-lifecycle-path-params]]
 ==== {api-path-parms-title}
 
 `<data-stream>`::
@@ -80,7 +80,7 @@ when the query param `include_defaults` is set to `true`. The contents of this f
 =====
 ====
 
-[[dlm-get-lifecycle-example]]
+[[data-streams-get-lifecycle-example]]
 ==== {api-examples-title}
 
 ////

@@ -77,8 +77,8 @@ PUT my-data-stream/_bulk
 [[retrieve-lifecycle-information]]
 ==== Retrieve lifecycle information
 
-You can use the <<dlm-get-lifecycle,get data stream lifecycle API>> to see the data lifecycle of your data stream and
-the <<dlm-explain-lifecycle,explain data lifecycle>> to see the exact state of each backing index.
+You can use the <<data-streams-get-lifecycle,get data stream lifecycle API>> to see the data lifecycle of your data stream and
+the <<data-streams-explain-lifecycle,explain data lifecycle>> to see the exact state of each backing index.
 
 [source,console]
 --------------------------------------------------
@@ -106,7 +106,7 @@ The result will look like this:
 be kept at least for 7 days. After that {es} can delete it at its own discretion.
 
 If you want to see more information about how the data stream lifecycle is applied on individual backing indices use the
-<<dlm-explain-lifecycle,explain data lifecycle>> API:
+<<data-streams-explain-lifecycle,explain data lifecycle>> API:
 
 [source,console]
 --------------------------------------------------

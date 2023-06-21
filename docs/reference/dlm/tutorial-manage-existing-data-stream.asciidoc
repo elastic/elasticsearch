@@ -13,7 +13,7 @@ To update the lifecycle of an existing data stream you do following actions:
 [[set-lifecycle]]
 ==== Set a data stream's lifecycle
 
-To add or to change the retention period of your data stream you can use the <<dlm-put-lifecycle, PUT lifecycle API>>.
+To add or to change the retention period of your data stream you can use the <<data-streams-put-lifecycle, PUT lifecycle API>>.
 
 * You can set infinite retention period, meaning that your data should never be deleted. For example:
 +
@@ -40,7 +40,7 @@ PUT _data_stream/my-data-stream/_lifecycle
 older than 30 days at its own discretion.
 
 The changes in the lifecycle are applied on all backing indices of the data stream. You can see the effect of the change
-via the <<dlm-explain-lifecycle, explain API>>:
+via the <<data-streams-explain-lifecycle, explain API>>:
 
 [source,console]
 --------------------------------------------------
@@ -95,7 +95,7 @@ The response will look like:
 [[delete-lifecycle]]
 ==== Remove lifecycle for a data stream
 
-To remove the lifecycle of a data stream you can use the <<dlm-delete-lifecycle-request,delete lifecycle API>>, as consequence,
+To remove the lifecycle of a data stream you can use the <<data-streams-delete-lifecycle-request,delete lifecycle API>>, as consequence,
 the maintainance operations that were applied by the lifecycle will no longer be applied to the data stream and all its
 backing indices will. For example:
 
@@ -105,7 +105,7 @@ DELETE _data_stream/my-data-stream/_lifecycle
 --------------------------------------------------
 // TEST[continued]
 
-You can then use the <<dlm-explain-lifecycle, explain API>> again to see that the indices are no longer managed.
+You can then use the <<data-streams-explain-lifecycle, explain API>> again to see that the indices are no longer managed.
 
 [source,console]
 --------------------------------------------------

@@ -1,7 +1,7 @@
 {
   "indices.explain_data_lifecycle": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/dlm-explain-lifecycle.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-streams-explain-lifecycle.html",
       "description": "Retrieves information about the index's current DLM lifecycle, such as any potential encountered error, time since creation etc."
     },
     "stability": "experimental",

@@ -1,4 +1,4 @@
-[[dlm-explain-lifecycle]]
+[[data-streams-explain-lifecycle]]
 === Explain Lifecycle API
 ++++
 <titleabbrev>Explain Data Lifecycle</titleabbrev>
@@ -16,12 +16,12 @@ Retrieves the current data lifecycle status for one or more data stream backing 
 If the {es} {security-features} are enabled, you must have at least the `manage_data_stream_lifecycle` index privilege or
 `view_index_metadata` index privilege to use this API. For more information, see <<security-privileges>>.
 
-[[dlm-explain-lifecycle-request]]
+[[data-streams-explain-lifecycle-request]]
 ==== {api-request-title}
 
 `GET <target>/_lifecycle/explain`
 
-[[dlm-explain-lifecycle-desc]]
+[[data-streams-explain-lifecycle-desc]]
 ==== {api-description-title}
 
 Retrieves information about the index's current {dlm-init} lifecycle state, such as
@@ -29,13 +29,13 @@ time since index creation, time since rollover, the lifecycle configuration
 managing the index, or any error that {es} might've encountered during the lifecycle
 execution.
 
-[[dlm-explain-lifecycle-path-params]]
+[[data-streams-explain-lifecycle-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
 (Required, string) Comma-separated list of indices.
 
-[[dlm-explain-lifecycle-query-params]]
+[[data-streams-explain-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
 `include_defaults`::
@@ -44,7 +44,7 @@ execution.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-[[dlm-explain-lifecycle-example]]
+[[data-streams-explain-lifecycle-example]]
 ==== {api-examples-title}
 
 The following example retrieves the lifecycle state of the index `.ds-metrics-2023.03.22-000001`:

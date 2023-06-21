@@ -15,7 +15,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -99,9 +99,9 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         if (isUpgradeInProgress.compareAndSet(false, true)) {
-            // Use a RefCountingListener so that we only release the lock once all upgrade attempts have succeeded or failed.
+            // Use a RefCountingRunnable so that we only release the lock once all upgrade attempts have succeeded or failed.
             // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
-            try (var listeners = new RefCountingListener(ActionListener.running(() -> isUpgradeInProgress.set(false)))) {
+            try (var refs = new RefCountingRunnable(() -> isUpgradeInProgress.set(false))) {
                 for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
                     UpgradeStatus upgradeStatus;
                     try {
@@ -111,7 +111,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
                         continue;
                     }
                     if (upgradeStatus == UpgradeStatus.NEEDS_MAPPINGS_UPDATE) {
-                        upgradeIndexMappings(systemIndexDescriptor, listeners.acquire(ignored -> {}));
+                        upgradeIndexMappings(systemIndexDescriptor, ActionListener.releasing(refs.acquire()));
                     }
                 }
             }

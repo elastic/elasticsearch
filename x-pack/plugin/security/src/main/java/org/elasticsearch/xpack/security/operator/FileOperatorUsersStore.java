@@ -91,7 +91,7 @@ public class FileOperatorUsersStore {
                     || group.tokenNames.contains(
                         authentication.getEffectiveSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD)
                     ));
-            logger.error(
+            logger.trace(
                 "Matching user [{}] against operator rule [{}] is [{}]",
                 authentication.getEffectiveSubject().getUser(),
                 group,

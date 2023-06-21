@@ -6,7 +6,9 @@
 
 NOTE: {cloud-only}
 
-Exposes the desired balance and basic metrics.
+Resets the desired balance and starts a new computation from current allocation.
+This API could be used if desired balance computation diverged far from the current state
+and is trying to move too many shards.
 
 [[delete-desired-balance-request]]
 ==== {api-request-title}

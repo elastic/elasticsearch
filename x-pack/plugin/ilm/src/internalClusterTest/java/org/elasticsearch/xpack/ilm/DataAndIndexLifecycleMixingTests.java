@@ -85,8 +85,8 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(DataLifecycleService.DLM_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -750,7 +750,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
             assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
         }
-        client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
     static void putComposableIndexTemplate(

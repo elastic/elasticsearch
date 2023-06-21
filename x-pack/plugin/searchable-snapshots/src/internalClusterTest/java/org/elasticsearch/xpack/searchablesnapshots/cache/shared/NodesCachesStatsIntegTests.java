@@ -61,7 +61,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         final String snapshot = "snapshot";
         createFullSnapshot(repository, snapshot);
 
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
 
         final String mountedIndex = "mounted-index";
         mountSnapshot(repository, snapshot, index, mountedIndex, Settings.EMPTY, Storage.SHARED_CACHE);

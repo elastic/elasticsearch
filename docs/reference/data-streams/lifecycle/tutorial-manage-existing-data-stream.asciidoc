@@ -4,7 +4,7 @@
 
 preview::[]
 
-To update the lifecycle of an existing data stream you do following actions:
+To update the lifecycle of an existing data stream you do the following actions:
 
 . <<set-lifecycle>>
 . <<delete-lifecycle>>

@@ -9,6 +9,13 @@ package org.elasticsearch.xpack.ml.inference.rescorer;
 
 import org.elasticsearch.common.util.FeatureFlag;
 
+/**
+ * Inference rescorer feature flag. When the feature is complete, this flag will be removed.
+ *
+ * Upon removal, ensure transport serialization is all corrected for future BWC.
+ *
+ * See {@link InferenceRescorerBuilder}
+ */
 public class InferenceRescorerFeature {
 
     private InferenceRescorerFeature() {}

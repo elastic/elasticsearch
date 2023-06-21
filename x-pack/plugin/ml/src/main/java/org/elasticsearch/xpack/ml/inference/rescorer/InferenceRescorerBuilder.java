@@ -88,6 +88,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        //TODO: update transport version when released!
         return TransportVersion.current();
     }
 

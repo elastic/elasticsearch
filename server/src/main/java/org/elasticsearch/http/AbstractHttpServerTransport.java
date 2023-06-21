@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -87,7 +88,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
-    private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<HttpChannel, RequestTrackingHttpChannel> httpChannels = new ConcurrentHashMap<>();
     private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -96,7 +97,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private final HttpTracer httpLogger;
     private final Tracer tracer;
-    private volatile boolean gracefullyCloseConnections;
+    private volatile boolean shuttingDown;
 
     private volatile long slowLogThresholdMs;
 
@@ -226,13 +227,17 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * Gracefully shut down.  If {@link HttpTransportSettings#SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD} is zero, the default, then
      * forcefully close all open connections immediately.
      * Serially run through the following steps:
-     * 1) Stop listening for new HTTP connections, which means no new HttpChannel are added to the {@link #httpChannels} list
-     * 2) Add the {@code Connection: close} response header to all new requests on existing {@link #httpChannels} and close the HttpChannel
-     *    after the new request completes
-     * 3) If grace period is set, wait for all {@link #httpChannels} to close via 2 for up to the configured grace period,
+     * <ol>
+     *   <li> Stop listening for new HTTP connections, which means no new HttpChannel are added to the {@link #httpChannels} list.
+     *   {@link #serverAcceptedChannel(HttpChannel)} will close any new channels to ensure this is true.
+     *   <li> Add the {@code Connection: close} response header to all new requests on existing httpChannels and close the HttpChannel
+     *    after the new request completes.
+     *   <li> Close all idle channels.
+     *   <li> If grace period is set, wait for all httpChannels to close via 2 for up to the configured grace period,
      *    {@link #shutdownGracePeriodMillis}.
-     *    If all connections are closed before the expiration of the grace period, stop waiting early.
-     * 4) Close all open httpChannels even if requests are in flight.
+     *   If all connections are closed before the expiration of the grace period, stop waiting early.
+     *   <li> Close all remaining open httpChannels even if requests are in flight.
+     * </ol>
      */
     @Override
     protected void doStop() {
@@ -250,6 +255,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         gracefullyCloseConnections();
         refCounted.decRef();
         boolean closed = false;
+
+        // httpChannels has no more puts after gracefullyCloseConnections because of the guard in serverAcceptedChannel
+        httpChannels.values().forEach(RequestTrackingHttpChannel::setCloseWhenIdle);
+
         if (shutdownGracePeriodMillis > 0) {
             try {
                 FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
@@ -260,7 +269,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
         if (closed == false) {
             try {
-                CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+                CloseableChannel.closeChannels(new ArrayList<>(httpChannels.values()), true);
             } catch (Exception e) {
                 logger.warn("unexpected exception while closing http channels", e);
             }
@@ -279,7 +288,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * Close the client channel after a new request.
      */
     void gracefullyCloseConnections() {
-        gracefullyCloseConnections = true;
+        shuttingDown = true;
+    }
+
+    public boolean isAcceptingConnections() {
+        return shuttingDown;
     }
 
     @Override
@@ -367,8 +380,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
-        boolean addedOnThisCall = httpChannels.add(httpChannel);
-        assert addedOnThisCall : "Channel should only be added to http channel set once";
+        RequestTrackingHttpChannel trackingChannel = httpChannels.putIfAbsent(httpChannel, new RequestTrackingHttpChannel(httpChannel));
+        assert trackingChannel == null : "Channel should only be added to http channel set once";
         refCounted.incRef();
         httpChannel.addCloseListener(ActionListener.running(() -> {
             httpChannels.remove(httpChannel);
@@ -387,9 +400,15 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
+        final RequestTrackingHttpChannel trackingChannel = httpChannels.get(httpChannel);
         final long startTime = threadPool.rawRelativeTimeInMillis();
         try {
-            handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+            if (trackingChannel != null) {
+                // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
+                // connection closed early
+                trackingChannel.incomingRequest();
+            }
+            handleIncomingRequest(httpRequest, trackingChannel != null ? trackingChannel : httpChannel, httpRequest.getInboundException());
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
             networkService.getHandlingTimeTracker().addHandlingTime(took);
@@ -493,7 +512,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     corsHandler,
                     maybeHttpLogger,
                     tracer,
-                    gracefullyCloseConnections
+                    shuttingDown
                 );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
@@ -508,7 +527,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     corsHandler,
                     httpLogger,
                     tracer,
-                    gracefullyCloseConnections
+                    shuttingDown
                 );
             }
             channel = innerChannel;
@@ -549,5 +568,77 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    /**
+     * A {@link HttpChannel} that tracks number of requests via a {@link RefCounted}.
+     */
+    private static class RequestTrackingHttpChannel implements HttpChannel {
+        /**
+         * Only counts down to zero via {@link #setCloseWhenIdle()}.
+         */
+        final RefCounted refCounted = AbstractRefCounted.of(this::closeInner);
+        final HttpChannel inner;
+
+        public RequestTrackingHttpChannel(HttpChannel inner) {
+            this.inner = inner;
+        }
+
+        public void incomingRequest() throws IllegalStateException {
+            refCounted.incRef();
+        }
+
+        /**
+         * Close the channel when there are no more requests in flight.
+         */
+        public void setCloseWhenIdle() {
+            refCounted.decRef();
+        }
+
+        @Override
+        public void close() {
+            closeInner();
+        }
+
+        /**
+         * Synchronized to avoid double close due to a natural close and a close via {@link #setCloseWhenIdle()}
+         */
+        private void closeInner() {
+            synchronized (inner) {
+                if (inner.isOpen()) {
+                    inner.close();
+                } else {
+                    logger.info("channel [{}] already closed", inner);
+                }
+            }
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            inner.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isOpen() {
+            return inner.isOpen();
+        }
+
+        @Override
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+            inner.sendResponse(
+                response,
+                listener != null ? ActionListener.runAfter(listener, refCounted::decRef) : ActionListener.running(refCounted::decRef)
+            );
+        }
+
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return inner.getLocalAddress();
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return inner.getRemoteAddress();
+        }
     }
 }

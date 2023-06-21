@@ -1,0 +1,40 @@
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset-to-delete
+        body:
+          ruleset_id: test-query-ruleset-to-delete
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: elastic
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+
+---
+"Delete Query Ruleset":
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset-to-delete
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      query_ruleset.get:
+        ruleset_id: test-query-ruleset-to-delete
+
+---
+"Delete Query Ruleset - Ruleset does not exist":
+  - do:
+      catch: "missing"
+      query_ruleset.delete:
+        ruleset_id: test-nonexistent-query-ruleset

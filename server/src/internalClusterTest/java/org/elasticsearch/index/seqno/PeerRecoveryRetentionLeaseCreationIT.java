@@ -83,7 +83,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
     }
 
     public RetentionLeases getRetentionLeases() {
-        return client().admin().indices().prepareStats(INDEX_NAME).get().getShards()[0].getRetentionLeaseStats().retentionLeases();
+        return indicesAdmin().prepareStats(INDEX_NAME).get().getShards()[0].getRetentionLeaseStats().retentionLeases();
     }
 
 }

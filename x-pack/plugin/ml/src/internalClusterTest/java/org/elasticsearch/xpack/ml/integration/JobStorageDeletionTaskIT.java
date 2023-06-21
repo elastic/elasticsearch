@@ -193,9 +193,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         // Make sure dedicated index is gone
         assertThat(
-            client().admin()
-                .indices()
-                .prepareGetIndex()
+            indicesAdmin().prepareGetIndex()
                 .setIndices(dedicatedIndex)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .get()

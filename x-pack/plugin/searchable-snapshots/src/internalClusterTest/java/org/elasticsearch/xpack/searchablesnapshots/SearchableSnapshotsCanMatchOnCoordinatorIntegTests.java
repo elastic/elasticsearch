@@ -122,7 +122,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexOutsideSearchRange)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexOutsideSearchRange));
+        assertAcked(indicesAdmin().prepareDelete(indexOutsideSearchRange));
 
         final String searchableSnapshotIndexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
@@ -368,7 +368,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexWithinSearchRange)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexWithinSearchRange));
+        assertAcked(indicesAdmin().prepareDelete(indexWithinSearchRange));
 
         final String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
@@ -440,9 +440,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
     private void createIndexWithTimestamp(String indexName, int numShards, Settings extraSettings) throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
@@ -480,7 +478,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         indexRandom(true, false, indexRequestBuilders);
 
         assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
             equalTo(0)
         );
         refresh(indexName);
@@ -502,7 +500,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
     private void waitUntilRecoveryIsDone(String index) throws Exception {
         assertBusy(() -> {
-            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(index).get();
+            RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
             for (List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
                 for (RecoveryState recoveryState : value) {

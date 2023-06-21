@@ -101,7 +101,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
             .build();
-        CreateIndexResponse res = client().admin().indices().prepareCreate(INDEX_NAME).setSettings(settings).get();
+        CreateIndexResponse res = indicesAdmin().prepareCreate(INDEX_NAME).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
         logger.info("created index");
 
@@ -138,7 +138,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
     }
 
     private String[] indices() {
-        return client().admin().indices().prepareGetIndex().addIndices("index").get().indices();
+        return indicesAdmin().prepareGetIndex().addIndices("index").get().indices();
     }
 
     private void assertMinimumCapacity(AutoscalingCapacity.AutoscalingResources resources) {

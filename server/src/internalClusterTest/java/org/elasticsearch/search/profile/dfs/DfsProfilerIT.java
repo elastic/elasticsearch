@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.profile.dfs;
 
+import org.apache.lucene.sandbox.search.ProfilerCollectorResult;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -110,8 +111,11 @@ public class DfsProfilerIT extends ESIntegTestCase {
                     }
                     CollectorResult result = queryProfileShardResult.getCollectorResult();
                     assertThat(result.getName(), is(not(emptyOrNullString())));
-                    assertThat(result.getTime(), greaterThan(0L));
-                    assertThat(result.getTime(), greaterThan(0L));
+                    assertThat(result.getTime(), equalTo(0L));
+                    List<ProfilerCollectorResult> profiledChildren = result.getProfiledChildren();
+                    assertThat(profiledChildren.size(), equalTo(1));
+                    assertThat(profiledChildren.get(0).getName(), is(not(emptyOrNullString())));
+                    assertThat(profiledChildren.get(0).getTime(), greaterThan(0L));
                 }
                 ProfileResult statsResult = searchProfileDfsPhaseResult.getDfsShardResult();
                 assertThat(statsResult.getQueryName(), equalTo("statistics"));

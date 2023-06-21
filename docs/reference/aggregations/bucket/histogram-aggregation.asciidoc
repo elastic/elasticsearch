@@ -332,6 +332,31 @@ with latency metrics (in milliseconds) for different networks:
 
 [source,console]
 --------------------------------------------------
+PUT metrics_index
+{
+  "mappings": {
+    "properties": {
+      "network": {
+        "properties": {
+          "name": {
+            "type": "keyword"
+          }
+        }
+      },
+      "latency_hist": {
+        "properties": {
+          "values": {
+            "type": "histogram"
+          },
+          "counts": {
+            "type": "histogram"
+          }
+        }
+      }
+    }
+  }
+}
+
 PUT metrics_index/_doc/1
 {
   "network.name" : "net-1",
@@ -355,7 +380,7 @@ POST /metrics_index/_search?size=0
   "aggs": {
     "latency_buckets": {
       "histogram": {
-        "field": "latency_histo",
+        "field": "latency_histo.values",
         "interval": 5
       }
     }
@@ -371,29 +396,28 @@ return the following output:
 --------------------------------------------------
 {
   ...
-  "aggregations": {
-    "prices": {
+    "aggregations": {
+    "latency_buckets": {
       "buckets": [
         {
-          "key": 0.0,
-          "doc_count": 18
+          "key": 0,
+          "doc_count": 2
         },
         {
-          "key": 5.0,
-          "doc_count": 48
+          "key": 5,
+          "doc_count": 2
         },
         {
-          "key": 10.0,
-          "doc_count": 25
+          "key": 10,
+          "doc_count": 2
         },
         {
-          "key": 15.0,
-          "doc_count": 6
+          "key": 15,
+          "doc_count": 1
         }
       ]
     }
-  }
-}
+...
 --------------------------------------------------
 // TESTRESPONSE[skip:test not setup]
 

@@ -24,7 +24,7 @@ import java.util.Objects;
 public class QueryRulesetListItem implements Writeable, ToXContentObject {
 
     public static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
-    public static final ParseField NUM_RULES_FIELD = new ParseField("num_rules");
+    public static final ParseField NUM_RULES_FIELD = new ParseField("rules_count");
 
     private final String rulesetId;
     private final int numRules;

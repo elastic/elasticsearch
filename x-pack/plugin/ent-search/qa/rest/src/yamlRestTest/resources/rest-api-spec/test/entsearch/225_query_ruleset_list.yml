@@ -122,13 +122,13 @@ setup:
 
   # Alphabetical order by ruleset_id for results
   - match: { results.0.ruleset_id: "test-query-ruleset-1" }
-  - match: { results.0.num_rules: 2 }
+  - match: { results.0.rules_count: 3 }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.1.num_rules: 3 }
+  - match: { results.1.rules_count: 4 }
 
   - match: { results.2.ruleset_id: "test-query-ruleset-3" }
-  - match: { results.2.num_rules: 4 }
+  - match: { results.2.rules_count: 2 }
 
 ---
 "List Query Rulesets - with from":
@@ -140,10 +140,10 @@ setup:
 
   # Alphabetical order by ruleset_id for results
   - match: { results.0.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.0.num_rules: 3 }
+  - match: { results.0.rules_count: 4 }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-3" }
-  - match: { results.1.num_rules: 4 }
+  - match: { results.1.rules_count: 2 }
 
 ---
 "List Query Rulesets - with size":
@@ -155,7 +155,26 @@ setup:
 
   # Alphabetical order by ruleset_id for results
   - match: { results.0.ruleset_id: "test-query-ruleset-1" }
-  - match: { results.0.num_rules: 2 }
+  - match: { results.0.rules_count: 3 }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.1.num_rules: 3 }
+  - match: { results.1.rules_count: 4 }
+
+---
+"List Query Rulesets - empty":
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset-1
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset-2
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset-3
+
+  - do:
+      query_ruleset.list: { }
+
+  - match: { count: 0 }

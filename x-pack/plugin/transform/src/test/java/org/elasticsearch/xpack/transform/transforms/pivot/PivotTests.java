@@ -277,11 +277,11 @@ public class PivotTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        final AtomicReference<List<Map<String, Object>>> response = new AtomicReference<>();
+        final AtomicReference<List<Map<String, Object>>> responseHolder = new AtomicReference<>();
 
         Client emptyAggregationClient = new MyMockClientWithEmptyAggregation("empty aggregation test for preview");
         pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-            response.set(r);
+            responseHolder.set(r);
             latch.countDown();
         }, e -> {
             exceptionHolder.set(e);
@@ -291,7 +291,7 @@ public class PivotTests extends ESTestCase {
         emptyAggregationClient.close();
 
         assertThat(exceptionHolder.get(), is(nullValue()));
-        assertThat(response.get(), is(empty()));
+        assertThat(responseHolder.get(), is(empty()));
     }
 
     public void testPreviewForCompositeAggregation() throws Exception {
@@ -304,11 +304,11 @@ public class PivotTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        final AtomicReference<List<Map<String, Object>>> response = new AtomicReference<>();
+        final AtomicReference<List<Map<String, Object>>> responseHolder = new AtomicReference<>();
 
         Client compositeAggregationClient = new MyMockClientWithCompositeAggregation("composite aggregation test for preview");
         pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-            response.set(r);
+            responseHolder.set(r);
             latch.countDown();
         }, e -> {
             exceptionHolder.set(e);
@@ -318,7 +318,7 @@ public class PivotTests extends ESTestCase {
         compositeAggregationClient.close();
 
         assertThat(exceptionHolder.get(), is(nullValue()));
-        assertThat(response.get(), is(empty()));
+        assertThat(responseHolder.get(), is(empty()));
     }
 
     private static SearchResponse searchResponseFromAggs(Aggregations aggs) {

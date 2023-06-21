@@ -1,7 +1,7 @@
 [[data-streams-explain-lifecycle]]
-=== Explain Lifecycle API
+=== Explain data stream lifecycle
 ++++
-<titleabbrev>Explain Data Lifecycle</titleabbrev>
+<titleabbrev>Explain Data Stream Lifecycle</titleabbrev>
 ++++
 
 preview::[]

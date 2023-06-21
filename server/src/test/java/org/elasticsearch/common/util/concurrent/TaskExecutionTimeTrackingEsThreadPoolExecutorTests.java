@@ -32,7 +32,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             1000,
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
-            fastWrapper(),
+            settableWrapper(TimeUnit.NANOSECONDS.toNanos(100)),
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context
@@ -42,6 +42,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
         assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
         assertThat(executor.getTotalTaskExecutionTime(), equalTo(0L));
+        // Using the settableWrapper each task would take 100ns
         executeTask(executor, 1);
         assertBusy(() -> {
             assertThat((long) executor.getTaskExecutionEWMA(), equalTo(30L));
@@ -90,6 +91,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
+        // Using the exceptionalWrapper each task's execution time is -1 to simulate unknown failures/rejections.
         assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
         int taskCount = randomIntBetween(1, 100);
         executeTask(executor, taskCount);
@@ -100,8 +102,12 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
-    private Function<Runnable, WrappedRunnable> fastWrapper() {
-        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100), false);
+    /**
+     * The returned function outputs a WrappedRunnabled that simulates the case
+     * where {@link TimedRunnable#getTotalExecutionNanos()} always returns {@code timeTakenNanos}.
+     */
+    private Function<Runnable, WrappedRunnable> settableWrapper(long timeTakenNanos) {
+        return (runnable) -> new SettableTimedRunnable(timeTakenNanos, false);
     }
 
     /**

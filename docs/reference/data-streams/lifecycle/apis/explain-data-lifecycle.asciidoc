@@ -24,7 +24,7 @@ If the {es} {security-features} are enabled, you must have at least the `manage_
 [[data-streams-explain-lifecycle-desc]]
 ==== {api-description-title}
 
-Retrieves information about the index's current {dlm-init} lifecycle state, such as
+Retrieves information about the index's current data stream lifecycle state, such as
 time since index creation, time since rollover, the lifecycle configuration
 managing the index, or any error that {es} might've encountered during the lifecycle
 execution.

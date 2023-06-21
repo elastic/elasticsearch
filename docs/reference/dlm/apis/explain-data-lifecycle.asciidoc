@@ -13,7 +13,7 @@ Retrieves the current data lifecycle status for one or more data stream backing 
 
 * Nit: would rephrase as:
 
-If the {es} {security-features} are enabled, you must have at least the `manage_dlm` index privilege or
+If the {es} {security-features} are enabled, you must have at least the `manage_data_stream_lifecycle` index privilege or
 `view_index_metadata` index privilege to use this API. For more information, see <<security-privileges>>.
 
 [[dlm-explain-lifecycle-request]]

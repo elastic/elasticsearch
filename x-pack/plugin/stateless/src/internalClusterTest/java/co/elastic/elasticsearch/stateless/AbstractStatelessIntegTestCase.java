@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -434,5 +435,12 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
             }
         }
+    }
+
+    /**
+     * Return consistent index settings for the provided shard- and replica-count. 25% random chance of enabling the fast refresh setting.
+     */
+    public static Settings.Builder indexSettingsWithRandomFastRefresh(int shards, int replicas) {
+        return indexSettings(shards, replicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean() && randomBoolean());
     }
 }

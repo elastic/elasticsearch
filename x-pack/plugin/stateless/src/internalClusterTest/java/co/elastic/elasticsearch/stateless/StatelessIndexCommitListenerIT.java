@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
@@ -195,9 +194,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            indexSettingsWithRandomFastRefresh(1, 1)
                 // tests control flushes
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .build()

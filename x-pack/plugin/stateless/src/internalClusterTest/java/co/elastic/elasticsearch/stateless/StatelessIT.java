@@ -72,10 +72,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(1, 0).build());
         ensureGreen(indexName);
 
         indexDocuments(indexName);
@@ -121,25 +118,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         String refreshIntervalSetting = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey();
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).build());
 
         final String fastIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            fastIndexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(fastIndexName, indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
 
         final Map<Index, Integer> indices = resolveIndices();
         Index index = indices.entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
@@ -220,14 +202,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, 0).build());
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();
@@ -240,14 +215,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final int numberOfShards = 1;
         startIndexNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, 0).build());
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();
@@ -285,14 +253,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, 0).build());
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();
@@ -311,14 +272,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numberOfShards);
         startSearchNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, 1).build());
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();
@@ -362,14 +316,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, 0).build());
         ensureGreen(indexName);
         for (int i = 0; i < 3; i++) {
             indexDocuments(indexName);
@@ -389,14 +336,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, 0).build());
         ensureGreen(indexName);
         indexDocuments(indexName);
         flush(indexName);
@@ -413,14 +353,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testSetsRecyclableBigArraysInTranslogReplicator() throws Exception {
         startMasterAndIndexNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(1, 0).build());
         ensureGreen(indexName);
 
         assertBusy(() -> {
@@ -437,14 +370,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final int numberOfReplicas = randomIntBetween(0, 3);
         startSearchNodes(numberOfReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, numberOfReplicas).build());
         ensureGreen(indexName);
 
         final int iters = randomIntBetween(0, 5);
@@ -514,11 +440,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L))
-                .build()
+            indexSettingsWithRandomFastRefresh(1, 0).put(
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+                TimeValue.timeValueHours(1L)
+            ).build()
         );
         ensureGreen(indexName);
 

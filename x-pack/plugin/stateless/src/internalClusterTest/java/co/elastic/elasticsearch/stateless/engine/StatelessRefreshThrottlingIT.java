@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -107,14 +106,7 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
     public void testShardRefreshThrottling() throws Exception {
         String indexNode = startMasterAndIndexNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
         RefreshBurstableThrottler refreshThrottler = getRefreshBurstableThrottler(indexNode, indexName, 0);
@@ -146,14 +138,7 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
         List<RefreshBurstableThrottler> shardThrottlers = new ArrayList<>(indices);
         for (int i = 0; i < indices; i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            createIndex(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                    .build()
-            );
+            createIndex(indexName, indexSettings(1, 0).build());
             ensureGreen(indexName);
             indicesNames.add(indexName);
             shardThrottlers.add(getRefreshBurstableThrottler(indexNode, indexName, 0));
@@ -194,15 +179,7 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
         String indexNode = startMasterAndIndexNode();
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
 
         RefreshThrottler shardThrottler = getRefreshThrottler(indexNode, indexName, 0);
         assertThat(shardThrottler, instanceOf(RefreshThrottler.Noop.class));

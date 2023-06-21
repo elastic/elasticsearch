@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.file.AbstractFileWatchingService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -175,18 +176,11 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(stateService).process(any(), (XContentParser) any(), any());
 
-        AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
         final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
 
-        service.addFileChangedListener(() -> settingsChanged.set(true));
-
-        doAnswer((Answer<Void>) invocation -> {
-            invocation.callRealMethod();
-            latch.countDown();
-            return null;
-        }).when(service).notifyListeners();
+        service.addFileChangedListener(latch::countDown);
 
         Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -195,12 +189,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.start();
         service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        // wait until the watcher thread has started, and it has discovered the file
+        // wait for listener to be called
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(service, times(1)).processFileChanges();
-        // assert we notified the listeners the file settings have changed, they were successfully applied
-        assertTrue(settingsChanged.get());
 
         service.stop();
         service.close();

@@ -355,19 +355,11 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileChanges();
-            notifyListeners();
+            for (var listener : eventListeners) {
+                listener.watchedFileChanged();
+            }
         } catch (IOException | ExecutionException e) {
             logger.error(() -> "Error processing watched file: " + watchedFile(), e);
-        }
-    }
-
-    /**
-     * Notify all event listeners. This is public so that it can be mocked in tests.
-     */
-    // visible for testing
-    public void notifyListeners() {
-        for (var listener : eventListeners) {
-            listener.watchedFileChanged();
         }
     }
 

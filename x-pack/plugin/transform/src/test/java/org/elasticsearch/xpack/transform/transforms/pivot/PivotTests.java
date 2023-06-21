@@ -287,7 +287,7 @@ public class PivotTests extends ESTestCase {
             exceptionHolder.set(e);
             latch.countDown();
         }));
-        latch.await();
+        assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         emptyAggregationClient.close();
 
         assertThat(exceptionHolder.get(), is(nullValue()));
@@ -314,7 +314,7 @@ public class PivotTests extends ESTestCase {
             exceptionHolder.set(e);
             latch.countDown();
         }));
-        latch.await();
+        assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         compositeAggregationClient.close();
 
         assertThat(exceptionHolder.get(), is(nullValue()));

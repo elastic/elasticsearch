@@ -30,8 +30,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -102,7 +102,7 @@ public class QueryPhase {
         long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
         int nodeQueueSize = querySearchResult.nodeQueueSize();
 
-        // run each of the rrf queries
+        // run each of the rank queries
         for (Query rankQuery : rankShardContext.queries()) {
             // if a search timeout occurs, exit with partial results
             if (searchTimedOut) {
@@ -268,10 +268,10 @@ public class QueryPhase {
                 searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutRunnable != null);
                 queryResult.topDocs(topDocsFactory.topDocsAndMaxScore(), topDocsFactory.sortValueFormats);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof EWMATrackingEsThreadPoolExecutor
+                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
                     : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-                if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
+                if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }

@@ -432,7 +432,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ASYNC_SEARCH_ORIGIN,
             InternalUsers.ASYNC_SEARCH_USER,
             DLM_ORIGIN,
-            InternalUsers.DLM_USER
+            InternalUsers.DATA_STREAM_LIFECYCLE_USER
         );
 
         final String origin = randomFrom(originToUserMap.keySet());

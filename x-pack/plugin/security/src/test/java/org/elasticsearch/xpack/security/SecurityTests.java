@@ -37,6 +37,7 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -188,7 +189,7 @@ public class SecurityTests extends ESTestCase {
 
     private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, Version.CURRENT);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, IndexVersion.CURRENT);
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);

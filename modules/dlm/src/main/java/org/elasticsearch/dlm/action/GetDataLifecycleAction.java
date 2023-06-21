@@ -38,7 +38,7 @@ import java.util.Objects;
 public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Response> {
 
     public static final GetDataLifecycleAction INSTANCE = new GetDataLifecycleAction();
-    public static final String NAME = "indices:admin/dlm/get";
+    public static final String NAME = "indices:admin/data_stream/lifecycle/get";
 
     private GetDataLifecycleAction() {
         super(NAME, Response::new);

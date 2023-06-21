@@ -463,7 +463,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 for (int i = 0; i < moreDocs; i++) {
                     client.prepareIndex(indexName).setSource("num", i).get();
                 }
-                assertAcked(client.admin().indices().prepareClose(indexName));
+                assertAcked(indicesAdmin().prepareClose(indexName));
                 return super.onNodeStopped(nodeName);
             }
         });

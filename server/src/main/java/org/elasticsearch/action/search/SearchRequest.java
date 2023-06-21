@@ -87,6 +87,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
 
     private int maxConcurrentShardRequests = 0;
+    public static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
     private Integer preFilterShardSize;
 
@@ -359,6 +360,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         if (source != null) {
+            if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
+                validationException = addValidationError("[sub_searches] requires [rank]", validationException);
+            }
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }
@@ -378,10 +382,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                         validationException
                     );
                 }
-                if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
+                int queryCount = source.subSearches().size() + source.knnSearch().size();
+                if (queryCount < 2) {
                     validationException = addValidationError(
-                        "[rank] requires a minimum of [2] result sets which"
-                            + " either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                        "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
                         validationException
                     );
                 }
@@ -713,7 +717,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
      */
     public int getMaxConcurrentShardRequests() {
-        return maxConcurrentShardRequests == 0 ? 5 : maxConcurrentShardRequests;
+        return maxConcurrentShardRequests == 0 ? DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : maxConcurrentShardRequests;
     }
 
     /**

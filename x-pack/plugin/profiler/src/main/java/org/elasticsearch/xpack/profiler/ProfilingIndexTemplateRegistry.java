@@ -75,7 +75,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
         new LifecyclePolicyConfig(
-            "profiling",
+            "profiling-60-days",
             "/org/elasticsearch/xpack/profiler/ilm-policy/profiling-60-days.json",
             Map.of(PROFILING_TEMPLATE_VERSION_VARIABLE, String.valueOf(INDEX_TEMPLATE_VERSION))
         ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)

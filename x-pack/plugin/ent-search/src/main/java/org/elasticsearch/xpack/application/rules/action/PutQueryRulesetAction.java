@@ -41,22 +41,18 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
     public static class Request extends ActionRequest {
 
         private final QueryRuleset queryRuleset;
-        private final boolean create;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.queryRuleset = new QueryRuleset(in);
-            this.create = in.readBoolean();
         }
 
-        public Request(QueryRuleset queryRuleset, boolean create) {
+        public Request(QueryRuleset queryRuleset) {
             this.queryRuleset = queryRuleset;
-            this.create = create;
         }
 
-        public Request(String rulesetId, boolean create, BytesReference content, XContentType contentType) {
+        public Request(String rulesetId, BytesReference content, XContentType contentType) {
             this.queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, content, contentType);
-            this.create = create;
         }
 
         @Override
@@ -79,15 +75,10 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             queryRuleset.writeTo(out);
-            out.writeBoolean(create);
         }
 
         public QueryRuleset queryRuleset() {
             return queryRuleset;
-        }
-
-        public boolean create() {
-            return create;
         }
 
         @Override
@@ -95,12 +86,12 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return create == request.create && Objects.equals(queryRuleset, request.queryRuleset);
+            return Objects.equals(queryRuleset, request.queryRuleset);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(queryRuleset, create);
+            return Objects.hash(queryRuleset);
         }
     }
 

@@ -31,12 +31,6 @@
         }
       ]
     },
-    "params": {
-      "create": {
-        "type": "boolean",
-        "description": "If true, requires that a query_ruleset with the specified resource_id does not already exist. (default: false)"
-      }
-    },
     "body": {
       "description": "The query ruleset configuration, including `rules`",
       "required": true

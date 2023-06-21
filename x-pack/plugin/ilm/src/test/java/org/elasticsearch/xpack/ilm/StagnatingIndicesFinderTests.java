@@ -148,12 +148,15 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         maxRetriesPerStep = randomLongBetween(2, 100);
 
         // Test: Force a settings update, ensuring that the method `recreateRules` is called
-        finder.clusterService().getClusterSettings().applySettings(
-            Settings.builder()
-                .put(MAX_TIME_ON_ACTION_SETTING.getKey(), maxTimeOnAction)
-                .put(MAX_TIME_ON_STEP_SETTING.getKey(), maxTimeOnStep)
-                .put(MAX_RETRIES_PER_STEP_SETTING.getKey(), maxRetriesPerStep)
-                .build());
+        finder.clusterService()
+            .getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(MAX_TIME_ON_ACTION_SETTING.getKey(), maxTimeOnAction)
+                    .put(MAX_TIME_ON_STEP_SETTING.getKey(), maxTimeOnStep)
+                    .put(MAX_RETRIES_PER_STEP_SETTING.getKey(), maxRetriesPerStep)
+                    .build()
+            );
 
         newRules = finder.rules();
         assertThat(rules, hasSize(numberOfRuleConfigs));

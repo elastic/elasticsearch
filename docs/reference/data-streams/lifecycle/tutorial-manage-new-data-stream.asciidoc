@@ -15,7 +15,7 @@ To create a data stream with a built-in lifecycle, follow these steps:
 ==== Create an index template
 
 A data stream requires a matching <<index-templates,index template>>. You can configure the data stream lifecycle by
-setting the `lifecycle` field the same way you use index templates for mappings and index settings. You can define an
+setting the `lifecycle` field in the index template the same you do for mappings and index settings. You can define an
 index template that sets a lifecycle as follows:
 
 * Include the `data_stream` object to enable data streams.

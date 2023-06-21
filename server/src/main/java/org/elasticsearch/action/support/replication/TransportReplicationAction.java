@@ -483,6 +483,7 @@ public abstract class TransportReplicationAction<
                             }
                         }
 
+                        assert primaryShardReference.indexShard.isPrimaryMode();
                         primaryShardReference.close(); // release shard operation lock before responding to caller
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);

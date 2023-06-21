@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -90,6 +91,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
+    public static final String DOWSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
+    public static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
@@ -162,7 +165,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
+        final FixedExecutorBuilder rollup = new FixedExecutorBuilder(
             settingsToUse,
             Rollup.TASK_THREAD_POOL_NAME,
             1,
@@ -171,7 +174,16 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             false
         );
 
-        return Collections.singletonList(indexing);
+        final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
+            settingsToUse,
+            Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME,
+            ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(settingsToUse)),
+            Rollup.DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
+            "xpack.downsample.thread_pool",
+            false
+        );
+
+        return List.of(rollup, downsample);
     }
 
     @Override

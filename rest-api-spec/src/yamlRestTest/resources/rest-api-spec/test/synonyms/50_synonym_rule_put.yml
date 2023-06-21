@@ -25,6 +25,8 @@ setup:
           synonyms: "bye, goodbye, seeya"
 
   - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
 
   - do:
       synonyms.get:
@@ -50,6 +52,8 @@ setup:
           synonyms: "i-phone, iphone"
 
   - match: { result: "created" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
 
   - do:
       synonyms.get:

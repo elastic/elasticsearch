@@ -2,7 +2,7 @@
   "synonym_rule.put": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-synonym-rule.html",
-      "description": "Creates or updates a synonym rule for a synonym set"
+      "description": "Creates or updates a synonym rule in a synonym set"
     },
     "stability": "experimental",
     "visibility": "feature_flag",

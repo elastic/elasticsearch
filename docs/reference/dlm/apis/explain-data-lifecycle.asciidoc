@@ -13,7 +13,7 @@ Retrieves the current data lifecycle status for one or more data stream backing 
 
 * Nit: would rephrase as:
 
-If the {es} {security-features} are enabled, you must have at least the `manage_dlm` index privilege or
+If the {es} {security-features} are enabled, you must have at least the `manage_data_stream_lifecycle` index privilege or
 `view_index_metadata` index privilege to use this API. For more information, see <<security-privileges>>.
 
 [[dlm-explain-lifecycle-request]]
@@ -55,7 +55,7 @@ GET .ds-metrics-2023.03.22-000001/_lifecycle/explain
 --------------------------------------------------
 // TEST[skip:we're not setting up DLM in these tests]
 
-If the index is managed by DLM `explain` will show the `managed_by_dlm` field
+If the index is managed by DLM `explain` will show the `managed_by_lifecycle` field
 set to `true` and the rest of the response will contain information about the
 lifecycle execution status for this index:
 
@@ -65,7 +65,7 @@ lifecycle execution status for this index:
   "indices": {
     ".ds-metrics-2023.03.22-000001": {
       "index" : ".ds-metrics-2023.03.22-000001",
-      "managed_by_dlm" : true,                        <1>
+      "managed_by_lifecycle" : true,                        <1>
       "index_creation_date_millis" : 1679475563571,   <2>
       "time_since_index_creation" : "843ms",          <3>
       "rollover_date_millis" : 1679475564293,         <4>
@@ -104,7 +104,7 @@ index:
   "indices": {
     ".ds-metrics-2023.03.22-000001": {
       "index" : ".ds-metrics-2023.03.22-000001",
-      "managed_by_dlm" : true,
+      "managed_by_lifecycle" : true,
       "index_creation_date_millis" : 1679475563571,
       "time_since_index_creation" : "843ms",
       "lifecycle" : { },

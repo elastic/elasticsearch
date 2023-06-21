@@ -139,7 +139,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
             updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
-            List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
+            List<IndexTemplateMetadata> templates = indicesAdmin().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(3));
             boolean addedFound = false;
             boolean changedFound = false;

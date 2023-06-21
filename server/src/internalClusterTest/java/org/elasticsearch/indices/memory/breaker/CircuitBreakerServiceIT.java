@@ -66,7 +66,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     private void reset() {
         logger.info("--> resetting breaker settings");
         // clear all caches, we could be very close (or even above) the limit and then we will not be able to reset the breaker settings
-        client().admin().indices().prepareClearCache().setFieldDataCache(true).setQueryCache(true).setRequestCache(true).get();
+        indicesAdmin().prepareClearCache().setFieldDataCache(true).setQueryCache(true).setRequestCache(true).get();
 
         Settings.Builder resetSettings = Settings.builder();
         Stream.of(
@@ -293,7 +293,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     /** Issues a cache clear and waits 30 seconds for the field data breaker to be cleared */
     public void clearFieldData() throws Exception {
-        client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        indicesAdmin().prepareClearCache().setFieldDataCache(true).execute().actionGet();
         assertBusy(() -> {
             NodesStatsResponse resp = clusterAdmin().prepareNodesStats().clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
             for (NodeStats nStats : resp.getNodes()) {

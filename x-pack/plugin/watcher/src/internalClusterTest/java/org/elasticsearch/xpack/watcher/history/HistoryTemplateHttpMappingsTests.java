@@ -126,7 +126,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
 
     public void testExceptionMapping() throws Exception {
         // delete all history indices to ensure that we only need to check a single index
-        assertAcked(client().admin().indices().prepareDelete(HistoryStoreField.INDEX_PREFIX + "*"));
+        assertAcked(indicesAdmin().prepareDelete(HistoryStoreField.INDEX_PREFIX + "*"));
 
         String id = randomAlphaOfLength(10);
         // switch between delaying the input or the action http request
@@ -174,7 +174,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
 
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
-        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
+        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
         for (MappingMetadata mapping : mappingsResponse.getMappings().values()) {
             Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {

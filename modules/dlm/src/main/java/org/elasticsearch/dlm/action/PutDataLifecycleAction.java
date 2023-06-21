@@ -37,7 +37,7 @@ import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_RETENTION_FI
 public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutDataLifecycleAction INSTANCE = new PutDataLifecycleAction();
-    public static final String NAME = "indices:admin/dlm/put";
+    public static final String NAME = "indices:admin/data_stream/lifecycle/put";
 
     private PutDataLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);

@@ -99,7 +99,6 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96910")
     public void testForceSyntheticUnsupported() {
         MultiGetShardRequest request = createTestInstance(true);
         StreamOutput out = new BytesStreamOutput();

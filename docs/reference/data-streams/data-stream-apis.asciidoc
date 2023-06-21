@@ -41,12 +41,12 @@ include::{es-repo-dir}/data-streams/promote-data-stream-api.asciidoc[]
 
 include::{es-repo-dir}/data-streams/modify-data-streams-api.asciidoc[]
 
-include::{es-repo-dir}/dlm/apis/put-lifecycle.asciidoc[]
+include::{es-repo-dir}/data-streams/lifecycle/apis/put-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/dlm/apis/get-lifecycle.asciidoc[]
+include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/dlm/apis/delete-lifecycle.asciidoc[]
+include::{es-repo-dir}/data-streams/lifecycle/apis/delete-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/dlm/apis/explain-data-lifecycle.asciidoc[]
+include::{es-repo-dir}/data-streams/lifecycle/apis/explain-data-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]

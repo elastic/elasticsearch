@@ -20,9 +20,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.BaseDirectory;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -30,13 +28,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.Store;
@@ -53,39 +47,6 @@ import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 public class SearchDirectory extends BaseDirectory {
-
-    /**
-     * In-memory directory containing an empty commit only. This is used in search shards before they are initialized from the repository.
-     * Note that since we create this instance statically and only once, all shards will initially have the same history uuid and Lucene
-     * version until they are initialized from the repository.
-     */
-    private static final Directory EMPTY_COMMIT_DIRECTORY = new ByteBuffersDirectory();
-    private static final String EMPTY_SEGMENTS_FILE_NAME;
-
-    static {
-        var emptySegmentInfos = new SegmentInfos(Version.CURRENT.luceneVersion().major);
-        emptySegmentInfos.setUserData(
-            Map.of(
-                Engine.HISTORY_UUID_KEY,
-                UUIDs.randomBase64UUID(),
-                SequenceNumbers.LOCAL_CHECKPOINT_KEY,
-                Long.toString(SequenceNumbers.NO_OPS_PERFORMED),
-                SequenceNumbers.MAX_SEQ_NO,
-                Long.toString(SequenceNumbers.NO_OPS_PERFORMED),
-                Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID,
-                "-1",
-                Engine.ES_VERSION,
-                Version.CURRENT.toString()
-            ),
-            false
-        );
-        try {
-            emptySegmentInfos.commit(EMPTY_COMMIT_DIRECTORY);
-            EMPTY_SEGMENTS_FILE_NAME = emptySegmentInfos.getSegmentsFileName();
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
 
     private final ShardId shardId;
 
@@ -113,7 +74,7 @@ public class SearchDirectory extends BaseDirectory {
     public boolean containsFile(String name) {
         if (currentMetadata.isEmpty()) {
             try {
-                for (String s : EMPTY_COMMIT_DIRECTORY.listAll()) {
+                for (String s : EmptyDirectory.INSTANCE.listAll()) {
                     if (name.equals(s)) {
                         return true;
                     }
@@ -171,7 +132,7 @@ public class SearchDirectory extends BaseDirectory {
         final var current = currentMetadata;
         final String[] list;
         if (current.isEmpty()) {
-            list = EMPTY_COMMIT_DIRECTORY.listAll();
+            list = EmptyDirectory.INSTANCE.listAll();
         } else {
             list = current.keySet().stream().sorted(String::compareTo).toArray(String[]::new);
         }
@@ -190,7 +151,7 @@ public class SearchDirectory extends BaseDirectory {
     public long fileLength(String name) throws IOException {
         final var current = currentMetadata;
         if (current.isEmpty()) {
-            return EMPTY_COMMIT_DIRECTORY.fileLength(name);
+            return EmptyDirectory.INSTANCE.fileLength(name);
         }
         BlobLocation location = current.get(name);
         if (location == null) {
@@ -236,14 +197,12 @@ public class SearchDirectory extends BaseDirectory {
     public IndexInput openInput(String name, IOContext context) throws IOException {
         final var current = currentMetadata;
         if (current.isEmpty()) {
-            return EMPTY_COMMIT_DIRECTORY.openInput(name, context);
+            return EmptyDirectory.INSTANCE.openInput(name, context);
         }
         final BlobLocation location = current.get(name);
-        if (location == null && EMPTY_SEGMENTS_FILE_NAME.equals(name)) {
-            throw new FileNotFoundException("The file [" + EMPTY_SEGMENTS_FILE_NAME + "] was not found.");
+        if (location == null) {
+            throw new FileNotFoundException(name);
         }
-        // TODO: This assertion will not make sense once we start pruning files from the commit map
-        assert location != null : "unknown file [" + name + "] accessed";
         return new SearchIndexInput(
             name,
             cacheService.getCacheFile(new FileCacheKey(shardId, location.blobName()), location.blobLength()),
@@ -267,6 +226,10 @@ public class SearchDirectory extends BaseDirectory {
 
     public BlobContainer getBlobContainer(long primaryTerm) {
         return blobContainer.get().apply(primaryTerm);
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 
     private static UnsupportedOperationException unsupportedException() {

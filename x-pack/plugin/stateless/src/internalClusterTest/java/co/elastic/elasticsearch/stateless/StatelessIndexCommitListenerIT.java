@@ -88,7 +88,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                 ActionListener<Void> argument = invocation.getArgument(2);
                 argument.onResponse(null);
                 return null;
-            }).when(commitService).addOrNotify(any(ShardId.class), anyLong(), any());
+            }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
             return commitService;
         }
 
@@ -202,7 +202,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         ensureGreen(indexName);
         shardId = new ShardId(resolveIndex(indexName), 0);
 
-        assertCommitsGenerations("Shard has a single commit with generation 2 after creation", List.of(2L), List.of());
+        assertCommitsGenerations("Shard has a single commit with generation 3 after creation", List.of(3L), List.of());
     }
 
     @After
@@ -216,20 +216,20 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
     public void testCommits() {
         indexDocs(indexName, scaledRandomIntBetween(10, 1_000));
         flush(indexName);
-        assertCommitsGenerations("New retained commit 3 after flush and commit 2 not yet released", List.of(2L, 3L), List.of());
-
-        releaseCommit(2L);
-        assertCommitsGenerations("Commit 2 was released and deleted by Lucene and commit 3 is still retained", List.of(3L), List.of(2L));
+        assertCommitsGenerations("New retained commit 4 after flush and commit 3 not yet released", List.of(3L, 4L), List.of());
 
         releaseCommit(3L);
-        assertCommitsGenerations("No more commits retained and commit 3 not deleted because it is the last commit", List.of(), List.of(2L));
+        assertCommitsGenerations("Commit 3 was released and deleted by Lucene and commit 4 is still retained", List.of(4L), List.of(3L));
+
+        releaseCommit(4L);
+        assertCommitsGenerations("No more commits retained and commit 4 not deleted because it is the last commit", List.of(), List.of(3L));
 
         indexDocs(indexName, scaledRandomIntBetween(10, 1_000));
         flush(indexName);
-        assertCommitsGenerations("New retained commit 4 after flush and commit 3 deleted by Lucene", List.of(4L), List.of(2L, 3L));
+        assertCommitsGenerations("New retained commit 5 after flush and commit 4 deleted by Lucene", List.of(5L), List.of(3L, 4L));
 
-        releaseCommit(4L);
-        assertCommitsGenerations("No more commits retained and commit 4 is the last commit", List.of(), List.of(2L, 3L));
+        releaseCommit(5L);
+        assertCommitsGenerations("No more commits retained and commit 5 is the last commit", List.of(), List.of(3L, 4L));
     }
 
     public void testCommitsWithUnorderedReleases() {
@@ -237,17 +237,17 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         for (long i = 1L; i <= nbGenerations; i++) {
             indexDocs(indexName, scaledRandomIntBetween(10, 100));
             flush(indexName);
-            assertCommitsGenerations("New commit " + i, LongStream.rangeClosed(2L, 2L + i).boxed().toList(), List.of());
+            assertCommitsGenerations("New commit " + i, LongStream.rangeClosed(3L, 3L + i).boxed().toList(), List.of());
         }
 
-        final List<Long> unreleasedGens = LongStream.rangeClosed(2L, 2L + nbGenerations).boxed().collect(toCollection(ArrayList::new));
+        final List<Long> unreleasedGens = LongStream.rangeClosed(3L, 3L + nbGenerations).boxed().collect(toCollection(ArrayList::new));
         Randomness.shuffle(unreleasedGens);
 
         final List<Long> deletedGens = new ArrayList<>();
         while (unreleasedGens.isEmpty() == false) {
             long releasedGen = unreleasedGens.remove(0);
             releaseCommit(releasedGen);
-            if (releasedGen != nbGenerations + 2L) {
+            if (releasedGen != nbGenerations + 3L) {
                 deletedGens.add(releasedGen);
             }
             assertCommitsGenerations(
@@ -256,7 +256,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                 deletedGens.stream().sorted().toList()
             );
         }
-        assertCommitsGenerations("End of test", List.of(), LongStream.range(2L, 2L + nbGenerations).boxed().sorted().toList());
+        assertCommitsGenerations("End of test", List.of(), LongStream.range(3L, 3L + nbGenerations).boxed().sorted().toList());
     }
 
     public void testMerges() throws Exception {

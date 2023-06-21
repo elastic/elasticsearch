@@ -270,12 +270,16 @@ public class IndexEngine extends InternalEngine {
         if (getLastCommittedSegmentInfos().getGeneration() < generation) {
             listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
         } else {
-            statelessCommitService.addOrNotify(shardId, generation, listener);
+            statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener);
         }
     }
 
     // package private for testing
     RefreshThrottler getRefreshThrottler() {
         return refreshThrottler;
+    }
+
+    public StatelessCommitService getStatelessCommitService() {
+        return statelessCommitService;
     }
 }

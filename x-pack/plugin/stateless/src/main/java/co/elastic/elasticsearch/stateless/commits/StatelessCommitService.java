@@ -145,10 +145,7 @@ public class StatelessCommitService {
 
             @Override
             public void onFailure(Exception e) {
-                assert commitState.isClosed
-                    || e instanceof EsRejectedExecutionException
-                    || e instanceof IndexNotFoundException
-                    || e instanceof ShardNotFoundException;
+                assert assertClosedOrRejectionFailure(e);
                 logger.warn(
                     () -> format(
                         "%s failed to upload commit [%s] to object store because shard was closed",
@@ -158,6 +155,16 @@ public class StatelessCommitService {
                     e
                 );
             }
+
+            private boolean assertClosedOrRejectionFailure(final Exception e) {
+                final var closed = commitState.isClosed;
+                assert closed
+                    || e instanceof EsRejectedExecutionException
+                    || e instanceof IndexNotFoundException
+                    || e instanceof ShardNotFoundException : closed + " vs " + e;
+                return true;
+            }
+
         }), reference, TimeValue.timeValueMillis(50));
         commitUpload.run();
     }
@@ -261,7 +268,7 @@ public class StatelessCommitService {
             if (missing.isPresent()) {
                 long missingGeneration = missing.getAsLong();
                 logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, missingGeneration, generation);
-                shardCommitState.addOrNotify(
+                shardCommitState.addListenerForUploadedGeneration(
                     missingGeneration,
                     notReadyListener.delegateFailure((l, unused) -> executeUpload(notReadyListener))
                 );
@@ -360,10 +367,16 @@ public class StatelessCommitService {
         removed.close();
     }
 
-    public void addOrNotify(ShardId shardId, long generation, ActionListener<Void> listener) {
+    public void addListenerForUploadedGeneration(ShardId shardId, long generation, ActionListener<Void> listener) {
         requireNonNull(listener, "listener cannot be null");
         ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
-        commitState.addOrNotify(generation, listener);
+        commitState.addListenerForUploadedGeneration(generation, listener);
+    }
+
+    public void addConsumerForNewUploadedCommit(ShardId shardId, Consumer<StatelessCompoundCommit> listener) {
+        requireNonNull(listener, "listener cannot be null");
+        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        commitState.addConsumerForNewUploadedCommit(listener);
     }
 
     // Visible for testing
@@ -385,6 +398,7 @@ public class StatelessCommitService {
         private final Set<Long> pendingUploadGenerations = ConcurrentCollections.newConcurrentSet();
         private final Map<String, BlobFile> fileMap = new ConcurrentHashMap<>();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
+        private List<Consumer<StatelessCompoundCommit>> uploadedCommitConsumers = null;
         private volatile long recoveredGeneration = -1;
         private long generationUploaded = -1;
         private volatile boolean isClosed;
@@ -400,7 +414,7 @@ public class StatelessCommitService {
                 blobFile.setBlobLocation(location);
                 fileMap.put(fileName, blobFile);
             });
-            markUploadedGeneration(recoveredCommit.generation());
+            handleUploadedCommit(recoveredCommit);
         }
 
         public void markFileUploaded(String name, BlobLocation objectStoreLocation) {
@@ -457,43 +471,61 @@ public class StatelessCommitService {
         public void markCommitUploaded(StatelessCompoundCommit commit) {
             boolean removed = pendingUploadGenerations.remove(commit.generation());
             assert removed;
-            markUploadedGeneration(commit.generation());
+            handleUploadedCommit(commit);
         }
 
-        private void markUploadedGeneration(long newGeneration) {
-            List<ActionListener<Void>> listenersToFire = null;
+        private void handleUploadedCommit(StatelessCompoundCommit commit) {
+            final long newGeneration = commit.generation();
+            List<ActionListener<StatelessCompoundCommit>> listenersToFire = null;
             List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
             synchronized (this) {
                 generationUploaded = Math.max(generationUploaded, newGeneration);
 
-                // No listeners to check or generation did not increase so just bail early
-                if (generationListeners == null || generationUploaded != newGeneration) {
+                // Generation did not increase so just bail early
+                if (generationUploaded != newGeneration) {
                     return;
                 }
 
-                for (Tuple<Long, ActionListener<Void>> tuple : generationListeners) {
-                    Long generation = tuple.v1();
-                    if (generationUploaded >= generation) {
-                        if (listenersToFire == null) {
-                            listenersToFire = new ArrayList<>();
+                if (generationListeners != null) {
+                    for (Tuple<Long, ActionListener<Void>> tuple : generationListeners) {
+                        Long generation = tuple.v1();
+                        if (generationUploaded >= generation) {
+                            if (listenersToFire == null) {
+                                listenersToFire = new ArrayList<>();
+                            }
+                            listenersToFire.add(tuple.v2().map(c -> null));
+                        } else {
+                            if (listenersToReregister == null) {
+                                listenersToReregister = new ArrayList<>();
+                            }
+                            listenersToReregister.add(tuple);
                         }
-                        listenersToFire.add(tuple.v2());
-                    } else {
-                        if (listenersToReregister == null) {
-                            listenersToReregister = new ArrayList<>();
-                        }
-                        listenersToReregister.add(tuple);
+                    }
+                    generationListeners = listenersToReregister;
+                }
+                if (uploadedCommitConsumers != null) {
+                    if (listenersToFire == null) {
+                        listenersToFire = new ArrayList<>();
+                    }
+                    for (var consumer : uploadedCommitConsumers) {
+                        listenersToFire.add(ActionListener.wrap(consumer::accept, e -> {}));
                     }
                 }
-                generationListeners = listenersToReregister;
             }
 
             if (listenersToFire != null) {
-                ActionListener.onResponse(listenersToFire, null);
+                ActionListener.onResponse(listenersToFire, commit);
             }
         }
 
-        private void addOrNotify(long generation, ActionListener<Void> listener) {
+        /**
+         * Register a listener that is invoked once a commit with the given generation has been uploaded to the object store. The listener
+         * is invoked only once.
+         *
+         * @param generation the commit generation
+         * @param listener the listener
+         */
+        private void addListenerForUploadedGeneration(long generation, ActionListener<Void> listener) {
             boolean completeListenerSuccess = false;
             boolean completeListenerClosed = false;
             synchronized (this) {
@@ -523,12 +555,28 @@ public class StatelessCommitService {
             }
         }
 
+        /**
+         * Register a consumer that is invoked everytime a new commit has been uploaded to the object store
+         * @param consumer the consumer
+         */
+        public void addConsumerForNewUploadedCommit(Consumer<StatelessCompoundCommit> consumer) {
+            synchronized (this) {
+                if (isClosed == false) {
+                    if (uploadedCommitConsumers == null) {
+                        uploadedCommitConsumers = new ArrayList<>();
+                    }
+                    uploadedCommitConsumers.add(consumer);
+                }
+            }
+        }
+
         private void close() {
             List<Tuple<Long, ActionListener<Void>>> listenersToFail;
             synchronized (this) {
                 isClosed = true;
                 listenersToFail = generationListeners;
                 generationListeners = null;
+                uploadedCommitConsumers = null;
             }
 
             if (listenersToFail != null) {

@@ -292,7 +292,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     public boolean isAcceptingConnections() {
-        return shuttingDown;
+        return shuttingDown == false;
     }
 
     @Override

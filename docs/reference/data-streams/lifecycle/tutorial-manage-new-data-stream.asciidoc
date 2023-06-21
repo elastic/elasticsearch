@@ -40,7 +40,7 @@ PUT _index_template/my-index-template
     }
   },
   "_meta": {
-    "description": "Template for with data stream lifecycle"
+    "description": "Template with data stream lifecycle"
   }
 }
 --------------------------------------------------

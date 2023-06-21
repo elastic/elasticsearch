@@ -79,6 +79,18 @@ setup:
   - match: { aggregations.plot.q2: 5.0 }
   - match: { aggregations.plot.q3: 10.0 }
 
+  - do:
+      catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\] in \[plot\]/
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                compression: -1.0
+
 ---
 "Search With Execution Hint":
 
@@ -180,18 +192,3 @@ setup:
   - match: { aggregations.plot.q3: 13.75 }
   - match: { aggregations.plot.lower: 2.0 }
   - match: { aggregations.plot.upper: 15.0 }
-
----
-"Search With Bad Params":
-
-  - do:
-      catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\] in \[plot\]/
-      search:
-        index: "latency"
-        body:
-          size: 0
-          aggs:
-            plot:
-              boxplot:
-                field: "load_time"
-                compression: -1.0

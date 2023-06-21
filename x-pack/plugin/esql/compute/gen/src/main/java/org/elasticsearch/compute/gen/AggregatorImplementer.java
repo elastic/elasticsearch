@@ -33,6 +33,7 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
+import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
@@ -68,6 +69,7 @@ public class AggregatorImplementer {
     private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
     private final TypeName stateType;
+    private final boolean stateTypeHasSeen;
     private final boolean valuesIsBytesRef;
 
     public AggregatorImplementer(Elements elements, TypeElement declarationType) {
@@ -75,6 +77,9 @@ public class AggregatorImplementer {
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
         this.stateType = choseStateType();
+        stateTypeHasSeen = elements.getAllMembers(elements.getTypeElement(stateType.toString()))
+            .stream()
+            .anyMatch(e -> e.toString().equals("seen()"));
 
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {
@@ -252,10 +257,15 @@ public class AggregatorImplementer {
     private MethodSpec addRawVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueVectorType(init, combine), "vector");
+
+        if (stateTypeHasSeen) {
+            builder.addStatement("state.seen(true)");
+        }
         if (valuesIsBytesRef) {
             // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
         }
+
         builder.beginControlFlow("for (int i = 0; i < vector.getPositionCount(); i++)");
         {
             combineRawInput(builder, "vector");
@@ -270,6 +280,7 @@ public class AggregatorImplementer {
     private MethodSpec addRawBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueBlockType(init, combine), "block");
+
         if (valuesIsBytesRef) {
             // Add bytes_ref scratch var that will only be used for bytes_ref blocks/vectors
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
@@ -279,6 +290,9 @@ public class AggregatorImplementer {
             builder.beginControlFlow("if (block.isNull(p))");
             builder.addStatement("continue");
             builder.endControlFlow();
+            if (stateTypeHasSeen) {
+                builder.addStatement("state.seen(true)");
+            }
             builder.addStatement("int start = block.getFirstValueIndex(p)");
             builder.addStatement("int end = start + block.getValueCount(p)");
             builder.beginControlFlow("for (int i = start; i < end; i++)");
@@ -354,6 +368,9 @@ public class AggregatorImplementer {
             combineStates(builder);
             builder.endControlFlow();
         }
+        if (stateTypeHasSeen) {
+            builder.addStatement("state.seen(state.seen() || tmpState.seen())");
+        }
         builder.addStatement("tmpState.close()");
         return builder.build();
     }
@@ -410,6 +427,12 @@ public class AggregatorImplementer {
             .addModifiers(Modifier.PUBLIC)
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset");
+        if (stateTypeHasSeen) {
+            builder.beginControlFlow("if (state.seen() == false)");
+            builder.addStatement("blocks[offset] = $T.constantNullBlock(1)", BLOCK);
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
         if (evaluateFinal == null) {
             primitiveStateToResult(builder);
         } else {

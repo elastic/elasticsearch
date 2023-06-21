@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
@@ -684,7 +685,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         if (avg.isPresent()) {
             assertEquals(avg.getAsDouble(), (double) results.values().get(0).get(0), 0.01d);
         } else {
-            assertEquals(Double.NaN, (double) results.values().get(0).get(0), 0.01d);
+            assertThat(results.values().get(0).get(0), nullValue());
         }
     }
 
@@ -737,7 +738,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals("avg(nullsum)", results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
         assertEquals(1, results.values().get(0).size());
-        assertEquals(Double.NaN, results.values().get(0).get(0));
+        assertNull(results.values().get(0).get(0));
     }
 
     public void testFromStatsLimit() {

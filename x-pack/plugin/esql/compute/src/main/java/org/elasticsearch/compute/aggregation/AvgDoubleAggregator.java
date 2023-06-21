@@ -40,6 +40,9 @@ class AvgDoubleAggregator {
     }
 
     public static Block evaluateFinal(AvgState state) {
+        if (state.count == 0) {
+            return Block.constantNullBlock(1);
+        }
         double result = state.value() / state.count;
         return DoubleBlock.newConstantBlockWith(result, 1);
     }

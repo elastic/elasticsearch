@@ -22,6 +22,7 @@ import java.util.Objects;
 @Experimental
 final class $Type$State implements AggregatorState<$Type$State> {
     private $type$ value;
+    private boolean seen;
 
     $Type$State() {
         this(0);
@@ -39,9 +40,17 @@ final class $Type$State implements AggregatorState<$Type$State> {
         this.value = value;
     }
 
+    boolean seen() {
+        return seen;
+    }
+
+    void seen(boolean seen) {
+        this.seen = seen;
+    }
+
     @Override
     public long getEstimatedSize() {
-        return $BYTES$;
+        return $BYTES$ + 1;
     }
 
     @Override
@@ -57,7 +66,7 @@ final class $Type$State implements AggregatorState<$Type$State> {
 
         @Override
         public int size() {
-            return $BYTES$;
+            return $BYTES$ + 1;
         }
 
         @Override
@@ -65,13 +74,15 @@ final class $Type$State implements AggregatorState<$Type$State> {
             assert selected.getPositionCount() == 1;
             assert selected.getInt(0) == 0;
             handle.set(ba, offset, state.value);
-            return $BYTES$; // number of bytes written
+            ba[offset + $BYTES$] = (byte) (state.seen ? 1 : 0);
+            return size(); // number of bytes written
         }
 
         @Override
         public void deserialize($Type$State state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
             state.value = ($type$) handle.get(ba, offset);
+            state.seen = ba[offset + $BYTES$] == (byte) 1;
         }
     }
 }

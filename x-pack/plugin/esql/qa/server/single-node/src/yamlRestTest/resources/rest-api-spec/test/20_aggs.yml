@@ -450,6 +450,6 @@ setup:
   - match: {columns.3.type: "double"}
   - match: {values.0.0: 1}
   - match: {values.0.1: 1}
-  - match: {values.0.2: 0}
-  - match: {values.0.3: 0}
+  - match: {values.0.2: null}
+  - match: {values.0.3: null}
 

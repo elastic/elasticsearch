@@ -52,6 +52,7 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vector) {
+    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       state.intValue(MaxIntAggregator.combine(state.intValue(), vector.getInt(i)));
     }
@@ -62,6 +63,7 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       if (block.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
@@ -85,6 +87,7 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       blobVector.get(i, tmpState);
       state.intValue(MaxIntAggregator.combine(state.intValue(), tmpState.intValue()));
     }
+    state.seen(state.seen() || tmpState.seen());
     tmpState.close();
   }
 
@@ -98,6 +101,10 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset) {
+    if (state.seen() == false) {
+      blocks[offset] = Block.constantNullBlock(1);
+      return;
+    }
     blocks[offset] = IntBlock.newConstantBlockWith(state.intValue(), 1);
   }
 

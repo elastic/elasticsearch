@@ -174,14 +174,14 @@ rowWithNullsInAvg
 row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = avg(s);
 
 c:double
-NaN
+null
 ;
 
 rowWithNullsInAvg2
 row a = 1.5, b = 2.6, c = null | eval s = a - b * c | stats avg(s);
 
 avg(s):double
-NaN
+null
 ;
 
 rowStatsProjectGroupByInt
@@ -229,7 +229,7 @@ rowWithMultipleStatsOverNull
 row x=1, y=2 | eval tot = null + y + x | stats c=count(tot), a=avg(tot), mi=min(tot), ma=max(tot), s=sum(tot);
 
 c:long | a:double |   mi:integer |  ma:integer | s:long
-     0 |      NaN |   2147483647 | -2147483648 |      0
+     0 |     null |         null |        null |   null
 ;
 
 
@@ -237,7 +237,7 @@ min
 row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats min(l), min(d), min(ln), min(dn);
 
 min(l):integer | min(d):double | min(ln):integer | min(dn):double
-             1 |           1.0 |      2147483647 |       Infinity
+             1 |           1.0 |            null |           null
 ;
 
 
@@ -245,7 +245,7 @@ sum
 row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn);
 
 sum(l):long | sum(d):double | sum(ln):long | sum(dn):double
-          1 |           1.0 |            0 |            0.0
+          1 |           1.0 |         null |           null
 ;
 
 boolean

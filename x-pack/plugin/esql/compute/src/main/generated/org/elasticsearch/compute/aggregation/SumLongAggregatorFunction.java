@@ -53,6 +53,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vector) {
+    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       state.longValue(SumLongAggregator.combine(state.longValue(), vector.getLong(i)));
     }
@@ -63,6 +64,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       if (block.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
@@ -86,6 +88,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       blobVector.get(i, tmpState);
       state.longValue(SumLongAggregator.combine(state.longValue(), tmpState.longValue()));
     }
+    state.seen(state.seen() || tmpState.seen());
     tmpState.close();
   }
 
@@ -99,6 +102,10 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset) {
+    if (state.seen() == false) {
+      blocks[offset] = Block.constantNullBlock(1);
+      return;
+    }
     blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
   }
 

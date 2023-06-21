@@ -417,7 +417,7 @@ evalWithNullAndAvg
 from employees | eval nullsum = salary + null | stats avg(nullsum), count(nullsum);
 
 avg(nullsum):double | count(nullsum):long
-NaN | 0
+               null | 0
 ;
 
 fromStatsLimit

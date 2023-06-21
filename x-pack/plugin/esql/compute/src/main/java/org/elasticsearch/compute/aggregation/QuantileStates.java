@@ -96,6 +96,9 @@ public final class QuantileStates {
 
         Block evaluateMedianAbsoluteDeviation() {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
+            if (digest.size() == 0) {
+                return Block.constantNullBlock(1);
+            }
             double result = InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
             return DoubleBlock.newConstantBlockWith(result, 1);
         }
@@ -103,6 +106,9 @@ public final class QuantileStates {
         Block evaluatePercentile() {
             if (percentile == null) {
                 return DoubleBlock.newBlockBuilder(1).appendNull().build();
+            }
+            if (digest.size() == 0) {
+                return Block.constantNullBlock(1);
             }
             double result = digest.quantile(percentile / 100);
             return DoubleBlock.newConstantBlockWith(result, 1);

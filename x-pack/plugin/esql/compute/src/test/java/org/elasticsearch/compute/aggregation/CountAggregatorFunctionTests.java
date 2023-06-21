@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
@@ -38,5 +39,11 @@ public class CountAggregatorFunctionTests extends AggregatorFunctionTestCase {
     protected void assertSimpleOutput(List<Block> input, Block result) {
         long count = input.stream().flatMapToLong(b -> allLongs(b)).count();
         assertThat(((LongBlock) result).getLong(0), equalTo(count));
+    }
+
+    @Override
+    protected void assertOutputFromEmpty(Block b) {
+        assertThat(b.getPositionCount(), equalTo(1));
+        assertThat(BasicBlockTests.valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
     }
 }

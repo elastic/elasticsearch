@@ -22,6 +22,7 @@ import java.util.Objects;
 @Experimental
 final class IntState implements AggregatorState<IntState> {
     private int value;
+    private boolean seen;
 
     IntState() {
         this(0);
@@ -39,9 +40,17 @@ final class IntState implements AggregatorState<IntState> {
         this.value = value;
     }
 
+    boolean seen() {
+        return seen;
+    }
+
+    void seen(boolean seen) {
+        this.seen = seen;
+    }
+
     @Override
     public long getEstimatedSize() {
-        return Integer.BYTES;
+        return Integer.BYTES + 1;
     }
 
     @Override
@@ -57,7 +66,7 @@ final class IntState implements AggregatorState<IntState> {
 
         @Override
         public int size() {
-            return Integer.BYTES;
+            return Integer.BYTES + 1;
         }
 
         @Override
@@ -65,13 +74,15 @@ final class IntState implements AggregatorState<IntState> {
             assert selected.getPositionCount() == 1;
             assert selected.getInt(0) == 0;
             handle.set(ba, offset, state.value);
-            return Integer.BYTES; // number of bytes written
+            ba[offset + Integer.BYTES] = (byte) (state.seen ? 1 : 0);
+            return size(); // number of bytes written
         }
 
         @Override
         public void deserialize(IntState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
             state.value = (int) handle.get(ba, offset);
+            state.seen = ba[offset + Integer.BYTES] == (byte) 1;
         }
     }
 }

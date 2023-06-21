@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BytesRefBlockSourceOperator;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
@@ -46,5 +48,11 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
         // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
         assertThat((double) count, closeTo(expected, expected * 0.1));
+    }
+
+    @Override
+    protected void assertOutputFromEmpty(Block b) {
+        assertThat(b.getPositionCount(), equalTo(1));
+        assertThat(BasicBlockTests.valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
     }
 }

@@ -66,6 +66,7 @@ class SumDoubleAggregator {
     static class SumState extends CompensatedSum implements AggregatorState<SumState> {
 
         private final SumStateSerializer serializer;
+        private boolean seen;
 
         SumState() {
             this(0, 0);
@@ -88,12 +89,20 @@ class SumDoubleAggregator {
         public AggregatorStateSerializer<SumState> serializer() {
             return serializer;
         }
+
+        public boolean seen() {
+            return seen;
+        }
+
+        public void seen(boolean seen) {
+            this.seen = seen;
+        }
     }
 
     static class SumStateSerializer implements AggregatorStateSerializer<SumState> {
 
-        // record Shape (double value, double delta) {}
-        static final int BYTES_SIZE = Double.BYTES + Double.BYTES;
+        // record Shape (double value, double delta, boolean seen) {}
+        static final int BYTES_SIZE = Double.BYTES + Double.BYTES + 1;
 
         @Override
         public int size() {
@@ -107,8 +116,9 @@ class SumDoubleAggregator {
             assert selected.getPositionCount() == 1;
             assert selected.getInt(0) == 0;
             doubleHandle.set(ba, offset, value.value());
-            doubleHandle.set(ba, offset + 8, value.delta());
-            return BYTES_SIZE; // number of bytes written
+            doubleHandle.set(ba, offset + Double.BYTES, value.delta());
+            ba[offset + Double.BYTES + Double.BYTES] = (byte) (value.seen ? 1 : 0);
+            return size(); // number of bytes written
         }
 
         // sets the state in value
@@ -116,7 +126,8 @@ class SumDoubleAggregator {
         public void deserialize(SumState value, byte[] ba, int offset) {
             Objects.requireNonNull(value);
             double kvalue = (double) doubleHandle.get(ba, offset);
-            double kdelta = (double) doubleHandle.get(ba, offset + 8);
+            double kdelta = (double) doubleHandle.get(ba, offset + Double.BYTES);
+            value.seen = ba[offset + Double.BYTES + Double.BYTES] == (byte) 1;
             value.reset(kvalue, kdelta);
         }
     }

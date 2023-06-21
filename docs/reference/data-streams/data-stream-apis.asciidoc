@@ -18,7 +18,7 @@ The following APIs are available for managing the built-in lifecycle of data str
 * <<data-streams-put-lifecycle,Update data stream lifecycle>> preview:[]
 * <<data-streams-get-lifecycle,Get data stream lifecycle>> preview:[]
 * <<data-streams-delete-lifecycle,Delete data stream lifecycle>> preview:[]
-* <<data-streams-explain-lifecycle,Explain Lifecycle API>> preview:[]
+* <<data-streams-explain-lifecycle,Explain data stream lifecycle>> preview:[]
 
 The following API is available for <<tsds,time series data streams>>:
 
@@ -47,6 +47,6 @@ include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/data-streams/lifecycle/apis/delete-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/data-streams/lifecycle/apis/explain-data-lifecycle.asciidoc[]
+include::{es-repo-dir}/data-streams/lifecycle/apis/explain-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]

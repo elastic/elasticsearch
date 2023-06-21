@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -53,6 +54,8 @@ public class TimeSeriesIndexSearcher {
     private final boolean tsidReverse;
     private final boolean timestampReverse;
 
+    private Float minimumScore = null;
+
     public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         try {
             this.searcher = new ContextIndexSearcher(
@@ -76,6 +79,10 @@ public class TimeSeriesIndexSearcher {
         this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
     }
 
+    public void setMinimumScore(Float minimumScore) {
+        this.minimumScore = minimumScore;
+    }
+
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
         int seen = 0;
         query = searcher.rewrite(query);
@@ -90,6 +97,9 @@ public class TimeSeriesIndexSearcher {
             }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
+                if (minimumScore != null) {
+                    scorer = new MinScoreScorer(weight, scorer, minimumScore);
+                }
                 LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
@@ -197,6 +207,9 @@ public class TimeSeriesIndexSearcher {
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
         private final BytesRefBuilder scratch = new BytesRefBuilder();
+
+        private final Scorer scorer;
+
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -207,6 +220,7 @@ public class TimeSeriesIndexSearcher {
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
+            this.scorer = scorer;
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);

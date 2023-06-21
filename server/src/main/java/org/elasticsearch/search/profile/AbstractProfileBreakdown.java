@@ -10,7 +10,10 @@ package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.util.Maps;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -25,34 +28,46 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * The accumulated timings for this query node
      */
-    private final Timer[] timings;
+    private final Map<Integer, List<Timer>> timings;
     private final T[] timingTypes;
 
     /** Sole constructor. */
     public AbstractProfileBreakdown(Class<T> clazz) {
         this.timingTypes = clazz.getEnumConstants();
-        timings = new Timer[timingTypes.length];
-        for (int i = 0; i < timings.length; ++i) {
-            timings[i] = new Timer();
+        timings = new HashMap<>(this.timingTypes.length);
+        for (int i = 0; i < this.timingTypes.length; ++i) {
+            ArrayList<Timer> listOfTimers = new ArrayList<>();
+            listOfTimers.add(new Timer());
+            timings.put(i, listOfTimers);
         }
     }
 
-    public Timer getTimer(T timing) {
-        return timings[timing.ordinal()];
-    }
-
-    public void setTimer(T timing, Timer timer) {
-        timings[timing.ordinal()] = timer;
+    /**
+     * @param timingType the timing type to create a new {@link Timer} for
+     * @return a new {@link Timer} instance
+     */
+    public Timer getNewTimer(T timingType) {
+        Timer timer = new Timer();
+        timings.get(timingType.ordinal()).add(timer);
+        return timer;
     }
 
     /**
      * Build a timing count breakdown.
+     * If multiple timers where requested from different locations or threads from this profile breakdown,
+     * the approximation will contain the sum of each timers approximate time and count.
      */
     public final Map<String, Long> toBreakdownMap() {
-        Map<String, Long> map = Maps.newMapWithExpectedSize(timings.length * 2);
-        for (T timingType : timingTypes) {
-            map.put(timingType.toString(), timings[timingType.ordinal()].getApproximateTiming());
-            map.put(timingType.toString() + "_count", timings[timingType.ordinal()].getCount());
+        Map<String, Long> map = Maps.newMapWithExpectedSize(timings.keySet().size() * 2);
+        for (T timingType : this.timingTypes) {
+            map.put(
+                timingType.toString(),
+                timings.get(timingType.ordinal()).stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum()
+            );
+            map.put(
+                timingType.toString() + "_count",
+                timings.get(timingType.ordinal()).stream().map(Timer::getCount).mapToLong(Long::valueOf).sum()
+            );
         }
         return Collections.unmodifiableMap(map);
     }
@@ -64,10 +79,13 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         return emptyMap();
     }
 
+    /**
+     * @return the total sum of timers approximate times across all timing types
+     */
     public final long toNodeTime() {
         long total = 0;
         for (T timingType : timingTypes) {
-            total += timings[timingType.ordinal()].getApproximateTiming();
+            total += timings.get(timingType.ordinal()).stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum();
         }
         return total;
     }

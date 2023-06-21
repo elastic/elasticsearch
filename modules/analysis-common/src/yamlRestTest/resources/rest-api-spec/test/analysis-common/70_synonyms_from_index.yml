@@ -1,5 +1,4 @@
----
-"Load and auto-reload synonyms from index for an analyzer":
+setup:
   - skip:
       version: " - 8.8.99"
       reason: Loading synonyms from index is introduced in 8.9.0
@@ -11,8 +10,9 @@
         body:
           synonyms_set:
             - synonyms: "hello, hi"
+              id: "synonym-rule-1"
             - synonyms: "bye => goodbye"
-  - match: { result: "created" }
+              id: "synonym-rule-2"
 
   # Create an index with synonym_filter that uses that synonyms set
   - do:
@@ -47,6 +47,8 @@
           - '{"my_field": "hello"}'
           - '{"index": {"_index": "my_index", "_id": "2"}}'
           - '{"my_field": "goodbye"}'
+---
+"Load synonyms from index for an analyzer":
 
   # Confirm that synonyms from the synonyms set are used
   - do:
@@ -69,7 +71,8 @@
                 query: bye
   - match: { hits.total.value: 1 }
 
-  # Update synonyms and check reload status
+---
+"Update the synonym set and auto-reload analyzer":
   - do:
       synonyms.put:
         synonyms_set: set1
@@ -103,7 +106,43 @@
                 query: ciao
   - match: { hits.total.value: 1 }
 
-  # Delete the synonyms set and confirm failed reload analyzers details
+---
+"Update a single synonym rule and auto-reload analyzer":
+  - do:
+      synonym_rule.put:
+        synonyms_set: set1
+        synonym_rule: "synonym-rule-1"
+        body:
+          synonyms: "hello, hola"
+  - match: { result: "updated" }
+  - gte: { reload_analyzers_details._shards.total: 1 }
+  - match: { reload_analyzers_details.reload_details.0.index: "my_index" }
+  - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0 : "my_analyzer" }
+
+  # Confirm that the index analyzers are reloaded
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: hola
+  - match: { hits.total.value: 1 }
+
+  # Other synonym rules are unchanged
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: bye
+  - match: { hits.total.value: 1 }
+
+---
+"Delete the synonyms set and confirm failed reload analyzers details":
   - do:
       synonyms.delete:
         synonyms_set: set1
@@ -122,7 +161,7 @@
           query:
             match:
               my_field:
-                query: salute
+                query: hi
   - match: { hits.total.value: 1 }
 
   - do:
@@ -132,18 +171,14 @@
           query:
             match:
               my_field:
-                query: ciao
+                query: bye
   - match: { hits.total.value: 1 }
 
 ---
 "Fail loading synonyms from index if synonyms_set doesn't exist":
-  - skip:
-      version: " - 8.8.99"
-      reason: Loading synonyms from index is introduced in 8.9.0
-
   - do:
       indices.create:
-        index: my_index
+        index: another_index
         body:
           settings:
             index:

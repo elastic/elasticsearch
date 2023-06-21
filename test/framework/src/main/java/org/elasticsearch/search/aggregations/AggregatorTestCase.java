@@ -55,6 +55,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -340,6 +341,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             -1,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             fieldDataBuilder,
             null,

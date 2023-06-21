@@ -60,7 +60,7 @@ setup:
   - match: { aggregations.plot.q3: 10.0 }
 
 ---
-"Search With Params":
+"Search With Compression":
 
   - do:
       search:
@@ -72,6 +72,25 @@ setup:
               boxplot:
                 field: "load_time"
                 compression: 200
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 15.0 }
+  - match: { aggregations.plot.q1: 3.0 }
+  - match: { aggregations.plot.q2: 5.0 }
+  - match: { aggregations.plot.q3: 10.0 }
+
+---
+"Search With Execution Hint":
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
                 execution_hint: high_accuracy
 
   - match: { aggregations.plot.min: 2.0 }
@@ -79,6 +98,35 @@ setup:
   - match: { aggregations.plot.q1: 2.75 }
   - match: { aggregations.plot.q2: 5.0 }
   - match: { aggregations.plot.q3: 11.25 }
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                execution_hint: default
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 15.0 }
+  - match: { aggregations.plot.q1: 3.0 }
+  - match: { aggregations.plot.q2: 5.0 }
+  - match: { aggregations.plot.q3: 10.0 }
+
+  - do:
+      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                execution_hint: no_such_hint
 
 ---
 "Search With Runtime Field":
@@ -147,15 +195,3 @@ setup:
               boxplot:
                 field: "load_time"
                 compression: -1.0
-
-  - do:
-      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
-      search:
-        index: "latency"
-        body:
-          size: 0
-          aggs:
-            plot:
-              boxplot:
-                field: "load_time"
-                execution_hint: no_such_hint

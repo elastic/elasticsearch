@@ -54,7 +54,7 @@ basic:
   - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 61.5, error: 1} }
 
 ---
-with params:
+with compression:
   - skip:
       features: close_to
       version: " - 8.8.99"
@@ -70,11 +70,60 @@ with params:
                 values: [50, 99]
                 tdigest:
                   compression: 200
+
+  - match: { hits.total.value: 4 }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1} }
+
+---
+with execution hint:
+  - skip:
+      features: close_to
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: [50, 99]
+                tdigest:
                   execution_hint: high_accuracy
 
   - match: { hits.total.value: 4 }
   - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1} }
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: [ 50, 99 ]
+                tdigest:
+                  execution_hint: default
+
+  - match: { hits.total.value: 4 }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1 } }
+  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1 } }
+
+  - do:
+      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
+      search:
+        body:
+          aggs:
+            percentile_ranks_string:
+              percentile_ranks:
+                field: string
+                tdigest:
+                  execution_hint: no_such_hint
 
 ---
 filtered:
@@ -189,22 +238,6 @@ invalid params:
                 field: string
                 tdigest:
                   compression: -1
-
----
-"Invalid execution hint":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
-  - do:
-      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
-      search:
-        body:
-          aggs:
-            percentile_ranks_string:
-              percentile_ranks:
-                field: string
-                tdigest:
-                  execution_hint: no_such_hint
 
 ---
 non-keyed test:

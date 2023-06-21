@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -201,11 +202,6 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public IlmHealthIndicatorService(ClusterService clusterService, StagnatingIndicesFinder stagnatingIndicesFinder) {
         this.clusterService = clusterService;
         this.stagnatingIndicesFinder = stagnatingIndicesFinder;
-        var clusterSettings = this.clusterService.getClusterSettings();
-
-        clusterSettings.addSettingsUpdateConsumer(MAX_TIME_ON_ACTION_SETTING, stagnatingIndicesFinder::recreateRules);
-        clusterSettings.addSettingsUpdateConsumer(MAX_TIME_ON_STEP_SETTING, stagnatingIndicesFinder::recreateRules);
-        clusterSettings.addSettingsUpdateConsumer(MAX_RETRIES_PER_STEP_SETTING, stagnatingIndicesFinder::recreateRules);
     }
 
     @Override
@@ -332,7 +328,14 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             this.rulesCreators = rulesCreators;
             this.nowSupplier = nowSupplier;
 
-            recreateRules(null);
+            var clusterSettings = this.clusterService.getClusterSettings();
+
+            clusterSettings.addSettingsUpdateConsumer(
+                this::recreateRules,
+                List.of(MAX_TIME_ON_ACTION_SETTING, MAX_TIME_ON_STEP_SETTING, MAX_RETRIES_PER_STEP_SETTING)
+            );
+
+            recreateRules(clusterService.getSettings());
         }
 
         /**
@@ -350,22 +353,20 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 .toList();
         }
 
-        /**
-         *  We don't actually care what setting is updated, we just grab all the values from the `ClusterSettings` and recreate the rules
-         *  from scratch */
-        <T> void recreateRules(T ignored) {
-            var clusterSettings = clusterService.getClusterSettings();
-            var defaultMaxTimeOnAction = clusterSettings.get(MAX_TIME_ON_ACTION_SETTING);
-            var defaultMaxTimeOnStep = clusterSettings.get(MAX_TIME_ON_STEP_SETTING);
-            var defaultMaxRetriesPerStep = clusterSettings.get(MAX_RETRIES_PER_STEP_SETTING);
+        void recreateRules(Settings settings) {
+            var maxTimeOnAction = MAX_TIME_ON_ACTION_SETTING.get(settings);
+            var maxTimeOnStep = MAX_TIME_ON_STEP_SETTING.get(settings);
+            var maxRetriesPerStep = MAX_RETRIES_PER_STEP_SETTING.get(settings);
 
-            rules = rulesCreators.stream()
-                .map(rc -> rc.create(defaultMaxTimeOnAction, defaultMaxTimeOnStep, defaultMaxRetriesPerStep))
-                .toList();
+            rules = rulesCreators.stream().map(rc -> rc.create(maxTimeOnAction, maxTimeOnStep, maxRetriesPerStep)).toList();
         }
 
         Collection<RuleConfig> rules() {
             return rules;
+        }
+
+        ClusterService clusterService() {
+            return clusterService;
         }
     }
 

@@ -744,6 +744,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(RestStatus.OK.getStatus(), task.getLastAfterBulkInfo().getRestStatusCode());
             assertTrue(task.getLastAfterBulkInfo().getBulkDurationInMillis() > 0);
             assertTrue(task.getLastAfterBulkInfo().getTook() > 0);
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastIndexingTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastSourceTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastTargetTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastIndexingTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastSourceTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastTargetTimestamp());
         }
     }
 

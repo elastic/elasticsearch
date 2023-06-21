@@ -64,10 +64,10 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * This test suite ensures that DLM runtime tasks work correctly with security enabled, i.e., that the internal user for DLM has all
- * requisite privileges to orchestrate DLM
+ * This test suite ensures that data stream lifecycle runtime tasks work correctly with security enabled, i.e., that the internal user for
+ * data stream lifecycle has all requisite privileges to orchestrate the data stream lifecycle
  */
-public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase {
+public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -122,8 +122,8 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
     }
 
     public void testUnauthorized() throws Exception {
-        // this is an example index pattern for a system index that DLM does not have access for. DLM will therefore fail at runtime with an
-        // authz exception
+        // this is an example index pattern for a system index that the data stream lifecycle does not have access for. Data stream
+        // lifecycle will therefore fail at runtime with an authz exception
         prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, new DataLifecycle());
 
         assertBusy(() -> {
@@ -131,7 +131,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
             assertThat(indicesAndErrors, is(not(anEmptyMap())));
             assertThat(
                 indicesAndErrors.values(),
-                hasItem(allOf(containsString("security_exception"), containsString("unauthorized for user [_dlm]")))
+                hasItem(allOf(containsString("security_exception"), containsString("unauthorized for user [_data_stream_lifecycle]")))
             );
         });
     }
@@ -192,7 +192,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
             assertThat(
                 "unexpected authz error for index [" + entry.getKey() + "] with error message [" + entry.getValue() + "]",
                 entry.getValue(),
-                not(anyOf(containsString("security_exception"), containsString("unauthorized for user [_dlm]")))
+                not(anyOf(containsString("security_exception"), containsString("unauthorized for user [_data_stream_lifecycle]")))
             );
         }
     }

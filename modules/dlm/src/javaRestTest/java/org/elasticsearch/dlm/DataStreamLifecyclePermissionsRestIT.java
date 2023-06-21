@@ -38,14 +38,14 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DlmPermissionsRestIT extends ESRestTestCase {
+public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
 
     private static final String PASSWORD = "secret-test-password";
     private static Path caPath;
 
     @BeforeClass
     public static void init() throws URISyntaxException, FileNotFoundException {
-        URL resource = DlmPermissionsRestIT.class.getResource("/ssl/ca.crt");
+        URL resource = DataStreamLifecyclePermissionsRestIT.class.getResource("/ssl/ca.crt");
         if (resource == null) {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
@@ -76,7 +76,7 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
         .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
         .user("test_admin", PASSWORD, "superuser")
-        .user("test_dlm", PASSWORD, "manage_dlm")
+        .user("test_data_stream_lifecycle", PASSWORD, "manage_data_stream_lifecycle")
         .user("test_non_privileged", PASSWORD, "not_privileged")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
@@ -88,8 +88,8 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        // Note: This user is assigned the role "manage_dlm". That role is defined in roles.yml.
-        String token = basicAuthHeaderValue("test_dlm", new SecureString(PASSWORD.toCharArray()));
+        // Note: This user is assigned the role "manage_data_stream_lifecycle". That role is defined in roles.yml.
+        String token = basicAuthHeaderValue("test_data_stream_lifecycle", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
 
@@ -112,14 +112,15 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testManageDLM() throws Exception {
+    public void testManageDataStreamLifecycle() throws Exception {
         {
             /*
-             * This test checks that a user with the "manage_dlm" index privilege on "dlm-*" data streams can delete and put a lifecycle
-             * on the "dlm-test" data stream, while a user with who does not have that privilege (but does have all of the other same
-             * "dlm-*" privileges) cannot delete or put a lifecycle on that datastream.
+             * This test checks that a user with the "manage_data_stream_lifecycle" index privilege on "data-stream-lifecycle-*" data
+             * streams can delete and put a lifecycle on the "data-stream-lifecycle-test" data stream, while a user with who does not have
+             * that privilege (but does have all the other same "data-stream-lifecycle-*" privileges) cannot delete or put a lifecycle on
+             * that datastream.
              */
-            String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
+            String dataStreamName = "data-stream-lifecycle-test"; // Needs to match the pattern of the names in roles.yml
             createDataStreamAsAdmin(dataStreamName);
             Response getDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
             final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDataStreamResponse).evaluate("data_streams");
@@ -140,17 +141,21 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
             makeRequest(client(), putLifecycleRequest, true);
 
             try (
-                RestClient nonDlmManagerClient = buildClient(restUnprivilegedClientSettings(), getClusterHosts().toArray(new HttpHost[0]))
+                RestClient nonDataStreamLifecycleManagerClient = buildClient(
+                    restUnprivilegedClientSettings(),
+                    getClusterHosts().toArray(new HttpHost[0])
+                )
             ) {
-                makeRequest(nonDlmManagerClient, explainLifecycleRequest, true);
-                makeRequest(nonDlmManagerClient, getLifecycleRequest, true);
-                makeRequest(nonDlmManagerClient, deleteLifecycleRequest, false);
-                makeRequest(nonDlmManagerClient, putLifecycleRequest, false);
+                makeRequest(nonDataStreamLifecycleManagerClient, explainLifecycleRequest, true);
+                makeRequest(nonDataStreamLifecycleManagerClient, getLifecycleRequest, true);
+                makeRequest(nonDataStreamLifecycleManagerClient, deleteLifecycleRequest, false);
+                makeRequest(nonDataStreamLifecycleManagerClient, putLifecycleRequest, false);
             }
         }
         {
-            // Now test that the user who has the manage_dlm privilege on dlm-* data streams cannot manage other data streams:
-            String otherDataStreamName = "other-dlm-test";
+            // Now test that the user who has the manage_data_stream_lifecycle privilege on data-stream-lifecycle-* data streams cannot
+            // manage other data streams:
+            String otherDataStreamName = "other-data-stream-lifecycle-test";
             createDataStreamAsAdmin(otherDataStreamName);
             Response getOtherDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + otherDataStreamName));
             final List<Map<String, Object>> otherNodes = ObjectPath.createFromResponse(getOtherDataStreamResponse).evaluate("data_streams");

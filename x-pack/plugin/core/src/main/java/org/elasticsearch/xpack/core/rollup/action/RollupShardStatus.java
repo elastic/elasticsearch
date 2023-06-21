@@ -116,7 +116,7 @@ public class RollupShardStatus implements Task.Status {
         numSent = in.readLong();
         numIndexed = in.readLong();
         numFailed = in.readLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020) && in.readBoolean()) {
             totalShardDocCount = in.readLong();
             lastSourceTimestamp = in.readLong();
             lastTargetTimestamp = in.readLong();
@@ -216,7 +216,7 @@ public class RollupShardStatus implements Task.Status {
         out.writeLong(numSent);
         out.writeLong(numIndexed);
         out.writeLong(numFailed);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             out.writeBoolean(true);
             out.writeLong(totalShardDocCount);
             out.writeLong(lastSourceTimestamp);

@@ -38,7 +38,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -289,10 +288,10 @@ public class SynonymsManagementAPIService {
             }
             builder.endObject();
 
-            return new IndexRequest(SYNONYMS_ALIAS_NAME).id(internalSynonymRuleId(synonymsSetId, synonymRule))
+            return new IndexRequest(SYNONYMS_ALIAS_NAME).id(internalSynonymRuleId(synonymsSetId, synonymRule.id()))
                 .opType(DocWriteRequest.OpType.INDEX)
                 .source(builder)
-                .id(internalSynonymRuleId(synonymsSetId, synonymRule));
+                .id(internalSynonymRuleId(synonymsSetId, synonymRule.id()));
         }
     }
 
@@ -357,8 +356,7 @@ public class SynonymsManagementAPIService {
 
     // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID
     // can be used in different synonym sets, we prefix the ID with the synonym set to avoid collisions
-    private static String internalSynonymRuleId(String synonymsSetId, SynonymRule synonymRule) {
-        String synonymRuleId = synonymRule.id();
+    private static String internalSynonymRuleId(String synonymsSetId, String synonymRuleId) {
         if (synonymRuleId == null) {
             synonymRuleId = UUIDs.base64UUID();
         }

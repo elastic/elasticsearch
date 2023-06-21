@@ -22,10 +22,7 @@ public class GetSynonymRuleActionRequestSerializingTests extends AbstractWireSer
 
     @Override
     protected GetSynonymRuleAction.Request createTestInstance() {
-        return new GetSynonymRuleAction.Request(
-            randomIdentifier(),
-            randomIdentifier()
-        );
+        return new GetSynonymRuleAction.Request(randomIdentifier(), randomIdentifier());
     }
 
     @Override

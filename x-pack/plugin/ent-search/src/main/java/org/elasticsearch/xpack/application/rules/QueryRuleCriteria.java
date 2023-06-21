@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final CriteriaType criteriaType;
@@ -58,19 +58,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
      * @param criteriaValue The value to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
      */
     public QueryRuleCriteria(CriteriaType criteriaType, String criteriaMetadata, Object criteriaValue) {
-
-        Objects.requireNonNull(criteriaType);
-        Objects.requireNonNull(criteriaMetadata);
-        Objects.requireNonNull(criteriaValue);
-
-        if ((criteriaType == CriteriaType.EXACT) == false) {
-            throw new IllegalArgumentException("Invalid criteriaType " + criteriaType);
-        }
-
-        if (Strings.isNullOrEmpty(criteriaMetadata)) {
-            throw new IllegalArgumentException("criteriaMetadata cannot be blank");
-        }
-
         this.criteriaType = criteriaType;
         this.criteriaMetadata = criteriaMetadata;
         this.criteriaValue = criteriaValue;
@@ -98,9 +85,9 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
     static {
-        PARSER.declareString(constructorArg(), TYPE_FIELD);
-        PARSER.declareString(constructorArg(), METADATA_FIELD);
-        PARSER.declareString(constructorArg(), VALUE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), TYPE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), METADATA_FIELD);
+        PARSER.declareString(optionalConstructorArg(), VALUE_FIELD);
     }
 
     /**

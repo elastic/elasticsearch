@@ -223,7 +223,7 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                long bulkDurationInMillis = bulkStartTime - System.currentTimeMillis();
+                long bulkDurationInMillis = System.currentTimeMillis() - bulkStartTime;
                 task.addNumIndexed(request.numberOfActions());
                 task.setAfterBulkInfo(
                     new RollupAfterBulkInfo(

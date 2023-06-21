@@ -130,6 +130,18 @@ public class RollupShardTask extends CancellableTask {
         return rollupShardIndexerStatus.get();
     }
 
+    public long getIndexStartTime() {
+        return indexStartTime;
+    }
+
+    public long getIndexEndTime() {
+        return indexEndTime;
+    }
+
+    public long getLastIndexingTimestamp() {
+        return lastIndexingTimestamp.get();
+    }
+
     public float getDocsProcessedPercentage() {
         return docsProcessedPercentage;
     }

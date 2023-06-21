@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -78,9 +79,11 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -682,6 +685,66 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         indexer.rollupMaxBytesInFlight = ByteSizeValue.ofBytes(1024);
         indexer.rollupBulkSize = ByteSizeValue.ofBytes(512);
         indexer.execute();
+    }
+
+    public void testRollupStats() throws IOException {
+        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        final IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        final Index resolvedSourceIndex = resolveIndex(sourceIndex);
+        final IndexService indexService = indexServices.indexServiceSafe(resolvedSourceIndex);
+        for (int shardNum = 0; shardNum < numOfShards; shardNum++) {
+            final IndexShard shard = indexService.getShard(shardNum);
+            final RollupShardTask task = new RollupShardTask(
+                randomLong(),
+                "rollup",
+                "action",
+                TaskId.EMPTY_TASK_ID,
+                rollupIndex,
+                config,
+                emptyMap(),
+                shard.shardId()
+            );
+
+            final RollupShardIndexer indexer = new RollupShardIndexer(
+                task,
+                client(),
+                indexService,
+                shard.shardId(),
+                rollupIndex,
+                config,
+                new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+                new String[] {}
+            );
+
+            assertEquals(0.0F, task.getDocsProcessedPercentage(), 0.001);
+            assertEquals(RollupShardIndexerStatus.INITIALIZED, task.getRollupShardIndexerStatus());
+
+            final DownsampleIndexerAction.ShardDownsampleResponse executeResponse = indexer.execute();
+
+            assertEquals(executeResponse.getNumIndexed(), task.getNumIndexed());
+            assertEquals(task.getNumReceived(), task.getTotalShardDocCount());
+            assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
+            assertEquals(100.0F, task.getDocsProcessedPercentage(), 0.001);
+            assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTime());
+            assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTime());
+            assertEquals(RollupShardIndexerStatus.COMPLETED, task.getRollupShardIndexerStatus());
+            assertEquals(task.getNumSent(), task.getNumIndexed());
+            assertEquals(task.getNumIndexed(), task.getLastBeforeBulkInfo().getNumberOfActions());
+            assertTrue(task.getLastBeforeBulkInfo().getEstimatedSizeInBytes() > 0);
+            assertFalse(task.getLastAfterBulkInfo().hasFailures());
+            assertEquals(RestStatus.OK.getStatus(), task.getLastAfterBulkInfo().getRestStatusCode());
+            assertTrue(task.getLastAfterBulkInfo().getBulkDurationInMillis() > 0);
+            assertTrue(task.getLastAfterBulkInfo().getTook() > 0);
+        }
     }
 
     private DateHistogramInterval randomInterval() {

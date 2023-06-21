@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# On some distros, this directory ends up not readable by the `elasticsearch` user that gets created during tests
+# This fixes that
+chmod 755 ~
+
 WORKSPACE="$(pwd)"
 export WORKSPACE
 

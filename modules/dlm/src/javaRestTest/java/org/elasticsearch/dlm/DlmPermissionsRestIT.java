@@ -76,7 +76,7 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
         .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
         .user("test_admin", PASSWORD, "superuser")
-        .user("test_dlm", PASSWORD, "manage_lifecycle")
+        .user("test_dlm", PASSWORD, "manage_data_stream_lifecycle")
         .user("test_non_privileged", PASSWORD, "not_privileged")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
@@ -88,7 +88,7 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        // Note: This user is assigned the role "manage_lifecycle". That role is defined in roles.yml.
+        // Note: This user is assigned the role "manage_data_stream_lifecycle". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_dlm", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
@@ -115,7 +115,7 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
     public void testManageDLM() throws Exception {
         {
             /*
-             * This test checks that a user with the "manage_lifecycle" index privilege on "dlm-*" data streams can delete and put a
+             * This test checks that a user with the "manage_data_stream_lifecycle" index privilege on "dlm-*" data streams can delete and put a
              * lifecycle on the "dlm-test" data stream, while a user with who does not have that privilege (but does have all the other
              * same "dlm-*" privileges) cannot delete or put a lifecycle on that datastream.
              */
@@ -149,7 +149,8 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
             }
         }
         {
-            // Now test that the user who has the manage_lifecycle privilege on dlm-* data streams cannot manage other data streams:
+            // Now test that the user who has the manage_data_stream_lifecycle privilege on dlm-* data streams cannot manage other data
+            // streams:
             String otherDataStreamName = "other-dlm-test";
             createDataStreamAsAdmin(otherDataStreamName);
             Response getOtherDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + otherDataStreamName));

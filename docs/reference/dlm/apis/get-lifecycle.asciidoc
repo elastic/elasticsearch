@@ -12,7 +12,7 @@ Gets the lifecycle of a set of data streams.
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have at least one of the `manage`
-<<privileges-list-indices,index privilege>>, the `manage_lifecycle` index privilege, or the
+<<privileges-list-indices,index privilege>>, the `manage_data_stream_lifecycle` index privilege, or the
 `view_index_metadata` privilege to use this API. For more information, see <<security-privileges>>.
 
 [[dlm-get-lifecycle-request]]

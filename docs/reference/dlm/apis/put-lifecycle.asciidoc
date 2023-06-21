@@ -11,7 +11,7 @@ Configures the data lifecycle for the targeted data streams.
 [[put-lifecycle-api-prereqs]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the `manage_lifecycle` index privilege or higher to use this API.
+If the {es} {security-features} are enabled, you must have the `manage_data_stream_lifecycle` index privilege or higher to use this API.
 For more information, see <<security-privileges>>.
 
 [[dlm-put-lifecycle-request]]

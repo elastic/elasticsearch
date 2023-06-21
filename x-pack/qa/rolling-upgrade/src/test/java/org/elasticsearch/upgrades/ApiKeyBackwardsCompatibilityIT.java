@@ -351,7 +351,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final Set<String> excludedPrivileges = Set.of(
             "cross_cluster_replication",
             "cross_cluster_replication_internal",
-            "manage_lifecycle"
+            "manage_data_stream_lifecycle"
         );
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),

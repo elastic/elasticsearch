@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  */
 public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     private static final ParseField INDEX_FIELD = new ParseField("index");
-    private static final ParseField MANAGED_BY_DLM_FIELD = new ParseField("managed_by_dlm");
+    private static final ParseField MANAGED_BY_LIFECYCLE_FIELD = new ParseField("managed_by_lifecycle");
     private static final ParseField INDEX_CREATION_DATE_MILLIS_FIELD = new ParseField("index_creation_date_millis");
     private static final ParseField INDEX_CREATION_DATE_FIELD = new ParseField("index_creation_date");
     private static final ParseField ROLLOVER_DATE_MILLIS_FIELD = new ParseField("rollover_date_millis");
@@ -98,7 +98,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.field(MANAGED_BY_DLM_FIELD.getPreferredName(), managedByDLM);
+        builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByDLM);
         if (managedByDLM) {
             if (indexCreationDate != null) {
                 builder.timeField(

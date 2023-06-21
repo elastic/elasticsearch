@@ -761,7 +761,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void refreshSecurityIndex() throws Exception {
         assertBusy(() -> {
-            final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SECURITY_MAIN_ALIAS).get();
+            final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(SECURITY_MAIN_ALIAS).get();
             assertThat(refreshResponse.getFailedShards(), is(0));
         });
     }
@@ -1887,10 +1887,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertEquals(2, apiKeyService.getRoleDescriptorsBytesCache().count());
 
         // Close security index to trigger invalidation
-        final CloseIndexResponse closeIndexResponse = client().admin()
-            .indices()
-            .close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7))
-            .get();
+        final CloseIndexResponse closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
         assertTrue(closeIndexResponse.isAcknowledged());
         assertBusy(() -> {
             expectThrows(NullPointerException.class, () -> apiKeyService.getFromCache(docId));

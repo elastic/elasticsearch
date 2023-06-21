@@ -35,10 +35,10 @@ import java.util.Objects;
  */
 public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentObject {
 
-    public static final Setting<RolloverConfiguration> CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING = new Setting<>(
-        "cluster.dlm.default.rollover",
+    public static final Setting<RolloverConfiguration> CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING = new Setting<>(
+        "cluster.lifecycle.default.rollover",
         "max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
-        (s) -> RolloverConfiguration.parseSetting(s, "cluster.dlm.default.rollover"),
+        (s) -> RolloverConfiguration.parseSetting(s, "cluster.lifecycle.default.rollover"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -131,8 +131,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             out.writeOptionalWriteable(dataRetention);
-        } else {
-            out.writeOptionalTimeValue(getEffectiveDataRetention());
         }
     }
 
@@ -140,12 +138,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
-            var value = in.readOptionalTimeValue();
-            if (value == null) {
-                dataRetention = null;
-            } else {
-                dataRetention = new Retention(value);
-            }
+            dataRetention = null;
         }
     }
 

@@ -158,7 +158,7 @@ public class SharedBytes extends AbstractRefCounted {
             long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
             bytesCopied += bytesWritten;
             final long adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
-            assert adjustedBytesCopied == length;
+            assert adjustedBytesCopied == length : adjustedBytesCopied + " vs " + length;
             progressUpdater.accept(adjustedBytesCopied);
         }
     }

@@ -84,7 +84,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
 
         final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
@@ -222,15 +222,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final List<DiscoveryNode> allNodes = new ArrayList<>();
             while (allNodes.size() < 10) {
-                var node = DiscoveryNodeUtils.create(
-                    "node-" + allNodes.size(),
-                    buildNewFakeTransportAddress(),
-                    VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-                );
+                var node = DiscoveryNodeUtils.builder("node-" + allNodes.size())
+                    .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+                    .build();
                 allNodes.add(node);
                 nodeTransports.put(
                     node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT)
+                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.current())
                 );
             }
 
@@ -355,11 +353,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var completed = new AtomicBoolean();
 
         final var localNode = DiscoveryNodeUtils.create("localNode");
-        final var otherNode = DiscoveryNodeUtils.create(
-            "otherNode",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        final var otherNode = DiscoveryNodeUtils.builder("otherNode")
+            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .build();
         for (final var discoveryNode : List.of(localNode, otherNode)) {
             final var transport = new MockTransport() {
                 @Override

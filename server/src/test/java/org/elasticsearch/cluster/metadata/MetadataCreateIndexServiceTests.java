@@ -45,13 +45,14 @@ import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -81,7 +82,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
@@ -115,26 +115,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void setupCreateIndexRequestAndAliasValidator() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
-        searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
+        searchExecutionContext = SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
             parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> randomNonNegativeLong(),
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
+            writableRegistry()
         );
     }
 
@@ -627,9 +611,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".test-one*", "test"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".test-~(one*)", "test"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
+        systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-one*", "test"));
+        systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-~(one*)", "test"));
+        systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".pattern-test*", "test-1"));
 
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(

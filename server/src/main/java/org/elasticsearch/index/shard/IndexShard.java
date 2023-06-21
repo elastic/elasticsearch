@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -544,7 +545,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     );
                 }
 
-            if (newRouting.active() != false && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
+            if (newRouting.active() && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
                 // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
                 // a shard-started message in flight. When the new master is elected we start to recover our shards again and the stale
                 // shard-started message could arrive and move this shard to STARTED in the cluster state too soon. This is pretty rare so
@@ -2145,6 +2146,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
+                // We only do indexing into primaries that are started since:
+                // * TransportReplicationAction.ReroutePhase only allows to index into active primaries.
+                // * A relocation will retry the reroute phase.
+                // * Allocation ids protect against spurious requests towards old allocations.
+                // * We apply the cluster state on IndexShard instances before making it available for routing
+                assert state == IndexShardState.STARTED : "must be started to do primary indexing";
             } else if (origin == Engine.Operation.Origin.REPLICA) {
                 assert assertReplicationTarget();
             } else {
@@ -3162,7 +3169,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(Version.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 
@@ -3316,6 +3323,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
     }
 
+    public boolean isPrimaryMode() {
+        assert indexShardOperationPermits.getActiveOperationsCount() != 0 : "must hold permit to check primary mode";
+        return replicationTracker.isPrimaryMode();
+    }
+
     /**
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
@@ -3336,7 +3348,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
         return listener.delegateFailure((l, r) -> {
-            if (replicationTracker.isPrimaryMode()) {
+            if (isPrimaryMode()) {
                 l.onResponse(r);
             } else {
                 r.close();
@@ -3732,33 +3744,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary.
-     *
-     * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
+     * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
      */
-    public boolean scheduledRefresh() {
+    public void scheduledRefresh(ActionListener<Boolean> listener) {
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
-        if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
+        final Engine engine = getEngine();
+        if (isReadAllowed() && (listenerNeedsRefresh || engine.refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
+                && engine.allowSearchIdleOptimization()
                 && isSearchIdle()
                 && indexSettings.isExplicitRefresh() == false
                 && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.
-                final Engine engine = getEngine();
                 engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                 setRefreshPending(engine);
-                return false;
+                ActionListener.completeWith(listener, () -> false);
             } else {
                 logger.trace("refresh with source [schedule]");
-                return getEngine().maybeRefresh("schedule").refreshed();
+                engine.maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
             }
         }
-        final Engine engine = getEngine();
         engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-        return false;
+        ActionListener.completeWith(listener, () -> false);
     }
 
     /**
@@ -3825,13 +3835,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers the given listener and invokes it once the shard is active again and all
-     * pending refresh translog location has been refreshed. If there is no pending refresh location registered the listener will be
-     * invoked immediately.
+     * Ensures this shard is search active before invoking the provided listener.
+     * <p>
+     * This is achieved by registering a refresh listener and invoking the provided listener from the refresh listener once the shard is
+     * active again and all pending refresh translog location has been refreshed. A refresh may be executed to avoid waiting for
+     * {@link #scheduledRefresh(ActionListener)} to be invoked. If there is no pending refresh location registered the provided listener
+     * will be invoked immediately.
+     *
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
-    public final void awaitShardSearchActive(Consumer<Boolean> listener) {
+    public final void ensureShardSearchActive(Consumer<Boolean> listener) {
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
@@ -3839,6 +3853,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
+            // trigger a refresh to avoid waiting for scheduledRefresh(...) to be invoked from index level refresh scheduler.
+            // (The if statement should avoid doing an additional refresh if scheduled refresh was invoked between getting
+            // the current refresh location and adding a refresh listener.)
+            if (location == pendingRefreshLocation.get()) {
+                // This method may be called from many different threads including transport_worker threads and
+                // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                    if (location == pendingRefreshLocation.get()) {
+                        getEngine().maybeRefresh("ensure-shard-search-active", PlainActionFuture.newFuture());
+                    }
+                });
+            }
         } else {
             listener.accept(false);
         }

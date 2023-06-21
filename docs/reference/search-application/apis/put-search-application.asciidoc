@@ -2,7 +2,7 @@
 [[put-search-application]]
 === Put Search Application
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Put Search Application</titleabbrev>

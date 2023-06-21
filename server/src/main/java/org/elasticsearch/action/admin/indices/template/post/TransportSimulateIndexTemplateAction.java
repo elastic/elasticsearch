@@ -160,7 +160,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 new SimulateIndexTemplateResponse(
                     template,
                     overlapping,
-                    clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
+                    clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                 )
             );
         } else {

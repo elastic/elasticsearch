@@ -84,6 +84,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -1292,12 +1293,25 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Return consistent index settings for the provided index version. */
+    @Deprecated
     public static Settings.Builder settings(Version version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
+    /** Return consistent index settings for the provided index version. */
+    public static Settings.Builder settings(IndexVersion version) {
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id());
+    }
+
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    @Deprecated
     public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
+        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
+    /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
@@ -1508,7 +1522,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader
     ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.CURRENT);
+        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.current());
     }
 
     /**
@@ -1533,7 +1547,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass
     ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.CURRENT);
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.current());
     }
 
     /**
@@ -1896,7 +1910,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param message an additional message or link with information on the fix
      */
     protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
-        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion().onOrAfter(luceneVersionWithFix);
+        final boolean currentVersionHasFix = IndexVersion.CURRENT.luceneVersion().onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }

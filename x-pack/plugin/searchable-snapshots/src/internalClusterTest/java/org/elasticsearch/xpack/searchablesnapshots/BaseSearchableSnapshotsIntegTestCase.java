@@ -209,7 +209,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         refresh(indexName);
         if (randomBoolean()) {
             assertThat(
-                client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
                 equalTo(0)
             );
         }
@@ -321,7 +321,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     protected void assertRecoveryStats(String indexName, boolean preWarmEnabled) throws Exception {
         int shardCount = getNumShards(indexName).totalNumShards;
         assertBusy(() -> {
-            final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+            final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
             assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
 
             for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {

@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -45,6 +46,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(NAME, ignored -> ActionResponse.Empty.INSTANCE);
 
     private final IndicesService indicesService;
+    private final ShardSizeStatsReader shardSizeStatsReader;
 
     @Inject
     public TransportNewCommitNotificationAction(
@@ -52,7 +54,8 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
         TransportService transportService,
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
-        IndicesService indicesService
+        IndicesService indicesService,
+        ShardSizeStatsReader shardSizeStatsReader
     ) {
         super(
             NAME,
@@ -64,6 +67,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             ThreadPool.Names.SAME
         );
         this.indicesService = indicesService;
+        this.shardSizeStatsReader = shardSizeStatsReader;
     }
 
     @Override
@@ -98,6 +102,10 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                     request.getCompoundCommit(),
                     listener.delegateFailure((l, v) -> ActionListener.completeWith(l, () -> {
                         shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
+
+                        var size = shardSizeStatsReader.getShardSize(shard);
+                        logger.info("Search shard {} has size {}", request.shardId(), size);
+
                         return ActionResponse.Empty.INSTANCE;
                     }))
                 );

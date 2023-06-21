@@ -39,6 +39,7 @@ import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyInfoTransportAction;
@@ -153,7 +154,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
+
+    private final SetOnce<ShardSizeStatsReader> shardSizeStatsReader = new SetOnce<>();
     private final SetOnce<AutoscalingDiskSizeMetricsService> autoscalingDiskSizeMetricsService = new SetOnce<>();
+
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -270,6 +274,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             )
         );
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
+        var shardSizeStatsReader = setAndGet(this.shardSizeStatsReader, new ShardSizeStatsReader(clusterService, threadPool));
         var autoscalingDiskSizeMetricsService = setAndGet(
             this.autoscalingDiskSizeMetricsService,
             new AutoscalingDiskSizeMetricsService(clusterService.getClusterSettings(), threadPool)
@@ -279,6 +284,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             translogReplicator,
             sharedBlobCache,
             refreshThrottlingService,
+            shardSizeStatsReader,
             autoscalingDiskSizeMetricsService
         );
     }

@@ -903,6 +903,15 @@ public class LimitedRoleTests extends ESTestCase {
                 .addApplicationPrivilege(app2Write, Collections.singleton("moo/bar/*"))
                 .build();
 
+            if (randomBoolean()) {
+                final Role nestedLimitedRole = Role.builder(EMPTY_RESTRICTED_INDICES, "nested-limited-role")
+                    .addApplicationPrivilege(app1Read, Set.of("*"))
+                    .addApplicationPrivilege(app2Read, Set.of("*"))
+                    .addApplicationPrivilege(app2Write, Set.of("*"))
+                    .build();
+                limitedByRole = randomBoolean() ? limitedByRole.limitedBy(nestedLimitedRole) : nestedLimitedRole.limitedBy(limitedByRole);
+            }
+
             verifyResourcesPrivileges(
                 limitedByRole,
                 "app1",

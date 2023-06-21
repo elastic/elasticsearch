@@ -195,26 +195,14 @@ public class ServerTransportFilterTests extends ESTestCase {
         );
         Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        boolean crossClusterAccess = randomBoolean();
-        ServerTransportFilter filter = crossClusterAccess ? getNodeCrossClusterAccessFilter() : getNodeFilter();
+        ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         if (failDestructiveOperations) {
             expectThrows(IllegalArgumentException.class, listener::actionGet);
             verifyNoMoreInteractions(authzService);
         } else {
-            if (crossClusterAccess) {
-                var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
-                assertThat(
-                    actual.getMessage(),
-                    equalTo(
-                        "action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port"
-                    )
-                );
-                verifyNoMoreInteractions(authzService);
-            } else {
-                verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
-            }
+            verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
         }
     }
 
@@ -244,8 +232,6 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testCrossClusterAccessInboundAuthenticationException() {
         TransportRequest request = mock(TransportRequest.class);
         Exception authE = authenticationError("authc failed");
-        // Only pick allowlisted action -- it does not make sense to pick one that isn't because we will never get to authenticate in that
-        // case
         String action = randomAlphaOfLengthBetween(10, 20);
         doAnswer(i -> {
             final Object[] args = i.getArguments();

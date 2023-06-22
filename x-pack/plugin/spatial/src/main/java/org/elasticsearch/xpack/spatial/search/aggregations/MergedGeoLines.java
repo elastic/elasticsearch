@@ -13,6 +13,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
 
+import static org.elasticsearch.search.sort.SortOrder.DESC;
+
 /**
  * Class to merge an arbitrary list of {@link InternalGeoLine} lines into a new line
  * with the appropriate max length. The final point and sort values can be found in
@@ -203,6 +205,8 @@ abstract class MergedGeoLines {
      * The final result is either truncated or simplified based on the simplify parameter.
      */
     static final class NonOverlapping extends MergedGeoLines {
+        private static final Comparator<InternalGeoLine> DESC_COMPARATOR = (o1, o2) -> Double.compare(o2.sortVals()[0], o1.sortVals()[0]);
+        private static final Comparator<InternalGeoLine> ASC_COMPARATOR = Comparator.comparingDouble(o -> o.sortVals()[0]);
 
         NonOverlapping(List<InternalGeoLine> geoLines, int finalLength, SortOrder sortOrder, boolean simplify) {
             super(geoLines, finalLength, sortOrder, simplify);
@@ -213,10 +217,7 @@ abstract class MergedGeoLines {
          */
         @Override
         public void merge() {
-            TreeSet<InternalGeoLine> sorted = switch (sortOrder) {
-                case DESC -> new TreeSet<>((o1, o2) -> Double.compare(o2.sortVals()[0], o1.sortVals()[0]));
-                default -> new TreeSet<>(Comparator.comparingDouble(o -> o.sortVals()[0]));
-            };
+            TreeSet<InternalGeoLine> sorted = sortOrder == DESC ? new TreeSet<>(DESC_COMPARATOR) : new TreeSet<>(ASC_COMPARATOR);
             // The Comparator above relies on each line having at least one point, so filter out empty geo_lines
             for (InternalGeoLine line : geoLines) {
                 if (line.length() > 0) {

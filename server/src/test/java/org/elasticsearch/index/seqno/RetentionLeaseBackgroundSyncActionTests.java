@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -154,7 +153,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
-        result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
+        result.runPostReplicaActions(ActionTestUtils.assertNoFailureListener(r -> success.set(true)));
         assertTrue(success.get());
     }
 

@@ -59,7 +59,7 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
     public void testAsyncProcessorImplementation() {
         // A pipeline with 2 processors: the test async processor and sync test processor.
         BytesReference pipelineBody = new BytesArray("{\"processors\": [{\"test-async\": {}, \"test\": {}}]}");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("_id", pipelineBody, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("_id", pipelineBody, XContentType.JSON)).actionGet();
 
         BulkRequest bulkRequest = new BulkRequest();
         int numDocs = randomIntBetween(8, 256);

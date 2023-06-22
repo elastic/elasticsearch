@@ -564,7 +564,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
-                        Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
+                        Metadata metadata = clusterAdmin().prepareState().execute().actionGet().getState().getMetadata();
 
                         final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
@@ -848,7 +848,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Waits until all nodes have no pending tasks.
      */
     public void waitNoPendingTasksOnAll() throws Exception {
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
+        assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
         assertBusy(() -> {
             for (Client client : clients()) {
                 ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
@@ -863,7 +863,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
             }
         });
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
+        assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */
@@ -959,11 +959,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
-        ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
+        ClusterHealthResponse actionGet = clusterAdmin().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
-            final String hotThreads = client().admin()
-                .cluster()
-                .prepareNodesHotThreads()
+            final String hotThreads = clusterAdmin().prepareNodesHotThreads()
                 .setThreads(99999)
                 .setIgnoreIdleThreads(false)
                 .get()
@@ -974,8 +972,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             logger.info(
                 "{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
-                client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get(),
+                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().preparePendingClusterTasks().get(),
                 hotThreads
             );
             fail("timed out waiting for " + color + " state");
@@ -1006,13 +1004,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (status != null) {
             request.waitForStatus(status);
         }
-        ClusterHealthResponse actionGet = client().admin().cluster().health(request).actionGet();
+        ClusterHealthResponse actionGet = clusterAdmin().health(request).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info(
                 "waitForRelocation timed out (status={}), cluster state:\n{}\n{}",
                 status,
-                client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get()
+                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().preparePendingClusterTasks().get()
             );
             assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
         }
@@ -1121,15 +1119,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public void logClusterState() {
         logger.debug(
             "cluster state:\n{}\n{}",
-            client().admin().cluster().prepareState().get().getState(),
-            client().admin().cluster().preparePendingClusterTasks().get()
+            clusterAdmin().prepareState().get().getState(),
+            clusterAdmin().preparePendingClusterTasks().get()
         );
     }
 
     protected void ensureClusterSizeConsistency() {
         if (cluster() != null && cluster().size() > 0) { // if static init fails the cluster can be null
             logger.trace("Check consistency for [{}] nodes", cluster().size());
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
+            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
         }
     }
 
@@ -1705,7 +1703,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets cluster persistent settings **/
     public static void updateClusterSettings(Settings.Builder persistentSettings) {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
+        assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
@@ -2196,7 +2194,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected NumShards getNumShards(String index) {
-        Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
+        Metadata metadata = clusterAdmin().prepareState().get().getState().metadata();
         assertThat(metadata.hasIndex(index), equalTo(true));
         int numShards = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
         int numReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
@@ -2208,7 +2206,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public Set<String> assertAllShardsOnNodes(String index, String... pattern) {
         Set<String> nodes = new HashSet<>();
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 final IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
@@ -2391,7 +2389,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
     }

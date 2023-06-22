@@ -125,7 +125,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         internalCluster().startNode();
         internalCluster().startNode();
-        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        clusterAdmin().prepareReroute().setRetryFailed(true).get();
     }
 
 }

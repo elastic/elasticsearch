@@ -56,7 +56,7 @@ still match one of your template's index patterns.
 +
 [source,console]
 --------------------------------------------------
-PUT _data_stream/my-data-stream
+PUT .ds-my-data-stream-*/my-data-stream
 --------------------------------------------------
 // TEST[continued]
 
@@ -110,7 +110,7 @@ If you want to see more information about how the data stream lifecycle is appli
 
 [source,console]
 --------------------------------------------------
-GET /my-data-stream/_lifecycle/explain
+GET .ds-my-data-stream-*/_lifecycle/explain
 --------------------------------------------------
 // TEST[continued]
 The result will look like this:

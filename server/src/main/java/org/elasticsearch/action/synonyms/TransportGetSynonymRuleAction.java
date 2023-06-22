@@ -17,24 +17,23 @@ import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetSynonymsAction extends HandledTransportAction<GetSynonymsAction.Request, GetSynonymsAction.Response> {
+public class TransportGetSynonymRuleAction extends HandledTransportAction<GetSynonymRuleAction.Request, GetSynonymRuleAction.Response> {
 
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
     @Inject
-    public TransportGetSynonymsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetSynonymsAction.NAME, transportService, actionFilters, GetSynonymsAction.Request::new);
+    public TransportGetSynonymRuleAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(GetSynonymRuleAction.NAME, transportService, actionFilters, GetSynonymRuleAction.Request::new);
 
         this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
     }
 
     @Override
-    protected void doExecute(Task task, GetSynonymsAction.Request request, ActionListener<GetSynonymsAction.Response> listener) {
-        synonymsManagementAPIService.getSynonymSetRules(
+    protected void doExecute(Task task, GetSynonymRuleAction.Request request, ActionListener<GetSynonymRuleAction.Response> listener) {
+        synonymsManagementAPIService.getSynonymRule(
             request.synonymsSetId(),
-            request.from(),
-            request.size(),
-            listener.map(GetSynonymsAction.Response::new)
+            request.synonymRuleId(),
+            listener.map(GetSynonymRuleAction.Response::new)
         );
     }
 }

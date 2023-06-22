@@ -55,7 +55,7 @@ You can assign new privileges by specifying them in this parameter.
 To remove assigned privileges, supply the `role_descriptors` parameter as an empty object `{}`.
 If an API key has no assigned privileges, it inherits the owner user's full permissions.
 The snapshot of the owner's permissions is always updated, whether you supply the `role_descriptors` parameter or not.
-The structure of a role descriptor is the same as the request for the <<security-api-put-role, create or update roles API>>.
+The structure of a role descriptor is the same as the request for the <<security-api-create-api-key>>.
 
 `metadata`::
 (Optional, object) Arbitrary, nested metadata to associate with the API keys.

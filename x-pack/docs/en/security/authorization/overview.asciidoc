@@ -84,6 +84,8 @@ include::document-level-security.asciidoc[]
 
 include::field-level-security.asciidoc[]
 
+include::role-restriction.asciidoc[]
+
 include::alias-privileges.asciidoc[]
 
 include::mapping-roles.asciidoc[]

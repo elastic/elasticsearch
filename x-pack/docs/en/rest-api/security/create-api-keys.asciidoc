@@ -56,8 +56,6 @@ then the API key will have a _point in time snapshot of permissions of the
 authenticated user_. If you supply role descriptors then the resultant permissions
 would be an intersection of API keys permissions and authenticated user's permissions
 thereby limiting the access scope for API keys.
-The structure of role descriptor is the same as the request for create role API.
-For more details, see <<security-api-put-role, create or update roles API>>.
 +
 --
 NOTE: Due to the way in which this permission intersection is calculated, it is not
@@ -67,6 +65,12 @@ role descriptor with no privileges. The derived API key can be used for
 authentication; it will not have authority to call {es} APIs.
 
 --
++
+The structure of a role descriptor is:
+
+:role-owners:       API keys
+:role-restriction:
+include::common-role-descriptor-def.asciidoc[]
 
 `expiration`::
 (Optional, string) Expiration time for the API key. By default, API keys never
@@ -170,3 +174,27 @@ echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64 <1>
 ----
 <1> Use `-n` so that the `echo` command doesn't print the trailing newline
 character
+
+The following example creates an API key with a restriction to the `search_application_query` workflow,
+which allows to call only <<search-application-search, Search Application Search API>>:
+
+[source,console]
+----
+POST /_security/api_key
+{
+  "name": "my-restricted-api-key",
+  "role_descriptors": {
+    "restricted-role": {
+      "index": [
+        {
+          "names": ["index-*"],
+          "privileges": ["read"]
+        }
+      ],
+      "restriction":  {
+        "workflows": ["search_application_query"]
+      }
+    }
+  }
+}
+----

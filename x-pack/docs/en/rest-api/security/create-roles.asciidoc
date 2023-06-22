@@ -41,38 +41,9 @@ or update roles API cannot update roles that are defined in roles files.
 The following parameters can be specified in the body of a PUT or POST request
 and pertain to adding a role:
 
-`applications`:: (list) A list of application privilege entries.
-`application` (required)::: (string) The name of the application to which this entry applies
-`privileges`::: (list) A list of strings, where each element is the name of an application
-privilege or action.
-`resources`::: (list) A list resources to which the privileges are applied.
-
-`cluster`:: (list) A list of cluster privileges. These privileges define the
-cluster level actions that users with this role are able to execute.
-
-`global`:: (object) An object defining global privileges. A global privilege is
-a form of cluster privilege that is request-aware. Support for global privileges
-is currently limited to the management of application privileges.
-This field is optional.
-
-`indices`:: (list) A list of indices permissions entries.
-`field_security`::: (object) The document fields that the owners of the role have
-read access to. For more information, see
-<<field-and-document-access-control>>.
-`names` (required)::: (list) A list of indices (or index name patterns) to which the
-permissions in this entry apply.
-`privileges`(required)::: (list) The index level privileges that the owners of the role
-have on the specified indices.
-`query`::: A search query that defines the documents the owners of the role have
-read access to. A document within the specified indices must match this query in
-order for it to be accessible by the owners of the role.
-
-`metadata`:: (object) Optional meta-data. Within the `metadata` object, keys
-that begin with `_` are reserved for system usage.
-
-`run_as`:: (list) A list of users that the owners of this role can impersonate.
-For more information, see
-<<run-as-privilege>>.
+:role-owners:       owners of the role
+:role-restriction!:
+include::common-role-descriptor-def.asciidoc[]
 
 For more information, see <<defining-roles>>.
 

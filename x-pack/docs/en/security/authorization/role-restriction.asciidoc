@@ -1,0 +1,10 @@
+[role="xpack"]
+[[role-restriction]]
+=== Role Restriction
+
+
+[[workflows-restriction]]
+==== Workflows
+
+`search_application_query`:::
+

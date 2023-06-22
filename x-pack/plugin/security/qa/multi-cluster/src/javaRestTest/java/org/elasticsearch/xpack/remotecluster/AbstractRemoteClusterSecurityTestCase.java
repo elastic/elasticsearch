@@ -94,7 +94,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
         RestClientBuilder builder = RestClient.builder(httpHost);
         try {
-            configureClient(builder, Settings.EMPTY);
+            doConfigureClient(builder, Settings.EMPTY);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

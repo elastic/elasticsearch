@@ -169,17 +169,15 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(
-            client().admin().cluster().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index)
-        );
+        assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
         ensureGreen(index);
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
     }
 
     public void testRequestStats() throws Exception {
@@ -198,17 +196,15 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(
-            client().admin().cluster().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index)
-        );
+        assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
         ensureGreen(index);
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
 
         final RepositoryStats repositoryStats = StreamSupport.stream(
             internalCluster().getInstances(RepositoriesService.class).spliterator(),

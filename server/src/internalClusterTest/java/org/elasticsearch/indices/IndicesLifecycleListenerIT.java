@@ -99,7 +99,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             fail("should have thrown an exception during creation");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            ClusterStateResponse resp = clusterAdmin().prepareState().get();
             assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
     }
@@ -120,9 +120,9 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                     throw new RuntimeException("FAIL");
                 }
             });
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
         ensureGreen("index1");
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<ShardRouting> shard = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         assertThat(shard, hasSize(1));
         assertThat(state.nodes().resolveNode(shard.get(0).currentNodeId()).getName(), Matchers.equalTo(node1));
@@ -160,7 +160,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             fail("should have thrown an exception");
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            ClusterStateResponse resp = clusterAdmin().prepareState().get();
             assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
 

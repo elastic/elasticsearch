@@ -398,6 +398,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
@@ -771,6 +772,9 @@ public class Security extends Plugin
         );
         components.add(privilegeStore);
 
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(
+            Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(environment.settings()))
+        );
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(
@@ -787,7 +791,6 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             clusterService
         );
-        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();

@@ -81,9 +81,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final String nodeName = nodeCachesStats.getNode().getName();
 
             final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-            final long totalFsSize = client().admin()
-                .cluster()
-                .prepareNodesStats(nodeId)
+            final long totalFsSize = clusterAdmin().prepareNodesStats(nodeId)
                 .clear()
                 .setFs(true)
                 .get()
@@ -128,9 +126,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
         assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
 
-        final String[] dataNodesWithFrozenShards = client().admin()
-            .cluster()
-            .prepareState()
+        final String[] dataNodesWithFrozenShards = clusterAdmin().prepareState()
             .get()
             .getState()
             .routingTable()

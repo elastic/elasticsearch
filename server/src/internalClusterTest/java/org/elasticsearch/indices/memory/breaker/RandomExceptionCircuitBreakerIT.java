@@ -61,7 +61,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
-        for (NodeStats node : client().admin().cluster().prepareNodesStats().clear().setBreaker(true).execute().actionGet().getNodes()) {
+        for (NodeStats node : clusterAdmin().prepareNodesStats().clear().setBreaker(true).execute().actionGet().getNodes()) {
             assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
@@ -146,7 +146,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             refreshResponse.getTotalShards()
         );
         final int numSearches = scaledRandomIntBetween(50, 150);
-        NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).execute().actionGet();
+        NodesStatsResponse resp = clusterAdmin().prepareNodesStats().clear().setBreaker(true).execute().actionGet();
         for (NodeStats stats : resp.getNodes()) {
             assertThat("Breaker is set to 0", stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
@@ -181,13 +181,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                     // Clean up the cache, ensuring that entries' listeners have been called
                     fdCache.getCache().refresh();
                 }
-                NodesStatsResponse nodeStats = client().admin()
-                    .cluster()
-                    .prepareNodesStats()
-                    .clear()
-                    .setBreaker(true)
-                    .execute()
-                    .actionGet();
+                NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().clear().setBreaker(true).execute().actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {
                     assertThat(
                         "Breaker reset to 0 last search success: " + success + " mapping: " + mapping,

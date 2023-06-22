@@ -155,9 +155,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             true
         );
 
-        final SnapshotId fakeOldSnapshot = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, "snapshot-old")
+        final SnapshotId fakeOldSnapshot = clusterAdmin().prepareCreateSnapshot(repoName, "snapshot-old")
             .setWaitForCompletion(true)
             .setIndices()
             .get()
@@ -197,15 +195,15 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareCreateSnapshot(repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
+        clusterAdmin().prepareCreateSnapshot(repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledSnapshot, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeThrottledDelete = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareDeleteSnapshot(repoName, newSnapshotName).get();
+        clusterAdmin().prepareDeleteSnapshot(repoName, newSnapshotName).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledDelete, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeFastDelete = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
+        clusterAdmin().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 

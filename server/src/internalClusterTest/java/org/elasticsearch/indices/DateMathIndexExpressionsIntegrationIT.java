@@ -169,7 +169,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertEquals(dateMathExp2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(dateMathExp3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
 
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertThat(clusterState.metadata().index(index1), notNullValue());
         assertThat(clusterState.metadata().index(index2), notNullValue());
         assertThat(clusterState.metadata().index(index3), notNullValue());

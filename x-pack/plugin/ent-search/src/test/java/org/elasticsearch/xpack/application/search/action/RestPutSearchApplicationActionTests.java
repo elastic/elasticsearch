@@ -31,7 +31,7 @@ public class RestPutSearchApplicationActionTests extends AbstractRestEnterpriseS
     public void testInvalidRequestWithNonCompliantLicense() throws Exception {
         checkLicenseForRequest(
             new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.PUT)
-                .withParams(Map.of("name", "my-app"))
+                .withParams(Map.of("invalid_param_name", "invalid_value"))
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .build()
         );

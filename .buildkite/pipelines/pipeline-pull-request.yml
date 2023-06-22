@@ -136,7 +136,7 @@ steps:
       machineType: custom-32-98304
   - group: full-bwc
     steps:
-      - label: full-bwc / 7.0.0
+      - label: 7.0.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -147,7 +147,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.0.0
-      - label: full-bwc / 7.0.1
+      - label: 7.0.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -158,7 +158,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.0.1
-      - label: full-bwc / 7.1.0
+      - label: 7.1.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -169,7 +169,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.1.0
-      - label: full-bwc / 7.1.1
+      - label: 7.1.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -180,7 +180,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.1.1
-      - label: full-bwc / 7.2.0
+      - label: 7.2.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -191,7 +191,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.2.0
-      - label: full-bwc / 7.2.1
+      - label: 7.2.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -202,7 +202,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.2.1
-      - label: full-bwc / 7.3.0
+      - label: 7.3.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -213,7 +213,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.3.0
-      - label: full-bwc / 7.3.1
+      - label: 7.3.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -224,7 +224,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.3.1
-      - label: full-bwc / 7.3.2
+      - label: 7.3.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -235,7 +235,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.3.2
-      - label: full-bwc / 7.4.0
+      - label: 7.4.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -246,7 +246,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.4.0
-      - label: full-bwc / 7.4.1
+      - label: 7.4.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -257,7 +257,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.4.1
-      - label: full-bwc / 7.4.2
+      - label: 7.4.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -268,7 +268,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.4.2
-      - label: full-bwc / 7.5.0
+      - label: 7.5.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -279,7 +279,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.5.0
-      - label: full-bwc / 7.5.1
+      - label: 7.5.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -290,7 +290,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.5.1
-      - label: full-bwc / 7.5.2
+      - label: 7.5.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -301,7 +301,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.5.2
-      - label: full-bwc / 7.6.0
+      - label: 7.6.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -312,7 +312,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.6.0
-      - label: full-bwc / 7.6.1
+      - label: 7.6.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -323,7 +323,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.6.1
-      - label: full-bwc / 7.6.2
+      - label: 7.6.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -334,7 +334,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.6.2
-      - label: full-bwc / 7.7.0
+      - label: 7.7.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -345,7 +345,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.7.0
-      - label: full-bwc / 7.7.1
+      - label: 7.7.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -356,7 +356,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.7.1
-      - label: full-bwc / 7.8.0
+      - label: 7.8.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -367,7 +367,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.8.0
-      - label: full-bwc / 7.8.1
+      - label: 7.8.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -378,7 +378,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.8.1
-      - label: full-bwc / 7.9.0
+      - label: 7.9.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -389,7 +389,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.9.0
-      - label: full-bwc / 7.9.1
+      - label: 7.9.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -400,7 +400,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.9.1
-      - label: full-bwc / 7.9.2
+      - label: 7.9.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -411,7 +411,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.9.2
-      - label: full-bwc / 7.9.3
+      - label: 7.9.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -422,7 +422,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.9.3
-      - label: full-bwc / 7.10.0
+      - label: 7.10.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -433,7 +433,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.10.0
-      - label: full-bwc / 7.10.1
+      - label: 7.10.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -444,7 +444,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.10.1
-      - label: full-bwc / 7.10.2
+      - label: 7.10.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -455,7 +455,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.10.2
-      - label: full-bwc / 7.11.0
+      - label: 7.11.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -466,7 +466,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.11.0
-      - label: full-bwc / 7.11.1
+      - label: 7.11.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -477,7 +477,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.11.1
-      - label: full-bwc / 7.11.2
+      - label: 7.11.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -488,7 +488,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.11.2
-      - label: full-bwc / 7.12.0
+      - label: 7.12.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -499,7 +499,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.12.0
-      - label: full-bwc / 7.12.1
+      - label: 7.12.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -510,7 +510,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.12.1
-      - label: full-bwc / 7.13.0
+      - label: 7.13.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -521,7 +521,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.13.0
-      - label: full-bwc / 7.13.1
+      - label: 7.13.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -532,7 +532,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.13.1
-      - label: full-bwc / 7.13.2
+      - label: 7.13.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -543,7 +543,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.13.2
-      - label: full-bwc / 7.13.3
+      - label: 7.13.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -554,7 +554,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.13.3
-      - label: full-bwc / 7.13.4
+      - label: 7.13.4 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -565,7 +565,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.13.4
-      - label: full-bwc / 7.14.0
+      - label: 7.14.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -576,7 +576,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.14.0
-      - label: full-bwc / 7.14.1
+      - label: 7.14.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -587,7 +587,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.14.1
-      - label: full-bwc / 7.14.2
+      - label: 7.14.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -598,7 +598,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.14.2
-      - label: full-bwc / 7.15.0
+      - label: 7.15.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -609,7 +609,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.15.0
-      - label: full-bwc / 7.15.1
+      - label: 7.15.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -620,7 +620,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.15.1
-      - label: full-bwc / 7.15.2
+      - label: 7.15.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -631,7 +631,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.15.2
-      - label: full-bwc / 7.16.0
+      - label: 7.16.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -642,7 +642,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.16.0
-      - label: full-bwc / 7.16.1
+      - label: 7.16.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -653,7 +653,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.16.1
-      - label: full-bwc / 7.16.2
+      - label: 7.16.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -664,7 +664,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.16.2
-      - label: full-bwc / 7.16.3
+      - label: 7.16.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -675,7 +675,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.16.3
-      - label: full-bwc / 7.17.0
+      - label: 7.17.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -686,7 +686,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.0
-      - label: full-bwc / 7.17.1
+      - label: 7.17.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -697,7 +697,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.1
-      - label: full-bwc / 7.17.2
+      - label: 7.17.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -708,7 +708,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.2
-      - label: full-bwc / 7.17.3
+      - label: 7.17.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -719,7 +719,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.3
-      - label: full-bwc / 7.17.4
+      - label: 7.17.4 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -730,7 +730,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.4
-      - label: full-bwc / 7.17.5
+      - label: 7.17.5 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -741,7 +741,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.5
-      - label: full-bwc / 7.17.6
+      - label: 7.17.6 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -752,7 +752,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.6
-      - label: full-bwc / 7.17.7
+      - label: 7.17.7 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -763,7 +763,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.7
-      - label: full-bwc / 7.17.8
+      - label: 7.17.8 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -774,7 +774,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.8
-      - label: full-bwc / 7.17.9
+      - label: 7.17.9 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -785,7 +785,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.9
-      - label: full-bwc / 7.17.10
+      - label: 7.17.10 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -796,7 +796,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.10
-      - label: full-bwc / 7.17.11
+      - label: 7.17.11 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -807,7 +807,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.11
-      - label: full-bwc / 8.0.0
+      - label: 8.0.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -818,7 +818,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.0.0
-      - label: full-bwc / 8.0.1
+      - label: 8.0.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -829,7 +829,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.0.1
-      - label: full-bwc / 8.1.0
+      - label: 8.1.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -840,7 +840,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.1.0
-      - label: full-bwc / 8.1.1
+      - label: 8.1.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -851,7 +851,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.1.1
-      - label: full-bwc / 8.1.2
+      - label: 8.1.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -862,7 +862,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.1.2
-      - label: full-bwc / 8.1.3
+      - label: 8.1.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -873,7 +873,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.1.3
-      - label: full-bwc / 8.2.0
+      - label: 8.2.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -884,7 +884,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.2.0
-      - label: full-bwc / 8.2.1
+      - label: 8.2.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -895,7 +895,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.2.1
-      - label: full-bwc / 8.2.2
+      - label: 8.2.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -906,7 +906,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.2.2
-      - label: full-bwc / 8.2.3
+      - label: 8.2.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -917,7 +917,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.2.3
-      - label: full-bwc / 8.3.0
+      - label: 8.3.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -928,7 +928,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.3.0
-      - label: full-bwc / 8.3.1
+      - label: 8.3.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -939,7 +939,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.3.1
-      - label: full-bwc / 8.3.2
+      - label: 8.3.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -950,7 +950,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.3.2
-      - label: full-bwc / 8.3.3
+      - label: 8.3.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -961,7 +961,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.3.3
-      - label: full-bwc / 8.4.0
+      - label: 8.4.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -972,7 +972,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.4.0
-      - label: full-bwc / 8.4.1
+      - label: 8.4.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -983,7 +983,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.4.1
-      - label: full-bwc / 8.4.2
+      - label: 8.4.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -994,7 +994,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.4.2
-      - label: full-bwc / 8.4.3
+      - label: 8.4.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1005,7 +1005,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.4.3
-      - label: full-bwc / 8.5.0
+      - label: 8.5.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1016,7 +1016,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.5.0
-      - label: full-bwc / 8.5.1
+      - label: 8.5.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1027,7 +1027,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.5.1
-      - label: full-bwc / 8.5.2
+      - label: 8.5.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1038,7 +1038,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.5.2
-      - label: full-bwc / 8.5.3
+      - label: 8.5.3 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1049,7 +1049,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.5.3
-      - label: full-bwc / 8.6.0
+      - label: 8.6.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1060,7 +1060,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.6.0
-      - label: full-bwc / 8.6.1
+      - label: 8.6.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1071,7 +1071,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.6.1
-      - label: full-bwc / 8.6.2
+      - label: 8.6.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1082,7 +1082,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.6.2
-      - label: full-bwc / 8.7.0
+      - label: 8.7.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1093,7 +1093,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.7.0
-      - label: full-bwc / 8.7.1
+      - label: 8.7.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1104,7 +1104,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.7.1
-      - label: full-bwc / 8.8.0
+      - label: 8.8.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1115,7 +1115,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.8.0
-      - label: full-bwc / 8.8.1
+      - label: 8.8.1 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1126,7 +1126,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.8.1
-      - label: full-bwc / 8.8.2
+      - label: 8.8.2 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1137,7 +1137,7 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.8.2
-      - label: full-bwc / 8.9.0
+      - label: 8.9.0 / full-bwc
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         agents:
@@ -1209,7 +1209,7 @@ steps:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-upgrade-tests
     steps:
-      - label: "{{matrix.image}} / packaging-upgrade-tests / 7.0.0"
+      - label: "{{matrix.image}} / 7.0.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1226,7 +1226,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.0.0
-      - label: packaging-upgrade-tests / 7.0.1
+      - label: "{{matrix.image}} / 7.0.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1243,7 +1243,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.0.1
-      - label: packaging-upgrade-tests / 7.1.0
+      - label: "{{matrix.image}} / 7.1.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1260,7 +1260,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.1.0
-      - label: packaging-upgrade-tests / 7.1.1
+      - label: "{{matrix.image}} / 7.1.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1277,7 +1277,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.1.1
-      - label: packaging-upgrade-tests / 7.2.0
+      - label: "{{matrix.image}} / 7.2.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1294,7 +1294,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.2.0
-      - label: packaging-upgrade-tests / 7.2.1
+      - label: "{{matrix.image}} / 7.2.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1311,7 +1311,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.2.1
-      - label: packaging-upgrade-tests / 7.3.0
+      - label: "{{matrix.image}} / 7.3.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1328,7 +1328,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.3.0
-      - label: packaging-upgrade-tests / 7.3.1
+      - label: "{{matrix.image}} / 7.3.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1345,7 +1345,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.3.1
-      - label: packaging-upgrade-tests / 7.3.2
+      - label: "{{matrix.image}} / 7.3.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1362,7 +1362,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.3.2
-      - label: packaging-upgrade-tests / 7.4.0
+      - label: "{{matrix.image}} / 7.4.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1379,7 +1379,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.4.0
-      - label: packaging-upgrade-tests / 7.4.1
+      - label: "{{matrix.image}} / 7.4.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1396,7 +1396,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.4.1
-      - label: packaging-upgrade-tests / 7.4.2
+      - label: "{{matrix.image}} / 7.4.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1413,7 +1413,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.4.2
-      - label: packaging-upgrade-tests / 7.5.0
+      - label: "{{matrix.image}} / 7.5.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1430,7 +1430,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.5.0
-      - label: packaging-upgrade-tests / 7.5.1
+      - label: "{{matrix.image}} / 7.5.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1447,7 +1447,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.5.1
-      - label: packaging-upgrade-tests / 7.5.2
+      - label: "{{matrix.image}} / 7.5.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1464,7 +1464,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.5.2
-      - label: packaging-upgrade-tests / 7.6.0
+      - label: "{{matrix.image}} / 7.6.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1481,7 +1481,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.6.0
-      - label: packaging-upgrade-tests / 7.6.1
+      - label: "{{matrix.image}} / 7.6.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1498,7 +1498,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.6.1
-      - label: packaging-upgrade-tests / 7.6.2
+      - label: "{{matrix.image}} / 7.6.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1515,7 +1515,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.6.2
-      - label: packaging-upgrade-tests / 7.7.0
+      - label: "{{matrix.image}} / 7.7.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1532,7 +1532,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.7.0
-      - label: packaging-upgrade-tests / 7.7.1
+      - label: "{{matrix.image}} / 7.7.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1549,7 +1549,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.7.1
-      - label: packaging-upgrade-tests / 7.8.0
+      - label: "{{matrix.image}} / 7.8.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1566,7 +1566,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.8.0
-      - label: packaging-upgrade-tests / 7.8.1
+      - label: "{{matrix.image}} / 7.8.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1583,7 +1583,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.8.1
-      - label: packaging-upgrade-tests / 7.9.0
+      - label: "{{matrix.image}} / 7.9.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1600,7 +1600,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.9.0
-      - label: packaging-upgrade-tests / 7.9.1
+      - label: "{{matrix.image}} / 7.9.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1617,7 +1617,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.9.1
-      - label: packaging-upgrade-tests / 7.9.2
+      - label: "{{matrix.image}} / 7.9.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1634,7 +1634,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.9.2
-      - label: packaging-upgrade-tests / 7.9.3
+      - label: "{{matrix.image}} / 7.9.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1651,7 +1651,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.9.3
-      - label: packaging-upgrade-tests / 7.10.0
+      - label: "{{matrix.image}} / 7.10.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1668,7 +1668,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.10.0
-      - label: packaging-upgrade-tests / 7.10.1
+      - label: "{{matrix.image}} / 7.10.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1685,7 +1685,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.10.1
-      - label: packaging-upgrade-tests / 7.10.2
+      - label: "{{matrix.image}} / 7.10.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1702,7 +1702,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.10.2
-      - label: packaging-upgrade-tests / 7.11.0
+      - label: "{{matrix.image}} / 7.11.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1719,7 +1719,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.11.0
-      - label: packaging-upgrade-tests / 7.11.1
+      - label: "{{matrix.image}} / 7.11.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1736,7 +1736,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.11.1
-      - label: packaging-upgrade-tests / 7.11.2
+      - label: "{{matrix.image}} / 7.11.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1753,7 +1753,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.11.2
-      - label: packaging-upgrade-tests / 7.12.0
+      - label: "{{matrix.image}} / 7.12.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1770,7 +1770,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.12.0
-      - label: packaging-upgrade-tests / 7.12.1
+      - label: "{{matrix.image}} / 7.12.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1787,7 +1787,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.12.1
-      - label: packaging-upgrade-tests / 7.13.0
+      - label: "{{matrix.image}} / 7.13.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1804,7 +1804,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.13.0
-      - label: packaging-upgrade-tests / 7.13.1
+      - label: "{{matrix.image}} / 7.13.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1821,7 +1821,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.13.1
-      - label: packaging-upgrade-tests / 7.13.2
+      - label: "{{matrix.image}} / 7.13.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1838,7 +1838,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.13.2
-      - label: packaging-upgrade-tests / 7.13.3
+      - label: "{{matrix.image}} / 7.13.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1855,7 +1855,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.13.3
-      - label: packaging-upgrade-tests / 7.13.4
+      - label: "{{matrix.image}} / 7.13.4 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1872,7 +1872,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.13.4
-      - label: packaging-upgrade-tests / 7.14.0
+      - label: "{{matrix.image}} / 7.14.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1889,7 +1889,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.14.0
-      - label: packaging-upgrade-tests / 7.14.1
+      - label: "{{matrix.image}} / 7.14.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1906,7 +1906,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.14.1
-      - label: packaging-upgrade-tests / 7.14.2
+      - label: "{{matrix.image}} / 7.14.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1923,7 +1923,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.14.2
-      - label: packaging-upgrade-tests / 7.15.0
+      - label: "{{matrix.image}} / 7.15.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1940,7 +1940,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.15.0
-      - label: packaging-upgrade-tests / 7.15.1
+      - label: "{{matrix.image}} / 7.15.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1957,7 +1957,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.15.1
-      - label: packaging-upgrade-tests / 7.15.2
+      - label: "{{matrix.image}} / 7.15.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1974,7 +1974,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.15.2
-      - label: packaging-upgrade-tests / 7.16.0
+      - label: "{{matrix.image}} / 7.16.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1991,7 +1991,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.16.0
-      - label: packaging-upgrade-tests / 7.16.1
+      - label: "{{matrix.image}} / 7.16.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2008,7 +2008,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.16.1
-      - label: packaging-upgrade-tests / 7.16.2
+      - label: "{{matrix.image}} / 7.16.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2025,7 +2025,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.16.2
-      - label: packaging-upgrade-tests / 7.16.3
+      - label: "{{matrix.image}} / 7.16.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2042,7 +2042,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.16.3
-      - label: packaging-upgrade-tests / 7.17.0
+      - label: "{{matrix.image}} / 7.17.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2059,7 +2059,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.0
-      - label: packaging-upgrade-tests / 7.17.1
+      - label: "{{matrix.image}} / 7.17.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2076,7 +2076,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.1
-      - label: packaging-upgrade-tests / 7.17.2
+      - label: "{{matrix.image}} / 7.17.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2093,7 +2093,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.2
-      - label: packaging-upgrade-tests / 7.17.3
+      - label: "{{matrix.image}} / 7.17.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2110,7 +2110,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.3
-      - label: packaging-upgrade-tests / 7.17.4
+      - label: "{{matrix.image}} / 7.17.4 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2127,7 +2127,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.4
-      - label: packaging-upgrade-tests / 7.17.5
+      - label: "{{matrix.image}} / 7.17.5 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2144,7 +2144,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.5
-      - label: packaging-upgrade-tests / 7.17.6
+      - label: "{{matrix.image}} / 7.17.6 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2161,7 +2161,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.6
-      - label: packaging-upgrade-tests / 7.17.7
+      - label: "{{matrix.image}} / 7.17.7 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2178,7 +2178,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.7
-      - label: packaging-upgrade-tests / 7.17.8
+      - label: "{{matrix.image}} / 7.17.8 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2195,7 +2195,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.8
-      - label: packaging-upgrade-tests / 7.17.9
+      - label: "{{matrix.image}} / 7.17.9 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2212,7 +2212,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.9
-      - label: packaging-upgrade-tests / 7.17.10
+      - label: "{{matrix.image}} / 7.17.10 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2229,7 +2229,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.10
-      - label: packaging-upgrade-tests / 7.17.11
+      - label: "{{matrix.image}} / 7.17.11 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2246,7 +2246,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 7.17.11
-      - label: packaging-upgrade-tests / 8.0.0
+      - label: "{{matrix.image}} / 8.0.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2263,7 +2263,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.0.0
-      - label: packaging-upgrade-tests / 8.0.1
+      - label: "{{matrix.image}} / 8.0.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2280,7 +2280,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.0.1
-      - label: packaging-upgrade-tests / 8.1.0
+      - label: "{{matrix.image}} / 8.1.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2297,7 +2297,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.1.0
-      - label: packaging-upgrade-tests / 8.1.1
+      - label: "{{matrix.image}} / 8.1.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2314,7 +2314,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.1.1
-      - label: packaging-upgrade-tests / 8.1.2
+      - label: "{{matrix.image}} / 8.1.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2331,7 +2331,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.1.2
-      - label: packaging-upgrade-tests / 8.1.3
+      - label: "{{matrix.image}} / 8.1.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2348,7 +2348,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.1.3
-      - label: packaging-upgrade-tests / 8.2.0
+      - label: "{{matrix.image}} / 8.2.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2365,7 +2365,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.2.0
-      - label: packaging-upgrade-tests / 8.2.1
+      - label: "{{matrix.image}} / 8.2.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2382,7 +2382,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.2.1
-      - label: packaging-upgrade-tests / 8.2.2
+      - label: "{{matrix.image}} / 8.2.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2399,7 +2399,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.2.2
-      - label: packaging-upgrade-tests / 8.2.3
+      - label: "{{matrix.image}} / 8.2.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2416,7 +2416,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.2.3
-      - label: packaging-upgrade-tests / 8.3.0
+      - label: "{{matrix.image}} / 8.3.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2433,7 +2433,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.3.0
-      - label: packaging-upgrade-tests / 8.3.1
+      - label: "{{matrix.image}} / 8.3.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2450,7 +2450,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.3.1
-      - label: packaging-upgrade-tests / 8.3.2
+      - label: "{{matrix.image}} / 8.3.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2467,7 +2467,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.3.2
-      - label: packaging-upgrade-tests / 8.3.3
+      - label: "{{matrix.image}} / 8.3.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2484,7 +2484,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.3.3
-      - label: packaging-upgrade-tests / 8.4.0
+      - label: "{{matrix.image}} / 8.4.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2501,7 +2501,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.4.0
-      - label: packaging-upgrade-tests / 8.4.1
+      - label: "{{matrix.image}} / 8.4.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2518,7 +2518,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.4.1
-      - label: packaging-upgrade-tests / 8.4.2
+      - label: "{{matrix.image}} / 8.4.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2535,7 +2535,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.4.2
-      - label: packaging-upgrade-tests / 8.4.3
+      - label: "{{matrix.image}} / 8.4.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2552,7 +2552,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.4.3
-      - label: packaging-upgrade-tests / 8.5.0
+      - label: "{{matrix.image}} / 8.5.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2569,7 +2569,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.5.0
-      - label: packaging-upgrade-tests / 8.5.1
+      - label: "{{matrix.image}} / 8.5.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2586,7 +2586,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.5.1
-      - label: packaging-upgrade-tests / 8.5.2
+      - label: "{{matrix.image}} / 8.5.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2603,7 +2603,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.5.2
-      - label: packaging-upgrade-tests / 8.5.3
+      - label: "{{matrix.image}} / 8.5.3 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2620,7 +2620,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.5.3
-      - label: packaging-upgrade-tests / 8.6.0
+      - label: "{{matrix.image}} / 8.6.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2637,7 +2637,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.6.0
-      - label: packaging-upgrade-tests / 8.6.1
+      - label: "{{matrix.image}} / 8.6.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2654,7 +2654,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.6.1
-      - label: packaging-upgrade-tests / 8.6.2
+      - label: "{{matrix.image}} / 8.6.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2671,7 +2671,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.6.2
-      - label: packaging-upgrade-tests / 8.7.0
+      - label: "{{matrix.image}} / 8.7.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2688,7 +2688,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.7.0
-      - label: packaging-upgrade-tests / 8.7.1
+      - label: "{{matrix.image}} / 8.7.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2705,7 +2705,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.7.1
-      - label: packaging-upgrade-tests / 8.8.0
+      - label: "{{matrix.image}} / 8.8.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2722,7 +2722,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.8.0
-      - label: packaging-upgrade-tests / 8.8.1
+      - label: "{{matrix.image}} / 8.8.1 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2739,7 +2739,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.8.1
-      - label: packaging-upgrade-tests / 8.8.2
+      - label: "{{matrix.image}} / 8.8.2 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -2756,7 +2756,7 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.8.2
-      - label: packaging-upgrade-tests / 8.9.0
+      - label: "{{matrix.image}} / 8.9.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION

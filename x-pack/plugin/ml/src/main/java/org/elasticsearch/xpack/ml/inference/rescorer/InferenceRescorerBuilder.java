@@ -86,6 +86,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         return NAME;
     }
 
+    /**
+     * should be updated once {@link InferenceRescorerFeature} is removed
+     */
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         // TODO: update transport version when released!

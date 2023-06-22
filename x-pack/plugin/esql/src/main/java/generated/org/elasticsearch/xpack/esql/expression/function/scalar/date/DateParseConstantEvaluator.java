@@ -15,17 +15,23 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateParse}.
  * This class is generated. Do not edit it.
  */
 public final class DateParseConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final DateFormatter formatter;
 
-  public DateParseConstantEvaluator(EvalOperator.ExpressionEvaluator val, DateFormatter formatter) {
+  public DateParseConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
+      DateFormatter formatter) {
+    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
   }
@@ -55,6 +61,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
       try {
         result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatter));
       } catch (IllegalArgumentException e) {
+        warnings.registerException(e);
         result.appendNull();
       }
     }
@@ -68,6 +75,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
       try {
         result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatter));
       } catch (IllegalArgumentException e) {
+        warnings.registerException(e);
         result.appendNull();
       }
     }

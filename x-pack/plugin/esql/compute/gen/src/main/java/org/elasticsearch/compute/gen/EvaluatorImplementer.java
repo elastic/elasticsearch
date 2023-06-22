@@ -36,6 +36,8 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
+import static org.elasticsearch.compute.gen.Types.SOURCE;
+import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -71,6 +73,9 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
 
+        if (processFunction.warnExceptions.isEmpty() == false) {
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+        }
         processFunction.args.stream().forEach(a -> a.declareField(builder));
 
         builder.addMethod(ctor());
@@ -83,6 +88,10 @@ public class EvaluatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (processFunction.warnExceptions.isEmpty() == false) {
+            builder.addParameter(SOURCE, "source");
+            builder.addStatement("this.warnings = new Warnings(source)");
+        }
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
         return builder.build();
     }
@@ -160,6 +169,7 @@ public class EvaluatorImplementer {
                     + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
                     + " e)";
                 builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
+                builder.addStatement("warnings.registerException(e)");
                 builder.addStatement("result.appendNull()");
                 builder.endControlFlow();
             }

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -24,7 +25,6 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
@@ -81,14 +81,11 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         private static final Log logger = LogFactory.getLog(AbstractEvaluator.class);
 
         private final EvalOperator.ExpressionEvaluator fieldEvaluator;
-        private final Source source;
-        private int addedWarnings;
-
-        private static final int MAX_ADDED_WARNINGS = 20;
+        private final Warnings warnings;
 
         protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
             this.fieldEvaluator = field;
-            this.source = source;
+            this.warnings = new Warnings(source);
         }
 
         protected abstract String name();
@@ -112,21 +109,9 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
             return vector == null ? evalBlock(block) : evalVector(vector);
         }
 
-        protected void registerException(Exception exception) {
+        protected final void registerException(Exception exception) {
             logger.trace("conversion failure", exception);
-            if (addedWarnings < MAX_ADDED_WARNINGS) {
-                if (addedWarnings == 0) {
-                    addWarning(
-                        "Line {}:{}: evaluation of [{}] failed, treating result as null. Only first {} failures recorded.",
-                        source.source().getLineNumber(),
-                        source.source().getColumnNumber(),
-                        source.text(),
-                        MAX_ADDED_WARNINGS
-                    );
-                }
-                addWarning(exception.getClass().getName() + ": " + exception.getMessage());
-                addedWarnings++;
-            }
+            warnings.registerException(exception);
         }
 
         @Override

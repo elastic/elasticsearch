@@ -101,7 +101,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Mappa
         ZoneId zone = UTC; // TODO session timezone?
         Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return () -> new DateParseConstantEvaluator(fieldEvaluator.get(), DEFAULT_FORMATTER);
+            return () -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(), DEFAULT_FORMATTER);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
@@ -109,13 +109,13 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Mappa
         if (format.foldable()) {
             try {
                 DateFormatter formatter = toFormatter(format.fold(), zone);
-                return () -> new DateParseConstantEvaluator(fieldEvaluator.get(), formatter);
+                return () -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(), formatter);
             } catch (IllegalArgumentException e) {
                 throw new EsqlIllegalArgumentException(e, "invalid date patter for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
-        return () -> new DateParseEvaluator(fieldEvaluator.get(), formatEvaluator.get(), zone);
+        return () -> new DateParseEvaluator(source(), fieldEvaluator.get(), formatEvaluator.get(), zone);
     }
 
     private static DateFormatter toFormatter(Object format, ZoneId zone) {

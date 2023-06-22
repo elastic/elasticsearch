@@ -15,20 +15,25 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateParse}.
  * This class is generated. Do not edit it.
  */
 public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final EvalOperator.ExpressionEvaluator formatter;
 
   private final ZoneId zoneId;
 
-  public DateParseEvaluator(EvalOperator.ExpressionEvaluator val,
+  public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId) {
+    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.zoneId = zoneId;
@@ -73,6 +78,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
       try {
         result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), zoneId));
       } catch (IllegalArgumentException e) {
+        warnings.registerException(e);
         result.appendNull();
       }
     }
@@ -88,6 +94,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
       try {
         result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), zoneId));
       } catch (IllegalArgumentException e) {
+        warnings.registerException(e);
         result.appendNull();
       }
     }

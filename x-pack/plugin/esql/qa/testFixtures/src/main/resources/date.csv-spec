@@ -326,6 +326,8 @@ b:datetime
 
 evalDateParseWrongDate
 row a = "2023-02-01 foo" | eval b = date_parse(a, "yyyy-MM-dd") | keep b;
+warning:Line 1:37: evaluation of [date_parse(a, \"yyyy-MM-dd\")] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01 foo] with format [yyyy-MM-dd]
 
 b:datetime
 null
@@ -333,13 +335,16 @@ null
 
 evalDateParseNotMatching
 row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM") | keep b;
-
+warning:Line 1:33: evaluation of [date_parse(a, \"yyyy-MM\")] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM]
 b:datetime
 null
 ;
 
 evalDateParseNotMatching2
 row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | keep b;
+warning:Line 1:33: evaluation of [date_parse(a, \"yyyy-MM-dd HH:mm:ss\")] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]
 
 b:datetime
 null

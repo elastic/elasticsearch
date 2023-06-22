@@ -32,10 +32,11 @@ return score
 ==== Reciprocal rank fusion API
 
 You can use RRF as part of a <<search-search, search>> to combine and rank
-documents using multiple result sets from
-
-* 1 query and 1 or more kNN searches
-* 2 or more kNN searches
+documents using result sets from a combination of
+<<request-body-search-query, query>>,
+<<request-body-sub-searches, sub searches>>, and/or
+<<search-api-knn, knn searches>>. A minimum of 2 results sets for
+is required for ranking from the specified sources.
 
 The `rrf` parameter is an optional object defined as part of a search request's
 <<request-body-rank, rank parameter>>. The `rrf` object contains the following
@@ -95,8 +96,9 @@ truncated to `window_size`. If `k` is smaller than `window_size`, the results ar
 
 RRF does support:
 
-* <<search-from-param, from>>
+* <<request-body-sub-searches, sub searches>>
 * <<search-aggregations, aggregations>>
+* <<search-from-param, from>>
 
 RRF does not currently support:
 
@@ -110,8 +112,57 @@ RRF does not currently support:
 * <<request-body-search-explain, explain>>
 * <<profiling-queries, profiling>>
 
-Using unsupported features as part of a search using RRF will result
+Using unsupported features as part of a search using RRF results
 in an exception.
+
+[[rrf-using-sub-searches]]
+==== Reciprocal rank fusion using sub searches
+
+<<request-body-sub-searches, Sub searches>> provides a way to
+combine and rank multiple searches using RRF.
+
+An example request using RRF with sub searches:
+
+[source,console]
+----
+GET example-index/_search
+{
+    "sub_searches": [
+        {
+            "query": {
+                "term": {
+                    "text": "blue shoes"
+                }
+            }
+        },
+        {
+            "query": {
+                "term": {
+                    "text": "red shoes"
+                }
+            }
+        }
+    ],
+    "rank": {
+        "rrf": {
+            "window_size": 50,
+            "rank_constant": 20
+        }
+    }
+}
+----
+// TEST[skip:example fragment]
+
+In the above example, we execute each of the two sub searches
+independently of each other. First we run the term query for
+`blue shoes`, and then we run the term query for `red shoes`.
+Afterwards, we use RRF to combine the results on a coordinating node.
+While this example can be replaced with a simple boolean query
+because both sub searches use the BM25 scoring algorithm, sub searches
+ranked with RRF becomes extremely useful when each sub search uses a
+different scoring algorithm. A BM25 sub search combined with an
+<<semantic-search-elser, ELSER>> sub search can give relevant results
+significantly better than one or the other used on their own.
 
 [[rrf-full-example]]
 ==== Reciprocal rank fusion full example

@@ -14,6 +14,7 @@ module org.elasticsearch.searchbusinessrules {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
+    requires org.elasticsearch.application;
 
     exports org.elasticsearch.xpack.searchbusinessrules;
 }

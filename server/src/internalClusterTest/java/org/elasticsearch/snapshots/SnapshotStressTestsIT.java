@@ -369,9 +369,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         );
                         logger.info(
                             "--> hot threads:\n{}",
-                            client().admin()
-                                .cluster()
-                                .prepareNodesHotThreads()
+                            clusterAdmin().prepareNodesHotThreads()
                                 .setThreads(99999)
                                 .setIgnoreIdleThreads(false)
                                 .get()

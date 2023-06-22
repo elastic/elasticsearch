@@ -249,7 +249,7 @@ public class RetryTests extends ESIntegTestCase {
          * master. We do this simply to make sure that the test request is not started on the
          * node who's queue we're manipulating.
          */
-        ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();
+        ListTasksResponse response = clusterAdmin().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
         return (BulkByScrollTask.Status) response.getTasks().get(0).status();
     }

@@ -1,0 +1,5 @@
+pr: 96551
+summary: Make cluster health API cancellable
+area: Distributed
+type: bug
+issues: []

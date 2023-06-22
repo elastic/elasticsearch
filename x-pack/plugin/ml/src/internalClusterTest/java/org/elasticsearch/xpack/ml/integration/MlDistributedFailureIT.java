@@ -717,7 +717,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // in a Lucene index it can take a while to update when there are many updates in quick
         // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
             List<PersistentTask<?>> tasks = findTasks(clusterState, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
             assertNotNull(tasks);
             assertEquals("Expected 2 tasks, but got [" + tasks + "]", 2, tasks.size());

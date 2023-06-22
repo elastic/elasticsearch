@@ -176,7 +176,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         // We can't check via api... because BitsetCacheListener requires that it can extract shardId from index reader
         // and for percolator it can't do that, but that means we don't keep track of
         // memory for BitsetCache in case of percolator
-        long bitsetSize = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSegments().getBitsetMemoryInBytes();
+        long bitsetSize = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSegments().getBitsetMemoryInBytes();
         assertEquals("The percolator works with in-memory index and therefor shouldn't use bitset cache", 0L, bitsetSize);
     }
 
@@ -250,7 +250,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             assertHitCount(response, 1);
         }
 
-        long fieldDataSize = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getFieldData().getMemorySizeInBytes();
+        long fieldDataSize = clusterAdmin().prepareClusterStats().get().getIndicesStats().getFieldData().getMemorySizeInBytes();
         assertEquals("The percolator works with in-memory index and therefor shouldn't use field-data cache", 0L, fieldDataSize);
     }
 

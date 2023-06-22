@@ -110,7 +110,7 @@ If you want to see more information about how the data stream lifecycle is appli
 
 [source,console]
 --------------------------------------------------
-GET .ds-my-data-stream-*/_lifecycle/explain
+GET /my-data-stream/_lifecycle/explain
 --------------------------------------------------
 // TEST[continued]
 The result will look like this:

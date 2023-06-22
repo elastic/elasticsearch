@@ -44,7 +44,7 @@ via the <<data-streams-explain-lifecycle, explain API>>:
 
 [source,console]
 --------------------------------------------------
-GET .ds-my-data-stream-*/_lifecycle/explain
+GET /my-data-stream/_lifecycle/explain
 --------------------------------------------------
 // TEST[continued]
 
@@ -81,7 +81,7 @@ The response will look like:
 // TEST[continued]
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 <1> The name of the backing index.
-<2> This index is managed by the built-in data stream lifecycle.
+<2> This index is managed by a data stream lifecycle.
 <3> The time that has passed since this index has been created.
 <4> The data retention for this index is at least 30 days, as it was recently updated.
 <5> The name of the backing index.
@@ -109,7 +109,7 @@ You can then use the <<data-streams-explain-lifecycle, explain API>> again to se
 
 [source,console]
 --------------------------------------------------
-GET .ds-my-data-stream-*/_lifecycle/explain
+GET /my-data-stream/_lifecycle/explain
 --------------------------------------------------
 // TEST[continued]
 // TEST[teardown:data_stream_cleanup]

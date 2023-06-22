@@ -321,7 +321,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         private final ClusterService clusterService;
         private final LongSupplier nowSupplier;
         private final Collection<RuleCreator> rulesCreators;
-        private Collection<RuleConfig> rules;
+        private volatile Collection<RuleConfig> rules;
 
         StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleCreator> rulesCreators, LongSupplier nowSupplier) {
             this.clusterService = clusterService;

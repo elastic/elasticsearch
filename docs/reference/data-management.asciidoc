@@ -33,8 +33,7 @@ preview::["The built-in data stream lifecycle is in technical preview and may be
 * Define the retention period of your data. The retention period is the minimum time your data will be stored in {es}.
 Data older than this period can be deleted by {es}.
 * Define <<data-tiers, multiple tiers>> of data nodes with different performance characteristics.
-* Automatically transition indices through the data tiers according to your performance needs and retention policies
-with <<index-lifecycle-management, {ilm-init}>>.
+* Automatically transition indices through the data tiers according to your performance needs and retention policies.
 * Leverage <<searchable-snapshots, searchable snapshots>> stored in a remote repository to provide resiliency 
 for your older indices while reducing operating costs and maintaining search performance.  
 * Perform <<async-search-intro, asynchronous searches>> of data stored on less-performant hardware.
@@ -43,8 +42,8 @@ for your older indices while reducing operating costs and maintaining search per
 
 * Define the retention period of your data. The retention period is the minimum time your data will be stored in {es}.
 Data older than this period can be deleted by {es} at a later time.
-
-Furthermore, it performs background operations that improve the performance of your data stream.
+* Improve the performance of your data stream by performing background operations that will optimise the way your data
+stream is stored.
 --
 
 include::ilm/index.asciidoc[]

@@ -118,7 +118,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_8_0 = registerTransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
     public static final TransportVersion V_8_8_1 = registerTransportVersion(8_08_01_99, "291c71bb-5b0a-4b7e-a407-6e53bc128d0f");
 
-    public static final TransportVersion V_8_9_0 = registerTransportVersion(8_09_00_99, "13c1c2cb-d975-461f-ab98-309ebc1c01bc");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.

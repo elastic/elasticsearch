@@ -2407,7 +2407,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_9_0)
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_500_010)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 

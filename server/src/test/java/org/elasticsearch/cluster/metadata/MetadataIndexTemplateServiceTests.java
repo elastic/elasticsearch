@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
@@ -1640,10 +1641,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             "good",
             TimeValue.timeValueSeconds(5),
             ct,
-            ActionListener.wrap(r -> ctLatch.countDown(), e -> {
-                logger.error("unexpected error", e);
-                fail("unexpected error");
-            })
+            ActionTestUtils.assertNoFailureListener(r -> ctLatch.countDown())
         );
         ctLatch.await(5, TimeUnit.SECONDS);
         InvalidIndexTemplateException e = expectThrows(InvalidIndexTemplateException.class, () -> {
@@ -2449,10 +2447,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             "foo",
             TimeValue.timeValueSeconds(5),
             ct,
-            ActionListener.wrap(r -> ctLatch.countDown(), e -> {
-                logger.error("unexpected error", e);
-                fail("unexpected error");
-            })
+            ActionTestUtils.assertNoFailureListener(r -> ctLatch.countDown())
         );
         ctLatch.await(5, TimeUnit.SECONDS);
         InvalidIndexTemplateException e = expectThrows(InvalidIndexTemplateException.class, () -> {

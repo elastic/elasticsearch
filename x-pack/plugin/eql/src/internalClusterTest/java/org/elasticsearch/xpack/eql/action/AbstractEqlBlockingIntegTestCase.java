@@ -213,7 +213,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
                             task,
                             action,
                             request,
-                            ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
+                            listener.delegateFailureAndWrap((l, resp) -> executorService.execute(() -> actionWrapper.accept(resp)))
                         );
                     } else {
                         chain.proceed(task, action, request, listener);

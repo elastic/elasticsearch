@@ -107,7 +107,7 @@ public class LookAHeadTimeTests extends ESSingleNodeTestCase {
     }
 
     private void updateClusterSettings(Settings settings) {
-        client().admin().cluster().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(settings)).actionGet();
+        clusterAdmin().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(settings)).actionGet();
     }
 
     private void updateIndexSettings(Settings settings) throws IOException {

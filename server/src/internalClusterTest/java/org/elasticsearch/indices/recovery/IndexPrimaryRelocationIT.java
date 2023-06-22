@@ -52,7 +52,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         };
         indexingThread.start();
 
-        ClusterState initialState = client().admin().cluster().prepareState().get().getState();
+        ClusterState initialState = clusterAdmin().prepareState().get().getState();
         DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         DiscoveryNode relocationSource = initialState.getNodes()
             .getDataNodes()
@@ -63,31 +63,25 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                 relocationTarget = randomFrom(dataNodes);
             }
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
-            client().admin()
-                .cluster()
-                .prepareReroute()
+            clusterAdmin().prepareReroute()
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
                 .execute()
                 .actionGet();
-            ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth()
+            ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
                 .setTimeout(TimeValue.timeValueSeconds(60))
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .execute()
                 .actionGet();
             if (clusterHealthResponse.isTimedOut()) {
-                final String hotThreads = client().admin()
-                    .cluster()
-                    .prepareNodesHotThreads()
+                final String hotThreads = clusterAdmin().prepareNodesHotThreads()
                     .setIgnoreIdleThreads(false)
                     .get()
                     .getNodes()
                     .stream()
                     .map(NodeHotThreads::getHotThreads)
                     .collect(Collectors.joining("\n"));
-                final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+                final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
                 logger.info(
                     "timed out for waiting for relocation iteration [{}] \ncluster state {} \nhot threads {}",
                     i,

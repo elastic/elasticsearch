@@ -720,9 +720,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Now get the snapshot and do our checks
         assertBusy(() -> {
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                .cluster()
-                .prepareGetSnapshots(REPO_NAME)
+            GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO_NAME)
                 .setSnapshots(partialSnapName)
                 .get();
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);

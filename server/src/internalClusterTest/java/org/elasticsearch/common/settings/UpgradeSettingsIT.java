@@ -28,9 +28,7 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
 
     @After
     public void cleanup() throws Exception {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
+        clusterAdmin().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().putNull("*"))
             .setTransientSettings(Settings.builder().putNull("*"))
             .get();
@@ -90,11 +88,11 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
         final Function<Metadata, Settings> settingsFunction
     ) {
         final String value = randomAlphaOfLength(8);
-        final ClusterUpdateSettingsRequestBuilder builder = client().admin().cluster().prepareUpdateSettings();
+        final ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings();
         consumer.accept(Settings.builder().put("foo.old", value).build(), builder);
         builder.get();
 
-        final ClusterStateResponse response = client().admin().cluster().prepareState().clear().setMetadata(true).get();
+        final ClusterStateResponse response = clusterAdmin().prepareState().clear().setMetadata(true).get();
 
         assertFalse(UpgradeSettingsPlugin.oldSetting.exists(settingsFunction.apply(response.getState().metadata())));
         assertTrue(UpgradeSettingsPlugin.newSetting.exists(settingsFunction.apply(response.getState().metadata())));

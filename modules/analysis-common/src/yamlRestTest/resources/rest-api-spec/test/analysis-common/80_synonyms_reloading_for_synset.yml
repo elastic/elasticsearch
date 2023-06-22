@@ -38,7 +38,7 @@
             analysis:
               filter:
                 my_synonym_filter:
-                  type: synonym
+                  type: synonym_graph
                   synonyms_set: synonyms_set1
                   updateable: true
               analyzer:
@@ -72,7 +72,7 @@
             analysis:
               filter:
                 my_synonym_filter:
-                  type: synonym
+                  type: synonym_graph
                   synonyms_set: synonyms_set2
                   updateable: true
               analyzer:
@@ -96,7 +96,7 @@
           - '{"my_field": "goodbye"}'
 
 
-  # Update synonyms_set1 which must trigger auto-reloading of analyzers that only use synonyms_set1
+  # An update of synonyms_set1 must trigger auto-reloading of analyzers only for synonyms_set1
   - do:
       synonyms.put:
         synonyms_set: synonyms_set1
@@ -122,3 +122,13 @@
                 query: salute
   - match: { hits.total.value: 1 }
 
+  # Confirm that the index analyzers are still the same for my_index2
+  - do:
+      search:
+        index: my_index2
+        body:
+          query:
+            match:
+              my_field:
+                query: salute
+  - match: { hits.total.value: 0 }

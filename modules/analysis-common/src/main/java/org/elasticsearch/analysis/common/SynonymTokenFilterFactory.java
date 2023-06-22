@@ -163,7 +163,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             for (String line : rulesList) {
                 sb.append(line).append(System.lineSeparator());
             }
-            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings", null);
+            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
         } else if ((settings.get("synonyms_set") != null) && SynonymsAPI.isEnabled()) {
             if (analysisMode != AnalysisMode.SEARCH_TIME) {
                 throw new IllegalArgumentException(
@@ -175,8 +175,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             if (MasterService.isMasterUpdateThread()) {
                 return new ReaderWithOrigin(
                     new StringReader("fake rule => fake"),
-                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index",
-                    null
+                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index"
                 );
             }
             return new ReaderWithOrigin(
@@ -186,12 +185,16 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             );
         } else if (settings.get("synonyms_path") != null) {
             String synonyms_path = settings.get("synonyms_path", null);
-            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path, null);
+            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
         } else {
             String err = SynonymsAPI.isEnabled() ? "`synonyms_set`," : "";
             throw new IllegalArgumentException("synonym requires either `synonyms`," + err + " or `synonyms_path` to be configured");
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin, String resource) {}
+    record ReaderWithOrigin(Reader reader, String origin, String resource) {
+        ReaderWithOrigin(Reader reader, String origin) {
+            this(reader, origin, null);
+        }
+    }
 }

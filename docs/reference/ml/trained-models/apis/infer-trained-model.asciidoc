@@ -733,9 +733,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+`with_special_tokens`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
 =======
 ======
 =====

@@ -547,10 +547,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
 
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
 `truncate`::::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
@@ -690,10 +686,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
 
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
 `truncate`::::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
@@ -825,10 +817,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
@@ -1295,10 +1283,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
 
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
 `truncate`::::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
@@ -1596,10 +1580,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)

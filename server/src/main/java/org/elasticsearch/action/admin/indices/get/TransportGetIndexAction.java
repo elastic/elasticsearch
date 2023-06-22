@@ -137,7 +137,10 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
+        Map<String, Settings> collect = settings.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> settingsFilter.filter(e.getValue())));
+        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, collect, defaultSettings, dataStreams));
     }
 
     private static void checkCancellation(Task task) {

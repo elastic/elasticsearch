@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -41,6 +42,12 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get "
         + "index template requests is deprecated. The parameter will be removed in the next major version.";
 
+    SettingsFilter settingsFilter;
+
+    public RestGetIndexTemplateAction(SettingsFilter settingsFilter) {
+        this.settingsFilter = settingsFilter;
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_template"), new Route(GET, "/_template/{name}"), new Route(HEAD, "/_template/{name}"));
@@ -64,7 +71,6 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
-
         return channel -> client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestToXContentListener<>(channel) {
             @Override
             protected RestStatus getStatus(final GetIndexTemplatesResponse response) {

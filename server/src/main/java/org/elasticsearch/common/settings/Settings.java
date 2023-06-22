@@ -664,6 +664,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // todo how to filter with operator privileges?
         Settings settings = SettingsFilter.filterSettings(params, this);
         if (params.paramAsBoolean(FLAT_SETTINGS_PARAM, false) == false) {
             toXContentFlat(builder, settings);

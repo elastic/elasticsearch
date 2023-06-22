@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsRes
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.DefaultSettingsFilter;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -43,7 +44,7 @@ public class RestClusterGetSettingsActionTests extends ESTestCase {
         final Settings settings = Settings.builder().put("foo.filtered", "bar").put("foo.non_filtered", "baz").build();
         md.accept(mdBuilder, settings);
         final ClusterState.Builder builder = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(mdBuilder);
-        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
+        final SettingsFilter filter = new DefaultSettingsFilter(Collections.singleton("foo.filtered"));
         final Setting.Property[] properties = { Setting.Property.Dynamic, Setting.Property.Filtered, Setting.Property.NodeScope };
         final Set<Setting<?>> settingsSet = Stream.concat(
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),

@@ -132,6 +132,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
         }
+
         return validationException;
     }
 

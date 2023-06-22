@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -40,6 +41,11 @@ public class RestGetIndicesAction extends BaseRestHandler {
         + " is deprecated. The parameter will be removed in the next major version.";
 
     private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, INCLUDE_TYPE_NAME_PARAMETER);
+    private final SettingsFilter settingsFilter;
+
+    public RestGetIndicesAction(SettingsFilter settingsFilter) {
+        this.settingsFilter = settingsFilter;
+    }
 
     @Override
     public List<Route> routes() {

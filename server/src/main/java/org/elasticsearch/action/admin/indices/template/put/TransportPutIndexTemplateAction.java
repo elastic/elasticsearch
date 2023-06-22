@@ -24,6 +24,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,6 +40,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final SettingsFilter settingsFilter;
 
     @Inject
     public TransportPutIndexTemplateAction(
@@ -48,7 +50,8 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter
     ) {
         super(
             PutIndexTemplateAction.NAME,
@@ -62,6 +65,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -83,6 +87,11 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         final Settings.Builder templateSettingsBuilder = Settings.builder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
+        try {
+            settingsFilter.validateSettings(request.settings());
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
         indexTemplateService.putTemplate(
             new MetadataIndexTemplateService.PutRequest(cause, request.name()).patterns(request.patterns())
                 .order(request.order())

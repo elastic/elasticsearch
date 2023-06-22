@@ -68,7 +68,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     private final Settings settings;
 
     // the mapping source should always include the type as top level
-    private final Map<String, CompressedXContent> mappings;
+    public final Map<String, CompressedXContent> mappings;// TODO temp scope for POC
 
     private final Map<String, AliasMetadata> aliases;
 

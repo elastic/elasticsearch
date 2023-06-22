@@ -855,7 +855,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResetFeatureStateAction());
         registerHandler.accept(new RestGetFeatureUpgradeStatusAction());
         registerHandler.accept(new RestPostFeatureUpgradeAction());
-        registerHandler.accept(new RestGetIndicesAction());
+        registerHandler.accept(new RestGetIndicesAction(settingsFilter));
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction());
         registerHandler.accept(new RestIndicesShardStoresAction());
@@ -880,7 +880,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestAnalyzeAction());
         registerHandler.accept(new RestReloadAnalyzersAction());
-        registerHandler.accept(new RestGetIndexTemplateAction());
+        registerHandler.accept(new RestGetIndexTemplateAction(settingsFilter));
         registerHandler.accept(new RestPutIndexTemplateAction());
         registerHandler.accept(new RestDeleteIndexTemplateAction());
         registerHandler.accept(new RestPutComponentTemplateAction());

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.DefaultSettingsFilter;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -152,7 +153,7 @@ public class ActionModuleTests extends ESTestCase {
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<DiscoveryNodes> nodesInCluster
             ) {
-                return singletonList(new RestNodesInfoAction(new SettingsFilter(emptyList())) {
+                return singletonList(new RestNodesInfoAction(new DefaultSettingsFilter(emptyList())) {
 
                     @Override
                     public String getName() {

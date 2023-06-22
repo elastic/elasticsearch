@@ -482,7 +482,8 @@ public class Node implements Closeable {
                 settings,
                 additionalSettings,
                 pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                settingsUpgraders
+                settingsUpgraders,
+                threadPool.getThreadContext()
             );
 
             // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this

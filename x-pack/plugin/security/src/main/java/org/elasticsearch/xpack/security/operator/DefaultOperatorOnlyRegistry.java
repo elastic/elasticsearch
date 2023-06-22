@@ -17,8 +17,11 @@ import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAct
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.PutLicenseAction;
@@ -61,6 +64,7 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
     );
 
     private final ClusterSettings clusterSettings;
+    private IndexScopedSettings indexScopedSettings;
 
     public DefaultOperatorOnlyRegistry(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
@@ -77,6 +81,22 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         } else if (ClusterUpdateSettingsAction.NAME.equals(action)) {
             assert request instanceof ClusterUpdateSettingsRequest;
             return checkClusterUpdateSettings((ClusterUpdateSettingsRequest) request);
+        } else if (CreateIndexAction.NAME.equals(action)) {
+            assert request instanceof CreateIndexRequest;
+            return checkIndexSettings((CreateIndexRequest) request);
+        } else {
+            return null;
+        }
+    }
+
+    private OperatorPrivilegesViolation checkIndexSettings(CreateIndexRequest request) {
+        List<String> list = request.settings()
+            .keySet()
+            .stream()
+            .filter(settingName -> indexScopedSettings.get(settingName).isServerlessPublic())
+            .toList();
+        if (false == list.isEmpty()) {
+            return () -> (list.size() == 1 ? "setting" : "settings") + " [" + Strings.collectionToDelimitedString(list, ",") + "]";
         } else {
             return null;
         }

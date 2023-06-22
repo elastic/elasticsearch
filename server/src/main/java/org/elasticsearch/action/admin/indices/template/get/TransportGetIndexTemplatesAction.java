@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -28,13 +30,16 @@ import java.util.Map;
 
 public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
+    private final SettingsFilter settingsFilter;
+
     @Inject
     public TransportGetIndexTemplatesAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SettingsFilter settingsFilter
     ) {
         super(
             GetIndexTemplatesAction.NAME,
@@ -47,6 +52,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
             GetIndexTemplatesResponse::new,
             ThreadPool.Names.SAME
         );
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -74,14 +80,28 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
             if (Regex.isSimpleMatchPattern(name)) {
                 for (Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().templates().entrySet()) {
                     if (Regex.simpleMatch(name, entry.getKey())) {
-                        results.add(entry.getValue());
+
+                        IndexTemplateMetadata value = entry.getValue();
+                        Settings filter = settingsFilter.filter(value.settings());
+
+                        // maybe modify? or change toXcontent?
+                        results.add(
+                            new IndexTemplateMetadata(
+                                value.name(),
+                                value.order(),
+                                value.version(),
+                                value.patterns(),
+                                filter,
+                                value.mappings,
+                                value.aliases()
+                            )
+                        );
                     }
                 }
             } else if (state.metadata().templates().containsKey(name)) {
                 results.add(state.metadata().templates().get(name));
             }
         }
-
         listener.onResponse(new GetIndexTemplatesResponse(results));
     }
 }

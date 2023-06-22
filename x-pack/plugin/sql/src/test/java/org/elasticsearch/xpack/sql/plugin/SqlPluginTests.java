@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.DefaultSettingsFilter;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.session.Cursors;
@@ -52,7 +52,7 @@ public class SqlPluginTests extends ESTestCase {
                 mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                new SettingsFilter(Collections.emptyList()),
+                new DefaultSettingsFilter(Collections.emptyList()),
                 mock(IndexNameExpressionResolver.class),
                 () -> mock(DiscoveryNodes.class)
             ),

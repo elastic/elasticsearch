@@ -345,7 +345,8 @@ public class ClusterStateChanges {
             createIndexService,
             actionFilters,
             indexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            null
         );
 
         nodeLeftExecutor = new NodeLeftExecutor(allocationService);

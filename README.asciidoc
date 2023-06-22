@@ -2,7 +2,7 @@
 
 Elasticsearch is a distributed, RESTful search engine optimized for speed and relevance on production-scale workloads. You can use Elasticsearch to perform real-time search over massive datasets for applications including:
 
-* Vector Search
+* Vector search
 * Full-text search
 * Logs
 * Metrics

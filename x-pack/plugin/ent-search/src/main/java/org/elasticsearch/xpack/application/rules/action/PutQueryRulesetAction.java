@@ -66,35 +66,6 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
             List<QueryRule> rules = queryRuleset.rules();
             if (rules == null || rules.isEmpty()) {
                 validationException = addValidationError("rules cannot be null or empty", validationException);
-            } else {
-                for (QueryRule rule : rules) {
-                    if (Strings.isNullOrEmpty(rule.id())) {
-                        validationException = addValidationError("query rule rule_id cannot be null or empty", validationException);
-                    }
-                    if (rule.type() == null) {
-                        validationException = addValidationError("query rule type cannot be null", validationException);
-                    }
-                    if (rule.criteria() == null || rule.criteria().isEmpty()) {
-                        validationException = addValidationError("query rule criteria cannot be null or empty", validationException);
-                    }
-
-                    if (rule.actions() == null || rule.actions().isEmpty()) {
-                        validationException = addValidationError("query rule actions cannot be null or empty", validationException);
-                    }
-
-                    // TODO when we have more than one type of query rule type, we should refactor this validation into specific typed query
-                    // rule classes.
-                    if (rule.type() == QueryRule.QueryRuleType.PINNED) {
-                        if (rule.actions().containsKey("ids") == false && rule.actions().containsKey("docs") == false) {
-                            validationException = addValidationError(
-                                "pinned query rule actions must contain either ids or docs",
-                                validationException
-                            );
-                        }
-                    } else {
-                        validationException = addValidationError("only pinned query rules supported", validationException);
-                    }
-                }
             }
 
             return validationException;

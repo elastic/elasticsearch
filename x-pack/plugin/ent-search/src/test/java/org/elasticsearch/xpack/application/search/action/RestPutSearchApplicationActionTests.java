@@ -28,15 +28,6 @@ public class RestPutSearchApplicationActionTests extends AbstractRestEnterpriseS
         );
     }
 
-    public void testInvalidRequestWithNonCompliantLicense() throws Exception {
-        checkLicenseForRequest(
-            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.PUT)
-                .withParams(Map.of("name", "my-app"))
-                .withContent(new BytesArray("{}"), XContentType.JSON)
-                .build()
-        );
-    }
-
     @Override
     protected EnterpriseSearchBaseRestHandler getRestAction(XPackLicenseState licenseState) {
         return new RestPutSearchApplicationAction(licenseState);

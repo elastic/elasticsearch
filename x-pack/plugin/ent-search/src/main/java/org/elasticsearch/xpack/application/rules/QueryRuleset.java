@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,7 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class QueryRuleset implements Writeable, ToXContentObject {
 
@@ -40,7 +41,15 @@ public class QueryRuleset implements Writeable, ToXContentObject {
      * @param rules A collection of one or more {@link QueryRule}s.
      */
     public QueryRuleset(String id, List<QueryRule> rules) {
+        if (Strings.isNullOrEmpty(id)) {
+            throw new IllegalArgumentException("id cannot be null or empty");
+        }
         this.id = id;
+
+        Objects.requireNonNull(rules, "rules cannot be null");
+        if (rules.isEmpty()) {
+            throw new IllegalArgumentException("rules cannot be empty");
+        }
         this.rules = rules;
     }
 
@@ -55,7 +64,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
         (params, resourceName) -> {
             final String id = (String) params[0];
             // Check that id matches the resource name. We don't want it to be updatable
-            if (id != null && id.equals(resourceName) == false) {
+            if (id.equals(resourceName) == false) {
                 throw new IllegalArgumentException(
                     "Query ruleset identifier [" + id + "] does not match the resource name: [" + resourceName + "]"
                 );
@@ -71,8 +80,8 @@ public class QueryRuleset implements Writeable, ToXContentObject {
     public static final ParseField RULES_FIELD = new ParseField("rules");
 
     static {
-        PARSER.declareString(optionalConstructorArg(), ID_FIELD);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> QueryRule.fromXContent(p), RULES_FIELD);
+        PARSER.declareString(constructorArg(), ID_FIELD);
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRule.fromXContent(p), RULES_FIELD);
     }
 
     /**

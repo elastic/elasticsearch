@@ -70,6 +70,31 @@ public class QueryRuleTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
+    public void testToXContentMissingQueryRuleId() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "value": "foo" }
+              ],
+              "actions": {
+                  "ids": ["id1", "id2"]
+                }
+            }""");
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+    }
+
+    public void testToXContentEmptyCriteria() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "pinned",
+              "criteria": [],
+              "actions": {}
+            }""");
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+    }
+
     public void testToXContentValidPinnedRulesWithIds() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
@@ -118,6 +143,21 @@ public class QueryRuleTests extends ESTestCase {
             parsed = QueryRule.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToXContentPinnedRuleWithInvalidActions() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "value": "foo" }
+              ],
+              "actions": {
+                  "foo": "bar"
+                }
+            }""");
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {

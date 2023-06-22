@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -73,10 +74,27 @@ public class QueryRule implements Writeable, ToXContentObject {
      * @param actions                   The actions that should be taken if this rule is matched, dependent on the type of rule
      */
     public QueryRule(String id, QueryRuleType type, List<QueryRuleCriteria> criteria, Map<String, Object> actions) {
+        if (Strings.isNullOrEmpty(id)) {
+            throw new IllegalArgumentException("Query rule id cannot be null or blank");
+        }
         this.id = id;
+
+        Objects.requireNonNull(type, "Query rule type cannot be null");
         this.type = type;
+
+        Objects.requireNonNull(criteria, "Query rule criteria cannot be null");
+        if (criteria.isEmpty()) {
+            throw new IllegalArgumentException("Query rule criteria cannot be empty");
+        }
         this.criteria = criteria;
+
+        Objects.requireNonNull(actions, "Query rule actions cannot be null");
+        if (actions.isEmpty()) {
+            throw new IllegalArgumentException("Query rule actions cannot be empty");
+        }
         this.actions = actions;
+
+        validate();
     }
 
     public QueryRule(StreamInput in) throws IOException {
@@ -84,6 +102,18 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.type = QueryRuleType.queryRuleType(in.readString());
         this.criteria = in.readList(QueryRuleCriteria::new);
         this.actions = in.readMap();
+
+        validate();
+    }
+
+    private void validate() {
+        if (type == QueryRuleType.PINNED) {
+            if (actions.containsKey("ids") == false && actions.containsKey("docs") == false) {
+                throw new ElasticsearchParseException("Pinned Query rule actions must contain either ids or docs");
+            }
+        } else {
+            throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
+        }
     }
 
     @Override
@@ -114,9 +144,9 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
-        PARSER.declareString(optionalConstructorArg(), TYPE_FIELD);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ACTIONS_FIELD);
+        PARSER.declareString(constructorArg(), TYPE_FIELD);
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), ACTIONS_FIELD);
     }
 
     /**

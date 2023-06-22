@@ -1013,3 +1013,14 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.9.0
+      - label: 8.10.0 / bwc
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+          v$$BWC_VERSION#bwcTest
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-ubuntu-2004
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          BWC_VERSION: 8.10.0

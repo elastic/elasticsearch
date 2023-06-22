@@ -46,6 +46,7 @@ steps:
               - 7.17.11
               - 8.8.2
               - 8.9.0
+              - 8.10.0
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1148,6 +1149,17 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.9.0
+      - label: 8.10.0 / full-bwc
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-ubuntu-2004
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          BWC_VERSION: 8.10.0
   - group: packaging-tests-unix-sample
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
@@ -2773,6 +2785,23 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.9.0
+      - label: "{{matrix.image}} / 8.10.0 / packaging-upgrade-tests"
+        command: ./.ci/scripts/packaging-test.sh --build-cache
+          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        matrix:
+          setup:
+            image:
+              - family/brian-elasticsearch-rocky-8
+              - family/brian-elasticsearch-ubuntu-2004
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-16-32768
+        env:
+          BWC_VERSION: 8.10.0
   - label: part-1-fips
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
       -Dtests.fips.enabled=true checkPart1

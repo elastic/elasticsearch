@@ -1596,3 +1596,20 @@ steps:
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.9.0
+      - label: "{{matrix.image}} / 8.10.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache
+          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+          -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
+        matrix:
+          setup:
+            image:
+              - family/brian-elasticsearch-rocky-8
+              - family/brian-elasticsearch-ubuntu-2004
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-16-32768
+        env:
+          BWC_VERSION: 8.10.0

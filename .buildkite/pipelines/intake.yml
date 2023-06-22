@@ -52,6 +52,7 @@ steps:
               - 7.17.11
               - 8.8.2
               - 8.9.0
+              - 8.10.0
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004

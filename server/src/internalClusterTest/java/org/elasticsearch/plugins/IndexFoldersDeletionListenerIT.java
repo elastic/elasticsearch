@@ -73,9 +73,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -142,9 +140,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -210,9 +206,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)

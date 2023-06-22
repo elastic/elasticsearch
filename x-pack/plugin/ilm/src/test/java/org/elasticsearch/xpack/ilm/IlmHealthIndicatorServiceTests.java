@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -37,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -322,6 +325,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
     ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                Settings.EMPTY,
+                Set.of(
+                    IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
+                    IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
+                    IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
+                )
+            )
+        );
 
         return new IlmHealthIndicatorService(clusterService, stagnatingIndicesFinder);
     }

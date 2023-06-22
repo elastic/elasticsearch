@@ -180,7 +180,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
         assertBusy(() -> { assertTrue(indexExists("test")); });
@@ -188,9 +188,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = client().admin()
-                .cluster()
-                .prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
                 .execute()
                 .actionGet()
                 .getState()
@@ -416,15 +414,13 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = client().admin()
-                .cluster()
-                .prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
                 .execute()
                 .actionGet()
                 .getState()

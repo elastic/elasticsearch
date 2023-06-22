@@ -1739,9 +1739,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Clear the auth cache to force recompute the expensive hash which requires the crypto thread pool
         apiKeyService.getApiKeyAuthCache().invalidateAll();
 
-        final List<NodeInfo> nodeInfos = client().admin()
-            .cluster()
-            .prepareNodesInfo()
+        final List<NodeInfo> nodeInfos = clusterAdmin().prepareNodesInfo()
             .get()
             .getNodes()
             .stream()

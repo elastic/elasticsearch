@@ -6,7 +6,7 @@ Elasticsearch is a distributed, RESTful search engine optimized for speed and re
 * Full-text search
 * Logs
 * Metrics
-* Application performance monitoring
+* Application performance monitoring (APM)
 * Security logs
 
 

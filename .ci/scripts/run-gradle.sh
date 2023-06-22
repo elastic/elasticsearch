@@ -7,7 +7,6 @@ export GRADLE_USER_HOME
 
 rm -Rfv ~/.gradle/init.d
 mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
-
 if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
    MAX_WORKERS=16
 elif [ -f /proc/cpuinfo ]; then

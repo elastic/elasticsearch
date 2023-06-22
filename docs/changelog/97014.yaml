@@ -1,0 +1,6 @@
+pr: 97014
+summary: Execute downsampling after allocate and migrate actions
+area: Downsampling
+type: enhancement
+issues:
+ - 96734

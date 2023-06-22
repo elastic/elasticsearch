@@ -56,7 +56,7 @@ still match one of your template's index patterns.
 +
 [source,console]
 --------------------------------------------------
-PUT .ds-my-data-stream-*/my-data-stream
+PUT _data_stream/my-data-stream
 --------------------------------------------------
 // TEST[continued]
 

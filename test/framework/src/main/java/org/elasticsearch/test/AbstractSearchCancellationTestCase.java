@@ -113,11 +113,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
         TaskInfo searchTask = listTasksResponse.getTasks().get(0);
 
         logger.info("Cancelling search");
-        CancelTasksResponse cancelTasksResponse = client().admin()
-            .cluster()
-            .prepareCancelTasks()
-            .setTargetTaskId(searchTask.taskId())
-            .get();
+        CancelTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setTargetTaskId(searchTask.taskId()).get();
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
         assertThat(cancelTasksResponse.getTasks().get(0).taskId(), equalTo(searchTask.taskId()));
     }

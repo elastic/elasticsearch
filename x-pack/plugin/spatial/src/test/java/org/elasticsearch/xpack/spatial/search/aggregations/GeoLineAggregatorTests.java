@@ -243,7 +243,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
         PathArraySorter.forOrder(SortOrder.ASC).apply(linePoints, lineSorts).sort();
 
-        lines.put(groupOrd, new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, SortOrder.ASC, size));
+        lines.put(groupOrd, new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, SortOrder.ASC, size, false, false));
 
         testCase(aggregationBuilder, iw -> {
             for (int i = 0; i < points.length; i++) {
@@ -518,11 +518,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
      * Wrapper for points and sort fields that is also usable in the GeometrySimplifier library,
      * allowing us to track which points will survive geometry simplification during geo_line aggregations.
      */
-    private static class TestSimplifiablePoint extends StreamingGeometrySimplifier.PointError {
+    static class TestSimplifiablePoint extends StreamingGeometrySimplifier.PointError {
         private final double sortField;
         private final long encoded;
 
-        private TestSimplifiablePoint(int index, double x, double y, double sortField) {
+        TestSimplifiablePoint(int index, double x, double y, double sortField) {
             super(index, quantizeX(x), quantizeY(y));
             this.sortField = sortField;
             this.encoded = encode(x(), y());
@@ -554,9 +554,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     /** Allow test to use own objects for internal use in geometry simplifier, so we can track the sort-fields together with the points */
-    private static class TestLine implements Geometry {
-        private final long[] encodedPoints;
-        private final double[] sortValues;
+    static class TestLine implements Geometry {
+        final long[] encodedPoints;
+        final double[] sortValues;
 
         private TestLine(int length, StreamingGeometrySimplifier.PointError[] points) {
             this.encodedPoints = new long[length];
@@ -596,9 +596,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private static class TestGeometrySimplifierMonitor implements StreamingGeometrySimplifier.Monitor {
-        private int addedCount;
-        private int removedCount;
+    static class TestGeometrySimplifierMonitor implements StreamingGeometrySimplifier.Monitor {
+        int addedCount;
+        int removedCount;
 
         public void reset() {
             addedCount = 0;
@@ -631,8 +631,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     /** Wrapping the Streaming GeometrySimplifier allowing the test to extract expected points and their sort fields after simplification */
-    private static class TestGeometrySimplifier extends StreamingGeometrySimplifier<TestLine> {
-        private TestGeometrySimplifier(int maxPoints, TestGeometrySimplifierMonitor monitor) {
+    static class TestGeometrySimplifier extends StreamingGeometrySimplifier<TestLine> {
+        TestGeometrySimplifier(int maxPoints, TestGeometrySimplifierMonitor monitor) {
             super("TestGeometrySimplifier", maxPoints, SimplificationErrorCalculator.TRIANGLE_AREA, monitor);
         }
 
@@ -865,7 +865,10 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             }
             PathArraySorter.forOrder(sortOrder).apply(linePoints, lineSorts).sort();
 
-            lines.put(String.valueOf(groupOrd), new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, sortOrder, size));
+            lines.put(
+                String.valueOf(groupOrd),
+                new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, sortOrder, size, false, false)
+            );
 
             for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
                 int idx1 = randomIntBetween(0, numPoints - 1);

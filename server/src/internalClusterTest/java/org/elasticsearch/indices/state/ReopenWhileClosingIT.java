@@ -162,7 +162,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
     }
 
     private static void assertIndexIsBlocked(final String... indices) {
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         for (String index : indices) {
             assertThat(clusterState.metadata().indices().get(index).getState(), is(IndexMetadata.State.OPEN));
             assertThat(clusterState.routingTable().index(index), notNullValue());

@@ -67,7 +67,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);
         Client client = internalCluster().coordOnlyNodeClient();
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData()).toList());
         assertAcked(indicesAdmin().prepareCreate("index").setSettings(indexSettings(5, 1)));
         ensureGreen("index");

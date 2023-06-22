@@ -55,6 +55,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -212,24 +213,34 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -238,8 +249,16 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedRolesStoreTests extends ESTestCase {
 
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed by how components are initialized by the Security plugin
+        new ReservedRolesStore();
+    }
+
     private static final String READ_CROSS_CLUSTER_NAME = "internal:transport/proxy/indices:data/read/query";
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97017")
     public void testIsReserved() {
         assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
         assertThat(ReservedRolesStore.isReserved("superuser"), is(true));
@@ -3269,6 +3288,83 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             logstashAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)),
             is(true)
+        );
+    }
+
+    public void testIncludeReservedRolesSetting() {
+        // default value
+        final List<String> defaultIncludes = INCLUDED_RESERVED_ROLES_SETTING.get(Settings.EMPTY);
+        assertThat(defaultIncludes, containsInAnyOrder(ReservedRolesStore.names().toArray(String[]::new)));
+
+        // must include superuser
+        final String[] includedRolesWithoutSuperuser = randomArray(
+            0,
+            8,
+            String[]::new,
+            () -> randomValueOtherThanMany(name -> name.equals("superuser"), () -> randomFrom(ReservedRolesStore.names()))
+        );
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> INCLUDED_RESERVED_ROLES_SETTING.get(
+                Settings.builder().putList("xpack.security.reserved_roles.include", includedRolesWithoutSuperuser).build()
+            )
+        );
+        assertThat(e1.getMessage(), containsString("the [superuser] reserved role must be included"));
+
+        // all roles names must be known
+        final List<String> includedRoles = new ArrayList<>();
+        includedRoles.add("superuser");
+        IntStream.range(0, randomIntBetween(0, 3)).forEach(ignore -> includedRoles.add(randomFrom(ReservedRolesStore.names())));
+        IntStream.range(0, randomIntBetween(1, 3))
+            .forEach(
+                ignore -> includedRoles.add(
+                    randomValueOtherThanMany(name -> ReservedRolesStore.names().contains(name), () -> randomAlphaOfLengthBetween(5, 20))
+                )
+            );
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> INCLUDED_RESERVED_ROLES_SETTING.get(
+                Settings.builder().putList("xpack.security.reserved_roles.include", includedRoles).build()
+            )
+        );
+        assertThat(e2.getMessage(), containsString("unknown reserved roles to include"));
+    }
+
+    public void testIncludeReservedRoles() {
+        final Set<String> allRoleNames = ReservedRolesStore.names();
+        final Set<String> includedRoles = new HashSet<>();
+        includedRoles.add("superuser");
+        IntStream.range(0, randomIntBetween(0, 3)).forEach(ignore -> includedRoles.add(randomFrom(allRoleNames)));
+
+        final var reservedRolesStore = new ReservedRolesStore(includedRoles);
+        for (String roleName : allRoleNames) {
+            final PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
+            if (includedRoles.contains(roleName)) {
+                assertThat(ReservedRolesStore.isReserved(roleName), is(true));
+                assertThat(ReservedRolesStore.names(), hasItem(roleName));
+
+                reservedRolesStore.accept(Set.of(roleName), future);
+                final RoleRetrievalResult roleRetrievalResult = future.actionGet();
+                assertThat(roleRetrievalResult.isSuccess(), is(true));
+                assertThat(roleRetrievalResult.getDescriptors().stream().map(RoleDescriptor::getName).toList(), contains(roleName));
+
+                assertThat(reservedRolesStore.roleDescriptor(roleName), notNullValue());
+            } else {
+                assertThat(ReservedRolesStore.isReserved(roleName), is(false));
+                assertThat(ReservedRolesStore.names(), not(hasItem(roleName)));
+
+                reservedRolesStore.accept(Set.of(roleName), future);
+                final RoleRetrievalResult roleRetrievalResult = future.actionGet();
+                assertThat(roleRetrievalResult.isSuccess(), is(true));
+                assertThat(roleRetrievalResult.getDescriptors(), emptyIterable());
+
+                assertThat(reservedRolesStore.roleDescriptor(roleName), nullValue());
+            }
+        }
+
+        assertThat(
+            reservedRolesStore.roleDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.toUnmodifiableSet()),
+            equalTo(includedRoles)
         );
     }
 

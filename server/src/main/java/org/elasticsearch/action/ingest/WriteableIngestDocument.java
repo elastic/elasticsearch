@@ -83,9 +83,14 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         PARSER.declareObject(constructorArg(), INGEST_DOC_PARSER, new ParseField(DOC_FIELD));
     }
 
+    /**
+     * Builds a writeable ingest document that wraps a copy of the passed-in, non-null ingest document.
+     *
+     * @throws IllegalArgumentException if the passed-in ingest document references itself
+     */
     WriteableIngestDocument(IngestDocument ingestDocument) {
         assert ingestDocument != null;
-        this.ingestDocument = ingestDocument;
+        this.ingestDocument = new IngestDocument(ingestDocument); // internal defensive copy
     }
 
     WriteableIngestDocument(StreamInput in) throws IOException {

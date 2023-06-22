@@ -95,6 +95,7 @@ public class GetSynonymRuleAction extends ActionType<GetSynonymRuleAction.Respon
         private final SynonymRule synonymRule;
 
         public Response(StreamInput in) throws IOException {
+            super(in);
             this.synonymRule = new SynonymRule(in);
         }
 

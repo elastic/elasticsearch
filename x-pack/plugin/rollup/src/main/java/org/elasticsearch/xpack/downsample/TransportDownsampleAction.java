@@ -581,7 +581,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * Copy index settings from the source index to the rollup index. Settings that
      * have already been set in the rollup index will not be overridden.
      */
-    private IndexMetadata.Builder copyIndexMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata rollupIndexMetadata) {
+    static IndexMetadata.Builder copyIndexMetadata(
+        final IndexMetadata sourceIndexMetadata,
+        final IndexMetadata rollupIndexMetadata,
+        final IndexScopedSettings indexScopedSettings
+    ) {
         // Copy index settings from the source index, but do not override the settings
         // that already have been set in the rollup index
         final Settings.Builder targetSettings = Settings.builder().put(rollupIndexMetadata.getSettings());
@@ -684,7 +688,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     createIndexClusterStateUpdateRequest,
                     true,
                     // Copy index metadata from source index to rollup index
-                    (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata)),
+                    (builder, rollupIndexMetadata) -> builder.put(
+                        copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata, indexScopedSettings)
+                    ),
                     delegate.reroute()
                 );
             }

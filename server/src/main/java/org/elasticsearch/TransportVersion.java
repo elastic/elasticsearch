@@ -143,8 +143,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_016 = registerTransportVersion(8_500_016, "492C94FB-AAEA-4C9E-8375-BDB67A398584");
     public static final TransportVersion V_8_500_017 = registerTransportVersion(8_500_017, "0EDCB5BA-049C-443C-8AB1-5FA58FB996FB");
     public static final TransportVersion V_8_500_018 = registerTransportVersion(8_500_018, "827C32CE-33D9-4AC3-A773-8FB768F59EAF");
-    // 8.10.0
     public static final TransportVersion V_8_500_019 = registerTransportVersion(8_500_019, "09bae57f-cab8-423c-aab3-c9778509ffe3");
+    // 8.9.0
     public static final TransportVersion V_8_500_020 = registerTransportVersion(8_500_020, "ECB42C26-B258-42E5-A835-E31AF84A76DE");
     public static final TransportVersion V_8_500_021 = registerTransportVersion(8_500_021, "102e0d84-0c08-402c-a696-935f3a3da873");
 

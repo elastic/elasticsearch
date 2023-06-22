@@ -63,6 +63,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PATTERN;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -423,6 +425,15 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
+    }
+
+    public void testOnlyStatefulResourcesConfigured() {
+        assertThat(registry.getStatelessComponentTemplateConfigs(), anEmptyMap());
+        assertThat(registry.getStatelessIndexTemplateConfigs(), anEmptyMap());
+
+        // stateful resources are configured
+        assertThat(registry.getComponentTemplateConfigs(), not(anEmptyMap()));
+        assertThat(registry.getComposableTemplateConfigs(), not(anEmptyMap()));
     }
 
     // -------------

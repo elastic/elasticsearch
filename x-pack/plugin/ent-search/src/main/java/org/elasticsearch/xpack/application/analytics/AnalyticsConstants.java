@@ -19,6 +19,7 @@ public class AnalyticsConstants {
 
     // Resource config.
     public static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/entsearch/analytics/";
+    public static final String STATELESS_ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/entsearch/analytics/stateless/";
 
     // The variable to be replaced with the template version number
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.entsearch.analytics.template.version";

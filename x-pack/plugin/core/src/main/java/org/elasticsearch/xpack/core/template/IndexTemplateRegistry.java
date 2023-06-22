@@ -114,12 +114,40 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     /**
+     * Retrieves the component templates that should be installed and managed in a stateless deployment.
+     * Component templates are always installed prior to the composable templates designated for a stateless
+     * deployment, so they may be referenced by the index templates.
+     * Also see {@link #getStatelessIndexTemplateConfigs()}
+     *
+     * Defaults to the same component templates as in a regular deployment as indicated by {@link #getComponentTemplateConfigs()}
+     *
+     * @return The configurations for the component templates that should be installed in a stateless deployment.
+     */
+    protected Map<String, ComponentTemplate> getStatelessComponentTemplateConfigs() {
+        return getComponentTemplateConfigs();
+    }
+
+    /**
      * Retrieves return a list of {@link IndexTemplateConfig} that represents
      * the composable templates that should be installed and managed.
      * @return The configurations for the templates that should be installed.
      */
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return Map.of();
+    }
+
+    /**
+     * Retrieves the index templates that should be installed and managed in a stateless deployment.
+     * The index templates are always installed after the component templates, so they may
+     * reference the stateless component templates that will be installed in the stateless deployment.
+     * Also see {@link #getStatelessComponentTemplateConfigs()}
+     *
+     * Defaults to the same index templates as in a regular deployment as indicated by {@link #getComposableTemplateConfigs()}
+     *
+     * @return The configurations for the component templates that should be installed in a stateless deployment.
+     */
+    protected Map<String, ComposableIndexTemplate> getStatelessIndexTemplateConfigs() {
+        return getComposableTemplateConfigs();
     }
 
     /**
@@ -225,6 +253,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addLegacyTemplatesIfMissing(ClusterState state) {
+        if (DiscoveryNode.isStateless(settings)) {
+            // legacy templates are not supported in Stateless
+            return;
+        }
         final List<IndexTemplateConfig> indexTemplates = getLegacyTemplateConfigs();
         for (IndexTemplateConfig newTemplate : indexTemplates) {
             final String templateName = newTemplate.getTemplateName();
@@ -265,7 +297,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addComponentTemplatesIfMissing(ClusterState state) {
-        final Map<String, ComponentTemplate> indexTemplates = getComponentTemplateConfigs();
+        final Map<String, ComponentTemplate> indexTemplates = DiscoveryNode.isStateless(settings)
+            ? getStatelessComponentTemplateConfigs()
+            : getComponentTemplateConfigs();
+
         for (Map.Entry<String, ComponentTemplate> newTemplate : indexTemplates.entrySet()) {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
@@ -338,7 +373,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addComposableTemplatesIfMissing(ClusterState state) {
-        final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplateConfigs();
+        final Map<String, ComposableIndexTemplate> indexTemplates = DiscoveryNode.isStateless(settings)
+            ? getStatelessIndexTemplateConfigs()
+            : getComposableTemplateConfigs();
+
         for (Map.Entry<String, ComposableIndexTemplate> newTemplate : indexTemplates.entrySet()) {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
@@ -500,6 +538,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
+        if (DiscoveryNode.isStateless(settings)) {
+            // ILM is not supported in stateless
+            return;
+        }
         IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
         for (LifecyclePolicy policy : getPolicyConfigs()) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(

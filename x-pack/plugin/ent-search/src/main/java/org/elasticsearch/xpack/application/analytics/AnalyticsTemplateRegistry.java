@@ -11,8 +11,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PATTERN;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.ROOT_RESOURCE_PATH;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.STATELESS_ROOT_RESOURCE_PATH;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.TEMPLATE_VERSION_VARIABLE;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
@@ -56,35 +57,8 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
 
-    static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
-
-    static {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
-            new IndexTemplateConfig(
-                EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
-                ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME + ".json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME,
-                ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME + ".json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            )
-        )) {
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        COMPONENT_TEMPLATES = Map.copyOf(componentTemplates);
-    }
+    final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
+    final Map<String, ComponentTemplate> COMPONENT_TEMPLATES_STATELESS;
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
@@ -102,15 +76,9 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     static final String EVENT_DATA_STREAM_TEMPLATE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default";
     static final String EVENT_DATA_STREAM_TEMPLATE_FILENAME = EVENT_DATA_STREAM_INDEX_PREFIX + "template";
 
-    static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES = parseComposableTemplates(
-        new IndexTemplateConfig(
-            EVENT_DATA_STREAM_TEMPLATE_NAME,
-            ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_TEMPLATE_FILENAME + ".json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Map.of("event_data_stream.index_pattern", EVENT_DATA_STREAM_INDEX_PATTERN)
-        )
-    );
+    final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES_WITH_ILM;
+
+    final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES_STATELESS;
 
     public AnalyticsTemplateRegistry(
         ClusterService clusterService,
@@ -118,7 +86,91 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        super(clusterService.getSettings(), clusterService, threadPool, client, xContentRegistry);
+        if (DiscoveryNode.isStateless(clusterService.getSettings())) {
+            final Map<String, ComponentTemplate> statelessComponentTemplates = new HashMap<>();
+            for (IndexTemplateConfig config : List.of(
+                new IndexTemplateConfig(
+                    EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
+                    STATELESS_ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME + ".json",
+                    REGISTRY_VERSION,
+                    TEMPLATE_VERSION_VARIABLE
+                ),
+                new IndexTemplateConfig(
+                    EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME,
+                    STATELESS_ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME + ".json",
+                    REGISTRY_VERSION,
+                    TEMPLATE_VERSION_VARIABLE
+                )
+            )) {
+                try {
+                    statelessComponentTemplates.put(
+                        config.getTemplateName(),
+                        ComponentTemplate.parse(
+                            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())
+                        )
+                    );
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            COMPONENT_TEMPLATES_STATELESS = Map.copyOf(statelessComponentTemplates);
+
+            COMPOSABLE_INDEX_TEMPLATES_STATELESS = parseComposableTemplates(
+                new IndexTemplateConfig(
+                    EVENT_DATA_STREAM_TEMPLATE_NAME,
+                    STATELESS_ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_TEMPLATE_FILENAME + ".json",
+                    REGISTRY_VERSION,
+                    TEMPLATE_VERSION_VARIABLE,
+                    Map.of("event_data_stream.index_pattern", EVENT_DATA_STREAM_INDEX_PATTERN)
+                )
+            );
+
+            // stateful resources are not parsed
+            COMPONENT_TEMPLATES = Map.of();
+            COMPOSABLE_INDEX_TEMPLATES_WITH_ILM = Map.of();
+        } else {
+            final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
+            for (IndexTemplateConfig config : List.of(
+                new IndexTemplateConfig(
+                    EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
+                    ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME + ".json",
+                    REGISTRY_VERSION,
+                    TEMPLATE_VERSION_VARIABLE
+                ),
+                new IndexTemplateConfig(
+                    EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME,
+                    ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME + ".json",
+                    REGISTRY_VERSION,
+                    TEMPLATE_VERSION_VARIABLE
+                )
+            )) {
+                try {
+                    componentTemplates.put(
+                        config.getTemplateName(),
+                        ComponentTemplate.parse(
+                            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())
+                        )
+                    );
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            COMPONENT_TEMPLATES = Map.copyOf(componentTemplates);
+            COMPOSABLE_INDEX_TEMPLATES_WITH_ILM = parseComposableTemplates(
+                new IndexTemplateConfig(
+                    EVENT_DATA_STREAM_TEMPLATE_NAME,
+                    ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_TEMPLATE_FILENAME + ".json",
+                    REGISTRY_VERSION,
+                    TEMPLATE_VERSION_VARIABLE,
+                    Map.of("event_data_stream.index_pattern", EVENT_DATA_STREAM_INDEX_PATTERN)
+                )
+            );
+
+            // stateless resources are not parsed
+            COMPONENT_TEMPLATES_STATELESS = Map.of();
+            COMPOSABLE_INDEX_TEMPLATES_STATELESS = Map.of();
+        }
     }
 
     @Override
@@ -138,7 +190,17 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return COMPOSABLE_INDEX_TEMPLATES;
+        return COMPOSABLE_INDEX_TEMPLATES_WITH_ILM;
+    }
+
+    @Override
+    protected Map<String, ComponentTemplate> getStatelessComponentTemplateConfigs() {
+        return COMPONENT_TEMPLATES_STATELESS;
+    }
+
+    @Override
+    protected Map<String, ComposableIndexTemplate> getStatelessIndexTemplateConfigs() {
+        return COMPOSABLE_INDEX_TEMPLATES_STATELESS;
     }
 
     @Override

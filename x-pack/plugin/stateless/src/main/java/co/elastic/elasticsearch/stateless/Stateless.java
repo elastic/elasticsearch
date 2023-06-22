@@ -26,6 +26,13 @@ import co.elastic.elasticsearch.stateless.autoscaling.RestGetStatelessAutoscalin
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction;
 import co.elastic.elasticsearch.stateless.autoscaling.action.TransportGetStatelessAutoscalingMetricsAction;
 import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadSampler;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.PublishNodeIngestLoadAction;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishNodeIngestLoadMetric;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
@@ -187,7 +194,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
-            new ActionHandler<>(GetStatelessAutoscalingMetricsAction.INSTANCE, TransportGetStatelessAutoscalingMetricsAction.class)
+            new ActionHandler<>(GetStatelessAutoscalingMetricsAction.INSTANCE, TransportGetStatelessAutoscalingMetricsAction.class),
+            new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class)
         );
     }
 
@@ -279,13 +287,31 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             this.autoscalingDiskSizeMetricsService,
             new AutoscalingDiskSizeMetricsService(clusterService.getClusterSettings(), threadPool)
         );
+
+        var ingestLoadPublisher = new IngestLoadPublisher(client, clusterService, threadPool);
+        var ingestLoadProbe = new IngestLoadProbe(threadPool);
+        var ingestLoadSampler = IngestLoadSampler.create(
+            threadPool,
+            ingestLoadPublisher,
+            ingestLoadProbe::getIngestionLoad,
+            hasIndexRole,
+            settings,
+            clusterService
+        );
+
+        var memoryMetricsService = new MemoryMetricsService();
+        var ingestMetricService = new IngestMetricsService(settings, threadPool::relativeTimeInNanos, memoryMetricsService);
+        clusterService.addListener(ingestMetricService);
         return List.of(
             objectStoreService,
             translogReplicator,
             sharedBlobCache,
             refreshThrottlingService,
             shardSizeStatsReader,
-            autoscalingDiskSizeMetricsService
+            autoscalingDiskSizeMetricsService,
+            ingestMetricService,
+            memoryMetricsService,
+            ingestLoadSampler
         );
     }
 
@@ -320,7 +346,12 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
-            StoreHeartbeatService.MAX_MISSED_HEARTBEATS
+            StoreHeartbeatService.MAX_MISSED_HEARTBEATS,
+            IngestLoadSampler.SAMPLING_FREQUENCY_SETTING,
+            IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
+            IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
+            IngestMetricsService.ACCURATE_LOAD_WINDOW,
+            IngestMetricsService.INACCURATE_LOAD_WINDOW
         );
     }
 

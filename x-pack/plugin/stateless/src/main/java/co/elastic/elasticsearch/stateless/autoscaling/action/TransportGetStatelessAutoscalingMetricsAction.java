@@ -86,10 +86,25 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
             new Response(
                 new StatelessAutoscalingMetrics(
                     Map.of(
-                        "index-tier",
-                        new TierMetrics(Map.of("indexing_load", array(exact(4), exact(10), exact(20)), "min_memory_in_bytes", exact(1000))),
-                        "search-tier",
-                        new TierMetrics(Map.of("interactive_load", exact(10), "non_interactive_load", exact(0)))
+                        "index",
+                        new TierMetrics(
+                            Map.ofEntries(
+                                Map.entry("node_memory_in_bytes", exact(4096)),
+                                Map.entry("total_memory_in_bytes", exact(8192)),
+                                Map.entry("indexing_load", array(exact(4), exact(10), exact(20)))
+                            )
+                        ),
+                        "search",
+                        new TierMetrics(
+                            Map.ofEntries(
+                                Map.entry("node_memory_in_bytes", exact(4096)),
+                                Map.entry("total_memory_in_bytes", exact(8192)),
+                                Map.entry("max_shard_copies", exact(1)),
+                                Map.entry("max_interactive_data_size_in_bytes", exact(100)),
+                                Map.entry("total_interactive_data_size_in_bytes", exact(1000)),
+                                Map.entry("total_data_size_in_bytes", exact(10000))
+                            )
+                        )
                     )
                 )
             )

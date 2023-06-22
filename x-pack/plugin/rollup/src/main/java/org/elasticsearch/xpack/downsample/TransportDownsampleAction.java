@@ -105,7 +105,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
     );
 
-    private static final Set<String> OVERRIDE_SETTINGS = Set.of(DataTier.TIER_PREFERENCE);
+    private static final Set<String> OVERRIDE_SETTINGS = Set.of(DataTier.TIER_PREFERENCE_SETTING.getKey());
 
     /**
      * This is the cluster state task executor for cluster state update actions.

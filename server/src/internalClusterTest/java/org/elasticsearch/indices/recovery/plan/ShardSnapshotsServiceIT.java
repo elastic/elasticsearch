@@ -241,9 +241,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             );
 
             assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutRepository(failingRepo.v1())
+                clusterAdmin().preparePutRepository(failingRepo.v1())
                     .setType(FailingRepoPlugin.TYPE)
                     .setVerify(false)
                     .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
@@ -319,9 +317,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
     private void createRepository(String repositoryName, String type, Path location, boolean recoveryEnabledRepo) {
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(repositoryName)
+            clusterAdmin().preparePutRepository(repositoryName)
                 .setType(type)
                 .setVerify(false)
                 .setSettings(

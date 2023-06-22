@@ -29,8 +29,7 @@ public class TransportPutQueryRulesetAction extends HandledTransportAction<PutQu
     @Override
     protected void doExecute(Task task, PutQueryRulesetAction.Request request, ActionListener<PutQueryRulesetAction.Response> listener) {
         QueryRuleset queryRuleset = request.queryRuleset();
-        boolean create = request.create();
-        systemIndexService.putQueryRuleset(queryRuleset, create, listener.map(r -> new PutQueryRulesetAction.Response(r.getResult())));
+        systemIndexService.putQueryRuleset(queryRuleset, listener.map(r -> new PutQueryRulesetAction.Response(r.getResult())));
 
     }
 }

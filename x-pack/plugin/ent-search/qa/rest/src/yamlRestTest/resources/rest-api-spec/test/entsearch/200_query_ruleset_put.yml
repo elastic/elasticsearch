@@ -1,4 +1,8 @@
 
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
 
 ---
 'Create Query Ruleset':
@@ -33,11 +37,39 @@
 
   - match: { result: 'created' }
 
+  - do:
+      query_ruleset.get:
+        ruleset_id: test-ruleset
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              value: elastic
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+        - rule_id: query-rule-id2
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              value: kibana
+          actions:
+            docs:
+              - '_index': 'test-index1'
+                '_id': 'id3'
+              - '_index': 'test-index2'
+                '_id': 'id4'
+
 ---
 'Create Query Ruleset - Resource already exists':
   - do:
       query_ruleset.put:
-        create: true
         ruleset_id: test-query-ruleset-recreating
         body:
           ruleset_id: 'test-query-ruleset-recreating'
@@ -55,9 +87,7 @@
   - match: { result: 'created' }
 
   - do:
-      catch: conflict
       query_ruleset.put:
-        create: true
         ruleset_id: test-query-ruleset-recreating
         body:
           ruleset_id: 'test-query-ruleset-recreating'
@@ -72,7 +102,7 @@
               ids:
                 - 'id2'
 
-  - match: { error.type: 'version_conflict_engine_exception' }
+  - match: { result: 'updated' }
 
 ---
 'Create Query Ruleset - Insufficient privilege':
@@ -84,7 +114,6 @@
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       query_ruleset.put:
         ruleset_id: forbidden-query-ruleset
-        create: true
         body:
           ruleset_id: 'forbidden-query-ruleset'
           rules:

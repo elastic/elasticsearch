@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -710,7 +711,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     private ActionListener<Void> connectionListener(final CountDownLatch latch) {
-        return ActionListener.wrap(x -> latch.countDown(), x -> fail());
+        return ActionTestUtils.assertNoFailureListener(x -> latch.countDown());
     }
 
     public void testCollectNodes() throws InterruptedException, IOException {

@@ -51,6 +51,9 @@ of datasets and configurations that we use for our nightly benchmarks.
 [discrete]
 include::search-speed.asciidoc[tag=warm-fs-cache]
 
+The following file extensions are used for the approximate kNN search:
+"vec" (for vector values), "vex" (for HNSW graph), "vem" (for metadata).
+
 [discrete]
 === Reduce vector dimensionality
 

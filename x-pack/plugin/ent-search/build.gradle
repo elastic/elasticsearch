@@ -13,6 +13,7 @@ archivesBaseName = 'x-pack-ent-search'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  implementation project(xpackModule('search-business-rules'))
   api project(':modules:lang-mustache')
 
   // JSON Schema dependencies
@@ -31,7 +32,7 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
 
-  module ':modules:search-business-rules'
+//  module ':modules:search-business-rules'
 }
 
 tasks.named("dependencyLicenses").configure {

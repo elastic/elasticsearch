@@ -19,7 +19,6 @@ module org.elasticsearch.application {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
-    requires org.elasticsearch.xpack.searchbusinessrules;
 
     exports org.elasticsearch.xpack.application;
     exports org.elasticsearch.xpack.application.analytics;
@@ -28,7 +27,6 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.analytics.event.parser.field;
     exports org.elasticsearch.xpack.application.analytics.event.parser.event;
     exports org.elasticsearch.xpack.application.analytics.ingest;
-
     exports org.elasticsearch.xpack.application.search;
     exports org.elasticsearch.xpack.application.search.action;
     exports org.elasticsearch.xpack.application.rules;

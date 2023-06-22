@@ -415,13 +415,7 @@ public class RestNodesAction extends AbstractCatAction {
             );
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
-            final String roles;
-            if (node.getRoles().isEmpty()) {
-                roles = "-";
-            } else {
-                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
-            }
-            table.addCell(roles);
+            table.addCell(getRoleAbbreviationString(node));
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
             table.addCell(node.getName());
 
@@ -528,6 +522,14 @@ public class RestNodesAction extends AbstractCatAction {
         }
 
         return table;
+    }
+
+    public static String getRoleAbbreviationString(DiscoveryNode node) {
+        if (node.getRoles().isEmpty()) {
+            return "-";
+        } else {
+            return node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
+        }
     }
 
     /**

@@ -25,9 +25,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 
 public class CompositeCollector implements Collector {
-
-    // TODO how do we deal with profiling?
-
     private final Collector aggsCollector;
     private final Collector topDocsCollector;
     private final int terminateAfter;
@@ -62,12 +59,35 @@ public class CompositeCollector implements Collector {
         return terminatedAfter;
     }
 
+    private boolean shouldCollectTopDocs(int doc, Scorable scorer, Bits postFilterBits) throws IOException {
+        if (minScore == null || scorer.score() >= minScore) {
+            if (postFilterBits == null || postFilterBits.get(doc)) {
+                if (terminateAfter > 0 && ++numCollected > terminateAfter) {
+                    terminatedAfter = true;
+                    throw new CollectionTerminatedException();
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Bits getPostFilterBits(LeafReaderContext context) throws IOException {
+        if (postFilterWeight == null) {
+            return null;
+        }
+        final ScorerSupplier filterScorerSupplier = postFilterWeight.scorerSupplier(context);
+        return Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
+    }
+
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
         if (terminateAfter > 0 && numCollected >= terminateAfter) {
             terminatedAfter = true;
             throw new CollectionTerminatedException();
         }
+        Bits postFilterBits = getPostFilterBits(context);
+
         if (aggsCollector == null) {
             LeafCollector leafCollector;
             try {
@@ -81,7 +101,6 @@ public class CompositeCollector implements Collector {
                 leafCollector = null;
             }
             final LeafCollector topDocsLeafCollector = leafCollector;
-            Bits postFilterBits = getPostFilterBits(context);
             return new LeafCollector() {
                 LeafCollector tdlc = topDocsLeafCollector;
                 Scorable scorer;
@@ -115,28 +134,18 @@ public class CompositeCollector implements Collector {
 
                 @Override
                 public void collect(int doc) throws IOException {
-                    /*                    if (terminateAfter > 0 && numCollected >= terminateAfter) {
-                        terminatedAfter = true;
-                        throw new CollectionTerminatedException();
-                    }*/
-                    if (minScore == null || scorer.score() >= minScore) {
-                        if (postFilterBits == null || postFilterBits.get(doc)) {
-                            if (terminateAfter > 0 && ++numCollected > terminateAfter) {
-                                terminatedAfter = true;
-                                throw new CollectionTerminatedException();
-                            }
-                            if (tdlc != null) {
-                                try {
-                                    tdlc.collect(doc);
-                                } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-                                    // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
-                                    // collector).
-                                    // The reason is only to set the early terminated flag to the QueryResult like some tests expect.
-                                    if (terminateAfter == 0) {
-                                        throw e;
-                                    }
-                                    tdlc = null;
+                    if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
+                        if (tdlc != null) {
+                            try {
+                                tdlc.collect(doc);
+                            } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                                // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
+                                // collector).
+                                // The reason is only to set the early terminated flag to the QueryResult like some tests expect.
+                                if (terminateAfter == 0) {
+                                    throw e;
                                 }
+                                tdlc = null;
                             }
                         }
                     }
@@ -152,7 +161,6 @@ public class CompositeCollector implements Collector {
             leafCollector = null;
         }
 
-        Bits postFilterBits = getPostFilterBits(context);
         final LeafCollector topDocsLeafCollector = leafCollector;
         final LeafCollector aggsLeafCollector = aggsCollector.getLeafCollector(context);
         return new LeafCollector() {
@@ -182,26 +190,15 @@ public class CompositeCollector implements Collector {
 
             @Override
             public void collect(int doc) throws IOException {
-                /*if (terminateAfter > 0 && numCollected >= terminateAfter) {
-                    terminatedAfter = true;
-                    throw new CollectionTerminatedException();
-                }*/
-                if (minScore == null || scorer.score() >= minScore) {
-                    if (postFilterBits == null || postFilterBits.get(doc)) {
-                        if (terminateAfter > 0 && ++numCollected > terminateAfter) {
-                            terminatedAfter = true;
-                            throw new CollectionTerminatedException();
+                if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
+                    if (tdlc != null) {
+                        try {
+                            tdlc.collect(doc);
+                        } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                            // top docs collector does not need this segment, but the aggs collector does.
+                            // Don't collect further from top docs, but keep on counting so aggs can be terminated after.
+                            tdlc = null;
                         }
-                        if (tdlc != null) {
-                            try {
-                                tdlc.collect(doc);
-                            } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-                                // top docs collector does not need this segment, but the aggs collector does.
-                                // Don't collect further from top docs, but keep on counting so aggs can be terminated after.
-                                tdlc = null;
-                            }
-                        }
-
                     }
                 }
                 if (minScore == null || scorer.score() >= minScore) {
@@ -249,13 +246,5 @@ public class CompositeCollector implements Collector {
             scoreMode = scoreMode == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
         }
         return scoreMode;
-    }
-
-    private Bits getPostFilterBits(LeafReaderContext context) throws IOException {
-        if (postFilterWeight == null) {
-            return null;
-        }
-        final ScorerSupplier filterScorerSupplier = postFilterWeight.scorerSupplier(context);
-        return Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
     }
 }

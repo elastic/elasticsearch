@@ -350,7 +350,7 @@ PUT metrics_index
   }
 }
 
-PUT metrics_index/_doc/1
+PUT metrics_index/_doc/1?refresh
 {
   "network.name" : "net-1",
   "latency_histo" : {
@@ -359,7 +359,7 @@ PUT metrics_index/_doc/1
    }
 }
 
-PUT metrics_index/_doc/2
+PUT metrics_index/_doc/2?refresh
 {
   "network.name" : "net-2",
   "latency_histo" : {
@@ -389,30 +389,31 @@ return the following output:
 --------------------------------------------------
 {
   ...
-    "aggregations": {
+  "aggregations": {
     "latency_buckets": {
       "buckets": [
         {
-          "key": 0,
-          "doc_count": 2
+          "key": 0.0,
+          "doc_count": 18
         },
         {
-          "key": 5,
-          "doc_count": 2
+          "key": 5.0,
+          "doc_count": 48
         },
         {
-          "key": 10,
-          "doc_count": 2
+          "key": 10.0,
+          "doc_count": 25
         },
         {
-          "key": 15,
-          "doc_count": 1
+          "key": 15.0,
+          "doc_count": 6
         }
       ]
     }
-...
+  }
+}
 --------------------------------------------------
-// TESTRESPONSE[skip:test not setup]
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 [IMPORTANT]
 ========

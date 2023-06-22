@@ -52,6 +52,15 @@ public class RestPutQueryRulesetActionTests extends AbstractRestEnterpriseSearch
         );
     }
 
+    public void testInvalidRequestWithNonCompliantLicense() throws Exception {
+        checkLicenseForRequest(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.PUT)
+                .withParams(Map.of("ruleset_id", "ruleset-id"))
+                .withContent(new BytesArray("{}"), XContentType.JSON)
+                .build()
+        );
+    }
+
     @Override
     protected EnterpriseSearchBaseRestHandler getRestAction(XPackLicenseState licenseState) {
         return new RestPutQueryRulesetAction(licenseState);

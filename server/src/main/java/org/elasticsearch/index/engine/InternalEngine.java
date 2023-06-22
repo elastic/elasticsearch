@@ -2848,6 +2848,9 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * Allows InternalEngine extenders to return custom key-value pairs which will be included in the Lucene commit user-data.
+     */
     protected Map<String, String> getCommitExtraUserData() {
         return Collections.emptyMap();
     }

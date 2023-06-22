@@ -9,11 +9,9 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,7 +26,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -43,8 +40,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final Reindexer reindexer;
 
     protected final Client client;
-
-    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportReindexAction(
@@ -91,36 +86,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
-        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-
-        if (remoteClusterService.isCrossClusterSearchEnabled()) {
-            final SearchRequest searchRequest = request.getSearchRequest();
-            var clustersToIndices = remoteClusterService.groupIndices(searchRequest.indicesOptions(), searchRequest.indices());
-            var isSkipUnavailable = clustersToIndices.keySet()
-                .stream()
-                .filter(remoteClusterService.getRegisteredRemoteClusterNames()::contains)
-                .anyMatch(remoteClusterService::isSkipUnavailable);
-
-            // Override SearchRequest.indicesOptions with respect to 'cluster.remote.<cluster_name>.skip_unavailable' setting
-            var oldIdxOps = request.getSearchRequest().indicesOptions();
-            var newIdxOps = IndicesOptions.fromOptions(
-                oldIdxOps.ignoreUnavailable() || isSkipUnavailable,
-                oldIdxOps.allowNoIndices(),
-                oldIdxOps.expandWildcardsOpen(),
-                oldIdxOps.expandWildcardsClosed(),
-                oldIdxOps.expandWildcardsHidden(),
-                oldIdxOps.allowAliasesToMultipleIndices(),
-                oldIdxOps.forbidClosedIndices(),
-                oldIdxOps.ignoreAliases(),
-                oldIdxOps.ignoreThrottled()
-            );
-            request.getSearchRequest().indicesOptions(newIdxOps);
-        }
-
         validate(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         reindexer.initTask(

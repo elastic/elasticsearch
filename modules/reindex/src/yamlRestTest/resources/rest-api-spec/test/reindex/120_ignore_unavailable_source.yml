@@ -1,0 +1,32 @@
+---
+"Fail if source index is unavailable":
+  - do:
+      catch: missing
+      reindex:
+        body:
+          source:
+            index: fake-index
+          dest:
+            index: target
+  - match: { error.type: "index_not_found_exception" }
+
+---
+"Skip unavailable source index":
+  - skip:
+      version: " - 8.10.0"
+      reason: "ignore_unavailable query parameter was added in 8.10.0"
+  - do:
+      reindex:
+        ignore_unavailable: true
+        body:
+          source:
+            index: fake-index
+          dest:
+            index: target
+  - match: {created: 0}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 0}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }

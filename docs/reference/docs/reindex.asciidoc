@@ -489,6 +489,23 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `true`.
 
+`ignore_unavailable`::
+(Optional, Boolean) If false, the request returns an error if it targets a missing or closed index. Defaults to false.
+NOTE:: Should be set to `true` to perform reindexing from remote when index name is prefixed with remote cluster alias.
+
+[source,console]
+--------------------------------------------------
+POST _reindex?ignore_unavailable=true
+{
+  "source": {
+    "index": "remote_cluster_alias:source"
+  },
+  "dest": {
+    "index": "dest",
+  }
+}
+--------------------------------------------------
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]

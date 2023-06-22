@@ -9,6 +9,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -67,6 +68,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
             internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
         }
+
+        // Note that ReindexRequest is created with default IndicesOptions
+        // respect other indices options (like ignore_unavailable) which can come via request parameters
+        internal.getSearchRequest().indicesOptions(IndicesOptions.fromRequest(request, internal.getSearchRequest().indicesOptions()));
 
         return internal;
     }

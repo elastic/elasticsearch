@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -28,7 +29,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
 public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
@@ -65,7 +69,6 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         settings.putNull(remoteClusterSettingPrefix + "proxy_address")
             .put(remoteClusterSettingPrefix + "mode", "sniff")
             .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses))
-            .put(remoteClusterSettingPrefix + "skip_unavailable", true)
             .build();
         client(LOCAL_CLUSTER).admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
 
@@ -92,22 +95,69 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         return numDocs;
     }
 
-    public void testReindexFromRemote() throws Exception {
+    public void testReindexFromRemote_IndexExists_success() throws Exception {
         assertAcked(client(REMOTE_CLUSTER).admin().indices().prepareCreate("source-index-001"));
         final int docsNumber = indexDocs(client(REMOTE_CLUSTER), "source-index-001");
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "source-index-001";
         new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(sourceIndexInRemote)
             .destination("desc-index-001")
+            .ignoreUnavailable(true)
             .get();
 
         assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
-            SearchResponse resp_dest = client(LOCAL_CLUSTER).prepareSearch("desc-index-001")
+            SearchResponse resp = client(LOCAL_CLUSTER).prepareSearch("desc-index-001")
                 .setQuery(new MatchAllQueryBuilder())
                 .setSize(1000)
                 .get();
-            final TotalHits totalHits = resp_dest.getHits().getTotalHits();
+            final TotalHits totalHits = resp.getHits().getTotalHits();
             return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
         }));
+    }
+
+    public void testReindexFromRemote_IndexNotExists_success() throws Exception {
+
+        BulkByScrollResponse response = new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(
+            REMOTE_CLUSTER + ":" + "no-such-source-index-001"
+        ).destination("desc-index-001").ignoreUnavailable(true).get();
+
+        // assert that nothing was copied over
+        assertThat(response.getTotal(), equalTo(0L));
+        assertThat(response.getUpdated(), equalTo(0L));
+        assertThat(response.getCreated(), equalTo(0L));
+        assertThat(response.getDeleted(), equalTo(0L));
+
+        // assert that local index was not created either
+        final IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000).get()
+        );
+
+        assertThat(e, hasToString(containsString("no such index [%s]".formatted("desc-index-001"))));
+    }
+
+    public void testReindexFromRemote_CrossClusterCallsNotSupportedError() throws Exception {
+        assertAcked(client(REMOTE_CLUSTER).admin().indices().prepareCreate("source-index-001"));
+        final int docsNumber = indexDocs(client(REMOTE_CLUSTER), "source-index-001");
+
+        final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "source-index-001";
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(sourceIndexInRemote)
+                .destination("desc-index-001")
+                .ignoreUnavailable(false)
+                .get()
+        );
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: [%s]".formatted(
+                        sourceIndexInRemote
+                    )
+                )
+            )
+        );
     }
 }

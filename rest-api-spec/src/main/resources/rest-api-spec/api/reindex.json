@@ -57,6 +57,11 @@
       "max_docs":{
         "type":"number",
         "description":"Maximum number of documents to process (default: all documents)"
+      },
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       }
     },
     "body":{

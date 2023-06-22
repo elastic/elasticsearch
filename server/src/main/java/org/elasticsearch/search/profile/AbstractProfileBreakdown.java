@@ -46,7 +46,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * @param timingType the timing type to create a new {@link Timer} for
      * @return a new {@link Timer} instance
      */
-    public Timer getNewTimer(T timingType) {
+    public synchronized Timer getNewTimer(T timingType) {
         Timer timer = new Timer();
         timings.get(timingType.ordinal()).add(timer);
         return timer;
@@ -57,7 +57,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * If multiple timers where requested from different locations or threads from this profile breakdown,
      * the approximation will contain the sum of each timers approximate time and count.
      */
-    public final Map<String, Long> toBreakdownMap() {
+    public final synchronized Map<String, Long> toBreakdownMap() {
         Map<String, Long> map = Maps.newMapWithExpectedSize(timings.keySet().size() * 2);
         for (T timingType : this.timingTypes) {
             map.put(

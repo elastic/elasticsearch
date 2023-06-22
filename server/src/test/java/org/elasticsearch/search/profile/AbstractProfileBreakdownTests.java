@@ -11,6 +11,8 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -96,6 +98,37 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
                     + firstTimerThree.getApproximateTiming()
             )
         );
+    }
+
+    public void testMultiThreaded() throws BrokenBarrierException, InterruptedException {
+        TestProfileBreakdown testBreakdown = new TestProfileBreakdown();
+        Thread[] threads = new Thread[2000];
+        final CountDownLatch latch = new CountDownLatch(1);
+        int startsPerThread = between(1, 5);
+        for (int t = 0; t < threads.length; t++) {
+            final TestTimingTypes timingType = randomFrom(TestTimingTypes.values());
+            threads[t] = new Thread(() -> {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                Timer timer = testBreakdown.getNewTimer(timingType);
+                for (int runs = 0; runs < startsPerThread; runs++) {
+                    timer.start();
+                    timer.stop();
+                }
+            });
+            threads[t].start();
+        }
+        latch.countDown();
+        for (Thread t : threads) {
+            t.join();
+        }
+        Map<String, Long> breakdownMap = testBreakdown.toBreakdownMap();
+        long totalCounter = breakdownMap.get(TestTimingTypes.ONE + "_count") + breakdownMap.get(TestTimingTypes.TWO + "_count")
+            + breakdownMap.get(TestTimingTypes.THREE + "_count");
+        assertEquals(threads.length * startsPerThread, totalCounter);
     }
 
     private void runTimerNTimes(Timer t, int n) {

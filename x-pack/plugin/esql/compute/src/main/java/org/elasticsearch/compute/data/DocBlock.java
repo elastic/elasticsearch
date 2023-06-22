@@ -107,6 +107,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
+        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
+            throw new UnsupportedOperationException("DocBlock doesn't support appendBlockAndMerge");
+        }
+
+        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             throw new UnsupportedOperationException("doc blocks only contain one value per position");
         }

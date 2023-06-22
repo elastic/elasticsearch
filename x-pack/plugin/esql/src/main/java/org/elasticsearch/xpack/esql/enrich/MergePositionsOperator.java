@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -38,7 +39,6 @@ import java.util.List;
  * |  null      | null       |
  * |  null      | 2023       |
  */
-// TODO: support multi positions and deduplicate
 final class MergePositionsOperator implements Operator {
     private final List<Page> pages = new ArrayList<>();
     private boolean finished = false;
@@ -86,8 +86,8 @@ final class MergePositionsOperator implements Operator {
         Page page = pages.get(0);
         pages.clear();
 
-        IntVector positions = ((IntBlock) page.getBlock(0)).asVector();
-        int[] indices = sortedIndicesByPositions(positions);
+        IntVector positionBlock = ((IntBlock) page.getBlock(0)).asVector();
+        int[] indices = sortedIndicesByPositions(positionBlock);
         final Block[] inputs = new Block[mergingChannels.length];
         final Block.Builder[] outputs = new Block.Builder[mergingChannels.length];
         for (int i = 0; i < inputs.length; i++) {
@@ -95,29 +95,30 @@ final class MergePositionsOperator implements Operator {
             outputs[i] = inputs[i].elementType().newBlockBuilder(inputs[i].getPositionCount());
         }
         int addedPositions = 0;
-        int lastPosition = -1;
-        for (int index : indices) {
-            int position = positions.getInt(index);
-            if (lastPosition < position) {
-                for (int i = addedPositions; i < position; i++) {
-                    for (Block.Builder builder : outputs) {
-                        builder.appendNull();
+        int lastIndex = 0;
+        int lastPosition = positionBlock.getInt(indices[0]);
+        for (int i = 1; i <= indices.length; i++) {
+            int position = i < indices.length ? positionBlock.getInt(indices[i]) : positionCount;
+            if (position != lastPosition) {
+                assert lastPosition < position : "positionBlock isn't sorted; last=" + lastPosition + ",current=" + position;
+                while (addedPositions < lastPosition) {
+                    for (Block.Builder output : outputs) {
+                        output.appendNull();
                     }
                     addedPositions++;
                 }
+                int[] subIndices = ArrayUtil.copyOfSubArray(indices, lastIndex, i);
                 for (int c = 0; c < outputs.length; c++) {
-                    outputs[c].copyFrom(inputs[c], index, index + 1);
+                    outputs[c].appendAllValuesToCurrentPosition(inputs[c].filter(subIndices));
                 }
                 addedPositions++;
-            } else {
-                // TODO: combine multiple positions into a single position
-                throw new UnsupportedOperationException("Multiple matches are not supported yet ");
+                lastPosition = position;
+                lastIndex = i;
             }
-            lastPosition = position;
         }
-        for (int i = addedPositions; i < positionCount; i++) {
-            for (Block.Builder builder : outputs) {
-                builder.appendNull();
+        while (addedPositions < positionCount) {
+            for (Block.Builder output : outputs) {
+                output.appendNull();
             }
             addedPositions++;
         }

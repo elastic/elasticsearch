@@ -170,6 +170,11 @@ public final class BlockUtils {
                 }
 
                 @Override
+                public Block.Builder appendAllValuesToCurrentPosition(Block block) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
                 public Block build() {
                     return constantNullBlock(size);
                 }

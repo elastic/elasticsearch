@@ -100,6 +100,66 @@ $if(BytesRef)$
     }
 $endif$
 
+    /**
+     * Appends the all values of the given block into a the current position
+     * in this builder.
+     */
+    @Override
+    public $Type$BlockBuilder appendAllValuesToCurrentPosition(Block block) {
+        if (block.areAllValuesNull()) {
+            return appendNull();
+        }
+        return appendAllValuesToCurrentPosition(($Type$Block) block);
+    }
+
+    /**
+     * Appends the all values of the given block into a the current position
+     * in this builder.
+     */
+    @Override
+    public $Type$BlockBuilder appendAllValuesToCurrentPosition($Type$Block block) {
+        final int positionCount = block.getPositionCount();
+        if (positionCount == 0) {
+            return appendNull();
+        }
+        final int totalValueCount = block.getTotalValueCount();
+        if (totalValueCount == 0) {
+            return appendNull();
+        }
+        if (totalValueCount > 1) {
+            beginPositionEntry();
+        }
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        final $Type$Vector vector = block.asVector();
+        if (vector != null) {
+            for (int p = 0; p < positionCount; p++) {
+$if(BytesRef)$
+                appendBytesRef(vector.getBytesRef(p, scratch));
+$else$
+                append$Type$(vector.get$Type$(p));
+$endif$
+            }
+        } else {
+            for (int p = 0; p < positionCount; p++) {
+                int count = block.getValueCount(p);
+                int i = block.getFirstValueIndex(p);
+                for (int v = 0; v < count; v++) {
+$if(BytesRef)$
+                    appendBytesRef(block.getBytesRef(i++, scratch));
+$else$
+                    append$Type$(block.get$Type$(i++));
+$endif$
+                }
+            }
+        }
+        if (totalValueCount > 1) {
+            endPositionEntry();
+        }
+        return this;
+    }
+
     @Override
     public $Type$BlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {

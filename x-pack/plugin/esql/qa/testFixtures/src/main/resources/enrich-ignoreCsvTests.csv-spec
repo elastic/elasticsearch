@@ -125,8 +125,7 @@ emp_no:integer | x:keyword | lang:keyword | language:keyword
 ;
 
 
-// UnsupportedOperationException - Multiple matches are not supported yet
-multivalue-Ignore
+multivalue
 row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name;  
 
 a:keyword   | a_lang:keyword

@@ -59,6 +59,55 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         return this;
     }
 
+    /**
+     * Appends the all values of the given block into a the current position
+     * in this builder.
+     */
+    @Override
+    public IntBlockBuilder appendAllValuesToCurrentPosition(Block block) {
+        if (block.areAllValuesNull()) {
+            return appendNull();
+        }
+        return appendAllValuesToCurrentPosition((IntBlock) block);
+    }
+
+    /**
+     * Appends the all values of the given block into a the current position
+     * in this builder.
+     */
+    @Override
+    public IntBlockBuilder appendAllValuesToCurrentPosition(IntBlock block) {
+        final int positionCount = block.getPositionCount();
+        if (positionCount == 0) {
+            return appendNull();
+        }
+        final int totalValueCount = block.getTotalValueCount();
+        if (totalValueCount == 0) {
+            return appendNull();
+        }
+        if (totalValueCount > 1) {
+            beginPositionEntry();
+        }
+        final IntVector vector = block.asVector();
+        if (vector != null) {
+            for (int p = 0; p < positionCount; p++) {
+                appendInt(vector.getInt(p));
+            }
+        } else {
+            for (int p = 0; p < positionCount; p++) {
+                int count = block.getValueCount(p);
+                int i = block.getFirstValueIndex(p);
+                for (int v = 0; v < count; v++) {
+                    appendInt(block.getInt(i++));
+                }
+            }
+        }
+        if (totalValueCount > 1) {
+            endPositionEntry();
+        }
+        return this;
+    }
+
     @Override
     public IntBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {

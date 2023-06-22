@@ -183,6 +183,18 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
+        /**
+         * Appends the all values of the given block into a the current position
+         * in this builder.
+         */
+        Builder appendAllValuesToCurrentPosition(Block block);
+
+        /**
+         * Appends the all values of the given block into a the current position
+         * in this builder.
+         */
+        Builder appendAllValuesToCurrentPosition(BooleanBlock block);
+
         @Override
         BooleanBlock build();
     }

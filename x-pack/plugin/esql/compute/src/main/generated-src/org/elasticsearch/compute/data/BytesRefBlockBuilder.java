@@ -72,6 +72,56 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         values.append(NULL_VALUE);
     }
 
+    /**
+     * Appends the all values of the given block into a the current position
+     * in this builder.
+     */
+    @Override
+    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(Block block) {
+        if (block.areAllValuesNull()) {
+            return appendNull();
+        }
+        return appendAllValuesToCurrentPosition((BytesRefBlock) block);
+    }
+
+    /**
+     * Appends the all values of the given block into a the current position
+     * in this builder.
+     */
+    @Override
+    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(BytesRefBlock block) {
+        final int positionCount = block.getPositionCount();
+        if (positionCount == 0) {
+            return appendNull();
+        }
+        final int totalValueCount = block.getTotalValueCount();
+        if (totalValueCount == 0) {
+            return appendNull();
+        }
+        if (totalValueCount > 1) {
+            beginPositionEntry();
+        }
+        BytesRef scratch = new BytesRef();
+        final BytesRefVector vector = block.asVector();
+        if (vector != null) {
+            for (int p = 0; p < positionCount; p++) {
+                appendBytesRef(vector.getBytesRef(p, scratch));
+            }
+        } else {
+            for (int p = 0; p < positionCount; p++) {
+                int count = block.getValueCount(p);
+                int i = block.getFirstValueIndex(p);
+                for (int v = 0; v < count; v++) {
+                    appendBytesRef(block.getBytesRef(i++, scratch));
+                }
+            }
+        }
+        if (totalValueCount > 1) {
+            endPositionEntry();
+        }
+        return this;
+    }
+
     @Override
     public BytesRefBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {

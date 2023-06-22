@@ -141,6 +141,11 @@ public final class ConstantNullBlock extends AbstractBlock {
         }
 
         @Override
+        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
+            return appendNull();
+        }
+
+        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             throw new UnsupportedOperationException();
         }

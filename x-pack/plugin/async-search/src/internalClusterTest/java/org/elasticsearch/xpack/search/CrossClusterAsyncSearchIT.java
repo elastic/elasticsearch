@@ -177,7 +177,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             // check async search status before allowing query to continue but after cancellation
             AsyncSearchResponse searchResponseAfterCancellation = getAsyncSearch(response.getId());
             assertTrue(searchResponseAfterCancellation.isPartial());
-            assertFalse(searchResponseAfterCancellation.isRunning());  // FIXME - diverges from status response - question out to Luca
+            assertTrue(searchResponseAfterCancellation.isRunning());
             assertFalse(searchResponseAfterCancellation.getSearchResponse().isTimedOut());
             assertThat(searchResponseAfterCancellation.getSearchResponse().getClusters().getTotal(), equalTo(2));
             assertThat(searchResponseAfterCancellation.getSearchResponse().getFailedShards(), equalTo(0));

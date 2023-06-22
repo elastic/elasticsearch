@@ -19,7 +19,8 @@ package co.elastic.elasticsearch.stateless.autoscaling.model;
 
 public enum MetricQuality {
     EXACT((byte) 0, "exact"),
-    MINIMUM((byte) 1, "minimum");
+    MINIMUM((byte) 1, "minimum"),
+    MISSING((byte) 2, "missing");
 
     private final byte id;
     private final String label;
@@ -41,6 +42,7 @@ public enum MetricQuality {
         return switch (id) {
             case 0 -> EXACT;
             case 1 -> MINIMUM;
+            case 2 -> MISSING;
             default -> throw new IllegalStateException("No metric quality for [" + id + "]");
         };
     }

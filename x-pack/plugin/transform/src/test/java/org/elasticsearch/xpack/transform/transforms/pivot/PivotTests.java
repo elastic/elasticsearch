@@ -51,6 +51,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -63,6 +64,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -206,6 +208,101 @@ public class PivotTests extends ESTestCase {
         assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
+    public void testProcessSearchResponse() {
+        Function pivot = new Pivot(
+            PivotConfigTests.randomPivotConfig(),
+            SettingsConfigTests.randomSettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
+
+        Aggregations aggs = null;
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+
+        aggs = new Aggregations(List.of());
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+
+        CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+        when(compositeAgg.getName()).thenReturn("_transform");
+        when(compositeAgg.getBuckets()).thenReturn(List.of());
+        when(compositeAgg.afterKey()).thenReturn(null);
+        aggs = new Aggregations(List.of(compositeAgg));
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+
+        when(compositeAgg.getBuckets()).thenReturn(List.of());
+        when(compositeAgg.afterKey()).thenReturn(Map.of("key", "value"));
+        aggs = new Aggregations(List.of(compositeAgg));
+        // Empty bucket list is *not* a stop condition for composite agg processing.
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(notNullValue()));
+
+        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+        List<? extends CompositeAggregation.Bucket> buckets = List.of(bucket);
+        doReturn(buckets).when(compositeAgg).getBuckets();
+        when(compositeAgg.afterKey()).thenReturn(null);
+        aggs = new Aggregations(List.of(compositeAgg));
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+    }
+
+    public void testPreviewForEmptyAggregation() throws Exception {
+        Function pivot = new Pivot(
+            PivotConfigTests.randomPivotConfig(),
+            SettingsConfigTests.randomSettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        final AtomicReference<List<Map<String, Object>>> responseHolder = new AtomicReference<>();
+
+        Client emptyAggregationClient = new MyMockClientWithEmptyAggregation("empty aggregation test for preview");
+        pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+            responseHolder.set(r);
+            latch.countDown();
+        }, e -> {
+            exceptionHolder.set(e);
+            latch.countDown();
+        }));
+        assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
+        emptyAggregationClient.close();
+
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertThat(responseHolder.get(), is(empty()));
+    }
+
+    public void testPreviewForCompositeAggregation() throws Exception {
+        Function pivot = new Pivot(
+            PivotConfigTests.randomPivotConfig(),
+            SettingsConfigTests.randomSettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        final AtomicReference<List<Map<String, Object>>> responseHolder = new AtomicReference<>();
+
+        Client compositeAggregationClient = new MyMockClientWithCompositeAggregation("composite aggregation test for preview");
+        pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+            responseHolder.set(r);
+            latch.countDown();
+        }, e -> {
+            exceptionHolder.set(e);
+            latch.countDown();
+        }));
+        assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
+        compositeAggregationClient.close();
+
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertThat(responseHolder.get(), is(empty()));
+    }
+
+    private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
+        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
+        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
+        return searchResponse;
+    }
+
     private class MyMockClient extends NoOpClient {
         MyMockClient(String testName) {
             super(testName);
@@ -259,6 +356,44 @@ public class PivotTests extends ESTestCase {
             }
 
             super.doExecute(action, request, listener);
+        }
+    }
+
+    private class MyMockClientWithEmptyAggregation extends NoOpClient {
+        MyMockClientWithEmptyAggregation(String testName) {
+            super(testName);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            SearchResponse response = mock(SearchResponse.class);
+            when(response.getAggregations()).thenReturn(new Aggregations(List.of()));
+            listener.onResponse((Response) response);
+        }
+    }
+
+    private class MyMockClientWithCompositeAggregation extends NoOpClient {
+        MyMockClientWithCompositeAggregation(String testName) {
+            super(testName);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            SearchResponse response = mock(SearchResponse.class);
+            CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
+            when(response.getAggregations()).thenReturn(new Aggregations(List.of(compositeAggregation)));
+            when(compositeAggregation.getBuckets()).thenReturn(new ArrayList<>());
+            listener.onResponse((Response) response);
         }
     }
 

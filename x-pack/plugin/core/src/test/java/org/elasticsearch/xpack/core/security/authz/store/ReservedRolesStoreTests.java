@@ -258,6 +258,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private static final String READ_CROSS_CLUSTER_NAME = "internal:transport/proxy/indices:data/read/query";
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97017")
     public void testIsReserved() {
         assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
         assertThat(ReservedRolesStore.isReserved("superuser"), is(true));

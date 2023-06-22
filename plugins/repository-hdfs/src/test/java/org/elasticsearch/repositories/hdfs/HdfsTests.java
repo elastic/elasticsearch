@@ -143,7 +143,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testMissingUri() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo").setType("hdfs").setSettings(Settings.EMPTY).get();
+            clusterAdmin().preparePutRepository("test-repo").setType("hdfs").setSettings(Settings.EMPTY).get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -153,9 +153,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testEmptyUri() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "/path").build())
                 .get();
@@ -168,9 +166,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testNonHdfsUri() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "file:///").build())
                 .get();
@@ -183,9 +179,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testPathSpecifiedInHdfs() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "hdfs:///some/path").build())
                 .get();
@@ -198,9 +192,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testMissingPath() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "hdfs:///").build())
                 .get();

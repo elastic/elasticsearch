@@ -17,7 +17,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class AbstractProfileBreakdownTests extends ESTestCase {
 
     enum TestTimingTypes {
-        ONE, TWO, THREE
+        ONE,
+        TWO,
+        THREE
     }
 
     static class TestProfileBreakdown extends AbstractProfileBreakdown<TestTimingTypes> {
@@ -47,17 +49,16 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
         TestProfileBreakdown testBreakdown = new TestProfileBreakdown();
 
         Timer firstTimerOne = testBreakdown.getNewTimer(TestTimingTypes.ONE);
-        int firstTimerOneCount = randomIntBetween(10,20);
+        int firstTimerOneCount = randomIntBetween(10, 20);
         runTimerNTimes(firstTimerOne, firstTimerOneCount);
 
         Timer firstTimerTwo = testBreakdown.getNewTimer(TestTimingTypes.TWO);
-        int firstTimerTwoCount = randomIntBetween(10,20);
+        int firstTimerTwoCount = randomIntBetween(10, 20);
         runTimerNTimes(firstTimerTwo, firstTimerTwoCount);
 
         Timer secondTimerTwo = testBreakdown.getNewTimer(TestTimingTypes.TWO);
-        int secondTimerTwoCount = randomIntBetween(10,20);
+        int secondTimerTwoCount = randomIntBetween(10, 20);
         runTimerNTimes(secondTimerTwo, secondTimerTwoCount);
-
 
         // check behaviour if one timer type hasn't been created and used
         Map<String, Long> breakdownMap = testBreakdown.toBreakdownMap();
@@ -73,7 +74,7 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
         assertThat(breakdownMap.get(TestTimingTypes.THREE.name() + "_count"), equalTo(0L));
 
         Timer firstTimerThree = testBreakdown.getNewTimer(TestTimingTypes.THREE);
-        int firstTimerThreeCount = randomIntBetween(10,20);
+        int firstTimerThreeCount = randomIntBetween(10, 20);
         runTimerNTimes(firstTimerThree, firstTimerThreeCount);
 
         breakdownMap = testBreakdown.toBreakdownMap();

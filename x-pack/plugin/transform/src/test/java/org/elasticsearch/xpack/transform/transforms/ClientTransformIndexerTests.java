@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -113,11 +114,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test", searchRequest);
         indexer.doSearch(
             namedSearchRequest,
-            ActionListener.wrap(
-                // A search of zero indices should return null rather than attempt to search all indices
-                ESTestCase::assertNull,
-                e -> fail(e.getMessage())
-            )
+            // A search of zero indices should return null rather than attempt to search all indices
+            ActionTestUtils.assertNoFailureListener(ESTestCase::assertNull)
         );
     }
 

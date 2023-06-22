@@ -559,7 +559,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "DELETE", "/" + index);
                     assertUserIsAllowed(user, "create_index", index);
                     // wait until index ready, but as admin
-                    assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
+                    assertNoTimeout(clusterAdmin().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", "{ \"text\" : \"test\" }");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
@@ -569,7 +569,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_cache/clear");
                     // indexing a document to have the mapping available, and wait for green state to make sure index is created
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/_doc/1", jsonDoc);
-                    assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
+                    assertNoTimeout(clusterAdmin().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/field/name");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
                     assertAccessIsAllowed(user, randomFrom("GET", "POST"), "/" + index + "/_field_caps?fields=*");

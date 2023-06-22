@@ -193,6 +193,7 @@ public class Constants {
         "cluster:admin/xpack/monitoring/migrate/alerts",
         "cluster:admin/xpack/query_rules/delete",
         "cluster:admin/xpack/query_rules/get",
+        "cluster:admin/xpack/query_rules/list",
         "cluster:admin/xpack/query_rules/put",
         "cluster:admin/xpack/rollup/delete",
         "cluster:admin/xpack/rollup/put",

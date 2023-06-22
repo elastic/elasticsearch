@@ -104,7 +104,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}
@@ -119,7 +119,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
         createIndex("test", 1, 0);
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}""", XContentType.JSON).execute().actionGet();
@@ -135,7 +135,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         try {
             indicesAdmin().preparePutMapping("test").setSource("""
@@ -167,7 +167,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingNoChanges() {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}""").execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"_doc":{"properties":{"body":{"type":"text"}}}}

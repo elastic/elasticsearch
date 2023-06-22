@@ -89,7 +89,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         Version.writeVersion(version, out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
             TransportVersion.writeVersion(transportVersion, out);
         }
         clusterName.writeTo(out);

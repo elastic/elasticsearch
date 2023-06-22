@@ -587,14 +587,14 @@ public class DataStreamIT extends ESIntegTestCase {
             false
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetSettings(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().cluster().prepareHealth(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().cluster().prepareState().setIndices(dataStreamName), false);
+        verifyResolvability(dataStreamName, clusterAdmin().prepareHealth(dataStreamName), false);
+        verifyResolvability(dataStreamName, clusterAdmin().prepareState().setIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().prepareFieldCaps(dataStreamName).setFields("*"), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetIndex().addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareOpen(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareClose(dataStreamName), true);
         verifyResolvability(aliasToDataStream, indicesAdmin().prepareClose(aliasToDataStream), true);
-        verifyResolvability(dataStreamName, client().admin().cluster().prepareSearchShards(dataStreamName), false);
+        verifyResolvability(dataStreamName, clusterAdmin().prepareSearchShards(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareShardStores(dataStreamName), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
@@ -633,13 +633,13 @@ public class DataStreamIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings(wildcardExpression).setSettings(Settings.builder().put("index.number_of_replicas", 0)),
             false
         );
-        verifyResolvability(wildcardExpression, client().admin().cluster().prepareHealth(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().cluster().prepareState().setIndices(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, clusterAdmin().prepareHealth(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, clusterAdmin().prepareState().setIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetIndex().addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClose(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().cluster().prepareSearchShards(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, clusterAdmin().prepareSearchShards(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareShardStores(wildcardExpression), false);
     }
 
@@ -1512,7 +1512,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         // when querying a backing index then the data stream should be included as well.
         ClusterStateRequest request = new ClusterStateRequest().indices(".ds-metrics-foo-*000001");
-        ClusterState state = client().admin().cluster().state(request).get().getState();
+        ClusterState state = clusterAdmin().state(request).get().getState();
         assertThat(state.metadata().dataStreams().size(), equalTo(1));
         assertThat(state.metadata().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));
     }

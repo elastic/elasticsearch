@@ -31,6 +31,8 @@ public class TransportDownsampleActionTest extends ESTestCase {
                 .put(IndexSettings.DEFAULT_PIPELINE.getKey(), randomAlphaOfLength(15))
                 .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), randomBoolean())
                 .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom(tiers))
+                .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, randomAlphaOfLength(20))
+                .put(IndexMetadata.SETTING_CREATION_DATE, System.currentTimeMillis())
         ).build();
         final IndexMetadata target = new IndexMetadata.Builder(randomAlphaOfLength(10)).settings(
             Settings.builder()
@@ -41,6 +43,7 @@ public class TransportDownsampleActionTest extends ESTestCase {
                 .put(IndexSettings.DEFAULT_PIPELINE.getKey(), randomAlphaOfLength(15))
                 .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), randomBoolean())
                 .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom(tiers))
+                .put(IndexMetadata.SETTING_CREATION_DATE, System.currentTimeMillis())
         ).build();
         final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(
             Settings.EMPTY,
@@ -64,6 +67,12 @@ public class TransportDownsampleActionTest extends ESTestCase {
             indexMetadata.getSettings().get(DataTier.TIER_PREFERENCE_SETTING.getKey()),
             settings.get(DataTier.TIER_PREFERENCE_SETTING.getKey())
         );
+        assertEquals(indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME), settings.get(IndexMetadata.LIFECYCLE_NAME));
+        // NOTE: setting only in source (not forbidden, not to override): expect source setting is used
+        assertEquals(
+            indexMetadata.getSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME),
+            settings.get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME)
+        );
     }
 
     private static void assertTargetSettings(final IndexMetadata indexMetadata, final Settings settings) {
@@ -86,6 +95,11 @@ public class TransportDownsampleActionTest extends ESTestCase {
         assertEquals(
             indexMetadata.getSettings().get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
             settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
+        );
+        // NOTE: setting both in source and target (not forbidden, not to override): expect target setting is used
+        assertEquals(
+            indexMetadata.getSettings().get(IndexMetadata.SETTING_CREATION_DATE),
+            settings.get(IndexMetadata.SETTING_CREATION_DATE)
         );
     }
 }

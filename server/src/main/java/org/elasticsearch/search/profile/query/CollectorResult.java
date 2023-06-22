@@ -37,10 +37,9 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
-    public static final String REASON_SEARCH_TERMINATE_AFTER_COUNT = "search_terminate_after_count";
-    public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
-    public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
+    // TODO remove search_multi as we no longer use multi collector?
     public static final String REASON_SEARCH_MULTI = "search_multi";
+    public static final String REASON_SEARCH_COMPOSITE = "search_composite";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 

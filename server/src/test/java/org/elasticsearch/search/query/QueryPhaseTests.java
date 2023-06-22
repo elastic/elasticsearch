@@ -232,6 +232,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation);
         }
         {
+            // shortcutTotalHitCount makes us not track total hits as part of the top docs collection, hence size is the threshold
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 10), new MatchAllDocsQuery());
             context.setSize(10);
             QueryPhase.addCollectorsAndSearch(context);
@@ -281,6 +282,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation);
         }
         {
+            // shortcutTotalHitCount makes us not track total hits as part of the top docs collection, hence size is the threshold
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 10), new MatchAllDocsQuery());
             context.setSize(10);
             QueryPhase.addCollectorsAndSearch(context);

@@ -36,7 +36,7 @@ public class MinLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
+    public void assertSimpleOutput(List<Block> input, Block result) {
         long min = input.stream().flatMapToLong(b -> allLongs(b)).min().getAsLong();
         assertThat(((LongBlock) result).getLong(0), equalTo(min));
     }

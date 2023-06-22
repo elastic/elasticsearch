@@ -40,7 +40,7 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
         long sum = input.stream().flatMapToLong(p -> allLongs(p, group)).sum();
         assertThat(((LongBlock) result).getLong(position), equalTo(sum));
     }

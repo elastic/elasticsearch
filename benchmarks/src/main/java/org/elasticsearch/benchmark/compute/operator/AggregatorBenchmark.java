@@ -12,8 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.AvgDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
@@ -144,11 +142,6 @@ public class AggregatorBenchmark {
 
     private static AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {
         return switch (op) {
-            case AVG -> switch (dataType) {
-                case LONGS -> new AvgLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new AvgDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
-            };
             case COUNT -> CountAggregatorFunction.supplier(BIG_ARRAYS, List.of(dataChannel));
             case COUNT_DISTINCT -> switch (dataType) {
                 case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);

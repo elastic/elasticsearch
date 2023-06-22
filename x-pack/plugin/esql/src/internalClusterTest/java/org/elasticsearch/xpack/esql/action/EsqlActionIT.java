@@ -176,6 +176,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals(expectedValues, actualValues);
     }
 
+    @AwaitsFix(bugUrl = "1306")
     public void testFromGroupingByNumericFieldWithNulls() {
         for (int i = 0; i < 5; i++) {
             client().prepareBulk()
@@ -245,6 +246,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertThat(actualGroups, equalTo(expectedGroups));
     }
 
+    @AwaitsFix(bugUrl = "1306")
     public void testFromStatsGroupingByKeywordWithNulls() {
         for (int i = 0; i < 5; i++) {
             client().prepareBulk()

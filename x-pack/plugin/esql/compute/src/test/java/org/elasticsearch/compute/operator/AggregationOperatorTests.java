@@ -10,10 +10,10 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunctionTests;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionTests;
+import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
@@ -35,7 +35,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         int maxChannel = mode.isInputPartial() ? 1 : 0;
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new AvgLongAggregatorFunctionSupplier(bigArrays, List.of(0)).aggregatorFactory(mode),
+                new SumLongAggregatorFunctionSupplier(bigArrays, List.of(0)).aggregatorFactory(mode),
                 new MaxLongAggregatorFunctionSupplier(bigArrays, List.of(maxChannel)).aggregatorFactory(mode)
             ),
             mode
@@ -44,13 +44,13 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "AggregationOperator[mode = SINGLE, aggs = avg of longs, max of longs]";
+        return "AggregationOperator[mode = SINGLE, aggs = sum of longs, max of longs]";
     }
 
     @Override
     protected String expectedToStringOfSimple() {
         return "AggregationOperator[aggregators=["
-            + "Aggregator[aggregatorFunction=AvgLongAggregatorFunction[channels=[0]], mode=SINGLE], "
+            + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[channels=[0]], mode=SINGLE], "
             + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]";
     }
 
@@ -60,12 +60,12 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         assertThat(results.get(0).getBlockCount(), equalTo(2));
         assertThat(results.get(0).getPositionCount(), equalTo(1));
 
-        AvgLongAggregatorFunctionTests avg = new AvgLongAggregatorFunctionTests();
+        SumLongAggregatorFunctionTests sum = new SumLongAggregatorFunctionTests();
         MaxLongAggregatorFunctionTests max = new MaxLongAggregatorFunctionTests();
 
-        Block avgs = results.get(0).getBlock(0);
+        Block sums = results.get(0).getBlock(0);
         Block maxs = results.get(0).getBlock(1);
-        avg.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), avgs);
+        sum.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), sums);
         max.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), maxs);
     }
 

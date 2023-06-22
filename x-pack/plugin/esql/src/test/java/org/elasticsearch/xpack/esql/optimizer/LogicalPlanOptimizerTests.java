@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
@@ -45,7 +47,6 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
@@ -100,6 +101,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends ESTestCase {
@@ -209,12 +211,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineProjectionWithAggregation() {
         var plan = plan("""
             from test
-            | stats avg(salary) by last_name, first_name
+            | stats s = sum(salary) by last_name, first_name
+            | keep s, last_name, first_name
             """);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(agg.aggregates()), contains("avg(salary)", "last_name", "first_name"));
+        assertThat(Expressions.names(agg.aggregates()), contains("s", "last_name", "first_name"));
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
     }
 
@@ -345,7 +348,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsRelation relation = relation();
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
-        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE, false), THREE);
+        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE), THREE);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         // invalid aggregate but that's fine cause its properties are not used by this rule
@@ -709,7 +712,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | where emp_no > 10
-            | stats x = avg(salary) by first_name""");
+            | stats x = sum(salary) by first_name""");
 
         var limit = as(plan, Limit.class);
         var stats = as(limit.child(), Aggregate.class);
@@ -722,7 +725,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | limit 100
-            | stats x = avg(salary) by first_name""");
+            | stats x = sum(salary) by first_name""");
 
         var limit = as(plan, Limit.class);
         var stats = as(limit.child(), Aggregate.class);
@@ -1081,6 +1084,103 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         as(topN.child(), Enrich.class);
+    }
+
+    /**
+     * Expects
+     * EsqlProject[[a{r}#3, last_name{f}#9]]
+     * \_Eval[[__a_SUM_123{r}#12 / __a_COUNT_150{r}#13 AS a]]
+     *   \_Limit[10000[INTEGER]]
+     *     \_Aggregate[[last_name{f}#9],[SUM(salary{f}#10) AS __a_SUM_123, COUNT(salary{f}#10) AS __a_COUNT_150, last_nam
+     * e{f}#9]]
+     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, !g..]
+     */
+    public void testSimpleAvgReplacement() {
+        var plan = plan("""
+              from test
+            | stats a = avg(salary) by last_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("a", "last_name"));
+        var eval = as(project.child(), Eval.class);
+        var f = eval.fields();
+        assertThat(f, hasSize(1));
+        assertThat(f.get(0).name(), is("a"));
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var a = as(aggs.get(0), Alias.class);
+        assertThat(a.name(), startsWith("__a_SUM@"));
+        var sum = as(a.child(), Sum.class);
+
+        a = as(aggs.get(1), Alias.class);
+        assertThat(a.name(), startsWith("__a_COUNT@"));
+        var count = as(a.child(), Count.class);
+
+        assertThat(Expressions.names(agg.groupings()), contains("last_name"));
+    }
+
+    /**
+     * Expects
+     * EsqlProject[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
+     * \_Eval[[s{r}#9 / c{r}#6 AS a]]
+     *   \_Limit[10000[INTEGER]]
+     *     \_Aggregate[[last_name{f}#15],[COUNT(salary{f}#16) AS c, SUM(salary{f}#16) AS s, last_name{f}#15]]
+     *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testClashingAggAvgReplacement() {
+        var plan = plan("""
+            from test
+            | stats a = avg(salary), c = count(salary), s = sum(salary) by last_name
+            """);
+
+        assertThat(Expressions.names(plan.output()), contains("a", "c", "s", "last_name"));
+        var project = as(plan, EsqlProject.class);
+        var eval = as(project.child(), Eval.class);
+        var f = eval.fields();
+        assertThat(f, hasSize(1));
+        assertThat(f.get(0).name(), is("a"));
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("c", "s", "last_name"));
+    }
+
+    /**
+     * Expects
+     * EsqlProject[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
+     * \_Eval[[s{r}#9 / __a_COUNT@xxx{r}#18 AS a]]
+     *   \_Limit[10000[INTEGER]]
+     *     \_Aggregate[[last_name{f}#15],[COUNT(salary{f}#16) AS __a_COUNT@xxx, COUNT(languages{f}#14) AS c, SUM(salary{f}#16) AS
+     *  s, last_name{f}#15]]
+     *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testSemiClashingAvgReplacement() {
+        var plan = plan("""
+            from test
+            | stats a = avg(salary), c = count(languages), s = sum(salary) by last_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("a", "c", "s", "last_name"));
+        var eval = as(project.child(), Eval.class);
+        var f = eval.fields();
+        assertThat(f, hasSize(1));
+        assertThat(f.get(0).name(), is("a"));
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var a = as(aggs.get(0), Alias.class);
+        assertThat(a.name(), startsWith("__a_COUNT@"));
+        var sum = as(a.child(), Count.class);
+
+        a = as(aggs.get(1), Alias.class);
+        assertThat(a.name(), is("c"));
+        var count = as(a.child(), Count.class);
+
+        a = as(aggs.get(2), Alias.class);
+        assertThat(a.name(), is("s"));
     }
 
     private LogicalPlan optimizedPlan(String query) {

@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -103,7 +103,7 @@ public class BlockSerializationTests extends SerializationTestCase {
         Page page = new Page(new LongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
         var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         var params = new Object[] {};
-        var function = AvgLongAggregatorFunction.create(List.of(0));
+        var function = SumLongAggregatorFunction.create(List.of(0));
         function.addRawInput(page);
         Block[] blocks = new Block[1];
         function.evaluateIntermediate(blocks, 0);
@@ -112,11 +112,11 @@ public class BlockSerializationTests extends SerializationTestCase {
         Block deserBlock = serializeDeserializeBlock(origBlock);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
 
-        var finalAggregator = AvgLongAggregatorFunction.create(List.of(0));
+        var finalAggregator = SumLongAggregatorFunction.create(List.of(0));
         finalAggregator.addIntermediateInput(new Page(deserBlock));
         Block[] finalBlocks = new Block[1];
         finalAggregator.evaluateFinal(finalBlocks, 0);
-        DoubleBlock finalBlock = (DoubleBlock) finalBlocks[0];
-        assertThat(finalBlock.getDouble(0), is(5.5));
+        var finalBlock = (LongBlock) finalBlocks[0];
+        assertThat(finalBlock.getLong(0), is(55L));
     }
 }

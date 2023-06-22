@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -58,7 +60,9 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
@@ -78,6 +82,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
+        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates());
+
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
@@ -112,7 +118,88 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         var cleanup = new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(operators, skip, cleanup, label);
+        return asList(substitutions, operators, skip, cleanup, label);
+    }
+
+    // TODO: currently this rule only works for aggregate functions (AVG)
+    static class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
+
+        SubstituteSurrogates() {
+            super(OptimizerRules.TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate) {
+            var aggs = aggregate.aggregates();
+            List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
+            // existing aggregate and their respective attributes
+            Map<AggregateFunction, Attribute> aggFuncToAttr = new HashMap<>();
+            // surrogate functions eval
+            List<NamedExpression> transientEval = new ArrayList<>();
+            boolean changed = false;
+
+            // first pass to check existing aggregates (to avoid duplication and alias waste)
+            for (NamedExpression agg : aggs) {
+                if (agg instanceof Alias a && a.child() instanceof AggregateFunction af && af instanceof SurrogateExpression == false) {
+                    aggFuncToAttr.put(af, a.toAttribute());
+                }
+            }
+
+            // 0. check list of surrogate expressions
+            for (NamedExpression agg : aggs) {
+                Expression e = agg instanceof Alias a ? a.child() : agg;
+                if (e instanceof SurrogateExpression sf) {
+                    changed = true;
+                    Expression s = sf.surrogate();
+                    // 1. collect all aggregate functions from the expression
+                    var surrogateWithRefs = s.transformUp(AggregateFunction.class, af -> {
+                        // 2. check if they are already use otherwise add them to the Aggregate with some made-up aliases
+                        // 3. replace them inside the expression using the given alias
+                        var attr = aggFuncToAttr.get(af);
+                        // the agg doesn't exist in the Aggregate, create an alias for it and save its attribute
+                        if (attr == null) {
+                            var temporaryName = temporaryName(agg, af);
+                            // create a synthetic alias (so it doesn't clash with a user defined name)
+                            var newAlias = new Alias(agg.source(), temporaryName, null, af, null, true);
+                            attr = newAlias.toAttribute();
+                            aggFuncToAttr.put(af, attr);
+                            newAggs.add(newAlias);
+                        }
+                        return attr;
+                    });
+                    // 4. move the expression as an eval using the original alias
+                    // check however if the expression requires an eval in the first place
+                    if (surrogateWithRefs instanceof AggregateFunction == false) {
+                        // copy the original alias id so that other nodes using it down stream (e.g. eval referring to the original agg)
+                        // don't have to updated
+                        var aliased = new Alias(agg.source(), agg.name(), null, surrogateWithRefs, agg.toAttribute().id());
+                        transientEval.add(aliased);
+                    }
+                } else {
+                    newAggs.add(agg);
+                }
+            }
+
+            LogicalPlan plan = aggregate;
+            if (changed) {
+                var source = aggregate.source();
+                plan = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs);
+                // 5. force the initial projection in place
+                if (transientEval.size() > 0) {
+                    plan = new Eval(source, plan, transientEval);
+                    // project away transient fields and re-enforce the original order using references (not copies) to the original aggs
+                    // this works since the replaced aliases have their nameId copied to avoid having to update all references (which has
+                    // a cascading effect)
+                    plan = new EsqlProject(source, plan, Expressions.asAttributes(aggs));
+                }
+            }
+
+            return plan;
+        }
+
+        private static String temporaryName(NamedExpression agg, AggregateFunction af) {
+            return "__" + agg.name() + "_" + af.functionName() + "@" + Integer.toHexString(af.hashCode());
+        }
     }
 
     static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {

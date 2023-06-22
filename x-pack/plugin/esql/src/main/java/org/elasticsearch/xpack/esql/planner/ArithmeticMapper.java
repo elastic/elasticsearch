@@ -76,7 +76,12 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
     @Override
     protected final Supplier<EvalOperator.ExpressionEvaluator> map(ArithmeticOperation op, Layout layout) {
         if (op.left().dataType().isNumeric()) {
-            DataType type = EsqlDataTypeRegistry.INSTANCE.commonType(op.left().dataType(), op.right().dataType());
+            DataType type = null;
+            if (op instanceof Div div) {
+                type = div.dataType();
+            } else {
+                type = EsqlDataTypeRegistry.INSTANCE.commonType(op.left().dataType(), op.right().dataType());
+            }
             if (type == DataTypes.INTEGER) {
                 return castToEvaluator(op, layout, DataTypes.INTEGER, ints);
             }

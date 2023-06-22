@@ -188,7 +188,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where round(emp_no) > 10
             | eval c = salary
-            | stats x = avg(c)
+            | stats x = sum(c)
             """);
 
         var optimized = optimizedPlan(plan);
@@ -213,7 +213,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where round(emp_no) > 10
             | eval c = first_name
-            | stats x = avg(salary)
+            | stats x = sum(salary)
             """);
 
         var optimized = optimizedPlan(plan);
@@ -256,7 +256,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit 10
             | where round(emp_no) > 10
             | eval c = first_name
-            | stats x = avg(salary)
+            | stats x = sum(salary)
             """);
 
         var optimized = optimizedPlan(plan);
@@ -346,7 +346,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testExtractorsOverridingFields() {
         var plan = physicalPlan("""
             from test
-            | stats emp_no = avg(emp_no)
+            | stats emp_no = sum(emp_no)
             """);
 
         var optimized = optimizedPlan(plan);
@@ -362,7 +362,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testDoNotExtractGroupingFields() {
         var plan = physicalPlan("""
             from test
-            | stats x = avg(salary) by first_name
+            | stats x = sum(salary) by first_name
             """);
 
         var optimized = optimizedPlan(plan);
@@ -428,7 +428,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testQueryWithAggregation() {
         var plan = physicalPlan("""
             from test
-            | stats avg(emp_no)
+            | stats sum(emp_no)
             """);
 
         var optimized = optimizedPlan(plan);
@@ -444,8 +444,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testQueryWithAggAndEval() {
         var plan = physicalPlan("""
             from test
-            | stats avg_emp = avg(emp_no)
-            | eval x = avg_emp + 7
+            | stats agg_emp = sum(emp_no)
+            | eval x = agg_emp + 7
             """);
 
         var optimized = optimizedPlan(plan);

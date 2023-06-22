@@ -234,7 +234,7 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    reloadAnalyzers(bulkInsertResponseListener, updateSynonymsResultStatus);
+                    reloadAnalyzers(resourceName, bulkInsertResponseListener, updateSynonymsResultStatus);
                 }));
         }));
     }
@@ -254,7 +254,7 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    reloadAnalyzers(l2, updateStatus);
+                    reloadAnalyzers(synonymsSetId, l2, updateStatus);
                 }));
             } catch (IOException e) {
                 l1.onFailure(e);
@@ -337,14 +337,13 @@ public class SynonymsManagementAPIService {
                 return;
             }
 
-            reloadAnalyzers(l, AcknowledgedResponse.of(true));
+            reloadAnalyzers(resourceName, l, AcknowledgedResponse.of(true));
         }));
     }
 
-    private <T> void reloadAnalyzers(ActionListener<SynonymsReloadResult<T>> listener, T synonymsOperationResult) {
+    private <T> void reloadAnalyzers(String resourceName, ActionListener<SynonymsReloadResult<T>> listener, T synonymsOperationResult) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        // TODO: reload only those analyzers that use this synonymsSet
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest("*");
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(resourceName, "*");
         client.execute(
             ReloadAnalyzerAction.INSTANCE,
             reloadAnalyzersRequest,

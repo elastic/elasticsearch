@@ -13,11 +13,20 @@ initscript {
 boolean USE_ARTIFACTORY = false
 
 if (System.getenv('VAULT_ADDR') == null) {
-  return
-  // throw new GradleException("You must set the VAULT_ADDR environment variable to use this init script.")
+  // When trying to reproduce errors outside of CI, it can be useful to allow this to just return rather than blowing up
+  if (System.getenv('CI') == null) {
+    return
+  }
+
+  throw new GradleException("You must set the VAULT_ADDR environment variable to use this init script.")
 }
 
 if (System.getenv('VAULT_ROLE_ID') == null && System.getenv('VAULT_SECRET_ID') == null && System.getenv('VAULT_TOKEN') == null) {
+    // When trying to reproduce errors outside of CI, it can be useful to allow this to just return rather than blowing up
+  if (System.getenv('CI') == null) {
+    return
+  }
+
   throw new GradleException("You must set either the VAULT_ROLE_ID and VAULT_SECRET_ID environment variables, " +
     "or the VAULT_TOKEN environment variable to use this init script.")
 }

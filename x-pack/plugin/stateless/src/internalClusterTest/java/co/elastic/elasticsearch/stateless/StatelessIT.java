@@ -380,7 +380,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final int numberOfReplicas = randomIntBetween(0, 3);
         startSearchNodes(numberOfReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numberOfShards, numberOfReplicas).build());
+        createIndex(indexName, indexSettings(numberOfShards, numberOfReplicas).build());
         ensureGreen(indexName);
 
         final int iters = randomIntBetween(0, 5);

@@ -38,6 +38,11 @@ public class Max extends NumericAggregate {
     }
 
     @Override
+    protected boolean supportsDates() {
+        return true;
+    }
+
+    @Override
     public DataType dataType() {
         return field().dataType();
     }

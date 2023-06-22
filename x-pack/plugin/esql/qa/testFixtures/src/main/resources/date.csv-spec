@@ -78,8 +78,7 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
 ;
 
-// not supported yet
-minMax-Ignore
+minMax
 from employees | stats min = min(hire_date), max = max(hire_date);
 
 min:date                  | max:date

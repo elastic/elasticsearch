@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
-    private final Analyzer defaultAnalyzer = AnalyzerTestUtils.defaultAnalyzer();
+    private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
@@ -119,6 +119,13 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:19: 2nd argument of [emp_no in (1, \"two\")] must be [integer], found value [\"two\"] type [keyword]",
             error("from test | where emp_no in (1, \"two\")")
+        );
+    }
+
+    public void testSumOnDate() {
+        assertEquals(
+            "1:19: argument of [sum(hire_date)] must be [numeric], found value [hire_date] type [datetime]",
+            error("from test | stats sum(hire_date)")
         );
     }
 

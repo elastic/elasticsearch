@@ -10,6 +10,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -32,7 +33,21 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
 
     @Override
     protected TypeResolution resolveType() {
+        if (supportsDates()) {
+            return TypeResolutions.isType(
+                this,
+                e -> e.isNumeric() || e == DataTypes.DATETIME,
+                sourceText(),
+                DEFAULT,
+                "numeric",
+                "datetime"
+            );
+        }
         return isNumeric(field(), sourceText(), DEFAULT);
+    }
+
+    protected boolean supportsDates() {
+        return false;
     }
 
     @Override
@@ -43,6 +58,9 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     @Override
     public final AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
         DataType type = field().dataType();
+        if (supportsDates() && type == DataTypes.DATETIME) {
+            return longSupplier(bigArrays, inputChannels);
+        }
         if (type == DataTypes.LONG) {
             return longSupplier(bigArrays, inputChannels);
         }

@@ -43,6 +43,11 @@ public class Min extends NumericAggregate {
     }
 
     @Override
+    protected boolean supportsDates() {
+        return true;
+    }
+
+    @Override
     protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
         return new MinLongAggregatorFunctionSupplier(bigArrays, inputChannels);
     }

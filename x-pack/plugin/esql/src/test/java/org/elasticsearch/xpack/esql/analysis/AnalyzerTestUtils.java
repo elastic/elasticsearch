@@ -29,6 +29,10 @@ public final class AnalyzerTestUtils {
         return analyzer(analyzerDefaultMapping());
     }
 
+    public static Analyzer expandedDefaultAnalyzer() {
+        return analyzer(analyzerExpandedDefaultMapping());
+    }
+
     public static Analyzer analyzer(IndexResolution indexResolution) {
         return analyzer(indexResolution, new Verifier(new Metrics()));
     }
@@ -70,6 +74,10 @@ public final class AnalyzerTestUtils {
 
     public static IndexResolution analyzerDefaultMapping() {
         return loadMapping("mapping-basic.json", "test");
+    }
+
+    public static IndexResolution analyzerExpandedDefaultMapping() {
+        return loadMapping("mapping-default.json", "test");
     }
 
     public static EnrichResolution defaultEnrichResolution() {

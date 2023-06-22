@@ -247,6 +247,17 @@ teardown:
   - match: { error.type: "security_exception" }
 
 ---
+"Create Search Application with malformed request body - Insufficient privilege error is returned first":
+  - do:
+      catch: forbidden
+      search_application.put:
+        name: another-search-application
+        create: true
+        body: { }
+
+  - match: { error.type: "security_exception" }
+
+---
 "Create Search Application - Incorrect template language":
   - do:
       catch: bad_request

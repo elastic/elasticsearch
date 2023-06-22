@@ -1,0 +1,12 @@
+[[esql-e]]
+=== `E`
+{wikipedia}/E_(mathematical_constant)[Euler's number].
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=e]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=e-result]
+|===

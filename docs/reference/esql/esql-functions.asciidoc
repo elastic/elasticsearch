@@ -17,6 +17,7 @@ these functions:
 * <<esql-concat>>
 * <<esql-date_format>>
 * <<esql-date_trunc>>
+* <<esql-e>>
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-is_nan>>
@@ -50,6 +51,7 @@ include::functions/cidr_match.asciidoc[]
 include::functions/concat.asciidoc[]
 include::functions/date_format.asciidoc[]
 include::functions/date_trunc.asciidoc[]
+include::functions/e.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]

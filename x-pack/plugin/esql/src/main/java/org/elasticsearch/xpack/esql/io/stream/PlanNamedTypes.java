@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
@@ -145,6 +146,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
@@ -256,6 +258,7 @@ public final class PlanNamedTypes {
             of(QL_UNARY_SCLR_CLS, Not.class, PlanNamedTypes::writeQLUnaryScalar, PlanNamedTypes::readQLUnaryScalar),
             of(QL_UNARY_SCLR_CLS, Length.class, PlanNamedTypes::writeQLUnaryScalar, PlanNamedTypes::readQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Abs.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ScalarFunction.class, E.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ESQL_UNARY_SCLR_CLS, IsFinite.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, IsInfinite.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, IsNaN.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -930,6 +933,18 @@ public final class PlanNamedTypes {
     static void writeESQLUnaryScalar(PlanStreamOutput out, UnaryScalarFunction function) throws IOException {
         out.writeExpression(function.field());
     }
+
+    static final Map<String, Function<Source, ScalarFunction>> NO_ARG_SCALAR_CTRS = Map.ofEntries(entry(name(E.class), E::new));
+
+    static ScalarFunction readNoArgScalar(PlanStreamInput in, String name) throws IOException {
+        var ctr = NO_ARG_SCALAR_CTRS.get(name);
+        if (ctr == null) {
+            throw new IOException("Constructor not found:" + name);
+        }
+        return ctr.apply(Source.EMPTY);
+    }
+
+    static void writeNoArgScalar(PlanStreamOutput out, ScalarFunction function) {}
 
     static final Map<
         String,

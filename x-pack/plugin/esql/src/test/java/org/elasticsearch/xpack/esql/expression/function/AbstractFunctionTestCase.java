@@ -84,6 +84,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected abstract Expression build(Source source, List<Literal> args);
 
     protected final Supplier<EvalOperator.ExpressionEvaluator> evaluator(Expression e) {
+        if (e.foldable()) {
+            e = new Literal(e.source(), e.fold(), e.dataType());
+        }
         Layout.Builder builder = new Layout.Builder();
         // Hack together a layout by scanning for Fields.
         // Those will show up in the layout in whatever order a depth first traversal finds them.

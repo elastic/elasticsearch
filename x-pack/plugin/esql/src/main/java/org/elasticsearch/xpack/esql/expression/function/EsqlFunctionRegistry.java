@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
@@ -81,6 +82,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
                 def(AutoBucket.class, AutoBucket::new, "auto_bucket"),
+                def(E.class, E::new, "e"),
                 def(IsFinite.class, IsFinite::new, "is_finite"),
                 def(IsInfinite.class, IsInfinite::new, "is_infinite"),
                 def(IsNaN.class, IsNaN::new, "is_nan"),

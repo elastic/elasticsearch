@@ -199,10 +199,19 @@ public final class EvalMapper {
                     BytesRef v = (BytesRef) lit.value();
                     yield positions -> BytesRefBlock.newConstantBlockWith(v, positions);
                 }
-                case DOUBLE -> {
-                    double v = (double) lit.value();
-                    yield positions -> DoubleBlock.newConstantBlockWith(v, positions);
-                }
+                case DOUBLE -> new IntFunction<>() { // TODO toString in the rest of these and tests for this
+                    private final double v = (double) lit.value();
+
+                    @Override
+                    public Block apply(int positions) {
+                        return DoubleBlock.newConstantBlockWith(v, positions);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return Double.toString(v);
+                    }
+                };
                 case INT -> {
                     int v = (int) lit.value();
                     yield positions -> IntBlock.newConstantBlockWith(v, positions);

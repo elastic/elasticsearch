@@ -945,23 +945,10 @@ values are
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
 * experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
---
-end::inference-config-nlp-tokenization[]
-
-tag::inference-config-nlp-tokenization-text-embedding[]
-Indicates the tokenization to perform and the desired settings.
-The default tokenization configuration is `bert`. Valid tokenization
-values are
-+
---
-* `bert`: Use for BERT-style models
-* `mpnet`: Use for MPNet-style models
-* `roberta`: Use for RoBERTa-style and BART-style models
-* experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
 * experimental:[] `bert_ja`: Use for BERT-style models trained for the Japanese
 language.
 --
-end::inference-config-nlp-tokenization-text-embedding[]
+end::inference-config-nlp-tokenization[]
 
 tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.

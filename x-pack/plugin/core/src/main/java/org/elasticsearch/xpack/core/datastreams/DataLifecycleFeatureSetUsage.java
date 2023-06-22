@@ -40,7 +40,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_006;
+        return TransportVersion.V_8_500_010;
     }
 
     @Override
@@ -99,7 +99,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
 
         public LifecycleStats(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 this.dataStreamsWithLifecyclesCount = in.readVLong();
                 this.minRetentionMillis = in.readVLong();
                 this.maxRetentionMillis = in.readVLong();
@@ -116,7 +116,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 out.writeVLong(dataStreamsWithLifecyclesCount);
                 out.writeVLong(minRetentionMillis);
                 out.writeVLong(maxRetentionMillis);

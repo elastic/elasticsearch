@@ -759,7 +759,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007) ? in.readOptionalWriteable(DataLifecycle::new) : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010) ? in.readOptionalWriteable(DataLifecycle::new) : null
         );
     }
 
@@ -788,7 +788,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeOptionalWriteable(lifecycle);
         }
     }

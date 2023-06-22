@@ -56,7 +56,7 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VE
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersion.V_8_500_005;
+    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersion.V_8_500_010;
 
     public static final String ROLE_TYPE = "role";
 

@@ -35,7 +35,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersion.V_7_16_0;
     public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersion.V_8_9_0;
-    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersion.V_8_500_003;
+    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersion.V_8_500_010;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");

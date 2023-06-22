@@ -1,7 +1,7 @@
 ---
 "Reload analyzers for specific synonym set":
   - skip:
-      version: " - 8.8.99" # TODO: modify this to 8.9.99
+      version: " - 8.9.99"
       reason: Reloading analyzers for specific synonym set is introduced in 8.10.0
 
   # Create synonyms_set1

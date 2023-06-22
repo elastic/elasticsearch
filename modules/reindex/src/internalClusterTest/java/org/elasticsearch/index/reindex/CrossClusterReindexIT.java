@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -133,7 +134,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             () -> client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000).get()
         );
 
-        assertThat(e, hasToString(containsString("no such index [%s]".formatted("desc-index-001"))));
+        assertThat(e, hasToString(containsString(String.format(Locale.ROOT, "no such index [%s]", "desc-index-001"))));
     }
 
     public void testReindexFromRemote_CrossClusterCallsNotSupportedError() throws Exception {
@@ -153,7 +154,9 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             e,
             hasToString(
                 containsString(
-                    "Cross-cluster calls are not supported in this context but remote indices were requested: [%s]".formatted(
+                    String.format(
+                        Locale.ROOT,
+                        "Cross-cluster calls are not supported in this context but remote indices were requested: [%s]",
                         sourceIndexInRemote
                     )
                 )

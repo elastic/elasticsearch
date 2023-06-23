@@ -339,7 +339,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteRepository(String repoName) {
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
     }
 
     public static Settings.Builder randomRepositorySettings() {
@@ -426,7 +426,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryMetadata repoMetadata = blobStoreRepository.getMetadata();
         if (BlobStoreRepository.CACHE_REPOSITORY_DATA.get(repoMetadata.settings())) {
             logger.info("--> recreating repository to clear caches");
-            assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+            assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
             createRepository(repoName, repoMetadata.type(), Settings.builder().put(repoMetadata.settings()));
         }
         return oldVersionSnapshot;
@@ -450,9 +450,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices, List<String> featureStates) {
         logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
-        final CreateSnapshotResponse response = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, snapshot)
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(repositoryName, snapshot)
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
             .setFeatureStates(featureStates.toArray(Strings.EMPTY_ARRAY))

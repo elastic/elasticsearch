@@ -116,7 +116,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("issue a reroute");
         // trigger a reroute now, instead of waiting for the background reroute of RerouteService
-        assertAcked(client().admin().cluster().prepareReroute());
+        assertAcked(clusterAdmin().prepareReroute());
         // and wait for it to finish and for the cluster to stabilize
         ensureGreen("test");
 

@@ -89,12 +89,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         submitUnbatchedTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
-            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders) {
-                @Override
-                protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-            }
+            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders)
         );
     }
 

@@ -25,7 +25,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
-  runtimeOnly 'com.google.guava:guava:31.0.1-jre'
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api 'io.opencensus:opencensus-api:0.30.0'
   api 'io.opencensus:opencensus-contrib-http-util:0.30.0'

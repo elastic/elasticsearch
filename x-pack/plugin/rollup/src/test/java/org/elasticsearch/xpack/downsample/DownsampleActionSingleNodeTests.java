@@ -227,7 +227,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
 
         mapping.endObject().endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
+        assertAcked(indicesAdmin().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
     public void testRollupIndex() throws IOException {
@@ -359,7 +359,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         logger.info("Updating index [{}] with settings [{}]", sourceIndex, settings);
 
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
-        assertAcked(client().admin().indices().updateSettings(updateSettingsReq).actionGet());
+        assertAcked(indicesAdmin().updateSettings(updateSettingsReq).actionGet());
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
@@ -375,7 +375,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
         for (String key : settings.keySet()) {
             assertEquals(settings.get(key), indexSettingsResp.getSetting(rollupIndex, key));
@@ -434,7 +434,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
-        assertAcked(client().admin().indices().prepareCreate(rollupIndex).setSettings(indexSettings(1, 0)).get());
+        assertAcked(indicesAdmin().prepareCreate(rollupIndex).setSettings(indexSettings(1, 0)).get());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
@@ -453,9 +453,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public void testRollupIndexWithNoMetrics() throws IOException {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setSettings(
                 indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
@@ -522,7 +520,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config), rollupListener);
         assertBusy(() -> {
             try {
-                assertEquals(client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
+                assertEquals(indicesAdmin().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
             } catch (IndexNotFoundException e) {
                 fail("rollup index has not been created");
             }
@@ -627,9 +625,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         // block rollup index
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate(rollupIndex)
+            indicesAdmin().preparePutTemplate(rollupIndex)
                 .setPatterns(List.of(rollupIndex))
                 .setSettings(Settings.builder().put("index.blocks.write", "true").build())
                 .get()
@@ -735,9 +731,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private void prepareSourceIndex(String sourceIndex) {
         // Set the source index to read-only state
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIndex)
+            indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
                 .get()
         );
@@ -750,7 +744,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {
-        RolloverResponse response = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
+        RolloverResponse response = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         assertAcked(response);
         return response;
     }
@@ -762,7 +756,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void assertRollupIndex(String sourceIndex, String rollupIndex, DownsampleConfig config) throws IOException {
         // Retrieve field information for the metric fields
-        final GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIndex).get();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
             .entrySet()
             .stream()
@@ -771,7 +765,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
             .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndex + "]"));
 
-        final IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().getMetadata().index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
@@ -790,7 +784,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertRollupIndexAggregations(sourceIndex, rollupIndex, config, metricFields, labelFields);
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
 
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
@@ -800,9 +794,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertFieldMappings(config, metricFields, mappings);
 
-        GetMappingsResponse indexMappings = client().admin()
-            .indices()
-            .getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndex))
+        GetMappingsResponse indexMappings = indicesAdmin().getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndex))
             .actionGet();
         Map<String, String> rollupIndexProperties = (Map<String, String>) indexMappings.mappings()
             .get(rollupIndex)

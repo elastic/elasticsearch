@@ -1616,7 +1616,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (subSearchSourceBuilders.size() == 1) {
                 builder.field(QUERY_FIELD.getPreferredName(), subSearchSourceBuilders.get(0).getQueryBuilder());
             } else {
-                builder.array(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders);
+                builder.xContentList(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders);
             }
         }
 

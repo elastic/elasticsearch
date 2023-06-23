@@ -42,10 +42,10 @@ public class SortingDigest extends AbstractTDigest {
     @Override
     public void add(double x, int w) {
         checkValue(x);
+        isSorted = isSorted && (values.isEmpty() || values.get(values.size() - 1) <= x);
         for (int i = 0; i < w; i++) {
             values.add(x);
         }
-        isSorted = false;
         max = Math.max(max, x);
         min = Math.min(min, x);
     }

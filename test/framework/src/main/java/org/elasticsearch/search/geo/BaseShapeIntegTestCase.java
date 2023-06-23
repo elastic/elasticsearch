@@ -230,14 +230,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(settings(randomSupportedVersion()).build())
-                .setMapping(mapping)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = """
@@ -286,13 +279,11 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         mapping.endObject().endObject().endObject();
 
         final Version version = randomSupportedVersion();
-        CreateIndexRequestBuilder mappingRequest = client().admin()
-            .indices()
-            .prepareCreate("shapes")
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("shapes")
             .setMapping(mapping)
             .setSettings(settings(version).build());
         mappingRequest.get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         // Create a multipolygon with two polygons. The first is an rectangle of size 10x10
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
@@ -469,7 +460,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
     protected abstract void doDistanceAndBoundingBoxTest(String key);
 
     private String findNodeName(String index) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         IndexShardRoutingTable shard = state.getRoutingTable().index(index).shard(0);
         String nodeId = shard.assignedShards().get(0).currentNodeId();
         return state.getNodes().get(nodeId).getName();

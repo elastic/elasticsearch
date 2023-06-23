@@ -89,7 +89,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         logger.info("--> checking cluster state task completed");
         assertBusy(() -> {
             updateClusterState(clusterService, s -> ClusterState.builder(s).build());
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
+            final List<TaskInfo> tasks = clusterAdmin().prepareListTasks().get().getTasks();
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 

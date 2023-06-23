@@ -95,10 +95,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
-        final ListDanglingIndicesResponse response = client().admin()
-            .cluster()
-            .listDanglingIndices(new ListDanglingIndicesRequest())
-            .actionGet();
+        final ListDanglingIndicesResponse response = clusterAdmin().listDanglingIndices(new ListDanglingIndicesRequest()).actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
 
         final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
@@ -234,10 +231,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         danglingIndices.set(results);
 
         // Try to delete the index - this request should succeed
-        client().admin()
-            .cluster()
-            .deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndices.get().get(0).getIndexUUID(), true))
-            .actionGet();
+        clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndices.get().get(0).getIndexUUID(), true)).actionGet();
 
         // The dangling index that we deleted ought to have been removed from disk. Check by
         // creating and deleting another index, which creates a new tombstone entry, which should
@@ -337,10 +331,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Helper that fetches the current list of dangling indices.
      */
     private List<DanglingIndexInfo> listDanglingIndices() {
-        final ListDanglingIndicesResponse response = client().admin()
-            .cluster()
-            .listDanglingIndices(new ListDanglingIndicesRequest())
-            .actionGet();
+        final ListDanglingIndicesResponse response = clusterAdmin().listDanglingIndices(new ListDanglingIndicesRequest()).actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
 
         final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
@@ -404,10 +395,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     private String findDanglingIndexForNode(String stoppedNodeName, String indexName) {
         String danglingIndexUUID = null;
 
-        final ListDanglingIndicesResponse response = client().admin()
-            .cluster()
-            .listDanglingIndices(new ListDanglingIndicesRequest())
-            .actionGet();
+        final ListDanglingIndicesResponse response = clusterAdmin().listDanglingIndices(new ListDanglingIndicesRequest()).actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
 
         final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();

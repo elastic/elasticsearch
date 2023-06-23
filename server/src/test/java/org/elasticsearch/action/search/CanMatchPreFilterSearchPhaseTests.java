@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -150,10 +151,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            ActionListener.wrap(iter -> {
+            ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
-            }, e -> { throw new AssertionError(e); })
+            })
         );
 
         canMatchPhase.start();
@@ -248,10 +249,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            ActionListener.wrap(iter -> {
+            ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
-            }, e -> { throw new AssertionError(e); })
+            })
         );
 
         canMatchPhase.start();
@@ -341,10 +342,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 EMPTY_CONTEXT_PROVIDER,
-                ActionListener.wrap(iter -> {
+                ActionTestUtils.assertNoFailureListener(iter -> {
                     result.set(iter);
                     latch.countDown();
-                }, e -> { throw new AssertionError(e); })
+                })
             );
 
             canMatchPhase.start();
@@ -443,10 +444,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 EMPTY_CONTEXT_PROVIDER,
-                ActionListener.wrap(iter -> {
+                ActionTestUtils.assertNoFailureListener(iter -> {
                     result.set(iter);
                     latch.countDown();
-                }, e -> { throw new AssertionError(e); })
+                })
             );
 
             canMatchPhase.start();
@@ -816,10 +817,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             contextProvider,
-            ActionListener.wrap(iter -> {
+            ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
-            }, e -> { throw new AssertionError(e); })
+            })
         );
 
         canMatchPhase.start();

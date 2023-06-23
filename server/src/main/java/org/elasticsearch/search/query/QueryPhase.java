@@ -208,15 +208,11 @@ public class QueryPhase {
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(
-                    EMPTY_COLLECTOR,
-                    searchContext.terminateAfter(),
-                    true
-                );
+                TerminateAfterCollector terminateAfterCollector = new TerminateAfterCollector(searchContext.terminateAfter());
                 final Collector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
+                    new SingleThreadCollectorManager(MultiCollector.wrap(terminateAfterCollector, collector)),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
                     collector
                 );
@@ -319,7 +315,7 @@ public class QueryPhase {
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
             searcher.search(query, collectorManager);
-        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+        } catch (TerminateAfterCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";

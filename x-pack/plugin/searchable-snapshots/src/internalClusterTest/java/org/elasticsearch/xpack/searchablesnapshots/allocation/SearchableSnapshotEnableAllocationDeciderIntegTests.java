@@ -39,7 +39,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
             internalCluster().restartNode(indexNode);
         }
 
-        ClusterHealthResponse response = client().admin().cluster().health(new ClusterHealthRequest(restoredIndexName)).actionGet();
+        ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest(restoredIndexName)).actionGet();
         assertThat(response.getUnassignedShards(), Matchers.equalTo(numPrimaries));
 
         setAllocateOnRollingRestart(true);

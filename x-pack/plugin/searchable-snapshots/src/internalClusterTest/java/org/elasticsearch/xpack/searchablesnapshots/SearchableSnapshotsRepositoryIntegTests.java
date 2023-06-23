@@ -297,9 +297,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         logger.info("--> restoring snapshot of searchable snapshot index [{}] should be conflicting", mountedIndex);
         final SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareRestoreSnapshot(repository, snapshotOfMountedIndex)
+            () -> clusterAdmin().prepareRestoreSnapshot(repository, snapshotOfMountedIndex)
                 .setIndices(mountedIndex)
                 .setWaitForCompletion(true)
                 .get()
@@ -360,9 +358,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             : randomSubsetOf(randomIntBetween(1, nbMountedIndices), mountedIndices);
         final SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
+            () -> clusterAdmin().prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
                 .setIndices(restorables.toArray(String[]::new))
                 .setIndexSettings(deleteSnapshotIndexSettings(deleteSnapshot == false))
                 .setRenameReplacement("restored-with-different-setting-$1")
@@ -382,9 +378,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             )
         );
 
-        final RestoreSnapshotResponse restoreResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
+        final RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
             .setIndices(restorables.toArray(String[]::new))
             .setIndexSettings(indexSettings)
             .setRenameReplacement("restored-with-same-setting-$1")

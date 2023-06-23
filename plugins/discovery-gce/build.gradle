@@ -119,7 +119,6 @@ tasks.named("thirdPartyAudit").configure {
           'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
           'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
           'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-          'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
           'com.google.common.hash.Striped64',
           'com.google.common.hash.Striped64$1',
           'com.google.common.hash.Striped64$Cell',

@@ -12,9 +12,9 @@ import org.elasticsearch.common.util.Maps;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.LongAdder;
 
 import static java.util.Collections.emptyMap;
 
@@ -28,17 +28,16 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * The accumulated timings for this query node
      */
-    private final Map<Integer, List<Timer>> timings;
-    private final T[] timingTypes;
+    private final Map<T, List<Timer>> timings;
 
     /** Sole constructor. */
     public AbstractProfileBreakdown(Class<T> clazz) {
-        this.timingTypes = clazz.getEnumConstants();
-        timings = new HashMap<>(this.timingTypes.length);
-        for (int i = 0; i < this.timingTypes.length; ++i) {
+        T[] enumConstants = clazz.getEnumConstants();
+        timings = Maps.newMapWithExpectedSize(enumConstants.length);
+        for (int i = 0; i < enumConstants.length; ++i) {
             ArrayList<Timer> listOfTimers = new ArrayList<>();
             listOfTimers.add(new Timer());
-            timings.put(i, listOfTimers);
+            timings.put(enumConstants[i], listOfTimers);
         }
     }
 
@@ -48,7 +47,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      */
     public synchronized Timer getNewTimer(T timingType) {
         Timer timer = new Timer();
-        timings.get(timingType.ordinal()).add(timer);
+        timings.get(timingType).add(timer);
         return timer;
     }
 
@@ -59,34 +58,28 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      */
     public final synchronized Map<String, Long> toBreakdownMap() {
         Map<String, Long> map = Maps.newMapWithExpectedSize(timings.keySet().size() * 2);
-        for (T timingType : this.timingTypes) {
-            map.put(
-                timingType.toString(),
-                timings.get(timingType.ordinal()).stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum()
-            );
-            map.put(
-                timingType.toString() + "_count",
-                timings.get(timingType.ordinal()).stream().map(Timer::getCount).mapToLong(Long::valueOf).sum()
-            );
-        }
+        this.timings.forEach((timingType, timers) -> {
+            map.put(timingType.toString(), timers.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum());
+            map.put(timingType.toString() + "_count", timers.stream().map(Timer::getCount).mapToLong(Long::valueOf).sum());
+        });
         return Collections.unmodifiableMap(map);
     }
 
     /**
      * Fetch extra debugging information.
      */
-    protected Map<String, Object> toDebugMap() {
+    protected synchronized Map<String, Object> toDebugMap() {
         return emptyMap();
     }
 
     /**
      * @return the total sum of timers approximate times across all timing types
      */
-    public final long toNodeTime() {
-        long total = 0;
-        for (T timingType : timingTypes) {
-            total += timings.get(timingType.ordinal()).stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum();
-        }
-        return total;
+    public final synchronized long toNodeTime() {
+        final LongAdder total = new LongAdder();
+        this.timings.forEach(
+            (timingType, timers) -> { total.add(timers.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum()); }
+        );
+        return total.longValue();
     }
 }

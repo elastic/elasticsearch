@@ -11,7 +11,6 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -100,7 +99,7 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
         );
     }
 
-    public void testMultiThreaded() throws BrokenBarrierException, InterruptedException {
+    public void testMultiThreaded() throws InterruptedException {
         TestProfileBreakdown testBreakdown = new TestProfileBreakdown();
         Thread[] threads = new Thread[2000];
         final CountDownLatch latch = new CountDownLatch(1);

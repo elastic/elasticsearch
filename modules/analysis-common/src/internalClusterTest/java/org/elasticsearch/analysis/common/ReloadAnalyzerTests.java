@@ -96,8 +96,10 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         ) {
             out.println("foo, baz, buzz");
         }
-        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
-            .actionGet();
+        ReloadAnalyzersResponse reloadResponse = client().execute(
+            ReloadAnalyzerAction.INSTANCE,
+            new ReloadAnalyzersRequest(null, indexName)
+        ).actionGet();
         assertNoFailures(reloadResponse);
         Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
         assertEquals(2, reloadedAnalyzers.size());
@@ -165,8 +167,10 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         ) {
             out.println("foo, baz, buzz");
         }
-        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
-            .actionGet();
+        ReloadAnalyzersResponse reloadResponse = client().execute(
+            ReloadAnalyzerAction.INSTANCE,
+            new ReloadAnalyzersRequest(null, indexName)
+        ).actionGet();
         assertNoFailures(reloadResponse);
         Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
         assertEquals(1, reloadedAnalyzers.size());
@@ -285,8 +289,10 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
             out.println("jumping");
         }
 
-        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
-            .actionGet();
+        ReloadAnalyzersResponse reloadResponse = client().execute(
+            ReloadAnalyzerAction.INSTANCE,
+            new ReloadAnalyzersRequest(null, indexName)
+        ).actionGet();
         assertNoFailures(reloadResponse);
         Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
         assertEquals(1, reloadedAnalyzers.size());

@@ -120,6 +120,11 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
             }
+
+            @Override
+            public String getResourceName() {
+                return rulesFromSettings.resource();
+            }
         };
     }
 
@@ -175,7 +180,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
             return new ReaderWithOrigin(
                 Analysis.getReaderFromIndex(synonymsSet, threadPool, synonymsManagementAPIService),
-                "[" + synonymsSet + "] synonyms_set in .synonyms index"
+                "[" + synonymsSet + "] synonyms_set in .synonyms index",
+                synonymsSet
             );
         } else if (settings.get("synonyms_path") != null) {
             String synonyms_path = settings.get("synonyms_path", null);
@@ -186,5 +192,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin) {};
+    record ReaderWithOrigin(Reader reader, String origin, String resource) {
+        ReaderWithOrigin(Reader reader, String origin) {
+            this(reader, origin, null);
+        }
+    }
 }

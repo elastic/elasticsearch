@@ -50,7 +50,7 @@ public class CloneIndexIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
 
-        final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").setSegments(true).get();
+        final IndicesStatsResponse sourceStats = indicesAdmin().prepareStats("source").setSegments(true).get();
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
@@ -59,9 +59,7 @@ public class CloneIndexIT extends ESIntegTestCase {
 
             final boolean createWithReplicas = randomBoolean();
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareResizeIndex("source", "target")
+                indicesAdmin().prepareResizeIndex("source", "target")
                     .setResizeType(ResizeType.CLONE)
                     .setSettings(
                         Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).putNull("index.blocks.write").build()
@@ -71,7 +69,7 @@ public class CloneIndexIT extends ESIntegTestCase {
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
 
-            final IndicesStatsResponse targetStats = client().admin().indices().prepareStats("target").get();
+            final IndicesStatsResponse targetStats = indicesAdmin().prepareStats("target").get();
             assertThat(targetStats.getIndex("target").getIndexShards().keySet().size(), equalTo(numPrimaryShards));
 
             for (int i = 0; i < numPrimaryShards; i++) {
@@ -100,7 +98,7 @@ public class CloneIndexIT extends ESIntegTestCase {
                 2 * docs
             );
             assertHitCount(client().prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
-            GetSettingsResponse target = client().admin().indices().prepareGetSettings("target").get();
+            GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
             assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
         } finally {
             // clean up

@@ -111,7 +111,7 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
             new ExplainDataLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() && DataLifecycle.isEnabled()
-                    ? clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
+                    ? clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                     : null
             )
         );

@@ -128,7 +128,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             source = source.endArray().endObject();
             client().prepareIndex("idx").setSource(source).get();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
+        assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
 
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
@@ -253,9 +253,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         }
         indexRandom(true, indexingRequests);
 
-        assertNoFailures(
-            client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get()
-        );
+        assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
             .addAggregation(
@@ -354,9 +352,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             source = source.endArray().endObject();
             client().prepareIndex("idx").setSource(source).get();
         }
-        assertNoFailures(
-            client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get()
-        );
+        assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
         Map<String, Object> params = new HashMap<>();
         params.put("interval", interval);

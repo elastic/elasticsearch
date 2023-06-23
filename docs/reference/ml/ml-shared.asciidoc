@@ -498,6 +498,10 @@ that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
+tag::deployment-id[]
+A unique identifier for the deployment of the model.
+end::deployment-id[]
+
 tag::desc-results[]
 If true, the results are sorted in descending order.
 end::desc-results[]
@@ -887,7 +891,7 @@ For example:
    "ignore_throttled": true
 }
 ```
-For more information about these options, see <<multi-index>>.
+For more information about these options, see <<api-multi-index>>.
 --
 end::indices-options[]
 
@@ -940,6 +944,7 @@ values are
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* `xlm_roberta`: Use for XLMRoBERTa-style models
 --
 end::inference-config-nlp-tokenization[]
 
@@ -1021,6 +1026,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 * `</s>`: Indicates sequence separation.
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+experimental:[] XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
 
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is

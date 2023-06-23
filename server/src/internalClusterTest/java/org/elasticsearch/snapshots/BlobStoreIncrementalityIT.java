@@ -148,7 +148,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
             client().bulk(bulkRequest).get();
             flushAndRefresh(indexName);
         }
-        final IndexStats indexStats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName);
+        final IndexStats indexStats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
         assertThat(indexStats.getIndexShards().get(0).getPrimary().getSegments().getCount(), greaterThan(1L));
 
         final String snapshot1 = "snap-1";
@@ -159,12 +159,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> force merging down to a single segment");
-        final ForceMergeResponse forceMergeResponse = client().admin()
-            .indices()
-            .prepareForceMerge(indexName)
-            .setMaxNumSegments(1)
-            .setFlush(true)
-            .get();
+        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
         assertThat(forceMergeResponse.getFailedShards(), is(0));
 
         final String snapshot2 = "snap-2";
@@ -208,19 +203,19 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final long beforeSegmentCount = beforeIndexDetails.getMaxSegmentsPerShard();
 
         // reactivate merges
-        assertAcked(admin().indices().prepareClose(indexName).get());
+        assertAcked(indicesAdmin().prepareClose(indexName).get());
         updateIndexSettings(
             Settings.builder()
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "true"),
             indexName
         );
-        assertAcked(admin().indices().prepareOpen(indexName).get());
-        assertEquals(0, admin().indices().prepareForceMerge(indexName).setFlush(true).get().getFailedShards());
+        assertAcked(indicesAdmin().prepareOpen(indexName).get());
+        assertEquals(0, indicesAdmin().prepareForceMerge(indexName).setFlush(true).get().getFailedShards());
 
         // wait for merges to reduce segment count
         assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).setSegments(true).get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).setSegments(true).get();
             assertThat(stats.getIndex(indexName).getPrimaries().getSegments().getCount(), lessThan(beforeSegmentCount));
         }, 30L, TimeUnit.SECONDS);
 
@@ -243,7 +238,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> asserting that index [{}] contains [{}] documents", index, expectedCount);
         assertDocCount(index, expectedCount);
         logger.info("--> deleting index [{}]", index);
-        assertThat(client().admin().indices().prepareDelete(index).get().isAcknowledged(), is(true));
+        assertThat(indicesAdmin().prepareDelete(index).get().isAcknowledged(), is(true));
     }
 
     private void assertTwoIdenticalShardSnapshots(String repo, String indexName, String snapshot1, String snapshot2) {

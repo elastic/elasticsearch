@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -958,9 +959,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
             assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
-            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-            String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
-            String minCompatibleBWCVersion = Version.CURRENT.minimumCompatibilityVersion().luceneVersion.toString();
+            String currentLuceneVersion = IndexVersion.CURRENT.luceneVersion().toString();
+            String bwcLuceneVersion = getOldClusterVersion().luceneVersion().toString();
+            String minCompatibleBWCVersion = Version.CURRENT.minimumCompatibilityVersion().luceneVersion().toString();
             if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
                 int numCurrentVersion = 0;
                 int numBwcVersion = 0;

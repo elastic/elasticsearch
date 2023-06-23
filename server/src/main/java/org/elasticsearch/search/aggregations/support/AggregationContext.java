@@ -15,6 +15,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -204,6 +205,11 @@ public abstract class AggregationContext implements Releasable {
     public abstract IndexSettings getIndexSettings();
 
     /**
+     * The settings for the cluster against which this search is running.
+     */
+    public abstract ClusterSettings getClusterSettings();
+
+    /**
      * Compile a sort.
      */
     public abstract Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException;
@@ -228,6 +234,11 @@ public abstract class AggregationContext implements Releasable {
      * Cause this aggregation to be released when the search is finished.
      */
     public abstract void addReleasable(Aggregator aggregator);
+
+    /**
+     * Cause this aggregation to be released when the search is finished.
+     */
+    public abstract void removeReleasable(Aggregator aggregator);
 
     /**
      * Max buckets provided by the search.max_buckets setting
@@ -496,6 +507,11 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
+        public ClusterSettings getClusterSettings() {
+            return context.getClusterSettings();
+        }
+
+        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             return SortBuilder.buildSort(sortBuilders, context);
         }
@@ -517,7 +533,16 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public void addReleasable(Aggregator aggregator) {
+            assert releaseMe.contains(aggregator) == false
+                : "adding aggregator [" + aggregator.name() + "] twice in the aggregation context";
             releaseMe.add(aggregator);
+        }
+
+        @Override
+        public void removeReleasable(Aggregator aggregator) {
+            assert releaseMe.contains(aggregator)
+                : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
+            releaseMe.remove(aggregator);
         }
 
         @Override

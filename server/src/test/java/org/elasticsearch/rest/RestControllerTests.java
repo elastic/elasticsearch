@@ -60,7 +60,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.rest.RestController.ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -88,6 +87,7 @@ public class RestControllerTests extends ESTestCase {
     private UsageService usageService;
     private NodeClient client;
     private Tracer tracer;
+    private List<RestRequest.Method> methodList;
 
     @Before
     public void setup() {
@@ -119,6 +119,7 @@ public class RestControllerTests extends ESTestCase {
             (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
         );
         httpServerTransport.start();
+        methodList = Arrays.stream(RestRequest.Method.values()).filter(m -> m != OPTIONS).toList();
     }
 
     @After
@@ -207,7 +208,7 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
-        RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        RestRequest.Method method = randomFrom(methodList);
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
@@ -228,10 +229,10 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsReplacedHandler() {
         final RestController controller = mock(RestController.class);
 
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method method = randomFrom(methodList);
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestHandler handler = (request, channel, client) -> {};
-        final RestRequest.Method replacedMethod = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method replacedMethod = randomFrom(methodList);
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestApiVersion current = RestApiVersion.current();
         final RestApiVersion previous = RestApiVersion.previous();
@@ -261,8 +262,8 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
         final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, false);
 
-        RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
-        RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
+        RestRequest.Method firstMethod = randomFrom(methodList);
+        RestRequest.Method secondMethod = randomFrom(methodList.stream().filter(m -> m != firstMethod).toList());
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
@@ -582,7 +583,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDoesNotConsumeContent() throws Exception {
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method method = randomFrom(methodList);
         restController.registerHandler(new Route(method, "/notconsumed"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -895,7 +896,7 @@ public class RestControllerTests extends ESTestCase {
         for (String path : RestController.RESERVED_PATHS) {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
                 restController.registerHandler(
-                    new Route(randomFrom(RestRequest.Method.values()), path),
+                    new Route(randomFrom(methodList), path),
                     (request, channel, client) -> channel.sendResponse(
                         new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
                     )
@@ -922,49 +923,23 @@ public class RestControllerTests extends ESTestCase {
     }
 
     /*
-     * Test that when serverless is enabled, a normal user not using the X-elastic-internal-origin header can only access endpoints
-     * annotated with a PUBLIC scope.
+     * Test that when serverless is enabled, a normal user can not access endpoints without a ServerlessScope annotation.
      */
     public void testApiProtectionWithServerlessEnabledAsEndUser() {
         final RestController restController = new RestController(null, client, circuitBreakerService, new UsageService(), tracer, true);
         restController.registerHandler(new PublicRestHandler());
         restController.registerHandler(new InternalRestHandler());
         restController.registerHandler(new HiddenRestHandler());
-        List<String> accessiblePaths = List.of("/public");
-        accessiblePaths.forEach(path -> {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
-            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-        });
-        List<String> inaccessiblePaths = List.of("/internal", "/hidden");
-        inaccessiblePaths.forEach(path -> {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
-            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-        });
-    }
-
-    /*
-     * Test that when serverless is enabled, a system user using the X-elastic-internal-origin header can only access endpoints
-     * annotated with a PUBLIC or INTERNAL scope.
-     */
-    public void testApiProtectionWithServerlessEnabledAsInternalUser() {
-        final RestController restController = new RestController(null, client, circuitBreakerService, new UsageService(), tracer, true);
-        restController.registerHandler(new PublicRestHandler());
-        restController.registerHandler(new InternalRestHandler());
-        restController.registerHandler(new HiddenRestHandler());
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER, Collections.singletonList("true"));
         List<String> accessiblePaths = List.of("/public", "/internal");
         accessiblePaths.forEach(path -> {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
             AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
             restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
         });
         List<String> inaccessiblePaths = List.of("/hidden");
         inaccessiblePaths.forEach(path -> {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.NOT_FOUND);
             restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
         });
     }

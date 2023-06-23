@@ -652,6 +652,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             );
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                : null;
             state = ClusterState.builder(state)
                 .metadata(
                     Metadata.builder(state.metadata())
@@ -666,6 +669,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                                         .setStartedAtMillis(randomNonNegativeLong())
                                         .setType(type)
                                         .setTargetNodeName(targetNodeName)
+                                        .setGracePeriod(grace)
                                         .build()
                                 )
                             )

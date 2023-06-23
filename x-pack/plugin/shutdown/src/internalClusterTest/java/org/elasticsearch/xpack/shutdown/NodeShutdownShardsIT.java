@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -28,7 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,7 +42,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ShutdownPlugin.class);
+        return List.of(ShutdownPlugin.class);
     }
 
     /**
@@ -61,7 +59,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         internalCluster().stopNode(nodeToRestartName);
 
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
         assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
@@ -90,7 +88,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         internalCluster().stopNode(nodeToRestartName);
 
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
         assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
@@ -157,9 +155,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureYellow("other");
 
         // Explain the replica for the "other" index
-        ClusterAllocationExplainResponse explainResponse = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        ClusterAllocationExplainResponse explainResponse = clusterAdmin().prepareAllocationExplain()
             .setIndex("other")
             .setShard(0)
             .setPrimary(false)
@@ -220,9 +216,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureYellow("other");
 
         // Explain the replica for the "other" index
-        ClusterAllocationExplainResponse explainResponse = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        ClusterAllocationExplainResponse explainResponse = clusterAdmin().prepareAllocationExplain()
             .setIndex("other")
             .setShard(0)
             .setPrimary(false)
@@ -349,37 +343,15 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         );
 
         final String nodeB = internalCluster().startNode();
-        assertBusy(() -> {
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings("myindex")
-                    .setNames("index.number_of_replicas")
-                    .get()
-                    .getSetting("myindex", "index.number_of_replicas"),
-                equalTo("1")
-            );
-        });
+        assertBusy(() -> assertIndexSetting("myindex", "index.number_of_replicas", "1"));
         ensureGreen("myindex");
 
         putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
-
-        // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
-        // that auto-expansion has run.
+        // registering node shutdown entry does not perform reroute, neither should it.
+        // we provoke it here in the test to ensure that auto-expansion has run.
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "myindex");
 
-        assertBusy(() -> {
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings("myindex")
-                    .setNames("index.number_of_replicas")
-                    .get()
-                    .getSetting("myindex", "index.number_of_replicas"),
-                equalTo("1")
-            );
-        });
-
+        assertBusy(() -> assertIndexSetting("myindex", "index.number_of_replicas", "1"));
         indexRandomData("myindex");
 
         internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback() {
@@ -391,6 +363,42 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
 
         ensureGreen("myindex");
+    }
+
+    public void testAutoExpandDuringReplace() throws Exception {
+
+        var node1 = internalCluster().startNode();
+        var node2 = internalCluster().startNode();
+
+        createIndex("index", indexSettings(1, 0).put("index.auto_expand_replicas", randomFrom("0-all", "0-1")).build());
+        indexRandomData("index");
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
+
+        var nodeNameToReplace = randomFrom(node1, node2);
+        var nodeIdToReplace = getNodeId(nodeNameToReplace);
+        var replacementNodeName = "node_t2";
+
+        putNodeShutdown(nodeIdToReplace, SingleNodeShutdownMetadata.Type.REPLACE, replacementNodeName);
+        // registering node shutdown entry does not perform reroute, neither should it.
+        // we provoke it here in the test to ensure that auto-expansion has run.
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "index");
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
+
+        var nodeName3 = internalCluster().startNode();
+        assertThat("started node name did not match registered replacement", nodeName3, equalTo(replacementNodeName));
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
+
+        assertBusy(() -> assertNodeShutdownStatus(nodeIdToReplace, COMPLETE));
+        internalCluster().stopNode(nodeNameToReplace);
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
     }
 
     public void testNodeShutdownWithUnassignedShards() throws Exception {
@@ -423,7 +431,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private String findIdOfNodeWithPrimaryShard(String indexName) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         return startedShards.stream()
             .filter(ShardRouting::primary)
@@ -438,7 +446,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private String getNodeId(String nodeName) {
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         return nodes.getNodes()
             .stream()
             .map(NodeInfo::getNode)
@@ -452,7 +460,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName)
+                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName, null)
             ).get()
         );
     }
@@ -463,7 +471,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexPrimaryShardsAreAllocatedOnNode(String indexName, String nodeId) {
-        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
         var indexRoutingTable = state.routingTable().index(indexName);
         for (int p = 0; p < indexRoutingTable.size(); p++) {
             var primaryShard = indexRoutingTable.shard(p).primaryShard();
@@ -483,7 +491,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexReplicaShardsAreNotAllocated(String indexName) {
-        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
         var indexRoutingTable = state.routingTable().index(indexName);
         for (int p = 0; p < indexRoutingTable.size(); p++) {
             for (ShardRouting replicaShard : indexRoutingTable.shard(p).replicaShards()) {
@@ -504,7 +512,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexSetting(String index, String setting, String expectedValue) {
-        var response = client().admin().indices().getSettings(new GetSettingsRequest().indices(index)).actionGet();
+        var response = indicesAdmin().prepareGetSettings(index).get();
         assertThat(response.getSetting(index, setting), equalTo(expectedValue));
     }
 }

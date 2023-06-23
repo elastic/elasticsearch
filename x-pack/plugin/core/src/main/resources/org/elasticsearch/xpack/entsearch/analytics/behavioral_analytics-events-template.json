@@ -8,6 +8,7 @@
     "behavioral_analytics-events-settings",
     "behavioral_analytics-events-mappings"
   ],
+  "allow_auto_create": false,
   "_meta": {
     "description": "Built-in template applied by default to behavioral analytics event data streams.",
     "managed": true

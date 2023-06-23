@@ -61,7 +61,8 @@
       "geoip": {
         "field": "session.ip",
         "target_field": "session.location",
-        "ignore_missing": true
+        "ignore_missing": true,
+        "download_database_on_pipeline_creation": false
       }
     },
     {

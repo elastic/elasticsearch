@@ -10,7 +10,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -25,7 +25,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,8 +44,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            TestDiscoveryNode.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            DiscoveryNodeUtils.builder("a").roles(emptySet()).version(targetNodeVersion).build(),
+            DiscoveryNodeUtils.builder("b").roles(emptySet()).version(targetNodeVersion).build(),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
@@ -75,7 +74,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
     }
 
     public void testDescription() {
-        final var node = TestDiscoveryNode.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final var node = DiscoveryNodeUtils.builder("a").roles(emptySet()).build();
         assertEquals(
             "recovery of [index][0] to "
                 + node.descriptionWithoutAttributes()

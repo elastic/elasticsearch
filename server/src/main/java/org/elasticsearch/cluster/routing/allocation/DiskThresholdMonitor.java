@@ -31,7 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.gateway.GatewayService;
 
@@ -81,19 +81,19 @@ public class DiskThresholdMonitor {
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
      * can log when such nodes are no longer over the low threshold.
      */
-    private final Set<String> nodesOverLowThreshold = Sets.newConcurrentHashSet();
+    private final Set<String> nodesOverLowThreshold = ConcurrentCollections.newConcurrentSet();
 
     /**
      * The IDs of the nodes that were over the high threshold in the last check (and maybe over another threshold too). Tracked so that we
      * can log when such nodes are no longer over the high threshold.
      */
-    private final Set<String> nodesOverHighThreshold = Sets.newConcurrentHashSet();
+    private final Set<String> nodesOverHighThreshold = ConcurrentCollections.newConcurrentSet();
 
     /**
      * The IDs of the nodes that were over the high threshold in the last check, but which are relocating shards that will bring them
      * under the high threshold again. Tracked so that we can log when such nodes are no longer in this state.
      */
-    private final Set<String> nodesOverHighThresholdAndRelocating = Sets.newConcurrentHashSet();
+    private final Set<String> nodesOverHighThresholdAndRelocating = ConcurrentCollections.newConcurrentSet();
 
     /**
      * The IDs of the nodes in the last info received. Tracked because when a new node joins we consider its disk usage to be equal to
@@ -373,6 +373,7 @@ public class DiskThresholdMonitor {
             // Calculate both the source node id and the target node id of a "replace" type shutdown
             final Set<String> nodesIdsPartOfReplacement = state.metadata()
                 .nodeShutdowns()
+                .getAll()
                 .values()
                 .stream()
                 .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)

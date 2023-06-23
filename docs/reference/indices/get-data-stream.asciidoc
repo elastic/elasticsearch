@@ -205,7 +205,7 @@ policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
 
 `hidden`::
-(Boolean) If `true`, the data stream is <<hidden,hidden>>.
+(Boolean) If `true`, the data stream is <<multi-hidden,hidden>>.
 
 `system`::
 (Boolean)
@@ -236,7 +236,7 @@ duration the document could be deleted. When empty, every document in this data 
 `rollover`::
 (object)
 The conditions which will trigger the rollover of a backing index as configured by the cluster setting
-`cluster.dlm.default.rollover`. This property is an implementation detail and it will only be retrieved when the query
+`cluster.lifecycle.default.rollover`. This property is an implementation detail and it will only be retrieved when the query
 param `include_defaults` is set to `true`. The contents of this field are subject to change.
 =====
 ====

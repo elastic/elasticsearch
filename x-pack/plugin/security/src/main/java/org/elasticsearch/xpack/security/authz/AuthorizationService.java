@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
@@ -101,7 +103,6 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.allowAll;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
-import static org.elasticsearch.xpack.core.security.user.User.isInternal;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class AuthorizationService {
@@ -216,7 +217,7 @@ public class AuthorizationService {
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        if (isInternal(subject.getUser())) {
+        if (subject.getUser() instanceof InternalUser) {
             final String message = "the user ["
                 + subject.getUser().principal()
                 + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
@@ -319,7 +320,21 @@ public class AuthorizationService {
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
                     threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
                     maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                }, listener::onFailure), threadContext);
+                }, e -> {
+                    if (e instanceof ElasticsearchRoleRestrictionException) {
+                        logger.debug(
+                            () -> Strings.format(
+                                "denying action [%s] due to role restriction for authentication [%s]",
+                                action,
+                                authentication
+                            ),
+                            e
+                        );
+                        listener.onFailure(actionDenied(authentication, EmptyAuthorizationInfo.INSTANCE, action, unwrappedRequest, e));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
         }
@@ -352,7 +367,7 @@ public class AuthorizationService {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            if (isInternal(authentication.getEffectiveSubject().getUser())) {
+            if (authentication.getEffectiveSubject().getUser() instanceof InternalUser) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
@@ -441,18 +456,18 @@ public class AuthorizationService {
                 }, listener::onFailure, requestInfo, requestId, authzInfo),
                 threadContext
             );
-            authzEngine.authorizeClusterAction(requestInfo, authzInfo, ActionListener.wrap(result -> {
+            authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener.delegateFailureAndWrap((l, result) -> {
                 if (false == result.isGranted() && QueryApiKeyAction.NAME.equals(action)) {
                     assert request instanceof QueryApiKeyRequest : "request does not match action";
                     final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
                     if (false == queryApiKeyRequest.isFilterForCurrentUser()) {
                         queryApiKeyRequest.setFilterForCurrentUser();
-                        authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
+                        authzEngine.authorizeClusterAction(requestInfo, authzInfo, l);
                         return;
                     }
                 }
-                clusterAuthzListener.onResponse(result);
-            }, clusterAuthzListener::onFailure));
+                l.onResponse(result);
+            }));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
@@ -578,10 +593,7 @@ public class AuthorizationService {
                 metadata,
                 requestId,
                 wrapPreservingContext(
-                    ActionListener.wrap(
-                        ignore -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
-                        listener::onFailure
-                    ),
+                    listener.delegateFailureAndWrap((l, ignore) -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, l)),
                     threadContext
                 )
             );
@@ -630,7 +642,7 @@ public class AuthorizationService {
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
         if (rbacEngine != authorizationEngine && Security.AUTHORIZATION_ENGINE_FEATURE.check(licenseState)) {
-            if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternal(user)) {
+            if (ClientReservedRealm.isReserved(user.principal(), settings) || user instanceof InternalUser) {
                 return rbacEngine;
             } else {
                 return authorizationEngine;
@@ -855,9 +867,8 @@ public class AuthorizationService {
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
                     metadata.getIndicesLookup(),
-                    ActionListener.wrap(
-                        indexAuthorizationResult -> groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
-                        groupedActionListener::onFailure
+                    groupedActionListener.delegateFailureAndWrap(
+                        (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )
                 );
             });

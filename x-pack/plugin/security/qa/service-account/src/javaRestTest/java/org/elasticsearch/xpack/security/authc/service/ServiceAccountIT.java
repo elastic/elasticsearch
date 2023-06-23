@@ -126,6 +126,15 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    ".fleet-secrets*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices":true
+                },
+                {
+                  "names": [
                     ".fleet-*"
                   ],
                   "privileges": [
@@ -178,6 +187,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 {
                     "names": [
                         "search-*",
+                        ".search-acl-filter-*",
                         ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",

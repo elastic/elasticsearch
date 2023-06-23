@@ -308,7 +308,7 @@ public class EsExecutorsTests extends ESTestCase {
                 assertThat(
                     message,
                     either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
-                        containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                        containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
                     )
                 );
                 assertThat(message, containsString("queue capacity = " + queue));
@@ -353,7 +353,7 @@ public class EsExecutorsTests extends ESTestCase {
             assertThat(
                 message,
                 either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
-                    containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                    containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
                 )
             );
             assertThat(message, containsString("queue capacity = " + queue));

@@ -144,9 +144,9 @@ public class AllocationBenchmark {
         for (int i = 1; i <= numNodes; i++) {
             String id = "node" + i;
             nb.add(Allocators.newNode(id, Collections.singletonMap("tag", "tag_" + (i % numTags))));
-            transportVersions.put(id, TransportVersion.CURRENT);
+            transportVersions.put(id, TransportVersion.current());
         }
-        initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(nb)

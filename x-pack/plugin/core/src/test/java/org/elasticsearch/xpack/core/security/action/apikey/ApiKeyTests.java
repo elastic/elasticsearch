@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeyTests extends ESTestCase {
 
@@ -39,6 +41,7 @@ public class ApiKeyTests extends ESTestCase {
     public void testXContent() throws IOException {
         final String name = randomAlphaOfLengthBetween(4, 10);
         final String id = randomAlphaOfLength(20);
+        final ApiKey.Type type = TcpTransport.isUntrustedRemoteClusterEnabled() ? randomFrom(ApiKey.Type.values()) : ApiKey.Type.REST;
         // between 1970 and 2065
         final Instant creation = Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
         final Instant expiration = randomBoolean()
@@ -49,11 +52,14 @@ public class ApiKeyTests extends ESTestCase {
         final String realmName = randomAlphaOfLengthBetween(3, 8);
         final Map<String, Object> metadata = randomMetadata();
         final List<RoleDescriptor> roleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3);
-        final List<RoleDescriptor> limitedByRoleDescriptors = randomUniquelyNamedRoleDescriptors(0, 3);
+        final List<RoleDescriptor> limitedByRoleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
+            ? null
+            : randomUniquelyNamedRoleDescriptors(0, 3);
 
         final ApiKey apiKey = new ApiKey(
             name,
             id,
+            type,
             creation,
             expiration,
             invalidated,
@@ -77,6 +83,9 @@ public class ApiKeyTests extends ESTestCase {
 
         assertThat(map.get("name"), equalTo(name));
         assertThat(map.get("id"), equalTo(id));
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(map.get("type"), equalTo(type.value()));
+        }
         assertThat(Long.valueOf(map.get("creation").toString()), equalTo(creation.toEpochMilli()));
         if (expiration != null) {
             assertThat(Long.valueOf(map.get("expiration").toString()), equalTo(expiration.toEpochMilli()));
@@ -100,12 +109,16 @@ public class ApiKeyTests extends ESTestCase {
         }
 
         final var limitedByList = (List<Map<String, Object>>) map.get("limited_by");
-        assertThat(limitedByList.size(), equalTo(1));
-        final Map<String, Object> limitedByMap = limitedByList.get(0);
-        assertThat(limitedByMap.size(), equalTo(limitedByRoleDescriptors.size()));
-        for (RoleDescriptor roleDescriptor : limitedByRoleDescriptors) {
-            assertThat(limitedByMap, hasKey(roleDescriptor.getName()));
-            assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(limitedByMap.get(roleDescriptor.getName())));
+        if (type != ApiKey.Type.CROSS_CLUSTER) {
+            assertThat(limitedByList.size(), equalTo(1));
+            final Map<String, Object> limitedByMap = limitedByList.get(0);
+            assertThat(limitedByMap.size(), equalTo(limitedByRoleDescriptors.size()));
+            for (RoleDescriptor roleDescriptor : limitedByRoleDescriptors) {
+                assertThat(limitedByMap, hasKey(roleDescriptor.getName()));
+                assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(limitedByMap.get(roleDescriptor.getName())));
+            }
+        } else {
+            assertThat(limitedByList, nullValue());
         }
     }
 
@@ -130,7 +143,6 @@ public class ApiKeyTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public static Map<String, Object> randomMetadata() {
         return randomFrom(
             Map.of(

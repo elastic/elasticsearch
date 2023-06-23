@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
@@ -230,31 +230,26 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         if (seedNodesSuppliers.hasNext()) {
             final Consumer<Exception> onFailure = e -> {
-                if (isRetryableException(e)) {
-                    if (seedNodesSuppliers.hasNext()) {
-                        logger.debug(
-                            () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),
-                            e
-                        );
-                        collectRemoteNodes(seedNodesSuppliers, listener);
-                        return;
-                    }
+                if (isRetryableException(e) && seedNodesSuppliers.hasNext()) {
+                    logger.debug(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed moving to next seed node", e);
+                    collectRemoteNodes(seedNodesSuppliers, listener);
+                } else {
+                    logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
+                    listener.onFailure(e);
                 }
-                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
-                listener.onFailure(e);
             };
 
             final DiscoveryNode seedNode = seedNodesSuppliers.next().get();
             logger.trace("[{}] opening transient connection to seed node: [{}]", clusterAlias, seedNode);
-            final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
+            final ListenableFuture<Transport.Connection> openConnectionStep = new ListenableFuture<>();
             try {
                 connectionManager.openConnection(seedNode, null, openConnectionStep);
             } catch (Exception e) {
                 onFailure.accept(e);
             }
 
-            final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
-            openConnectionStep.whenComplete(connection -> {
+            final ListenableFuture<TransportService.HandshakeResponse> handshakeStep = new ListenableFuture<>();
+            openConnectionStep.addListener(ActionListener.wrap(connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                 transportService.handshake(
                     connection,
@@ -262,10 +257,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     getRemoteClusterNamePredicate(),
                     handshakeStep
                 );
-            }, onFailure);
+            }, onFailure));
 
-            final StepListener<Void> fullConnectionStep = new StepListener<>();
-            handshakeStep.whenComplete(handshakeResponse -> {
+            final ListenableFuture<Void> fullConnectionStep = new ListenableFuture<>();
+            handshakeStep.addListener(ActionListener.wrap(handshakeResponse -> {
                 final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
 
                 if (nodePredicate.test(handshakeNode) && shouldOpenMoreConnections()) {
@@ -290,9 +285,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 logger.debug(() -> format("[%s] failed to handshake with seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
-            });
+            }));
 
-            fullConnectionStep.whenComplete(aVoid -> {
+            fullConnectionStep.addListener(ActionListener.wrap(aVoid -> {
                 if (remoteClusterName.get() == null) {
                     TransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
                     assert handshakeResponse.getClusterName().value() != null;
@@ -344,7 +339,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
-            });
+            }));
         } else {
             listener.onFailure(new NoSeedNodeLeftException("no seed node left for cluster: [" + clusterAlias + "]"));
         }

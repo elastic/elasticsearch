@@ -18,6 +18,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -50,6 +51,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private RestClient newVersionClient = null;
 
     public void testCreatingAndUpdatingApiKeys() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         assumeTrue(
             "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
             UPGRADE_FROM_VERSION.before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)
@@ -346,7 +348,11 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteIndices) {
-        final Set<String> excludedPrivileges = Set.of("cross_cluster_replication", "cross_cluster_replication_internal");
+        final Set<String> excludedPrivileges = Set.of(
+            "cross_cluster_replication",
+            "cross_cluster_replication_internal",
+            "manage_data_stream_lifecycle"
+        );
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(Set.of("all", "monitor", "none")).toArray(String[]::new),
@@ -356,7 +362,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(false),
             Map.of(),
-            includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null
+            includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
+            null
         );
     }
 }

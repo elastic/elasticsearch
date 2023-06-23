@@ -61,6 +61,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestRepositoryPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95994")
     public void testRecoveryStateRecoveredBytesMatchPhysicalCacheState() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -77,14 +78,12 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .get()
@@ -133,7 +132,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
@@ -146,9 +145,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         internalCluster().restartRandomDataNode();
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .get()
@@ -208,7 +205,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
     }
 
     private RecoveryState getRecoveryState(String indexName) {
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+        final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
         Map<String, List<RecoveryState>> shardRecoveries = recoveryResponse.shardRecoveryStates();
         assertThat(shardRecoveries.containsKey(indexName), equalTo(true));
         List<RecoveryState> recoveryStates = shardRecoveries.get(indexName);

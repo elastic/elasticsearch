@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -22,8 +24,8 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -90,7 +92,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingComposableTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> existingComponentTemplates = Map.of(
             AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
@@ -121,7 +123,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingComponentTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -152,11 +154,15 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                calledTimes.incrementAndGet();
+                return AcknowledgedResponse.TRUE;
+            }
             if (action instanceof PutLifecycleAction) {
                 calledTimes.incrementAndGet();
                 assertThat(action, instanceOf(PutLifecycleAction.class));
@@ -179,11 +185,11 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(2)));
     }
 
     public void testPolicyAlreadyExists() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
@@ -192,6 +198,10 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            }
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
@@ -214,7 +224,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
@@ -224,6 +234,10 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            }
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
@@ -266,7 +280,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatVersionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -286,7 +300,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatUnversionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -304,7 +318,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.xpack.core.template:DEBUG", reason = "test")
     public void testSameOrHigherVersionComponentTemplateNotUpgraded() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
@@ -312,6 +326,10 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         versions.put(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME, AnalyticsTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
         client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            }
             if (action instanceof PutComponentTemplateAction) {
                 fail("template should not have been re-installed");
                 return null;
@@ -342,7 +360,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
-        DiscoveryNode localNode = TestDiscoveryNode.create("node");
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         client.setVerifier((a, r, l) -> {
@@ -355,6 +373,55 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             Collections.emptyMap(),
             nodes
         );
+        registry.clusterChanged(event);
+    }
+
+    public void testThatNonExistingPipelinesAreAddedImmediately() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                calledTimes.incrementAndGet();
+                return AcknowledgedResponse.TRUE;
+            }
+            if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutComposableIndexTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelines().size())));
+    }
+
+    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
+        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
+        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId("updatedNode")
+            .masterNodeId("updatedNode")
+            .add(updatedNode)
+            .add(outdatedNode)
+            .build();
+
+        client.setVerifier((a, r, l) -> {
+            fail("if some cluster mode are not updated to at least v.8.8.0 nothing should happen");
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
     }
 
@@ -400,6 +467,10 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
+        if (action instanceof PutPipelineAction) {
+            // Ignore this, it's verified in another test
+            return AcknowledgedResponse.TRUE;
+        }
         if (action instanceof PutComponentTemplateAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
@@ -429,6 +500,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
+        if (action instanceof PutPipelineAction) {
+            return AcknowledgedResponse.TRUE;
+        }
         if (action instanceof PutComponentTemplateAction) {
             calledTimes.incrementAndGet();
             assertThat(action, instanceOf(PutComponentTemplateAction.class));

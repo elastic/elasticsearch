@@ -57,6 +57,7 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController implements HttpServerTransport.Dispatcher {
@@ -70,7 +71,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
-    static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
@@ -263,6 +263,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (RESERVED_PATHS.contains(path)) {
             throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
         }
+        // the HTTP OPTIONS method is treated internally, not by handlers, see {@code #handleNoHandlerFound}
+        assert method != RestRequest.Method.OPTIONS : "There should be no handlers registered for the OPTIONS HTTP method";
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path).addMethod(method, version, handler),
@@ -374,14 +376,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestChannel responseChannel = channel;
         if (serverlessEnabled) {
             Scope scope = handler.getServerlessScope();
-            if (Scope.INTERNAL.equals(scope)) {
-                final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
-                boolean internalRequest = internalOrigin != null;
-                if (internalRequest == false) {
-                    handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
-                    return;
-                }
-            } else if (Scope.PUBLIC.equals(scope) == false) {
+            if (scope == null) {
                 handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
                 return;
             }
@@ -675,7 +670,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 );
             }
             builder.endObject();
-            channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
+            channel.sendResponse(new RestResponse(NOT_FOUND, builder));
         }
     }
 

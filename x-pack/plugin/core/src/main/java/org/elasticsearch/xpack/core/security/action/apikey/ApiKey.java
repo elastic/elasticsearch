@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -80,6 +81,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     private final String name;
     private final String id;
+    private final Type type;
     private final Instant creation;
     private final Instant expiration;
     private final boolean invalidated;
@@ -94,6 +96,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     public ApiKey(
         String name,
         String id,
+        Type type,
         Instant creation,
         Instant expiration,
         boolean invalidated,
@@ -106,6 +109,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this(
             name,
             id,
+            type,
             creation,
             expiration,
             invalidated,
@@ -120,6 +124,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private ApiKey(
         String name,
         String id,
+        Type type,
         Instant creation,
         Instant expiration,
         boolean invalidated,
@@ -131,6 +136,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     ) {
         this.name = name;
         this.id = id;
+        this.type = type;
         // As we do not yet support the nanosecond precision when we serialize to JSON,
         // here creating the 'Instant' of milliseconds precision.
         // This Instant can then be used for date comparison.
@@ -153,6 +159,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.name = in.readString();
         }
         this.id = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
+            this.type = in.readEnum(Type.class);
+        } else {
+            // This default is safe because
+            // 1. ApiKey objects never transfer between nodes
+            // 2. Creating cross-cluster API keys mandates minimal node version that understands the API key type
+            this.type = Type.REST;
+        }
         this.creation = in.readInstant();
         this.expiration = in.readOptionalInstant();
         this.invalidated = in.readBoolean();
@@ -179,6 +193,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     public String getName() {
         return name;
+    }
+
+    public Type getType() {
+        return type;
     }
 
     public Instant getCreation() {
@@ -221,7 +239,11 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("id", id).field("name", name).field("creation", creation.toEpochMilli());
+        builder.field("id", id).field("name", name);
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            builder.field("type", type.value());
+        }
+        builder.field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
@@ -237,6 +259,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             builder.endObject();
         }
         if (limitedBy != null) {
+            assert type != Type.CROSS_CLUSTER;
             builder.field("limited_by", limitedBy);
         }
         return builder;
@@ -250,6 +273,9 @@ public final class ApiKey implements ToXContentObject, Writeable {
             out.writeString(name);
         }
         out.writeString(id);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
+            out.writeEnum(type);
+        }
         out.writeInstant(creation);
         out.writeOptionalInstant(expiration);
         out.writeBoolean(invalidated);
@@ -266,7 +292,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata, roleDescriptors, limitedBy);
+        return Objects.hash(name, id, type, creation, expiration, invalidated, username, realm, metadata, roleDescriptors, limitedBy);
     }
 
     @Override
@@ -283,6 +309,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         ApiKey other = (ApiKey) obj;
         return Objects.equals(name, other.name)
             && Objects.equals(id, other.id)
+            && Objects.equals(type, other.type)
             && Objects.equals(creation, other.creation)
             && Objects.equals(expiration, other.expiration)
             && Objects.equals(invalidated, other.invalidated)
@@ -298,19 +325,22 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return new ApiKey(
             (String) args[0],
             (String) args[1],
-            Instant.ofEpochMilli((Long) args[2]),
-            (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]),
-            (Boolean) args[4],
-            (String) args[5],
+            // TODO: remove null check once TcpTransport.isUntrustedRemoteClusterEnabled() is removed
+            args[2] == null ? Type.REST : (Type) args[2],
+            Instant.ofEpochMilli((Long) args[3]),
+            (args[4] == null) ? null : Instant.ofEpochMilli((Long) args[4]),
+            (Boolean) args[5],
             (String) args[6],
-            (args[7] == null) ? null : (Map<String, Object>) args[7],
-            (List<RoleDescriptor>) args[8],
-            (RoleDescriptorsIntersection) args[9]
+            (String) args[7],
+            (args[8] == null) ? null : (Map<String, Object>) args[8],
+            (List<RoleDescriptor>) args[9],
+            (RoleDescriptorsIntersection) args[10]
         );
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
         PARSER.declareString(constructorArg(), new ParseField("id"));
+        PARSER.declareField(optionalConstructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
         PARSER.declareLong(constructorArg(), new ParseField("creation"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
@@ -339,6 +369,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + name
             + ", id="
             + id
+            + ", type="
+            + type.value()
             + ", creation="
             + creation
             + ", expiration="

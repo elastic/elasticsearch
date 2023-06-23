@@ -8,12 +8,15 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -24,30 +27,42 @@ import java.util.Objects;
 public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;
     private final List<String> allocatedNodes;
-    private final boolean preFiltered;
     private final boolean skipped;
+    private final transient boolean preFiltered;
 
-    public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, boolean preFiltered, boolean skipped) {
+    public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, boolean skipped) {
         this.shardId = shardId;
         this.allocatedNodes = allocatedNodes;
         this.skipped = skipped;
-        this.preFiltered = preFiltered;
-        assert skipped == false || preFiltered;
+        this.preFiltered = true;
+    }
+
+    /**
+     * Create a new response from a legacy response from the cluster_search_shards API
+     */
+    SearchShardsGroup(ClusterSearchShardsGroup oldGroup) {
+        this.shardId = oldGroup.getShardId();
+        this.allocatedNodes = Arrays.stream(oldGroup.getShards()).map(ShardRouting::currentNodeId).toList();
+        this.skipped = false;
+        this.preFiltered = false;
     }
 
     public SearchShardsGroup(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.allocatedNodes = in.readStringList();
         this.skipped = in.readBoolean();
-        this.preFiltered = in.readBoolean();
+        this.preFiltered = true;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (preFiltered == false) {
+            assert false : "Serializing a response created from a legacy response is not allowed";
+            throw new IllegalStateException("Serializing a response created from a legacy response is not allowed");
+        }
         shardId.writeTo(out);
         out.writeStringCollection(allocatedNodes);
         out.writeBoolean(skipped);
-        out.writeBoolean(preFiltered);
     }
 
     public ShardId shardId() {
@@ -65,7 +80,7 @@ public class SearchShardsGroup implements Writeable {
      * Returns true if the can_match was performed against this group. This flag is for BWC purpose. It's always
      * true for a response from the new search_shards API; but always false for a response from the old API.
      */
-    public boolean preFiltered() {
+    boolean preFiltered() {
         return preFiltered;
     }
 

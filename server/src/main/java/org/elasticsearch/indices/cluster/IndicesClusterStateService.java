@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -930,6 +931,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Override
         public void accept(final IndexShard.ShardFailure shardFailure) {
             final ShardRouting shardRouting = shardFailure.routing();
+            if (shardRouting.initializing()) {
+                // no need to fail the shard here during recovery, the recovery code will take care of failing it
+                return;
+            }
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
                     failAndRemoveShard(
@@ -1097,7 +1102,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             PeerRecoveryTargetService.RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
-            Consumer<ShardId> globalCheckpointSyncer,
+            GlobalCheckpointSyncer globalCheckpointSyncer,
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode

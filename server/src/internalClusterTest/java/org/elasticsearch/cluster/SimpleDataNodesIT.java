@@ -36,7 +36,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testIndexingBeforeAndAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());
-        client().admin().indices().create(new CreateIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
         try {
             client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1))).actionGet();
             fail("no allocation should happen");
@@ -83,13 +83,10 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testShardsAllocatedAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());
-        client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .waitForActiveShards(ActiveShardCount.NONE)
-            )
-            .actionGet();
+        indicesAdmin().create(
+            new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .waitForActiveShards(ActiveShardCount.NONE)
+        ).actionGet();
         final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()
@@ -114,13 +111,10 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() {
         internalCluster().startNode(nonDataNode());
-        client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
-                    .waitForActiveShards(ActiveShardCount.NONE)
-            )
-            .actionGet();
+        indicesAdmin().create(
+            new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+                .waitForActiveShards(ActiveShardCount.NONE)
+        ).actionGet();
         final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()
@@ -131,7 +125,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         internalCluster().startNode();
         internalCluster().startNode();
-        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        clusterAdmin().prepareReroute().setRetryFailed(true).get();
     }
 
 }

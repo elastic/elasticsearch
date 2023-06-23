@@ -11,27 +11,28 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterAwareClientTests extends ESTestCase {
 
@@ -44,7 +45,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
     }
 
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes) {
-        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, TransportVersion.CURRENT, threadPool);
+        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, TransportVersion.current(), threadPool);
     }
 
     public void testSearchShards() throws Exception {
@@ -62,7 +63,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     null
                 )
@@ -79,25 +80,17 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                         randomBoolean()
                     )
                 ) {
-                    SearchRequest request = new SearchRequest("test-index");
-                    CountDownLatch responseLatch = new CountDownLatch(1);
-                    AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
-                    ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index").indicesOptions(
-                        request.indicesOptions()
-                    ).local(true).preference(request.preference()).routing(request.routing());
-                    client.admin()
-                        .cluster()
-                        .searchShards(
-                            searchShardsRequest,
-                            new LatchedActionListener<>(
-                                ActionListener.wrap(reference::set, e -> fail("no failures expected")),
-                                responseLatch
-                            )
-                        );
-                    responseLatch.await();
-                    assertNotNull(reference.get());
-                    ClusterSearchShardsResponse clusterSearchShardsResponse = reference.get();
-                    assertEquals(knownNodes, Arrays.asList(clusterSearchShardsResponse.getNodes()));
+                    SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+                        new String[] { "test-index" },
+                        IndicesOptions.strictExpandOpen(),
+                        new MatchAllQueryBuilder(),
+                        null,
+                        null,
+                        randomBoolean(),
+                        null
+                    );
+                    var searchShardsResponse = client.execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+                    assertThat(searchShardsResponse.getNodes(), equalTo(knownNodes));
                 }
             }
         }
@@ -118,7 +111,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     null
                 )
@@ -135,35 +128,32 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                         randomBoolean()
                     )
                 ) {
-                    SearchRequest request = new SearchRequest("test-index");
                     int numThreads = 10;
                     ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
                     for (int i = 0; i < numThreads; i++) {
                         final String threadId = Integer.toString(i);
+                        PlainActionFuture<SearchShardsResponse> future = new PlainActionFuture<>();
                         executorService.submit(() -> {
                             ThreadContext threadContext = seedTransport.threadPool.getThreadContext();
                             threadContext.putHeader("threadId", threadId);
-                            AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
-                            final ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index")
-                                .indicesOptions(request.indicesOptions())
-                                .local(true)
-                                .preference(request.preference())
-                                .routing(request.routing());
-                            CountDownLatch responseLatch = new CountDownLatch(1);
-                            client.admin()
-                                .cluster()
-                                .searchShards(searchShardsRequest, new LatchedActionListener<>(ActionListener.wrap(resp -> {
-                                    reference.set(resp);
-                                    assertEquals(threadId, seedTransport.threadPool.getThreadContext().getHeader("threadId"));
-                                }, e -> fail("no failures expected")), responseLatch));
-                            try {
-                                responseLatch.await();
-                            } catch (InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                            assertNotNull(reference.get());
-                            ClusterSearchShardsResponse clusterSearchShardsResponse = reference.get();
-                            assertEquals(knownNodes, Arrays.asList(clusterSearchShardsResponse.getNodes()));
+                            var searchShardsRequest = new SearchShardsRequest(
+                                new String[] { "test-index" },
+                                IndicesOptions.strictExpandOpen(),
+                                new MatchAllQueryBuilder(),
+                                null,
+                                null,
+                                randomBoolean(),
+                                null
+                            );
+                            client.execute(
+                                SearchShardsAction.INSTANCE,
+                                searchShardsRequest,
+                                ActionListener.runBefore(
+                                    future,
+                                    () -> assertThat(seedTransport.threadPool.getThreadContext().getHeader("threadId"), equalTo(threadId))
+                                )
+                            );
+                            assertThat(future.actionGet().getNodes(), equalTo(knownNodes));
                         });
                     }
                     ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);

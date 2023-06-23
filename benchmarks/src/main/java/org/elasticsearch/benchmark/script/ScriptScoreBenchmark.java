@@ -22,9 +22,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -148,7 +148,7 @@ public class ScriptScoreBenchmark {
 
     private Query scriptScoreQuery(ScoreScript.Factory factory) {
         ScoreScript.LeafFactory leafFactory = factory.newFactory(Map.of(), lookup);
-        return new ScriptScoreQuery(new MatchAllDocsQuery(), null, leafFactory, lookup, null, "test", 0, Version.CURRENT);
+        return new ScriptScoreQuery(new MatchAllDocsQuery(), null, leafFactory, lookup, null, "test", 0, IndexVersion.CURRENT);
     }
 
     private ScoreScript.Factory bareMetalScript() {

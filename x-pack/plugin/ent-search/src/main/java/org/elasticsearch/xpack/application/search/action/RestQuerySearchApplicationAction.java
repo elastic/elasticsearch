@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +24,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestQuerySearchApplicationAction extends BaseRestHandler {
+public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHandler {
+    public RestQuerySearchApplicationAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";
 
@@ -37,7 +42,7 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String searchAppName = restRequest.param("name");
         SearchApplicationSearchRequest request;
         if (restRequest.hasContentOrSourceParam()) {
@@ -45,7 +50,9 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
         } else {
             request = new SearchApplicationSearchRequest(searchAppName);
         }
-        final SearchApplicationSearchRequest finalRequest = request;
-        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
+            cancelClient.execute(QuerySearchApplicationAction.INSTANCE, request, new RestChunkedToXContentListener<>(channel));
+        };
     }
 }

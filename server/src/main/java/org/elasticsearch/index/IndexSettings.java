@@ -10,8 +10,8 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -128,6 +129,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum value of from + size on an individual inner hit definition or
      * top hits aggregation. The default maximum of 100 is defensive for the reason that the number of inner hit responses
@@ -237,6 +239,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.
@@ -248,20 +251,31 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+    /**
+     * Only intended for stateless.
+     */
+    public static final Setting<Boolean> INDEX_FAST_REFRESH_SETTING = Setting.boolSetting(
+        "index.fast_refresh",
+        false,
+        Property.Final,
+        Property.IndexScope
+    );
+
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "node._internal.default_refresh_interval",
         DEFAULT_REFRESH_INTERVAL,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        TimeValue.MINUS_ONE,
         Property.NodeScope
-    );
-    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
-        "index.refresh_interval",
-        NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
-        Property.Dynamic,
-        Property.IndexScope
-    );
+    ); // TODO: remove setting
+    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5); // TODO: settle on right value
+    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
+        if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
+            return STATELESS_DEFAULT_REFRESH_INTERVAL;
+        }
+        return DEFAULT_REFRESH_INTERVAL;
+    }, TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
+
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
         /*
@@ -306,6 +320,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
@@ -602,7 +617,7 @@ public final class IndexSettings {
     );
 
     private final Index index;
-    private final Version version;
+    private final IndexVersion version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
@@ -628,6 +643,7 @@ public final class IndexSettings {
     private volatile Translog.Durability durability;
     private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
+    private final boolean fastRefresh;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue flushThresholdAge;
     private volatile ByteSizeValue generationThresholdSize;
@@ -777,6 +793,10 @@ public final class IndexSettings {
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
+        fastRefresh = scopedSettings.get(INDEX_FAST_REFRESH_SETTING);
+        if (fastRefresh && DiscoveryNode.isStateless(nodeSettings) == false) {
+            throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only in stateless");
+        }
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -784,7 +804,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        assert softDeleteEnabled || version.before(Version.V_8_0_0) : "soft deletes must be enabled in version " + version;
+        assert softDeleteEnabled || version.before(IndexVersion.V_8_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -960,7 +980,7 @@ public final class IndexSettings {
      * Returns the version the index was created on.
      * @see IndexMetadata#SETTING_VERSION_CREATED
      */
-    public Version getIndexVersionCreated() {
+    public IndexVersion getIndexVersionCreated() {
         return version;
     }
 
@@ -1015,12 +1035,12 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
         final Settings newSettings = indexMetadata.getSettings();
-        Version newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
+        IndexVersion newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
         }
-        Version newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
-        Version compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        IndexVersion newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
+        IndexVersion compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
             throw new IllegalArgumentException(
                 "compatibility version mismatch on settings update expected: "
@@ -1104,6 +1124,13 @@ public final class IndexSettings {
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;
+    }
+
+    /**
+     * Only intended for stateless.
+     */
+    public boolean isFastRefresh() {
+        return fastRefresh;
     }
 
     /**

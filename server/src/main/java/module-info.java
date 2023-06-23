@@ -28,6 +28,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
+    requires org.elasticsearch.tdigest;
 
     requires com.sun.jna;
     requires hppc;
@@ -35,7 +36,6 @@ module org.elasticsearch.server {
     requires jopt.simple;
     requires log4j2.ecs.layout;
     requires org.lz4.java;
-    requires t.digest;
 
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
@@ -277,6 +277,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
     exports org.elasticsearch.ingest;
+    exports org.elasticsearch.internal to org.elasticsearch.serverless.version;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -290,6 +291,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
+    exports org.elasticsearch.node.internal to org.elasticsearch.internal.sigterm;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
@@ -357,6 +359,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
+    exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
     exports org.elasticsearch.tracing;
@@ -379,6 +382,8 @@ module org.elasticsearch.server {
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
     uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
+    uses org.elasticsearch.node.internal.TerminationHandlerProvider;
+    uses org.elasticsearch.internal.VersionExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

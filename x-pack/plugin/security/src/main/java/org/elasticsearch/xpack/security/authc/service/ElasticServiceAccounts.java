@@ -31,6 +31,7 @@ final class ElasticServiceAccounts {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "search-*",
+                        ".search-acl-filter-*",
                         ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
@@ -82,6 +83,11 @@ final class ElasticServiceAccounts {
                     // - "read" privilege to search the documents
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")

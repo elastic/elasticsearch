@@ -117,9 +117,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         }
 
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("should-fail")
+            indicesAdmin().preparePutTemplate("should-fail")
                 .setPatterns(Collections.singletonList("should-fail"))
                 .setOrder(1)
                 .setSettings(indexSettings(counts.getFailingIndexShards(), counts.getFailingIndexReplicas()))
@@ -128,7 +126,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareCreate("should-fail").get()
+            () -> indicesAdmin().prepareCreate("should-fail").get()
         );
         verifyException(dataNodes, counts, e);
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
@@ -147,9 +145,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         prepareCreate("growing-should-fail", indexSettings(firstShardCount, 0)).get();
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("growing-should-fail")
+            indicesAdmin().prepareUpdateSettings("growing-should-fail")
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
                 .get();
             fail("shouldn't be able to increase the number of replicas");
@@ -204,9 +200,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .build()
         );
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(randomFrom("_all", "test-*", "*-index"))
+            indicesAdmin().prepareUpdateSettings(randomFrom("_all", "test-*", "*-index"))
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes - 1))
                 .get();
             fail("should not have been able to increase shards above limit");
@@ -246,9 +240,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         // Since a request with preserve_existing can't change the number of
         // replicas, we should never get an error here.
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test-index")
+            indicesAdmin().prepareUpdateSettings("test-index")
                 .setPreserveExisting(true)
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
                 .get()

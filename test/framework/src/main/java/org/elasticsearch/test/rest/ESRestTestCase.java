@@ -621,6 +621,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
+            "profiling",
             "synthetics",
             "7-days-default",
             "30-days-default",
@@ -1301,7 +1302,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+    /**
+     * Override this to configure the client with additional settings.
+     */
+    protected void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        doConfigureClient(builder, settings);
+    }
+
+    protected static void doConfigureClient(RestClientBuilder builder, Settings settings) throws IOException {
         String truststorePath = settings.get(TRUSTSTORE_PATH);
         String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
         String clientCertificatePath = settings.get(CLIENT_CERT_PATH);
@@ -1814,11 +1822,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("behavioral_analytics-")) {
             return true;
         }
+        if (name.startsWith("profiling-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
+            case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
             case "logs":
             case "logs-settings":
@@ -1834,6 +1846,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
+            case "ecs@dynamic_templates":
                 return true;
             default:
                 return false;

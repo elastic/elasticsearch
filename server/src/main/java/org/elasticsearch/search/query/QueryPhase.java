@@ -30,8 +30,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -102,7 +102,7 @@ public class QueryPhase {
         long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
         int nodeQueueSize = querySearchResult.nodeQueueSize();
 
-        // run each of the rrf queries
+        // run each of the rank queries
         for (Query rankQuery : rankShardContext.queries()) {
             // if a search timeout occurs, exit with partial results
             if (searchTimedOut) {
@@ -208,15 +208,11 @@ public class QueryPhase {
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(
-                    EMPTY_COLLECTOR,
-                    searchContext.terminateAfter(),
-                    true
-                );
+                TerminateAfterCollector terminateAfterCollector = new TerminateAfterCollector(searchContext.terminateAfter());
                 final Collector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
+                    new SingleThreadCollectorManager(MultiCollector.wrap(terminateAfterCollector, collector)),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
                     collector
                 );
@@ -237,9 +233,9 @@ public class QueryPhase {
                     collector
                 );
             }
-            if (searchContext.getAggsCollectorManager() != null) {
+            if (searchContext.aggregations() != null) {
                 final Collector collector = collectorManager.newCollector();
-                final Collector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
+                final Collector aggsCollector = searchContext.aggregations().getAggsCollectorManager().newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
@@ -268,10 +264,10 @@ public class QueryPhase {
                 searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutRunnable != null);
                 queryResult.topDocs(topDocsFactory.topDocsAndMaxScore(), topDocsFactory.sortValueFormats);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof EWMATrackingEsThreadPoolExecutor
+                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
                     : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-                if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
+                if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
@@ -312,12 +308,14 @@ public class QueryPhase {
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {
-            searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager((InternalProfileCollectorManager) collectorManager);
+            searchContext.getProfilers()
+                .getCurrentQueryProfiler()
+                .setCollectorManager(((InternalProfileCollectorManager) collectorManager)::getCollectorTree);
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
             searcher.search(query, collectorManager);
-        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+        } catch (TerminateAfterCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";

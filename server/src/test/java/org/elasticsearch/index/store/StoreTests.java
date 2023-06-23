@@ -54,6 +54,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -105,8 +106,7 @@ public class StoreTests extends ESTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
-        .minimumIndexCompatibilityVersion().luceneVersion;
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -148,159 +148,6 @@ public class StoreTests extends ESTestCase {
         assertFalse(store.tryIncRef());
         expectThrows(IllegalStateException.class, store::incRef);
         expectThrows(IllegalStateException.class, store::ensureOpen);
-    }
-
-    public void testVerifyingIndexOutput() throws IOException {
-        Directory dir = newDirectory();
-        IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
-        int iters = scaledRandomIntBetween(10, 100);
-        for (int i = 0; i < iters; i++) {
-            BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-            output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-        }
-        CodecUtil.writeFooter(output);
-        output.close();
-        IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
-        String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
-        indexInput.seek(0);
-        BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
-        long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
-            new StoreFileMetadata("foo1.bar", length, checksum, MIN_SUPPORTED_LUCENE_VERSION.toString()),
-            dir.createOutput("foo1.bar", IOContext.DEFAULT)
-        );
-        while (length > 0) {
-            if (random().nextInt(10) == 0) {
-                verifyingOutput.writeByte(indexInput.readByte());
-                length--;
-            } else {
-                int min = (int) Math.min(length, ref.bytes.length);
-                indexInput.readBytes(ref.bytes, ref.offset, min);
-                verifyingOutput.writeBytes(ref.bytes, ref.offset, min);
-                length -= min;
-            }
-        }
-        Store.verify(verifyingOutput);
-        try {
-            appendRandomData(verifyingOutput);
-            fail("should be a corrupted index");
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            // ok
-        }
-        try {
-            Store.verify(verifyingOutput);
-            fail("should be a corrupted index");
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            // ok
-        }
-
-        IOUtils.close(indexInput, verifyingOutput, dir);
-    }
-
-    public void testVerifyingIndexOutputOnEmptyFile() throws IOException {
-        Directory dir = newDirectory();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
-            new StoreFileMetadata("foo.bar", 0, Store.digestToString(0), MIN_SUPPORTED_LUCENE_VERSION.toString()),
-            dir.createOutput("foo1.bar", IOContext.DEFAULT)
-        );
-        try {
-            Store.verify(verifyingOutput);
-            fail("should be a corrupted index");
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            // ok
-        }
-        IOUtils.close(verifyingOutput, dir);
-    }
-
-    public void testChecksumCorrupted() throws IOException {
-        Directory dir = newDirectory();
-        IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
-        int iters = scaledRandomIntBetween(10, 100);
-        for (int i = 0; i < iters; i++) {
-            BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-            output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-        }
-        CodecUtil.writeBEInt(output, CodecUtil.FOOTER_MAGIC);
-        CodecUtil.writeBEInt(output, 0);
-        String checksum = Store.digestToString(output.getChecksum());
-        CodecUtil.writeBELong(output, output.getChecksum() + 1); // write a wrong checksum to the file
-        output.close();
-
-        IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
-        indexInput.seek(0);
-        BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
-        long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
-            new StoreFileMetadata("foo1.bar", length, checksum, MIN_SUPPORTED_LUCENE_VERSION.toString()),
-            dir.createOutput("foo1.bar", IOContext.DEFAULT)
-        );
-        length -= 8; // we write the checksum in the try / catch block below
-        while (length > 0) {
-            if (random().nextInt(10) == 0) {
-                verifyingOutput.writeByte(indexInput.readByte());
-                length--;
-            } else {
-                int min = (int) Math.min(length, ref.bytes.length);
-                indexInput.readBytes(ref.bytes, ref.offset, min);
-                verifyingOutput.writeBytes(ref.bytes, ref.offset, min);
-                length -= min;
-            }
-        }
-
-        try {
-            BytesRef checksumBytes = new BytesRef(8);
-            checksumBytes.length = 8;
-            indexInput.readBytes(checksumBytes.bytes, checksumBytes.offset, checksumBytes.length);
-            if (randomBoolean()) {
-                verifyingOutput.writeBytes(checksumBytes.bytes, checksumBytes.offset, checksumBytes.length);
-            } else {
-                for (int i = 0; i < checksumBytes.length; i++) {
-                    verifyingOutput.writeByte(checksumBytes.bytes[i]);
-                }
-            }
-            fail("should be a corrupted index");
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            // ok
-        }
-        IOUtils.close(indexInput, verifyingOutput, dir);
-    }
-
-    private void appendRandomData(IndexOutput output) throws IOException {
-        int numBytes = randomIntBetween(1, 1024);
-        final BytesRef ref = new BytesRef(scaledRandomIntBetween(1, numBytes));
-        ref.length = ref.bytes.length;
-        while (numBytes > 0) {
-            if (random().nextInt(10) == 0) {
-                output.writeByte(randomByte());
-                numBytes--;
-            } else {
-                for (int i = 0; i < ref.length; i++) {
-                    ref.bytes[i] = randomByte();
-                }
-                final int min = Math.min(numBytes, ref.bytes.length);
-                output.writeBytes(ref.bytes, ref.offset, min);
-                numBytes -= min;
-            }
-        }
-    }
-
-    public void testVerifyingIndexOutputWithBogusInput() throws IOException {
-        Directory dir = newDirectory();
-        int length = scaledRandomIntBetween(10, 1024);
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
-            new StoreFileMetadata("foo1.bar", length, "", MIN_SUPPORTED_LUCENE_VERSION.toString()),
-            dir.createOutput("foo1.bar", IOContext.DEFAULT)
-        );
-        try {
-            while (length > 0) {
-                verifyingOutput.writeByte((byte) random().nextInt());
-                length--;
-            }
-            fail("should be a corrupted index");
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            // ok
-        }
-        IOUtils.close(verifyingOutput, dir);
     }
 
     public void testNewChecksums() throws IOException {

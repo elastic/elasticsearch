@@ -15,6 +15,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -49,12 +51,18 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NodeMappingStats;
+import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -75,6 +83,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.Closeable;
@@ -412,7 +421,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public synchronized IndexShard createShard(
         final ShardRouting routing,
-        final Consumer<ShardId> globalCheckpointSyncer,
+        final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
@@ -520,7 +529,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 engineWarmer,
                 searchOperationListeners,
                 indexingOperationListeners,
-                () -> globalCheckpointSyncer.accept(shardId),
+                globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 snapshotCommitSupplier,
@@ -641,6 +650,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardId,
             shardRequestIndex,
             indexSettings,
+            clusterService.getClusterSettings(),
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
             mapperService(),
@@ -657,6 +667,46 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             allowExpensiveQueries,
             valuesSourceRegistry,
             runtimeMappings
+        );
+    }
+
+    /**
+     * Creates a new {@link QueryRewriteContext}.
+     * This class is used to rewrite queries in case access to the index is not required, since we can
+     * decide rewriting based on mappings alone. This saves the cost of pulling an index searcher as
+     * well as the associated cost of refreshing idle shards.
+     */
+    public QueryRewriteContext newQueryRewriteContext(
+        final LongSupplier nowInMillis,
+        final Map<String, Object> runtimeMappings,
+        final String clusterAlias
+    ) {
+        final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
+            index().getName(),
+            clusterAlias,
+            clusterService,
+            expressionResolver
+        );
+        final MapperService mapperService = mapperService();
+        final MappingLookup mappingLookup = mapperService().mappingLookup();
+        return new QueryRewriteContext(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            mappingLookup,
+            parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
+            null,
+            indexSettings,
+            new Index(
+                RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                indexSettings.getIndex().getUUID()
+            ),
+            indexNameMatcher,
+            namedWriteableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService
         );
     }
 
@@ -926,11 +976,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void maybeRefreshEngine(boolean force) {
         if (indexSettings.getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
-                try {
-                    shard.scheduledRefresh();
-                } catch (IndexShardClosedException | AlreadyClosedException ex) {
-                    // fine - continue;
-                }
+                shard.scheduledRefresh(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Boolean ignored) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof IndexShardClosedException == false && e instanceof AlreadyClosedException == false) {
+                            logger.warn("unexpected exception while performing scheduled refresh", e);
+                        }
+                    }
+                });
             }
         }
     }
@@ -1209,6 +1265,30 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         }
         return clearedAtLeastOne;
+    }
+
+    public static Map<String, MappedFieldType> parseRuntimeMappings(
+        Map<String, Object> runtimeMappings,
+        MapperService mapperService,
+        IndexSettings indexSettings,
+        MappingLookup lookup
+    ) {
+        if (runtimeMappings.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
+        MappingParserContext parserContext = mapperService.parserContext();
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
+        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
+        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
+            for (String r : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
+                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
+                }
+            }
+        }
+        runtimeFieldTypes.keySet().forEach(lookup::validateDoesNotShadow);
+        return runtimeFieldTypes;
     }
 
 }

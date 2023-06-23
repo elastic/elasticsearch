@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
@@ -60,7 +60,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         return plugins;
     }
 
-    private static final Set<ShardId> failOnFlushShards = Sets.newConcurrentHashSet();
+    private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();
 
     public static class EngineTestPlugin extends Plugin implements EnginePlugin {
         @Override
@@ -107,9 +107,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         mapping.endObject();
 
         final String index = "test-index";
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setMapping(mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
@@ -193,9 +191,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         int totalShards = 0;
         for (String indexName : indices) {
             int numberOfShards = between(10, 30);
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(numberOfShards, between(0, 1)).put("index.shard.check_on_startup", false)
                         .put("index.routing.rebalance.enable", "none")
@@ -233,9 +229,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String indexName = "test-index";
         int numberOfShards = between(1, 5);
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(indexSettings(numberOfShards, 0).put("index.routing.rebalance.enable", "none"))
             .get();
         int numDocs = randomIntBetween(1, 10);

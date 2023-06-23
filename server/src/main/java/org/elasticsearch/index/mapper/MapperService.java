@@ -525,10 +525,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().isMultiField(field);
     }
 
-    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, String resource) throws IOException {
         logger.info("reloading search analyzers");
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
-        return indexAnalyzers.reload(registry, indexSettings);
+        return indexAnalyzers.reload(registry, indexSettings, resource);
     }
 
     /**

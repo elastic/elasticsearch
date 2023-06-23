@@ -454,14 +454,14 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
 
-        IndexMetadata indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().execute().actionGet().getState().metadata().index("test");
         assertEquals("5s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
 
         indicesAdmin().prepareClose("test").get();
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "20s"))
             .get();
-        indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().execute().actionGet().getState().metadata().index("test");
         assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
     }
 }

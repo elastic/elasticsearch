@@ -456,7 +456,7 @@ public class ValuesSourceConfig {
             if (valuesSourceType instanceof TimeSeriesValuesSourceType) {
                 return "Field [" + fieldType.name() + "] of type [" + typeName + "][" + valuesSourceTypeName + "]";
             } else {
-                // Avoid repeated names. Currently only TimeSeriesValuesSourceType have a different name compared to the field type name.
+                // Avoid repeated names. Currently only time series values source types have a different behaviour/validation.
                 return "Field [" + fieldType.name() + "] of type [" + typeName + "]";
             }
         }

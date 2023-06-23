@@ -252,7 +252,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-        gracefullyCloseConnections();
+        shuttingDown = true;
         refCounted.decRef();
         boolean closed = false;
 
@@ -261,11 +261,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         if (shutdownGracePeriodMillis > 0) {
             try {
+                logger.debug(format("waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
                 FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
                 closed = true;
             } catch (ElasticsearchTimeoutException t) {
                 logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
             }
+        } else {
+            logger.debug("closing all client connections immediately");
         }
         if (closed == false) {
             try {

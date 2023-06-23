@@ -8,12 +8,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -43,8 +46,8 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
 
         nodesShutdownMetadata = nodesShutdownMetadata.putSingleNodeMetadata(newNodeMetadata);
 
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().get(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), contains(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.get(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.getAll().values(), contains(newNodeMetadata));
     }
 
     public void testRemoveShutdownMetadata() {
@@ -58,42 +61,69 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         SingleNodeShutdownMetadata nodeToRemove = randomFrom(nodes);
         nodesShutdownMetadata = nodesShutdownMetadata.removeSingleNodeMetadata(nodeToRemove.getNodeId());
 
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().get(nodeToRemove.getNodeId()), nullValue());
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), hasSize(nodes.size() - 1));
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), not(hasItem(nodeToRemove)));
+        assertThat(nodesShutdownMetadata.get(nodeToRemove.getNodeId()), nullValue());
+        assertThat(nodesShutdownMetadata.getAll().values(), hasSize(nodes.size() - 1));
+        assertThat(nodesShutdownMetadata.getAll().values(), not(hasItem(nodeToRemove)));
     }
 
     public void testIsNodeShuttingDown() {
-        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
-            Collections.singletonMap(
-                "this_node",
-                SingleNodeShutdownMetadata.builder()
-                    .setNodeId("this_node")
-                    .setReason("shutdown for a unit test")
-                    .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .build()
-            )
-        );
+        for (SingleNodeShutdownMetadata.Type type : List.of(
+            SingleNodeShutdownMetadata.Type.RESTART,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM
+        )) {
+            NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
+                Collections.singletonMap(
+                    "this_node",
+                    SingleNodeShutdownMetadata.builder()
+                        .setNodeId("this_node")
+                        .setReason("shutdown for a unit test")
+                        .setType(type)
+                        .setStartedAtMillis(randomNonNegativeLong())
+                        .setGracePeriod(
+                            type == SingleNodeShutdownMetadata.Type.SIGTERM
+                                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                                : null
+                        )
+                        .build()
+                )
+            );
 
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
-        nodes.localNodeId("this_node");
-        nodes.masterNodeId("this_node");
+            DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+            nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
+            nodes.localNodeId("this_node");
+            nodes.masterNodeId("this_node");
 
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
 
-        state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-            .nodes(
-                DiscoveryNodes.builder(state.nodes())
-                    .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .build()
-            )
+            state = ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
+                .nodes(DiscoveryNodes.builder(state.nodes()).add(DiscoveryNodeUtils.create("_node_1")).build())
+                .build();
+
+            assertThat(state.metadata().nodeShutdowns().contains("this_node"), equalTo(true));
+            assertThat(state.metadata().nodeShutdowns().contains("_node_1"), equalTo(false));
+        }
+    }
+
+    public void testSigtermIsRemoveInOlderVersions() throws IOException {
+        SingleNodeShutdownMetadata metadata = SingleNodeShutdownMetadata.builder()
+            .setNodeId("myid")
+            .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+            .setReason("myReason")
+            .setStartedAtMillis(0L)
+            .setGracePeriod(new TimeValue(1_000))
             .build();
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.V_8_7_1);
+        metadata.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersion.V_8_7_1);
+        assertThat(new SingleNodeShutdownMetadata(in).getType(), equalTo(SingleNodeShutdownMetadata.Type.REMOVE));
 
-        assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "this_node"), equalTo(true));
-        assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "_node_1"), equalTo(false));
+        out = new BytesStreamOutput();
+        metadata.writeTo(out);
+        assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.SIGTERM));
     }
 
     @Override
@@ -129,6 +159,8 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
         } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
             builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
+        } else if (type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {
+            builder.setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
         }
         return builder.setNodeSeen(randomBoolean()).build();
     }
@@ -139,12 +171,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) throws IOException {
+    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
         return makeTestChanges(instance);
-    }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
     }
 }

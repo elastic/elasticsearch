@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -19,9 +19,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -41,6 +40,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -65,31 +65,33 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     }
 
     public void testSerializationForCurrentVersion() throws Exception {
-        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS);
 
         final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices);
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         original.writeTo(out);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        in.setVersion(version);
+        in.setTransportVersion(version);
         final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
         assertThat(copy, equalTo(original));
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(RoleDescriptor.VERSION_REMOTE_INDICES);
-        final Version version = VersionUtils.randomVersionBetween(
-            random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
-            versionBeforeRemoteIndices
+        final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
         );
-        out.setVersion(version);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeAdvancedRemoteClusterSecurity
+        );
+        out.setTransportVersion(version);
 
         final GetUserPrivilegesResponse original = randomResponse();
         if (original.hasRemoteIndicesPrivileges()) {
@@ -97,7 +99,9 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + "] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )
@@ -106,7 +110,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             original.writeTo(out);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            in.setVersion(out.getVersion());
+            in.setTransportVersion(out.getTransportVersion());
             final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
             assertThat(copy, equalTo(original));
         }

@@ -95,7 +95,7 @@ final class FieldTypeLookup {
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
     }
 
-    private static int dotCount(String path) {
+    public static int dotCount(String path) {
         int dotCount = 0;
         for (int i = 0; i < path.length(); i++) {
             if (path.charAt(i) == '.') {

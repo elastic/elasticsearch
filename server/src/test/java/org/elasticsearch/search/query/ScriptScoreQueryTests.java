@@ -20,15 +20,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -50,7 +49,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private LeafReaderContext leafReaderContext;
-    private final SearchLookup lookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
+    private final SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
 
     @Before
     public void initSearcher() throws IOException {
@@ -89,7 +88,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -110,7 +109,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -135,7 +134,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -158,7 +157,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));
@@ -179,7 +178,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
 
             @Override
-            public ScoreScript newInstance(DocReader docReader) throws IOException {
+            public ScoreScript newInstance(DocReader docReader) {
                 return new ScoreScript(script.getParams(), lookup, docReader) {
                     @Override
                     public double execute(ExplanationHolder explanation) {

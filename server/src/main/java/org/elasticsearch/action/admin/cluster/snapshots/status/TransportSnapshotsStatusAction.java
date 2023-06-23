@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -142,22 +142,19 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 TransportNodesSnapshotsStatus.TYPE,
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
                     .timeout(request.masterNodeTimeout()),
+                // fork to snapshot meta since building the response is expensive for large snapshots
                 new ThreadedActionListener<>(
-                    logger,
-                    threadPool,
-                    ThreadPool.Names.SNAPSHOT_META, // fork to snapshot meta since building the response is expensive for large snapshots
-                    ActionListener.wrap(
-                        nodeSnapshotStatuses -> buildResponse(
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT_META),
+                    listener.delegateFailureAndWrap(
+                        (l, nodeSnapshotStatuses) -> buildResponse(
                             snapshotsInProgress,
                             request,
                             currentSnapshots,
                             nodeSnapshotStatuses,
                             cancellableTask,
-                            listener
-                        ),
-                        listener::onFailure
-                    ),
-                    false
+                            l
+                        )
+                    )
                 )
             );
         } else {
@@ -283,10 +280,10 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         ActionListener<SnapshotsStatusResponse> listener
     ) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
         final Collection<SnapshotId> snapshotIdsToLoad = new ArrayList<>();
-        repositoryDataListener.whenComplete(repositoryData -> {
+        repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
             task.ensureNotCancelled();
             final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds()
                 .stream()
@@ -318,7 +315,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             }
 
             if (snapshotIdsToLoad.isEmpty()) {
-                listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
+                delegate.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
             } else {
                 final List<SnapshotStatus> threadSafeBuilder = Collections.synchronizedList(builder);
                 repositoriesService.repository(repositoryName)
@@ -359,9 +356,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime
                             )
                         );
-                    }, listener.map(v -> new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder)))));
+                    }, delegate.map(v -> new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder)))));
             }
-        }, listener::onFailure);
+        }));
     }
 
     /**

@@ -119,7 +119,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private void logNodesMissingHealthInfo(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
         if (logger.isDebugEnabled()) {
             String nodesMissingHealthInfo = getSortedUniqueValuesString(
-                clusterState.getNodes(),
+                clusterState.getNodes().getAllNodes(),
                 node -> diskHealthInfoMap.containsKey(node.getId()) == false,
                 HealthIndicatorDisplayValues::getNodeName
             );
@@ -366,44 +366,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     );
                     affectedResources.add(indexResources);
                 }
-                if (affectedIndices.size() > 0) {
-                    diagnosisList.add(
-                        new Diagnosis(
-                            new Diagnosis.Definition(
-                                NAME,
-                                "add_disk_capacity_data_nodes",
-                                String.format(
-                                    Locale.ROOT,
-                                    "%d %s %s on nodes that have run or are likely to run out of disk space, "
-                                        + "this can temporarily disable writing on %s %s.",
-                                    affectedIndices.size(),
-                                    indices(affectedIndices.size()),
-                                    regularVerb("reside", affectedIndices.size()),
-                                    these(affectedIndices.size()),
-                                    indices(affectedIndices.size())
-                                ),
-                                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
-                                    + "this. If you have already taken action please wait for the rebalancing to complete.",
-                                "https://ela.st/fix-data-disk"
-                            ),
-                            affectedResources
-                        )
-                    );
-                } else {
-                    diagnosisList.add(
-                        new Diagnosis(
-                            new Diagnosis.Definition(
-                                NAME,
-                                "add_disk_capacity_data_nodes",
-                                "Disk is almost full.",
-                                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
-                                    + "this. If you have already taken action please wait for the rebalancing to complete.",
-                                "https://ela.st/fix-data-disk"
-                            ),
-                            affectedResources
-                        )
-                    );
-                }
+                diagnosisList.add(createDataNodeDiagnosis(affectedIndices.size(), affectedResources));
             }
             if (masterNodes.containsKey(HealthStatus.RED)) {
                 diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, masterNodes.get(HealthStatus.RED), size, true));
@@ -488,7 +451,35 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 .collect(Collectors.toSet());
         }
 
-        private Diagnosis createNonDataNodeDiagnosis(HealthStatus healthStatus, List<DiscoveryNode> nodes, int size, boolean isMaster) {
+        // Visible for testing
+        static Diagnosis createDataNodeDiagnosis(int numberOfAffectedIndices, List<Diagnosis.Resource> affectedResources) {
+            String message = numberOfAffectedIndices == 0
+                ? "Disk is almost full."
+                : String.format(
+                    Locale.ROOT,
+                    "%d %s %s on nodes that have run or are likely to run out of disk space, "
+                        + "this can temporarily disable writing on %s %s.",
+                    numberOfAffectedIndices,
+                    indices(numberOfAffectedIndices),
+                    regularVerb("reside", numberOfAffectedIndices),
+                    these(numberOfAffectedIndices),
+                    indices(numberOfAffectedIndices)
+                );
+            return new Diagnosis(
+                new Diagnosis.Definition(
+                    NAME,
+                    "add_disk_capacity_data_nodes",
+                    message,
+                    "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                        + "this. If you have already taken action please wait for the rebalancing to complete.",
+                    "https://ela.st/fix-data-disk"
+                ),
+                affectedResources
+            );
+        }
+
+        // Visible for testing
+        static Diagnosis createNonDataNodeDiagnosis(HealthStatus healthStatus, List<DiscoveryNode> nodes, int size, boolean isMaster) {
             return new Diagnosis(
                 new Diagnosis.Definition(
                     NAME,

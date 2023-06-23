@@ -28,6 +28,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
+import org.apache.lucene.util.TermAndBoost;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +44,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
-import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
 import java.io.IOException;
@@ -471,21 +471,22 @@ public class MatchQueryParser {
 
         @Override
         protected Query newTermQuery(Term term, float boost) {
-            Supplier<Query> querySupplier;
+            final Supplier<Query> querySupplier;
             if (fuzziness != null) {
-                querySupplier = () -> {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
-                    if (query instanceof FuzzyQuery) {
-                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
-                    }
-                    return query;
-                };
+                querySupplier = () -> fieldType.fuzzyQuery(
+                    term.text(),
+                    fuzziness,
+                    fuzzyPrefixLength,
+                    maxExpansions,
+                    transpositions,
+                    context,
+                    fuzzyRewriteMethod
+                );
             } else {
                 querySupplier = () -> fieldType.termQuery(term.bytes(), context);
             }
             try {
-                Query query = querySupplier.get();
-                return query;
+                return querySupplier.get();
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(fieldType.name(), e);
@@ -538,9 +539,9 @@ public class MatchQueryParser {
             } else {
                 // We don't apply prefix on synonyms
                 final TermAndBoost[] termAndBoosts = current.stream()
-                    .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                    .map(t -> new TermAndBoost(t.bytes(), BoostAttribute.DEFAULT_BOOST))
                     .toArray(TermAndBoost[]::new);
-                q.add(newSynonymQuery(termAndBoosts), operator);
+                q.add(newSynonymQuery(field, termAndBoosts), operator);
             }
         }
 
@@ -648,9 +649,9 @@ public class MatchQueryParser {
                     } else {
                         // We don't apply prefix on synonyms
                         final TermAndBoost[] termAndBoosts = Arrays.stream(terms)
-                            .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                            .map(t -> new TermAndBoost(t.bytes(), BoostAttribute.DEFAULT_BOOST))
                             .toArray(TermAndBoost[]::new);
-                        queryPos = newSynonymQuery(termAndBoosts);
+                        queryPos = newSynonymQuery(field, termAndBoosts);
                     }
                 }
                 if (queryPos != null) {

@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Represents the behaviour when a runtime field or an index-time script fails: either fail and raise the error,
@@ -19,15 +18,8 @@ public enum OnScriptError {
     FAIL,
     CONTINUE;
 
-    /**
-     * Parses the on_script_error parameter from a string into its corresponding enum instance
-     */
-    public static OnScriptError fromString(final String str) {
-        Objects.requireNonNull(str, "input string is null");
-        return switch (str.toLowerCase(Locale.ROOT)) {
-            case "fail" -> FAIL;
-            case "continue" -> CONTINUE;
-            default -> throw new IllegalArgumentException("Unknown onScriptError [" + str + "]");
-        };
+    @Override
+    public final String toString() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

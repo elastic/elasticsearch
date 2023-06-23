@@ -15,8 +15,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,7 +32,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -42,7 +41,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     public record ListTasksResponseWrapper(ListTasksResponse in) implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return ChunkedToXContent.wrapAsXContentObject(in.groupedByNone()).toXContent(builder, params);
+            return ChunkedToXContent.wrapAsToXContent(in.groupedByNone()).toXContent(builder, params);
         }
     }
 
@@ -185,38 +184,14 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         );
     }
 
-    public void testChunkedEncoding() throws IOException {
+    public void testChunkedEncoding() {
         final var response = createTestInstanceWithFailures().in();
-
-        try (var builder = jsonBuilder()) {
-            int chunkCount = 0;
-            final var iterator = response.groupedByNone().toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            } // closing the builder verifies that the XContent is well-formed
-            assertEquals(response.getTasks().size() + 2, chunkCount);
-        }
-
-        try (var builder = jsonBuilder()) {
-            int chunkCount = 0;
-            final var iterator = response.groupedByParent().toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            } // closing the builder verifies that the XContent is well-formed
-            assertEquals(response.getTaskGroups().size() + 2, chunkCount);
-        }
-
-        try (var builder = jsonBuilder()) {
-            int chunkCount = 0;
-            final var iterator = response.groupedByNode(() -> DiscoveryNodes.EMPTY_NODES).toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            } // closing the builder verifies that the XContent is well-formed
-            assertEquals(2 + response.getPerNodeTasks().values().stream().mapToInt(entry -> 2 + entry.size()).sum(), chunkCount);
-        }
+        AbstractChunkedSerializingTestCase.assertChunkCount(response.groupedByNone(), o -> response.getTasks().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response.groupedByParent(), o -> response.getTaskGroups().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            response.groupedByNode(() -> DiscoveryNodes.EMPTY_NODES),
+            o -> 2 + response.getPerNodeTasks().values().stream().mapToInt(entry -> 2 + entry.size()).sum()
+        );
     }
 
     private static ListTasksResponseWrapper createTestInstanceWithFailures() {

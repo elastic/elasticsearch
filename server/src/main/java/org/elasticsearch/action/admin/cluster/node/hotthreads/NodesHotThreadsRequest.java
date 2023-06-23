@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +36,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         type = HotThreads.ReportType.of(in.readString());
         interval = in.readTimeValue();
         snapshots = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             sortOrder = HotThreads.SortOrder.of(in.readString());
         }
     }
@@ -118,7 +118,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         out.writeString(type.getTypeValue());
         out.writeTimeValue(interval);
         out.writeInt(snapshots);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeString(sortOrder.getOrderValue());
         }
     }

@@ -9,7 +9,6 @@
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 
-
 tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {

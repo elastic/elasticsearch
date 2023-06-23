@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -64,6 +65,11 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     }
 
     @Override
+    protected Regression mutateInstance(Regression instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -111,7 +117,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         );
     }
 
-    public static Regression mutateForVersion(Regression instance, Version version) {
+    public static Regression mutateForVersion(Regression instance, TransportVersion version) {
         return new Regression(
             instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
@@ -126,7 +132,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     }
 
     @Override
-    protected Regression mutateInstanceForVersion(Regression instance, Version version) {
+    protected Regression mutateInstanceForVersion(Regression instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

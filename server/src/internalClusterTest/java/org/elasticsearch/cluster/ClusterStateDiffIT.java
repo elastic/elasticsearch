@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -28,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -47,14 +48,15 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
@@ -72,7 +74,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNode masterNode = randomNode("master");
         DiscoveryNode otherNode = randomNode("other");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .putTransportVersion("master", TransportVersionUtils.randomVersion(random()))
+            .putTransportVersion("other", TransportVersionUtils.randomVersion(random()))
+            .build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
             otherNode,
@@ -205,7 +211,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     private DiscoveryNode randomNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
+        return DiscoveryNodeUtils.builder(nodeId).roles(emptySet()).version(randomVersion(random())).build();
     }
 
     /**
@@ -213,6 +219,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private ClusterState.Builder randomNodes(ClusterState clusterState) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
+        Map<String, TransportVersion> transports = new HashMap<>(clusterState.transportVersions());
         List<String> nodeIds = randomSubsetOf(
             randomInt(clusterState.nodes().getNodes().size() - 1),
             clusterState.nodes().getNodes().keySet().toArray(new String[0])
@@ -220,16 +227,21 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
+                transports.remove(nodeId);
                 if (randomBoolean()) {
                     nodes.add(randomNode(nodeId));
+                    transports.put(nodeId, TransportVersionUtils.randomVersion(random()));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.add(randomNode("node-" + randomAlphaOfLength(10)));
+            String id = "node-" + randomAlphaOfLength(10);
+            nodes.add(randomNode(id));
+            transports.put(id, TransportVersionUtils.randomVersion(random()));
         }
-        return ClusterState.builder(clusterState).nodes(nodes);
+
+        return ClusterState.builder(clusterState).nodes(nodes).transportVersions(transports);
     }
 
     /**
@@ -275,26 +287,16 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             int replicaCount = randomIntBetween(1, 10);
             Set<String> availableNodeIds = Sets.newHashSet(nodeIds);
             for (int j = 0; j < replicaCount; j++) {
-                UnassignedInfo unassignedInfo = null;
-                if (randomInt(5) == 1) {
-                    unassignedInfo = randomUnassignedInfo(randomAlphaOfLength(10));
-                }
+                var newState = j == 0 ? ShardRoutingState.STARTED : randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
+                var unassignedInfo = randomInt(5) == 1 && newState == ShardRoutingState.INITIALIZING
+                    ? randomUnassignedInfo(randomAlphaOfLength(10))
+                    : null;
                 if (availableNodeIds.isEmpty()) {
                     break;
                 }
                 String nodeId = randomFrom(availableNodeIds);
                 availableNodeIds.remove(nodeId);
-                indexShard.addShard(
-                    TestShardRouting.newShardRouting(
-                        index,
-                        i,
-                        nodeId,
-                        null,
-                        j == 0,
-                        ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)),
-                        unassignedInfo
-                    )
-                );
+                indexShard.addShard(TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0, newState, unassignedInfo));
             }
             builder.addIndexShard(indexShard);
         }

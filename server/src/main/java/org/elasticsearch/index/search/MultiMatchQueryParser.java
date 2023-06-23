@@ -18,6 +18,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.TermAndBoost;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -196,10 +197,10 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         }
 
         @Override
-        protected Query newSynonymQuery(TermAndBoost[] terms) {
+        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                values[i] = terms[i].term.bytes();
+                values[i] = terms[i].term;
             }
             return blendTerms(context, values, tieBreaker, lenient, blendedFields);
         }

@@ -9,6 +9,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -71,8 +72,8 @@ import org.elasticsearch.core.SuppressForbidden;
  *
  *     Controls the maximum percentage of deleted documents that is tolerated in
  *     the index. Lower values make the index more space efficient at the
- *     expense of increased CPU and I/O activity. Values must be between <code>20</code> and
- *     <code>50</code>. Default value is <code>33</code>.
+ *     expense of increased CPU and I/O activity. Values must be between <code>5</code> and
+ *     <code>50</code>. Default value is <code>20</code>.
  * </ul>
  *
  * <p>
@@ -101,20 +102,92 @@ import org.elasticsearch.core.SuppressForbidden;
  */
 
 public final class MergePolicyConfig {
-    private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
+    private final TieredMergePolicy tieredMergePolicy = new TieredMergePolicy();
+    /**
+     * A merge policy that optimizes for time-based data. It uses Lucene's LogByteSizeMergePolicy, which only merges adjacent segments. In
+     * turn, this creates segments that have non-overlapping @timestamp ranges if data gets ingested in order.
+     */
+    private final LogByteSizeMergePolicy timeBasedMergePolicy = new LogByteSizeMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
+    private volatile Type mergePolicyType;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
+    /**
+     * Time-based data generally gets rolled over, so there is not much value in enforcing a maximum segment size, which has the side effect
+     * of merging fewer segments together than the merge factor, which in-turn increases write amplification. So we set an arbitrarily high
+     * roof that serves as a protection that we expect to never hit.
+     */
+    public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = new ByteSizeValue(100, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
-    public static final double DEFAULT_DELETES_PCT_ALLOWED = 33.0d;
-    public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
-        "index.compound_format",
-        Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO),
-        MergePolicyConfig::parseNoCFSRatio,
+    /**
+     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 32. This default value differs from the Lucene default of 10 in
+     * order to account for the fact that Elasticsearch uses {@link LogByteSizeMergePolicy} for time-based data, where adjacent segment
+     * merging ensures that segments have mostly non-overlapping time ranges if data gets ingested in timestamp order. In turn, this allows
+     * range queries on the timestamp to remain efficient with high numbers of segments since most segments either don't match the query
+     * range or are fully contained by the query range.
+     */
+    public static final int DEFAULT_MERGE_FACTOR = 32;
+    public static final double DEFAULT_DELETES_PCT_ALLOWED = 20.0d;
+    private static final String INDEX_COMPOUND_FORMAT_SETTING_KEY = "index.compound_format";
+    public static final Setting<CompoundFileThreshold> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
+        INDEX_COMPOUND_FORMAT_SETTING_KEY,
+        "1gb",
+        MergePolicyConfig::parseCompoundFormat,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public enum Type {
+        UNSET {
+            @Override
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
+                if (isTimeBasedIndex) {
+                    // With time-based data, it's important that the merge policy only merges adjacent segments, so that segments end up
+                    // with non-overlapping time ranges if data gets indexed in order. This makes queries more efficient, as range filters
+                    // on the timestamp are more likely to either fully match a segment or not match it at all, which Lucene handles more
+                    // efficiently than a partially matching segment. This also plays nicely with the fact that recent data is more heavily
+                    // queried than older data, so some segments are more likely to not get touched at all by queries if they don't
+                    // intersect with the query's range.
+
+                    // The downside of only doing adjacent merges is that it may result in slightly less efficient merging if there is a lot
+                    // of variance in the size of flushes. Allowing merges of non-adjacent segments also makes it possible to reclaim
+                    // deletes a bit more efficiently by merging together segments that have the most deletes, even though they might not be
+                    // adjacent. But overall, the benefits of only doing adjacent merging exceed the downsides for time-based data.
+
+                    // LogByteSizeMergePolicy is similar to TieredMergePolicy, as it also tries to organize segments into tiers of
+                    // exponential sizes. The main difference is that it never merges non-adjacent segments, which is an interesting
+                    // property for time-based data as described above.
+
+                    return config.timeBasedMergePolicy;
+                } else {
+                    return config.tieredMergePolicy;
+                }
+            }
+        },
+        TIERED {
+            @Override
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
+                return config.tieredMergePolicy;
+            }
+        },
+        TIME_BASED {
+            @Override
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
+                return config.timeBasedMergePolicy;
+            }
+        };
+
+        abstract MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeries);
+    }
+
+    public static final Setting<Type> INDEX_MERGE_POLICY_TYPE_SETTING = Setting.enumSetting(
+        Type.class,
+        "index.merge.policy.type",
+        Type.UNSET,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -149,7 +222,8 @@ public final class MergePolicyConfig {
     );
     public static final Setting<ByteSizeValue> INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "index.merge.policy.max_merged_segment",
-        DEFAULT_MAX_MERGED_SEGMENT,
+        // We're not using DEFAULT_MAX_MERGED_SEGMENT here as we want different defaults for time-based data vs. non-time based
+        new ByteSizeValue(0, ByteSizeUnit.BYTES),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -160,10 +234,17 @@ public final class MergePolicyConfig {
         Property.Dynamic,
         Property.IndexScope
     );
+    public static final Setting<Integer> INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING = Setting.intSetting(
+        "index.merge.policy.merge_factor",
+        DEFAULT_MERGE_FACTOR,
+        2,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Double> INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING = Setting.doubleSetting(
         "index.merge.policy.deletes_pct_allowed",
         DEFAULT_DELETES_PCT_ALLOWED,
-        20.0d,
+        5.0d,
         50.0d,
         Property.Dynamic,
         Property.IndexScope
@@ -173,6 +254,7 @@ public final class MergePolicyConfig {
 
     MergePolicyConfig(Logger logger, IndexSettings indexSettings) {
         this.logger = logger;
+        Type mergePolicyType = indexSettings.getValue(INDEX_MERGE_POLICY_TYPE_SETTING);
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
@@ -180,6 +262,7 @@ public final class MergePolicyConfig {
         // won't they end up with many segments?
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
         double segmentsPerTier = indexSettings.getValue(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
+        int mergeFactor = indexSettings.getValue(INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING);
         double deletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
         this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
         if (mergesEnabled == false) {
@@ -189,15 +272,17 @@ public final class MergePolicyConfig {
             );
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
-        mergePolicy.setNoCFSRatio(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
-        mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
-        mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
-        mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
-        mergePolicy.setSegmentsPerTier(segmentsPerTier);
-        mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+        setMergePolicyType(mergePolicyType);
+        setCompoundFormatThreshold(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
+        setExpungeDeletesAllowed(forceMergeDeletesPctAllowed);
+        setFloorSegmentSetting(floorSegment);
+        setMaxMergesAtOnce(maxMergeAtOnce);
+        setMaxMergedSegment(maxMergedSegment);
+        setSegmentsPerTier(segmentsPerTier);
+        setMergeFactor(mergeFactor);
+        setDeletesPctAllowed(deletesPctAllowed);
         logger.trace(
-            "using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}],"
+            "using merge policy with expunge_deletes_allowed[{}], floor_segment[{}],"
                 + " max_merge_at_once[{}], max_merged_segment[{}], segments_per_tier[{}],"
                 + " deletes_pct_allowed[{}]",
             forceMergeDeletesPctAllowed,
@@ -209,32 +294,54 @@ public final class MergePolicyConfig {
         );
     }
 
-    void setSegmentsPerTier(Double segmentsPerTier) {
-        mergePolicy.setSegmentsPerTier(segmentsPerTier);
+    void setMergePolicyType(Type type) {
+        this.mergePolicyType = type;
+    }
+
+    void setSegmentsPerTier(double segmentsPerTier) {
+        tieredMergePolicy.setSegmentsPerTier(segmentsPerTier);
+        // LogByteSizeMergePolicy ignores this parameter, it always tries to have between 1 and merge_factor - 1 segments per tier.
+    }
+
+    void setMergeFactor(int mergeFactor) {
+        // TieredMergePolicy ignores this setting, it configures a number of segments per tier instead, which has different semantics.
+        timeBasedMergePolicy.setMergeFactor(mergeFactor);
     }
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
-        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
+        // We use 0 as a placeholder for "unset".
+        if (maxMergedSegment.getBytes() == 0) {
+            tieredMergePolicy.setMaxMergedSegmentMB(DEFAULT_MAX_MERGED_SEGMENT.getMbFrac());
+            timeBasedMergePolicy.setMaxMergeMB(DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT.getMbFrac());
+        } else {
+            tieredMergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
+            timeBasedMergePolicy.setMaxMergeMB(maxMergedSegment.getMbFrac());
+        }
     }
 
-    void setMaxMergesAtOnce(Integer maxMergeAtOnce) {
-        mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
+    void setMaxMergesAtOnce(int maxMergeAtOnce) {
+        tieredMergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
+        // LogByteSizeMergePolicy ignores this parameter, it always merges merge_factor segments at once.
     }
 
     void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {
-        mergePolicy.setFloorSegmentMB(floorSegementSetting.getMbFrac());
+        tieredMergePolicy.setFloorSegmentMB(floorSegementSetting.getMbFrac());
+        timeBasedMergePolicy.setMinMergeMB(floorSegementSetting.getMbFrac());
     }
 
     void setExpungeDeletesAllowed(Double value) {
-        mergePolicy.setForceMergeDeletesPctAllowed(value);
+        tieredMergePolicy.setForceMergeDeletesPctAllowed(value);
+        // LogByteSizeMergePolicy doesn't have a similar configuration option
     }
 
-    void setNoCFSRatio(Double noCFSRatio) {
-        mergePolicy.setNoCFSRatio(noCFSRatio);
+    void setCompoundFormatThreshold(CompoundFileThreshold compoundFileThreshold) {
+        compoundFileThreshold.configure(tieredMergePolicy);
+        compoundFileThreshold.configure(timeBasedMergePolicy);
     }
 
     void setDeletesPctAllowed(Double deletesPctAllowed) {
-        mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+        tieredMergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+        // LogByteSizeMergePolicy doesn't have a similar configuration option
     }
 
     private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
@@ -257,28 +364,87 @@ public final class MergePolicyConfig {
     }
 
     @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
-    MergePolicy getMergePolicy() {
-        return mergesEnabled ? mergePolicy : NoMergePolicy.INSTANCE;
+    MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
+        if (mergesEnabled == false) {
+            return NoMergePolicy.INSTANCE;
+        }
+        return mergePolicyType.getMergePolicy(this, isTimeBasedIndex);
     }
 
-    private static double parseNoCFSRatio(String noCFSRatio) {
+    private static CompoundFileThreshold parseCompoundFormat(String noCFSRatio) {
         noCFSRatio = noCFSRatio.trim();
         if (noCFSRatio.equalsIgnoreCase("true")) {
-            return 1.0d;
+            return new CompoundFileThreshold(1.0d);
         } else if (noCFSRatio.equalsIgnoreCase("false")) {
-            return 0.0;
+            return new CompoundFileThreshold(0.0d);
         } else {
             try {
-                double value = Double.parseDouble(noCFSRatio);
-                if (value < 0.0 || value > 1.0) {
-                    throw new IllegalArgumentException("NoCFSRatio must be in the interval [0..1] but was: [" + value + "]");
+                try {
+                    return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException(
+                        "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
+                            + noCFSRatio
+                            + "]",
+                        ex
+                    );
                 }
-                return value;
-            } catch (NumberFormatException ex) {
+            } catch (IllegalArgumentException e) {
+                try {
+                    return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
+                } catch (RuntimeException e2) {
+                    e.addSuppressed(e2);
+                }
+                throw e;
+            }
+        }
+    }
+
+    public static class CompoundFileThreshold {
+        private Double noCFSRatio;
+        private ByteSizeValue noCFSSize;
+
+        private CompoundFileThreshold(double noCFSRatio) {
+            if (noCFSRatio < 0.0 || noCFSRatio > 1.0) {
                 throw new IllegalArgumentException(
-                    "Expected a boolean or a value in the interval [0..1] but was: " + "[" + noCFSRatio + "]",
-                    ex
+                    "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
+                        + noCFSRatio
+                        + "]"
                 );
+            }
+            this.noCFSRatio = noCFSRatio;
+            this.noCFSSize = null;
+        }
+
+        private CompoundFileThreshold(ByteSizeValue noCFSSize) {
+            if (noCFSSize.getBytes() < 0) {
+                throw new IllegalArgumentException(
+                    "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
+                        + noCFSSize
+                        + "]"
+                );
+            }
+            this.noCFSRatio = null;
+            this.noCFSSize = noCFSSize;
+        }
+
+        void configure(MergePolicy mergePolicy) {
+            if (noCFSRatio != null) {
+                assert noCFSSize == null;
+                mergePolicy.setNoCFSRatio(noCFSRatio);
+                mergePolicy.setMaxCFSSegmentSizeMB(Double.POSITIVE_INFINITY);
+            } else {
+                mergePolicy.setNoCFSRatio(1.0);
+                mergePolicy.setMaxCFSSegmentSizeMB(noCFSSize.getMbFrac());
+            }
+        }
+
+        @Override
+        public String toString() {
+            if (noCFSRatio != null) {
+                return "max CFS ratio: " + noCFSRatio;
+            } else {
+                return "max CFS size: " + noCFSSize;
             }
         }
     }

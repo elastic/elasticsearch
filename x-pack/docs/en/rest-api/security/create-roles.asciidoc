@@ -123,3 +123,21 @@ created or updated.
 --------------------------------------------------
 
 <1> When an existing role is updated, `created` is set to false.
+
+The following example configures a role that can run SQL in JDBC:
+
+// tag::sql-queries-permission[]
+[source,console]
+--------------------------------------------------
+POST /_security/role/cli_or_drivers_minimal
+{
+  "cluster": ["cluster:monitor/main"],
+  "indices": [
+    {
+      "names": ["test"],
+      "privileges": ["read", "indices:admin/get"]
+    }
+  ]
+}
+--------------------------------------------------
+// end::sql-queries-permission[]

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,17 +45,18 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOUR
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testFilterInitialRecovery() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = createBuiltInClusterSettings();
         FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             Arrays.asList(
                 filterAllocationDecider,
-                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                new SameShardAllocationDecider(clusterSettings),
                 new ReplicaAfterPrimaryActiveAllocationDecider()
             )
         );
@@ -63,7 +65,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         ClusterState state = createInitialClusterState(
             service,
@@ -194,14 +197,12 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             .numberOfReplicas(1);
         final IndexMetadata indexMetadata = indexMetadataBuilder.build();
         metadata.put(indexMetadata, false);
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsFromCloseToOpen(sourceIndex);
         routingTableBuilder.addAsNew(indexMetadata);
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
@@ -294,12 +295,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     public void testGetForcedInitialShardAllocationToNodes() {
         var index = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.initial_recovery._id", "node-1")
+                indexSettings(Version.CURRENT, 1, 0).put("index.routing.allocation.initial_recovery._id", "node-1")
                     .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             )
             .build();
         var clusterState = ClusterState.builder(new ClusterName("test-cluster"))
@@ -315,7 +312,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             new ShardId(index.getIndex(), 0),
             true,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+            ShardRouting.Role.DEFAULT
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(localRecoveryShard, allocation), equalTo(Optional.of(Set.of("node-1"))));
 
@@ -323,7 +321,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             new ShardId(index.getIndex(), 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+            ShardRouting.Role.DEFAULT
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(newShard, allocation), equalTo(Optional.empty()));
     }

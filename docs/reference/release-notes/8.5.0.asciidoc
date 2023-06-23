@@ -16,6 +16,12 @@ affected by this issue, upgrade to 8.5.3 to repair it ({es-pull}91887[#91887]).
 
 include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
 
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
 [[breaking-8.5.0]]
 [float]
 === Breaking changes

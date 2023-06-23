@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-class CompletionStatsCache implements ReferenceManager.RefreshListener {
+public class CompletionStatsCache implements ReferenceManager.RefreshListener {
 
     private final Supplier<Engine.Searcher> searcherSupplier;
 
@@ -37,11 +37,11 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
      */
     private final AtomicReference<PlainActionFuture<CompletionStats>> completionStatsFutureRef = new AtomicReference<>();
 
-    CompletionStatsCache(Supplier<Engine.Searcher> searcherSupplier) {
+    public CompletionStatsCache(Supplier<Engine.Searcher> searcherSupplier) {
         this.searcherSupplier = searcherSupplier;
     }
 
-    CompletionStats get(String... fieldNamePatterns) {
+    public CompletionStats get(String... fieldNamePatterns) {
         final PlainActionFuture<CompletionStats> newFuture = new PlainActionFuture<>();
         final PlainActionFuture<CompletionStats> oldFuture = completionStatsFutureRef.compareAndExchange(null, newFuture);
 

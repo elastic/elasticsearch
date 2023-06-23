@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -159,7 +160,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 );
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
-                logger.debug("Local health monitoring already started {}, skipping", monitoring);
+                logger.trace("Local health monitoring already started {}, skipping", monitoring);
             }
         }
     }
@@ -433,9 +434,18 @@ public class LocalHealthMonitor implements ClusterStateListener {
             }
 
             long highThreshold = diskMetadata.getFreeBytesHighWatermark(totalBytes).getBytes();
-            if (usage.getFreeBytes() < highThreshold && hasRelocatingShards(clusterState, node.getId()) == false) {
-                logger.debug("High disk watermark [{}] exceeded on {}", highThreshold, usage);
-                return new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD);
+            if (usage.getFreeBytes() < highThreshold) {
+                if (node.canContainData()) {
+                    // for data nodes only report YELLOW if shards can't move away from the node
+                    if (DiskCheck.hasRelocatingShards(clusterState, node) == false) {
+                        logger.debug("High disk watermark [{}] exceeded on {}", highThreshold, usage);
+                        return new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD);
+                    }
+                } else {
+                    // for non-data nodes report YELLOW when the disk high watermark is breached
+                    logger.debug("High disk watermark [{}] exceeded on {}", highThreshold, usage);
+                    return new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD);
+                }
             }
             return new DiskHealthInfo(HealthStatus.GREEN);
         }
@@ -456,13 +466,19 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 false,
                 false,
                 false,
+                false,
                 false
             );
             return DiskUsage.findLeastAvailablePath(nodeStats);
         }
 
-        private boolean hasRelocatingShards(ClusterState clusterState, String nodeId) {
-            return clusterState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING) > 0;
+        static boolean hasRelocatingShards(ClusterState clusterState, DiscoveryNode node) {
+            RoutingNode routingNode = clusterState.getRoutingNodes().node(node.getId());
+            if (routingNode == null) {
+                // routing node will be null for non-data nodes
+                return false;
+            }
+            return routingNode.numberOfShardsWithState(ShardRoutingState.RELOCATING) > 0;
         }
     }
 }

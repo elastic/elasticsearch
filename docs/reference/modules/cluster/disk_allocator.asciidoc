@@ -38,7 +38,8 @@ a last resort, once the disk usage reaches the _flood-stage_ watermark {es}
 will block writes to indices with a shard on the affected node. It will also
 continue to move shards onto the other nodes in the cluster. When disk usage
 on the affected node drops below the high watermark, {es} automatically removes
-the write block.
+the write block. Refer to <<fix-watermark-errors,Fix watermark errors>> to 
+resolve persistent watermark errors.
 
 [[disk-based-shard-allocation-does-not-balance]]
 [TIP]

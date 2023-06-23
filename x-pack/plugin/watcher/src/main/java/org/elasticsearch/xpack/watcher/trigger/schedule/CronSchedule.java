@@ -62,7 +62,7 @@ public class CronSchedule extends CronnableSchedule {
                     throw new ElasticsearchParseException("could not parse [cron] schedule. no cron expression found in cron array");
                 }
                 try {
-                    return new CronSchedule(crons.toArray(new String[crons.size()]));
+                    return new CronSchedule(crons.toArray(String[]::new));
                 } catch (IllegalArgumentException iae) {
                     throw new ElasticsearchParseException("could not parse [cron] schedule", iae);
                 }

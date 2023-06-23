@@ -36,7 +36,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final int total = 5;
         final int successful = randomIntBetween(1, total);
         final ShardInfo shardInfo = new ShardInfo(total, successful);
-        assertEquals(formatted("ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
+        assertEquals(Strings.format("ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
     }
 
     public void testShardInfoToXContent() throws IOException {

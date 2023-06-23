@@ -26,7 +26,9 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -36,6 +38,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -75,14 +78,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -223,16 +227,17 @@ public abstract class Engine implements Closeable {
          * reference as soon as it is done with it.
          *
          * @param shardId         the {@link ShardId} of shard
+         * @param store           the index shard store
          * @param primaryTerm     the shard's primary term value
          * @param indexCommitRef  a reference on the newly created index commit
          * @param additionalFiles the set of filenames that are added by the new commit
          */
-        void onNewCommit(ShardId shardId, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
+        void onNewCommit(ShardId shardId, Store store, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
 
         /**
          * This method is invoked after the policy deleted the given {@link IndexCommit}. A listener is never notified of a deleted commit
-         * until the corresponding {@link Engine.IndexCommitRef} received through
-         * {@link #onNewCommit(ShardId, long, IndexCommitRef, Set)} has been closed; closing which in turn can call this method directly.
+         * until the corresponding {@link Engine.IndexCommitRef} received through {@link #onNewCommit} has been closed; closing which in
+         * turn can call this method directly.
          *
          * @param shardId the {@link ShardId} of shard
          * @param deletedCommit the deleted {@link IndexCommit}
@@ -567,7 +572,7 @@ public abstract class Engine implements Closeable {
 
     public static class NoOpResult extends Result {
 
-        NoOpResult(long term, long seqNo) {
+        public NoOpResult(long term, long seqNo) {
             super(Operation.TYPE.NO_OP, 0, term, seqNo, null);
         }
 
@@ -583,7 +588,7 @@ public abstract class Engine implements Closeable {
             if (uncachedLookup) {
                 docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), true);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+                docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
@@ -630,6 +635,19 @@ public abstract class Engine implements Closeable {
         DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
+
+    /**
+     * Similar to {@link Engine#get}, but it only attempts to serve the get from the translog.
+     * If not found in translog, it returns null, as {@link GetResult#NOT_EXISTS} could mean deletion.
+     */
+    public GetResult getFromTranslog(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
@@ -738,9 +756,21 @@ public abstract class Engine implements Closeable {
     public abstract boolean isTranslogSyncNeeded();
 
     /**
-     * Ensures that all locations in the given stream have been written to the underlying storage.
+     * Whether search idleness may be allowed to be considered for skipping a scheduled refresh.
      */
-    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
+    public boolean allowSearchIdleOptimization() {
+        return true;
+    }
+
+    /**
+     * Ensures that the location has been written to the underlying storage.
+     */
+    public abstract void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener);
+
+    /**
+     * Ensures that the global checkpoint has been persisted to the underlying storage.
+     */
+    public abstract void asyncEnsureGlobalCheckpointSynced(long globalCheckpoint, Consumer<Exception> listener);
 
     public abstract void syncTranslog() throws IOException;
 
@@ -1012,16 +1042,24 @@ public abstract class Engine implements Closeable {
      * changes.
      */
     @Nullable
-    public abstract void refresh(String source) throws EngineException;
+    public abstract RefreshResult refresh(String source) throws EngineException;
 
     /**
-     * Synchronously refreshes the engine for new search operations to reflect the latest
+     * An async variant of {@link Engine#refresh(String)} that may apply some rate-limiting.
+     */
+    public void externalRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            logger.trace("external refresh with source [{}]", source);
+            return refresh(source);
+        });
+    }
+
+    /**
+     * Asynchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
-     *
-     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
      */
     @Nullable
-    public abstract boolean maybeRefresh(String source) throws EngineException;
+    public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1036,15 +1074,29 @@ public abstract class Engine implements Closeable {
     public abstract boolean shouldPeriodicallyFlush();
 
     /**
-     * Flushes the state of the engine including the transaction log, clearing memory.
+     * A Blocking helper method for calling the async flush method.
+     */
+    // TODO: Remove or rename for increased clarity
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(force, waitIfOngoing, future);
+        future.actionGet();
+    }
+
+    /**
+     * Flushes the state of the engine including the transaction log, clearing memory, and writing the
+     * documents in the Lucene index to disk. This method will synchronously flush on the calling thread.
+     * However, depending on engine implementation, full durability will not be guaranteed until the listener
+     * is triggered.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
-     * @return <code>false</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, else <code>true</code>.
-     *         If <code>false</code> is returned, no flush happened.
+     * @param listener      to notify after fully durability has been achieved. if <code>waitIfOngoing==false</code> and ongoing
+     *                      request is detected, no flush will have occurred and the listener will be completed with a marker
+     *                      indicating no flush and unknown generation.
      */
-    public abstract boolean flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -1053,7 +1105,9 @@ public abstract class Engine implements Closeable {
      * a lucene commit if nothing needs to be committed.
      */
     public final void flush() throws EngineException {
-        flush(false, false);
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(false, false, future);
+        future.actionGet();
     }
 
     /**
@@ -1755,7 +1809,8 @@ public abstract class Engine implements Closeable {
                     try {
                         // TODO we might force a flush in the future since we have the write lock already even though recoveries
                         // are running.
-                        flush();
+                        // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
+                        flush(false, false, ActionListener.noop());
                     } catch (AlreadyClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
@@ -1866,12 +1921,52 @@ public abstract class Engine implements Closeable {
 
     /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
-     * This operation will close the engine if the recovery fails.
+     * This operation will close the engine if the recovery fails. Use EngineTestCase#recoverFromTranslog for test usages
      *
      * @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
+    // TODO make all the production usages fully async
+    public final void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        final var future = new PlainActionFuture<Void>();
+        recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future);
+        try {
+            future.get();
+        } catch (ExecutionException e) {
+            // This is a (temporary) adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect
+            // exceptions to be thrown directly, but Future#get adds an ExecutionException wrapper which we must remove to preserve the
+            // expected exception semantics.
+            if (e.getCause() instanceof IOException ioException) {
+                throw ioException;
+            } else if (e.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            } else {
+                // the old code was "throws IOException" so we shouldn't see any other exception types here
+                logger.error("checked non-IOException unexpectedly thrown", e);
+                assert false : e;
+                throw new UncategorizedExecutionException("recoverFromTranslog", e);
+            }
+        } catch (InterruptedException e) {
+            // We don't really use interrupts in this area so this is somewhat unexpected (unless perhaps we're shutting down), just treat
+            // it like any other exception.
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
+     * This operation will close the engine if the recovery fails.
+     *
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
+     * @param listener               listener notified on completion of the recovery, whether successful or otherwise
+     */
+    public abstract void recoverFromTranslog(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long recoverUpToSeqNo,
+        ActionListener<Void> listener
+    );
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -1954,5 +2049,38 @@ public abstract class Engine implements Closeable {
 
     public final EngineConfig getEngineConfig() {
         return engineConfig;
+    }
+
+    /**
+     * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
+     */
+    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        throw new UnsupportedOperationException();
+    }
+
+    public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
+        listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
+    }
+
+    /**
+     * Captures the result of a refresh operation on the index shard.
+     * <p>
+     * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
+     * contains the generation of the index commit that the reader has opened upon refresh.
+     */
+    public record RefreshResult(boolean refreshed, long generation) {
+
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final RefreshResult NO_REFRESH = new RefreshResult(false);
+
+        public RefreshResult(boolean refreshed) {
+            this(refreshed, UNKNOWN_GENERATION);
+        }
+    }
+
+    public record FlushResult(boolean flushPerformed, long generation) {
+
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
     }
 }

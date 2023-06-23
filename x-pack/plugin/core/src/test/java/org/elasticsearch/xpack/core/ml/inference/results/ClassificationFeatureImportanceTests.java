@@ -37,6 +37,11 @@ public class ClassificationFeatureImportanceTests extends AbstractXContentSerial
         return createRandomInstance();
     }
 
+    @Override
+    protected ClassificationFeatureImportance mutateInstance(ClassificationFeatureImportance instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     @SuppressWarnings("unchecked")
     public static ClassificationFeatureImportance createRandomInstance() {
         Supplier<Object> classNameGenerator = randomFrom(

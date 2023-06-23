@@ -55,7 +55,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("not-john", "not-role"))
             .realmRef(new RealmRef("auth_name", "auth_type", "node"))
@@ -125,7 +125,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("not-john", "not-role"))
             .realmRef(new RealmRef("auth_name", "auth_type", "node"))

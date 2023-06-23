@@ -41,6 +41,11 @@ public class InfluencerTests extends AbstractXContentSerializingTestCase<Influen
     }
 
     @Override
+    protected Influencer mutateInstance(Influencer instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<Influencer> instanceReader() {
         return Influencer::new;
     }

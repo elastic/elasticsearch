@@ -73,6 +73,11 @@ public class CppLogMessageTests extends AbstractXContentSerializingTestCase<CppL
     }
 
     @Override
+    protected CppLogMessage mutateInstance(CppLogMessage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<CppLogMessage> instanceReader() {
         return CppLogMessage::new;
     }

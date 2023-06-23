@@ -27,7 +27,7 @@ public class PrevalidateNodeRemovalResponseSerializationTests extends AbstractXC
     }
 
     @Override
-    protected PrevalidateNodeRemovalResponse mutateInstance(PrevalidateNodeRemovalResponse instance) throws IOException {
+    protected PrevalidateNodeRemovalResponse mutateInstance(PrevalidateNodeRemovalResponse instance) {
         return new PrevalidateNodeRemovalResponse(NodesRemovalPrevalidationSerializationTests.mutateNodes(instance.getPrevalidation()));
     }
 

@@ -11,6 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
@@ -19,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteTransformAction extends BaseRestHandler {
 
     @Override
@@ -34,9 +37,10 @@ public class RestDeleteTransformAction extends BaseRestHandler {
 
         String id = restRequest.param(TransformField.ID.getPreferredName());
         boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
+        boolean deleteDestIndex = restRequest.paramAsBoolean(TransformField.DELETE_DEST_INDEX.getPreferredName(), false);
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force, timeout);
+        DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force, deleteDestIndex, timeout);
 
         return channel -> client.execute(DeleteTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

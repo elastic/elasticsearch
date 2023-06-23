@@ -9,12 +9,11 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
 /**
  * This event listener might be needed to delay execution of multiple distinct tasks until followup reroute is complete.
@@ -30,7 +29,7 @@ public class AllocationActionMultiListener<T> {
     }
 
     public ActionListener<T> delay(ActionListener<T> delegate) {
-        final var wrappedDelegate = wrapPreservingContext(delegate, context);
+        final var wrappedDelegate = new ContextPreservingActionListener<>(context.newRestorableContext(false), delegate);
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {
@@ -94,5 +93,5 @@ public class AllocationActionMultiListener<T> {
         return listeners;
     }
 
-    private record DelayedListener<T> (ActionListener<T> listener, T response) {}
+    private record DelayedListener<T>(ActionListener<T> listener, T response) {}
 }

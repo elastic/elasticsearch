@@ -11,8 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -68,6 +71,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             latestSnapshotOpt -> ActionListener.completeWith(
                 listener,
                 () -> computeRecoveryPlanWithSnapshots(
+                    shardId,
                     shardStateIdentifier,
                     sourceMetadata,
                     targetMetadata,
@@ -80,6 +84,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     }
 
     private ShardRecoveryPlan computeRecoveryPlanWithSnapshots(
+        ShardId shardId,
         @Nullable String shardStateIdentifier,
         Store.MetadataSnapshot sourceMetadata,
         Store.MetadataSnapshot targetMetadata,
@@ -91,6 +96,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         List<StoreFileMetadata> filesMissingInTarget = concatLists(sourceTargetDiff.missing, sourceTargetDiff.different);
 
         if (latestSnapshotOpt.isEmpty()) {
+            logger.debug("{} no snapshot suitable for recovery found, falling back to recovery from the primary", shardId);
             // If we couldn't find any valid snapshots, fallback to the source
             return getRecoveryPlanUsingSourceNode(sourceMetadata, sourceTargetDiff, filesMissingInTarget, startingSeqNo, translogOps);
         }
@@ -102,6 +108,18 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             && latestSnapshot.hasDifferentPhysicalFiles(sourceMetadata)
             && isSnapshotVersionCompatible(latestSnapshot)
             && sourceTargetDiff.identical.isEmpty()) {
+
+            logger.debug(
+                () -> Strings.format(
+                    "%s primary has changed since snapshot completed, but snapshot still looks ok for recovery: %s",
+                    shardId,
+                    latestSnapshot.getSnapshotFiles()
+                        .stream()
+                        .map(BlobStoreIndexShardSnapshot.FileInfo::physicalName)
+                        .collect(Collectors.joining(", ", "[", "]"))
+                )
+            );
+
             // Use the current primary as a fallback if the download fails half-way
             ShardRecoveryPlan fallbackPlan = getRecoveryPlanUsingSourceNode(
                 sourceMetadata,
@@ -141,6 +159,18 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             );
         }
 
+        logger.debug(
+            () -> Strings.format(
+                "%s attempting snapshot-based recovery of %s based on %s",
+                shardId,
+                snapshotFilesToRecover.snapshotFiles()
+                    .stream()
+                    .map(BlobStoreIndexShardSnapshot.FileInfo::physicalName)
+                    .collect(Collectors.joining(", ", "[", "]")),
+                snapshotDiff
+            )
+        );
+
         return new ShardRecoveryPlan(
             snapshotFilesToRecover,
             concatLists(snapshotDiff.missing, snapshotDiff.different),
@@ -158,8 +188,8 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // NodeVersionAllocationDecider ensures that we only recover to a node that has newer or
         // same version.
         if (commitVersion == null) {
-            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
-            return Version.CURRENT.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
+            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
+            return IndexVersion.CURRENT.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
         }
         return commitVersion.onOrBefore(Version.CURRENT);
     }
@@ -183,6 +213,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
 
     private void fetchLatestSnapshotsIgnoringErrors(ShardId shardId, boolean useSnapshots, Consumer<Optional<ShardSnapshot>> listener) {
         if (useSnapshots == false) {
+            logger.debug("{} recovery will not attempt to use snapshots", shardId);
             listener.accept(Optional.empty());
             return;
         }

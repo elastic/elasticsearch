@@ -33,6 +33,11 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractXContentSerializin
     }
 
     @Override
+    protected MeanSquaredLogarithmicError mutateInstance(MeanSquaredLogarithmicError instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<MeanSquaredLogarithmicError> instanceReader() {
         return MeanSquaredLogarithmicError::new;
     }

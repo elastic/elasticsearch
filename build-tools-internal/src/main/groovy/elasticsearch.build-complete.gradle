@@ -10,7 +10,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 import java.nio.file.Files
 
-String buildNumber = System.getenv('BUILD_NUMBER')
+String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
 if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false) {
   File uploadFile = file("build/${buildNumber}.tar.bz2")
@@ -27,10 +27,17 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
             include("**/*.hprof")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
+            include("**/build/testrun/*/temp/**")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")
             exclude("**/build/testclusters/**/repo/**")
             exclude("**/build/testclusters/**/extract/**")
+            exclude("**/build/testclusters/**/tmp/**")
+            exclude("**/build/testrun/*/temp/**/data/**")
+            exclude("**/build/testrun/*/temp/**/distro/**")
+            exclude("**/build/testrun/*/temp/**/repo/**")
+            exclude("**/build/testrun/*/temp/**/extract/**")
+            exclude("**/build/testrun/*/temp/**/tmp/**")
           }
             .files
             .findAll { Files.isRegularFile(it.toPath()) }

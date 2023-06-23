@@ -325,9 +325,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Project project) {
             // check whether OrderBy relies on nested fields which are not used higher up
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (project.child() instanceof OrderBy ob) {
-                // end::noformat
                 // resolve function references (that maybe hiding the target)
                 AttributeMap.Builder<Function> collectRefs = AttributeMap.builder();
 
@@ -1036,23 +1034,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // count the extended stats
             p.forEachExpressionUp(InnerAggregate.class, ia -> {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof ExtendedStats extStats) {
                     seen.putIfAbsent(extStats.field(), extStats);
                 }
-                // end::noformat
             });
 
             // then if there's a match, replace the stat inside the InnerAgg
             return p.transformExpressionsUp(InnerAggregate.class, ia -> {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof Stats stats) {
                     ExtendedStats ext = seen.get(stats.field());
                     if (ext != null && stats.field().equals(ext.field())) {
                         return new InnerAggregate(ia.inner(), ext);
                     }
                 }
-                // end::noformat
                 return ia;
             });
         }
@@ -1182,7 +1176,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if ((plan instanceof Project || plan instanceof Aggregate) && plan.child() instanceof LocalRelation relation) {
                 List<Object> foldedValues = null;
 
@@ -1193,7 +1186,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         foldedValues = extractLiterals(((Project) plan).projections());
                     }
                 } else if (relation.executable() instanceof EmptyExecutable) {
-                    // end::noformat
                     if (plan instanceof Aggregate agg) {
                         if (agg.groupings().isEmpty()) {
                             // Implicit groupings on empty relations must produce a singleton result set with the aggregation results

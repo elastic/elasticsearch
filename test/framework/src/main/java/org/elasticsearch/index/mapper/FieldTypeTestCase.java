@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.FieldLookup;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -38,11 +40,9 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
-        SourceLookup sourceLookup = mock(SourceLookup.class);
         SearchLookup searchLookup = mock(SearchLookup.class);
-        when(searchLookup.source()).thenReturn(sourceLookup);
         when(searchExecutionContext.lookup()).thenReturn(searchLookup);
-        when(searchExecutionContext.indexVersionCreated()).thenReturn(Version.CURRENT);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.CURRENT);
         return searchExecutionContext;
     }
 
@@ -70,5 +70,23 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         Source source = Source.fromMap(Collections.singletonMap(field, List.of(values)), randomFrom(XContentType.values()));
         return fetcher.fetchValues(source, -1, new ArrayList<>());
+    }
+
+    public static List<?> fetchStoredValue(MappedFieldType fieldType, List<Object> storedValues, String format) throws IOException {
+        String field = fieldType.name();
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+        LeafStoredFieldsLookup leafStoredFieldsLookup = mock(LeafStoredFieldsLookup.class);
+        FieldLookup fieldLookup = mock(FieldLookup.class);
+        when(searchExecutionContext.lookup()).thenReturn(searchLookup);
+        when(searchLookup.getLeafSearchLookup(null)).thenReturn(leafSearchLookup);
+        when(leafSearchLookup.fields()).thenReturn(leafStoredFieldsLookup);
+        when(leafStoredFieldsLookup.get(field)).thenReturn(fieldLookup);
+        when(fieldLookup.getValues()).thenReturn(storedValues);
+
+        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
+        fetcher.setNextReader(null);
+        return fetcher.fetchValues(null, -1, new ArrayList<>());
     }
 }

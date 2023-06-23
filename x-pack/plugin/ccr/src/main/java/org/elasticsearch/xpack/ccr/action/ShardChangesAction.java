@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -266,7 +266,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 0;
@@ -302,13 +302,13 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
-            out.writeArray(Translog.Operation::writeOperation, operations);
+            out.writeArray(operations);
             out.writeVLong(tookInMillis);
         }
 
@@ -447,11 +447,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final ActionListener<Response> listener
         ) {
             logger.trace("{} global checkpoint advanced to [{}] after waiting for [{}]", shardId, globalCheckpoint, request.getFromSeqNo());
-            try {
-                super.asyncShardOperation(request, shardId, listener);
-            } catch (final IOException caught) {
-                listener.onFailure(caught);
-            }
+            ActionListener.run(listener, l -> super.asyncShardOperation(request, shardId, l));
         }
 
         private void globalCheckpointAdvancementFailure(
@@ -561,7 +557,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]"
             );
         }
-        int seenBytes = 0;
+        long seenBytes = 0;
         // - 1 is needed, because toSeqNo is inclusive
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";

@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationStateTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
-
-import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests.randomTransformConfigUpdate;
 
@@ -35,11 +34,14 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         if (randomBoolean()) {
             request.setConfig(TransformConfigTests.randomTransformConfig());
         }
+        if (randomBoolean()) {
+            request.setAuthState(AuthorizationStateTests.randomAuthorizationState());
+        }
         return request;
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         TransformConfigUpdate update = instance.getUpdate();
         boolean deferValidation = instance.isDeferValidation();
@@ -72,5 +74,4 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
 
         return new Request(update, id, deferValidation, timeout);
     }
-
 }

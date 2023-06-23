@@ -10,13 +10,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -136,9 +135,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             RateAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
         ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators);
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            rate.addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new);
-        }
+        rate.addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new);
         return rate;
     }
 
@@ -190,7 +187,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         return List.of(usage);
     }

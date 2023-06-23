@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
@@ -55,6 +57,11 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     }
 
     @Override
+    protected TransformConfigUpdate mutateInstance(TransformConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformConfigUpdate> instanceReader() {
         return TransformConfigUpdate::new;
     }
@@ -62,8 +69,9 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     public void testIsNoop() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             TransformConfig config = randomTransformConfig();
-            TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
-            assertTrue("null update is not noop", update.isNoop(config));
+            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+            assertTrue("null update should be no-op", update.isNoop(config));
+
             update = new TransformConfigUpdate(
                 config.getSource(),
                 config.getDestination(),
@@ -74,7 +82,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 config.getMetadata(),
                 config.getRetentionPolicyConfig()
             );
-            assertTrue("equal update is not noop", update.isNoop(config));
+            assertTrue("equal update should be no-op", update.isNoop(config));
 
             update = new TransformConfigUpdate(
                 config.getSource(),
@@ -86,8 +94,36 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 config.getMetadata(),
                 config.getRetentionPolicyConfig()
             );
-            assertFalse("true update is noop", update.isNoop(config));
+            assertFalse("true update should not be no-op", update.isNoop(config));
         }
+    }
+
+    public void testChangesSettings() {
+        TransformConfig config = randomTransformConfig();
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+        assertFalse("null update does not change settings", update.changesSettings(config));
+
+        update = new TransformConfigUpdate(null, null, null, null, null, config.getSettings(), null, null);
+        assertFalse("equal update does not change settings", update.changesSettings(config));
+
+        SettingsConfig newSettings = new SettingsConfig.Builder(config.getSettings()).setMaxPageSearchSize(
+            Optional.ofNullable(config.getSettings().getMaxPageSearchSize()).orElse(0) + 1
+        ).build();
+        update = new TransformConfigUpdate(null, null, null, null, null, newSettings, null, null);
+        assertTrue("true update changes settings", update.changesSettings(config));
+    }
+
+    public void testChangesHeaders() {
+        TransformConfig config = randomTransformConfig();
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+        assertFalse("null update does not change headers", update.changesHeaders(config));
+
+        update.setHeaders(config.getHeaders());
+        assertFalse("equal update does not change headers", update.changesHeaders(config));
+
+        Map<String, String> newHeaders = Map.of("new-key", "new-value");
+        update.setHeaders(newHeaders);
+        assertTrue("true update changes headers", update.changesHeaders(config));
     }
 
     public void testApply() {
@@ -111,7 +147,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
 
         assertThat(config, equalTo(update.apply(config)));
         SourceConfig sourceConfig = new SourceConfig("the_new_index");
-        DestConfig destConfig = new DestConfig("the_new_dest", "my_new_pipeline");
+        DestConfig destConfig = new DestConfig("the_new_dest", List.of(new DestAlias("my_new_alias", false)), "my_new_pipeline");
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";

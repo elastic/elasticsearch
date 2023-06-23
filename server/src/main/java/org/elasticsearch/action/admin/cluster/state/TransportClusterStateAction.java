@@ -92,7 +92,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ? acceptableClusterStatePredicate
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
-        if (acceptableClusterStatePredicate.test(state) && cancellableTask.isCancelled() == false) {
+        if (cancellableTask.notifyIfCancelled(listener)) {
+            return;
+        }
+        if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
             assert acceptableClusterStateOrFailedPredicate.test(state) == false;
@@ -123,13 +126,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        try {
-                            if (cancellableTask.notifyIfCancelled(listener) == false) {
-                                listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                        ActionListener.run(listener, l -> {
+                            if (cancellableTask.notifyIfCancelled(l) == false) {
+                                l.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                             }
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                        });
                     }
                 }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
@@ -143,6 +144,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
+            builder.transportVersions(currentState.transportVersions());
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {
@@ -174,7 +176,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     // If the requested index is part of a data stream then that data stream should also be included:
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
-                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+                        DataStream dataStream = indexAbstraction.getParentDataStream();
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {

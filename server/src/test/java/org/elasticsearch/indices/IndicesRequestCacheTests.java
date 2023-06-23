@@ -567,6 +567,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         int dummyValue;
 
         TestBytesReference(int dummyValue) {
+            super(0);
             this.dummyValue = dummyValue;
         }
 
@@ -584,11 +585,6 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         @Override
         public byte get(int index) {
-            return 0;
-        }
-
-        @Override
-        public int length() {
             return 0;
         }
 

@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
@@ -126,7 +125,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
-            AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+            AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState);
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             try (StoredContext ignore = threadContext.newStoredContext()) {
@@ -261,7 +260,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
             final AuditTrail auditTrail = mock(AuditTrail.class);
-            final AuditTrailService auditTrailService = new AuditTrailService(List.of(auditTrail), licenseState);
+            final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState);
 
             final SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             final TransportRequest request = mock(TransportRequest.class);

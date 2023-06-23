@@ -405,7 +405,7 @@ The value that is compared against the `applies_to` field using the `operator`.
 end::custom-rules-conditions-value[]
 
 tag::custom-settings[]
-Advanced configuration option. Contains custom meta data about the job. For
+Advanced configuration option. Contains custom metadata about the job. For
 example, it can contain custom URL information as shown in
 {ml-docs}/ml-configuring-url.html[Adding custom URLs to {ml} results].
 end::custom-settings[]
@@ -497,6 +497,10 @@ the index being used to train. If this field is missing from a document, then
 that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
+
+tag::deployment-id[]
+A unique identifier for the deployment of the model.
+end::deployment-id[]
 
 tag::desc-results[]
 If true, the results are sorted in descending order.
@@ -887,7 +891,7 @@ For example:
    "ignore_throttled": true
 }
 ```
-For more information about these options, see <<multi-index>>.
+For more information about these options, see <<api-multi-index>>.
 --
 end::indices-options[]
 
@@ -940,6 +944,7 @@ values are
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* `xlm_roberta`: Use for XLMRoBERTa-style models
 --
 end::inference-config-nlp-tokenization[]
 
@@ -1022,6 +1027,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+experimental:[] XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
+
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is
 then used at inference time. This information is usually provided automatically
@@ -1069,6 +1078,10 @@ numbers. These embeddings capture not simply tokens, but semantic meanings and
 context. These embeddings can be used in a <<dense-vector,dense vector>> field
 for powerful insights.
 end::inference-config-text-embedding[]
+
+tag::inference-config-text-embedding-size[]
+The number of dimensions in the embedding vector produced by the model.
+end::inference-config-text-embedding-size[]
 
 tag::inference-config-text-similarity[]
 Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to
@@ -1310,6 +1323,11 @@ tag::max-trees-trained-models[]
 The maximum number of decision trees in the forest. The maximum value is 2000.
 By default, this value is calculated during hyperparameter optimization.
 end::max-trees-trained-models[]
+
+tag::meta[]
+Advanced configuration option. Contains custom metadata about the job. For
+example, it can contain custom URL information.
+end::meta[]
 
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,

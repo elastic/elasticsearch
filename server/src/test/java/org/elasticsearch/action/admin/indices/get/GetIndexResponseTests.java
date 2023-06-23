@@ -17,8 +17,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,9 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIndexResponse> {
 
@@ -79,17 +76,12 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
         return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
     }
 
-    public void testChunking() throws IOException {
-        final var response = createTestInstance();
+    @Override
+    protected GetIndexResponse mutateInstance(GetIndexResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 
-        try (var builder = jsonBuilder()) {
-            int chunkCount = 0;
-            final var iterator = response.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-            assertEquals(response.getIndices().length + 2, chunkCount);
-        } // closing the builder verifies that the XContent is well-formed
+    public void testChunking() throws IOException {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> response.getIndices().length + 2);
     }
 }

@@ -4,9 +4,8 @@
 A time series data stream (TSDS) models timestamped metrics data as one or
 more time series.
 
-// TODO: Replace XX% with actual percentage
 You can use a TSDS to store metrics data more efficiently. In our benchmarks,
-metrics data stored in a TSDS used 44% less disk space than a regular data
+metrics data stored in a TSDS used 70% less disk space than a regular data
 stream.
 
 [discrete]
@@ -27,7 +26,7 @@ logs or traces, use a regular data stream.
 A TSDS works like a regular data stream with some key differences:
 
 * The matching index template for a TSDS requires a `data_stream` object with
-the <<time-series-mode,`index_mode: time_series`>> option. This option enables
+the <<time-series-mode,`index.mode: time_series`>> option. This option enables
 most TSDS-related functionality.
 
 * In addition to a `@timestamp`, each document in a TSDS must contain one or
@@ -103,6 +102,8 @@ parameter:
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
 
+For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
+
 [[dimension-limits]]
 .Dimension limits
 ****
@@ -112,7 +113,8 @@ always a short encoded hash. To prevent the `_tsid` value from being overly
 large, {es} limits the number of dimensions for an index using the
 <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting. While you can increase this limit, the resulting document `_tsid`
-value can't exceed 32KB.
+value can't exceed 32KB. Additionally the field name of a dimension cannot be
+longer than 512 bytes and the each dimension value can't exceed 1kb.
 ****
 
 [discrete]
@@ -146,6 +148,8 @@ example, a count of errors or completed tasks.
 +
 Only numeric and `aggregate_metric_double` fields support the `counter` metric
 type.
+
+NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
 
 // tag::time-series-metric-gauge[]
 `gauge`:: A number that can increase or decrease. For example, a temperature or
@@ -186,6 +190,9 @@ The `_tsid` field is not queryable or updatable. You also can't retrieve a
 document's `_tsid` using a <<docs-get,get document>> request. However, you can
 use the `_tsid` field in aggregations and retrieve the `_tsid` value in searches
 using the <<search-fields-param,`fields` parameter>>.
+
+WARNING: The format of the `_tsid` field shouldn't be relied upon. It may change
+from version to version.
 
 [discrete]
 [[time-bound-indices]]

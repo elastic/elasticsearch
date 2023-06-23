@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -390,10 +391,10 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedUpdate datafeedUpdate = datafeedUpdateBuilder.build();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.CURRENT);
+            output.setTransportVersion(TransportVersion.current());
             datafeedUpdate.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setVersion(Version.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
                 assertEquals(datafeedUpdate, streamedDatafeedUpdate);
 

@@ -39,6 +39,11 @@ public class TransformProgressTests extends AbstractSerializingTransformTestCase
     }
 
     @Override
+    protected TransformProgress mutateInstance(TransformProgress instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformProgress> instanceReader() {
         return TransformProgress::new;
     }

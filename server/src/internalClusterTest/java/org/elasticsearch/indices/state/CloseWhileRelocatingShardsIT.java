@@ -111,14 +111,8 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
         }
 
         ensureGreen(TimeValue.timeValueSeconds(60L), indices);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
-                )
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
         );
 
         final String targetNode = internalCluster().startDataOnlyNode();
@@ -195,7 +189,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 }
             }
 
-            assertAcked(client().admin().cluster().reroute(new ClusterRerouteRequest().commands(commands)).get());
+            assertAcked(clusterAdmin().reroute(new ClusterRerouteRequest().commands(commands)).get());
 
             // start index closing threads
             final List<Thread> threads = new ArrayList<>();
@@ -211,7 +205,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
                     // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
                     // and max sequence number don't match and will not ack the close.
-                    AcknowledgedResponse closeResponse = client().admin().indices().prepareClose(indexToClose).get();
+                    AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
                     if (closeResponse.isAcknowledged()) {
                         assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
                     }
@@ -250,7 +244,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             interruptedRecoveries.forEach(CloseIndexIT::assertIndexIsClosed);
 
             assertThat("Consider that the test failed if no indices were successfully closed", acknowledgedCloses.size(), greaterThan(0));
-            assertAcked(client().admin().indices().prepareOpen("index-*"));
+            assertAcked(indicesAdmin().prepareOpen("index-*"));
             ensureGreen(indices);
 
             for (String index : acknowledgedCloses) {
@@ -270,14 +264,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())
-                    )
-            );
+            updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
         }
     }
 }

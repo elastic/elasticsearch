@@ -1074,7 +1074,7 @@ the following settings.
 
 // tag::saml-idp-entity-id-tag[]
 `idp.entity_id` {ess-icon}::
-(<<static-cluster-setting,Static>>)
+ (<<static-cluster-setting,Static>>)
 The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a
 maximum length of 1024 characters. It can be a URL (https://idp.example.com/) or
 a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML
@@ -1089,20 +1089,61 @@ capabilities and configuration of the Identity Provider.
 If a path is provided, then it is resolved relative to the {es} config
 directory.
 If a URL is provided, then it must be either a `file` URL or a `https` URL.
++
 {es} automatically polls this metadata resource and reloads
 the IdP configuration when changes are detected.
 File based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
 HTTPS resources are polled at a frequency determined by the realm's
-`idp.metadata.http.refresh` setting.
+`idp.metadata.http.refresh` and `idp.metadata.http.minimum_refresh` settings.
++
+If the metadata resource is loaded from a file then the file must exist at node
+startup, if it does not exist then the node will fail to start.
+If the resource is loaded over HTTPS then (by default) the node will be tolerant
+of a failure to load the resource - the node will start and will continue to
+poll the URL for updates. The affected SAML realm will fail to authenticate
+users until the problem is resolved. To force the node to fail if the metadata is
+unavailable set `idp.metadata.http.fail_on_error` to `true`.
 // end::saml-idp-metadata-path-tag[]
+
+// tag::saml-idp-metadata-http-refresh-tag[]
+`idp.metadata.http.fail_on_error`::
+(<<static-cluster-setting,Static>>)
+If set to `true`, the realm will fail on startup (and prevent the node from starting)
+if it attempts to load metadata over HTTPS and that metadata is not available.
+If set to `false` (the default), the node will start but the affected SAML realm will
+not support user authentication until the metadata can be successfully loaded.
+This setting is ignored if metadata is loaded from a file.
+// end::saml-idp-metadata-http-refresh-tag[]
 
 // tag::saml-idp-metadata-http-refresh-tag[]
 `idp.metadata.http.refresh` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Controls the frequency with which `https` metadata is checked for changes.
 Defaults to `1h` (1 hour).
++
+Under some circumstances {es} may determine that the metadata needs to be checked
+more frequently. This may occur if previous attempts to load the metadata
+encountered an error, or if the metadata indicates that it is due to expire in
+less than the configured refresh interval. In these cases {es} will poll more
+often, but never more frequently than `idp.metadata.http.minimum_refresh`.
+If there is an attempt to authenticate against a realm that has not yet loaded
+metadata successfully, that realm may attempt to load metadata outside of the
+configured polling frequency.
 // end::saml-idp-metadata-http-refresh-tag[]
+
+// tag::saml-idp-metadata-http-minimum-refresh-tag[]
+`idp.metadata.http.minimum_refresh`::
+(<<static-cluster-setting,Static>>)
+Controls the minimum frequency with which `https` metadata is checked for
+changes. In regular operation {es} will use the value of
+`idp.metadata.http.refresh` as the polling interval. However, under some
+circumstances {es} may determine that it needs to poll more frequently.
+In these cases, the `minimum_refresh` will set the minimum frequency at which
+the metdata will be checked.
+Defaults to `5m` (5 minutes) and must not be set to a value greater than
+`idp.metadata.http.refresh`
+// end::saml-idp-metadata-http-minimum-refresh-tag[]
 
 // tag::saml-idp-use-single-logout-tag[]
 `idp.use_single_logout` {ess-icon}::
@@ -1513,6 +1554,7 @@ This setting cannot be used with `ssl.truststore.password`.
 // tag::saml-ssl-verification-mode-tag[]
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
+Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::saml-ssl-verification-mode-tag[]
 
@@ -2034,9 +2076,12 @@ incoming JWTs. Defaults to `id_token`.
 (<<static-cluster-setting,Static>>)
 A list of allowed JWT audiences that {es} should verify. {es} will only consume
 JWTs that were intended for any of these audiences, as denoted by the `aud`
-claim in the JWT). Examples of `aud` claim are `https://example.com/client1`
+claim in the JWT).
+The audiences are compared with exact string matches and do not support wildcards or regex.
+Examples of `aud` claim are `https://example.com/client1`
 and `other_service,elasticsearch`. When `token_type` is `access_token`, the audiences can
 be optionally denoted by a different claim in the JWT if `aud` does not exist.
+See also <<security-settings-jwt-fallback-claims-aud,`fallback_claims.aud`>>.
 // end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-allowed-clock-skew-tag[]
@@ -2054,6 +2099,7 @@ Identifier is usually a case sensitive URL using the https scheme that contains
 scheme, host, and optionally, port number and path components and no query or
 fragment components. However, it can be any string. The value for this setting
 should be provided by your JWT Issuer.
+The issuer is compared with exact string matches and do not support wildcards or regex.
 Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 // end::jwt-allowed-issuer-tag[]
 
@@ -2062,13 +2108,17 @@ Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 (<<static-cluster-setting,Static>>)
 A list of allowed JWT subjects that {es} should verify. {es} will only consume
 JWTs that were issued for any of these subjects, as denoted by the `sub`
-claim in the JWT. Examples of `sub` claim are `https://example.com/user1`
+claim in the JWT.
+The subjects are compared with exact string matches and do not support wildcards or regex.
+Examples of `sub` claim are `https://example.com/user1`
 and `user_1,user2`.
 When `token_type` is `access_token`, this setting is mandatory and the subject can be
 optionally denoted by a different claim in the JWT if `sub` does not exist.
+See also <<security-settings-jwt-fallback-claims-sub,`fallback_claims.sub`>>.
 // end::jwt-allowed-subjects-tag[]
 
 // tag::jwt-fallback-claims-sub-tag[]
+[[security-settings-jwt-fallback-claims-sub]]
 `fallback_claims.sub` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The alternative claim to look for the subject information if the `sub` claim
@@ -2077,6 +2127,7 @@ The fallback is applied everywhere the `sub` claim is used.
 // end::jwt-fallback-claims-sub-tag[]
 
 // tag::jwt-fallback-claims-aud-tag[]
+[[security-settings-jwt-fallback-claims-aud]]
 `fallback_claims.aud` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The alternative claim to look for the audiences information if the `aud` claim
@@ -2090,6 +2141,7 @@ The fallback is applied everywhere the `aud` claim is used.
 Additional claims and associated values that {es} should verify.
 This is a group setting that takes key/value pairs, where the key is a string
 and the value must be either a string or an array of strings.
+The values are compared with exact string matches and do not support wildcards or regex.
 
 For example:
 
@@ -2290,7 +2342,7 @@ Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT
 realm uses to verify token signatures. This format supports multiple keys and
 optional attributes, and is preferred over the `hmac_key` setting. Cannot be
 used in conjunction with the `hmac_key` setting. Refer to
-<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+<<jwt-auth-realm,Configure {es} to use a JWT realm>>.
 // end::jwt-hmac-jwkset-tag[]
 
 // tag::jwt-hmac-key-tag[]
@@ -2302,7 +2354,7 @@ without attributes, and cannot be used with the `hmac_jwkset` setting. This
 format is compatible with OIDC. The HMAC key must be a UNICODE string, where
 the key bytes are the UTF-8 encoding of the UNICODE string.
 The `hmac_jwkset` setting is preferred. Refer to
-<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+<<jwt-auth-realm,Configure {es} to use a JWT realm>>.
 
 // end::jwt-hmac-key-tag[]
 

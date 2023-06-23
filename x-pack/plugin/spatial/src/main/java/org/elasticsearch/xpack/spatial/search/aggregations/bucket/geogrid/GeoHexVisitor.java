@@ -13,7 +13,11 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor;
+
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry}.
@@ -22,7 +26,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor;
  * a geometry touches any of the edges, then it will never return {@link GeoRelation#QUERY_CONTAINS}, for example a point on the boundary
  * return {@link GeoRelation#QUERY_CROSSES}.
  */
-class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
+class GeoHexVisitor extends TriangleTreeDecodedVisitor {
 
     private GeoRelation relation;
     private final double[] xs, ys;
@@ -101,9 +105,9 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
     @Override
     protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-        final boolean ab = (metadata & 1 << 4) == 1 << 4;
-        final boolean bc = (metadata & 1 << 5) == 1 << 5;
-        final boolean ca = (metadata & 1 << 6) == 1 << 6;
+        final boolean ab = abFromTriangle(metadata);
+        final boolean bc = bcFromTriangle(metadata);
+        final boolean ca = caFromTriangle(metadata);
         updateRelation(relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca));
     }
 
@@ -234,7 +238,7 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
             return GeoRelation.QUERY_CONTAINS;
         }
         // 2. check crossings
-        if (edgeIntersectsQuery(aX, aY, bX, bY, true)) {
+        if (edgeIntersectsQuery(aX, aY, bX, bY)) {
             return GeoRelation.QUERY_CROSSES;
         }
         return GeoRelation.QUERY_DISJOINT;
@@ -297,21 +301,21 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
         }
 
         boolean within = false;
-        if (edgeIntersectsQuery(aX, aY, bX, bY, false)) {
+        if (edgeIntersectsQuery(aX, aY, bX, bY)) {
             if (ab) {
                 return GeoRelation.QUERY_CROSSES;
             }
             within = true;
         }
 
-        if (edgeIntersectsQuery(bX, bY, cX, cY, false)) {
+        if (edgeIntersectsQuery(bX, bY, cX, cY)) {
             if (bc) {
                 return GeoRelation.QUERY_CROSSES;
             }
             within = true;
         }
 
-        if (edgeIntersectsQuery(cX, cY, aX, aY, false)) {
+        if (edgeIntersectsQuery(cX, cY, aX, aY)) {
             if (ca) {
                 return GeoRelation.QUERY_CROSSES;
             }
@@ -328,13 +332,13 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
     /**
      * returns true if the edge (defined by (ax, ay) (bx, by)) intersects the query
      */
-    private boolean edgeIntersectsQuery(double ax, double ay, double bx, double by, boolean includeBoundary) {
+    private boolean edgeIntersectsQuery(double ax, double ay, double bx, double by) {
         final double minX = Math.min(ax, bx);
         final double maxX = Math.max(ax, bx);
         final double minY = Math.min(ay, by);
         final double maxY = Math.max(ay, by);
         return boxesAreDisjoint(minX, maxX, minY, maxY) == false
-            && H3CartesianUtil.crossesLine(xs, ys, numPoints, crossesDateline, minX, maxX, minY, maxY, ax, ay, bx, by, includeBoundary);
+            && H3CartesianUtil.crossesLine(xs, ys, numPoints, crossesDateline, minX, maxX, minY, maxY, ax, ay, bx, by, true);
     }
 
     /**

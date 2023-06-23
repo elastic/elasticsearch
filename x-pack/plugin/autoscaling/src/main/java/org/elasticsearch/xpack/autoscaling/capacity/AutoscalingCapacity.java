@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,12 +24,12 @@ import java.util.Objects;
 /**
  * Represents current/required capacity of a single tier.
  */
-public class AutoscalingCapacity implements ToXContent, Writeable {
+public class AutoscalingCapacity implements ToXContentObject, Writeable {
 
     private final AutoscalingResources total;
     private final AutoscalingResources node;
 
-    public static class AutoscalingResources implements ToXContent, Writeable {
+    public static class AutoscalingResources implements ToXContentObject, Writeable {
         private final ByteSizeValue storage;
         private final ByteSizeValue memory;
         private final Processors processors;
@@ -46,7 +46,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         public AutoscalingResources(StreamInput in) throws IOException {
             this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
                 this.processors = null;
@@ -85,15 +85,10 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         @Override
-        public boolean isFragment() {
-            return false;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalWriteable(processors);
             }
         }
@@ -239,11 +234,6 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         builder.field("total", total);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     public static AutoscalingCapacity upperBound(AutoscalingCapacity c1, AutoscalingCapacity c2) {

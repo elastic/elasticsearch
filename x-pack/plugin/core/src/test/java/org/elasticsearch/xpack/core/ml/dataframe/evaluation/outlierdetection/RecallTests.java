@@ -34,6 +34,11 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
     }
 
     @Override
+    protected Recall mutateInstance(Recall instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Recall> instanceReader() {
         return Recall::new;
     }

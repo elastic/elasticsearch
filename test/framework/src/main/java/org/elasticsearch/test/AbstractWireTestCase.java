@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,7 +23,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Standard test case for testing wire serialization. If the class being tested
@@ -44,10 +46,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * Returns an instance which is mutated slightly so it should not be equal
      * to the given instance.
      */
-    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
-    protected T mutateInstance(T instance) throws IOException {
-        return null;
-    }
+    protected abstract T mutateInstance(T instance) throws IOException;
 
     /**
      * Tests that the equals and hashcode methods are consistent and copied
@@ -110,7 +109,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * some hashCode implementations violate this assumption and it's very
      * surprising. This tries to fail when that assumption is violated.
      */
-    public final void testConcurrentHashCode() throws IOException, InterruptedException, ExecutionException {
+    public final void testConcurrentHashCode() throws InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
         int firstHashCode = testInstance.hashCode();
 
@@ -125,6 +124,12 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
                 assertEquals(firstHashCode, testInstance.hashCode());
             }
         });
+    }
+
+    public void testToString() throws Exception {
+        final String toString = createTestInstance().toString();
+        assertNotNull(toString);
+        assertThat(toString, not(emptyString()));
     }
 
     /**
@@ -148,7 +153,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * operations like {@link ToXContent#toXContent}. This doesn't
      * check that exactly, but it's close.
      */
-    public final void testConcurrentSerialization() throws IOException, InterruptedException, ExecutionException {
+    public final void testConcurrentSerialization() throws InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
 
         /*
@@ -172,7 +177,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * Serialize the given instance and asserts that both are equal.
      */
     protected final void assertSerialization(T testInstance) throws IOException {
-        assertSerialization(testInstance, Version.CURRENT);
+        assertSerialization(testInstance, TransportVersion.current());
     }
 
     /**
@@ -180,7 +185,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * for sanity checking the backwards compatibility of the wire. It isn't a substitute for
      * real backwards compatibility tests but it is *so* much faster.
      */
-    protected final void assertSerialization(T testInstance, Version version) throws IOException {
+    protected final void assertSerialization(T testInstance, TransportVersion version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
         assertEqualInstances(testInstance, deserializedInstance);
     }
@@ -196,7 +201,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     protected final T copyInstance(T instance) throws IOException {
-        return copyInstance(instance, Version.CURRENT);
+        return copyInstance(instance, TransportVersion.current());
     }
 
     /**
@@ -204,7 +209,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * The version is useful for sanity checking the backwards compatibility of the wire. It isn't
      * a substitute for real backwards compatibility tests but it is *so* much faster.
      */
-    protected abstract T copyInstance(T instance, Version version) throws IOException;
+    protected abstract T copyInstance(T instance, TransportVersion version) throws IOException;
 
     /**
      * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.

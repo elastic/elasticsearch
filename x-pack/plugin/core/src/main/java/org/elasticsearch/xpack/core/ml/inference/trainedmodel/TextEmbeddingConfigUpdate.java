@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -27,6 +27,8 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.T
 public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedXContentObject {
 
     public static final String NAME = TextEmbeddingConfig.NAME;
+
+    public static TextEmbeddingConfigUpdate EMPTY_INSTANCE = new TextEmbeddingConfigUpdate(null, null);
 
     public static TextEmbeddingConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
@@ -97,8 +99,8 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     @Override
@@ -119,7 +121,8 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         return new TextEmbeddingConfig(
             embeddingConfig.getVocabularyConfig(),
             tokenizationUpdate == null ? embeddingConfig.getTokenization() : tokenizationUpdate.apply(embeddingConfig.getTokenization()),
-            resultsField == null ? embeddingConfig.getResultsField() : resultsField
+            resultsField == null ? embeddingConfig.getResultsField() : resultsField,
+            embeddingConfig.getEmbeddingSize()
         );
     }
 

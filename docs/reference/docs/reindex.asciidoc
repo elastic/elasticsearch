@@ -575,6 +575,9 @@ Valid values: `index`, `create`. Defaults to `index`.
 IMPORTANT: To reindex to a data stream destination, this argument must be
 `create`.
 
+`pipeline`:::
+(Optional, string) the name of the <<reindex-with-an-ingest-pipeline,pipeline>> to use.
+
 `script`::
 `source`:::
 (Optional, string) The script to run to update the document source or metadata when reindexing.

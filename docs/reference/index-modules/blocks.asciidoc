@@ -43,7 +43,8 @@ settings, and removes the block automatically when the disk utilization falls
 under the high watermark, controlled by the
 <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.high>>
 and <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.high.max_headroom>>
-settings.
+settings. Refer to <<fix-watermark-errors,Fix watermark errors>> to resolve 
+watermark issues.
 
 `index.blocks.read`::
 

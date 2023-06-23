@@ -1,11 +1,15 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
-
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.authenticated-testclusters'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   testImplementation project(':x-pack:qa')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:rank-eval')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:reindex')
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
 }
 
 restResources {
@@ -20,14 +24,4 @@ tasks.named("yamlRestTest").configure {
         'index/10_with_id/Index with ID',
         'indices.get_alias/10_basic/Get alias against closed indices'
       ].join(',')
-}
-
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'xpack.security.autoconfiguration.enabled', 'false'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

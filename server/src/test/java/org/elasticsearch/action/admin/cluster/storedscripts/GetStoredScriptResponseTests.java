@@ -33,6 +33,11 @@ public class GetStoredScriptResponseTests extends AbstractXContentSerializingTes
     }
 
     @Override
+    protected GetStoredScriptResponse mutateInstance(GetStoredScriptResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetStoredScriptResponse> instanceReader() {
         return GetStoredScriptResponse::new;
     }

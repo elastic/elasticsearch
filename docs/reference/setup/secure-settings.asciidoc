@@ -9,7 +9,7 @@ manage the settings in the keystore.
 IMPORTANT: Only some settings are designed to be read from the keystore. However,
 the keystore has no validation to block unsupported settings. Adding unsupported
 settings to the keystore causes {es} to fail to start. To see whether a setting
-is supported in the keystore, look for a "Secure" qualifier the setting
+is supported in the keystore, look for a "Secure" qualifier in the setting
 reference.
 
 All the modifications to the keystore take effect only after restarting {es}.

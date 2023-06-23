@@ -1,6 +1,0 @@
-pr: 91329
-summary: Bind the readiness service to the wildcard address
-area: Infra/Core
-type: enhancement
-issues:
- - 90997

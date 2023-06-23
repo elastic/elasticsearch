@@ -15,7 +15,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -81,7 +81,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ChunkedToXContent {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         public static final ParseField FOLLOWER_INDICES_FIELD = new ParseField("follower_indices");
 

@@ -75,7 +75,7 @@ public class PhaseTests extends AbstractXContentSerializingTestCase<Phase> {
     }
 
     @Override
-    protected Phase mutateInstance(Phase instance) throws IOException {
+    protected Phase mutateInstance(Phase instance) {
         String name = instance.getName();
         TimeValue after = instance.getMinimumAge();
         Map<String, LifecycleAction> actions = instance.getActions();

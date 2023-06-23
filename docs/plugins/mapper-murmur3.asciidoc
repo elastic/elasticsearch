@@ -1,5 +1,5 @@
 [[mapper-murmur3]]
-=== Mapper Murmur3 Plugin
+=== Mapper murmur3 plugin
 
 The mapper-murmur3 plugin provides the ability to compute hash of field values
 at index-time and store them in the index. This can sometimes be helpful when

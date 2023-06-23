@@ -50,24 +50,20 @@ public class FsBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        try {
-            return new FsBlobContainer(this, path, buildAndCreate(path));
-        } catch (IOException ex) {
-            throw new ElasticsearchException("failed to create blob container", ex);
+        Path f = buildPath(path);
+        if (readOnly == false) {
+            try {
+                Files.createDirectories(f);
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to create blob container", ex);
+            }
         }
+        return new FsBlobContainer(this, path, f);
     }
 
     @Override
     public void close() {
         // nothing to do here...
-    }
-
-    private synchronized Path buildAndCreate(BlobPath path) throws IOException {
-        Path f = buildPath(path);
-        if (readOnly == false) {
-            Files.createDirectories(f);
-        }
-        return f;
     }
 
     private Path buildPath(BlobPath path) {

@@ -16,7 +16,7 @@ import java.util.function.BooleanSupplier;
 /**
  * Holds context for building Mapper objects from their Builders
  */
-public final class MapperBuilderContext {
+public class MapperBuilderContext {
 
     /**
      * The root context, to be used when building a tree of mappers
@@ -29,10 +29,9 @@ public final class MapperBuilderContext {
      * A context to use to build metadata fields.
      */
     public static MapperBuilderContext forMetadata() {
-        return new MapperBuilderContext(
-            null,
-            () -> { throw new UnsupportedOperationException("metadata fields can't check if _source is synthetic"); }
-        );
+        return new MapperBuilderContext(null, () -> {
+            throw new UnsupportedOperationException("metadata fields can't check if _source is synthetic");
+        });
     }
 
     private final String path;

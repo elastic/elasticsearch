@@ -26,6 +26,12 @@ Before upgrading to ${majorDotMinor}, review these changes and take the describe
 to mitigate the impact.
 
 <%
+    if (breakingByNotabilityByArea.getOrDefault(true, []).isEmpty()) { %>
+// tag::notable-breaking-changes[]
+There are no notable breaking changes in {es} ${majorDotMinor}.
+// end::notable-breaking-changes[]
+But there are some less critical breaking changes.
+<%  }
     [true, false].each { isNotable ->
         def breakingByArea = breakingByNotabilityByArea.getOrDefault(isNotable, [])
         if (breakingByArea.isEmpty() == false) {

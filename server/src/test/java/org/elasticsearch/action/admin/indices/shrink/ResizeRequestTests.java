@@ -171,4 +171,9 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         }
         return resizeRequest;
     }
+
+    @Override
+    protected ResizeRequest mutateInstance(ResizeRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

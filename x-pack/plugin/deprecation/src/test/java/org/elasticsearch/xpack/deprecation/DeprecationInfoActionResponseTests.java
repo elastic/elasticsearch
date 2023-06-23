@@ -73,6 +73,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
     }
 
     @Override
+    protected DeprecationInfoAction.Response mutateInstance(DeprecationInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<DeprecationInfoAction.Response> instanceReader() {
         return DeprecationInfoAction.Response::new;
     }
@@ -180,7 +185,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             Collections.emptyMap(),
             Collections.emptySet(),
-            Version.CURRENT
+            null
         );
         DiscoveryNode node2 = new DiscoveryNode(
             "node2",
@@ -191,7 +196,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             new TransportAddress(TransportAddress.META_ADDRESS, 9500),
             Collections.emptyMap(),
             Collections.emptySet(),
-            Version.CURRENT
+            null
         );
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();

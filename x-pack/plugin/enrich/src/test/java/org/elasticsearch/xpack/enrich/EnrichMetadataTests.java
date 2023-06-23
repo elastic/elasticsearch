@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
@@ -29,6 +30,11 @@ public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<Enri
     @Override
     protected EnrichMetadata createTestInstance() {
         return randomEnrichMetadata(randomFrom(XContentType.values()));
+    }
+
+    @Override
+    protected EnrichMetadata mutateInstance(EnrichMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -60,10 +66,5 @@ public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<Enri
             EnrichPolicy expected = expectedInstance.getPolicies().get(entry.getKey());
             EnrichPolicyTests.assertEqualPolicies(expected, actual);
         }
-    }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
     }
 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -184,7 +184,7 @@ public class TaskManagerTests extends ESTestCase {
                             threadPool,
                             "action-" + i,
                             randomIntBetween(0, 1000),
-                            Version.CURRENT
+                            TransportVersion.current()
                         );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
@@ -233,7 +233,7 @@ public class TaskManagerTests extends ESTestCase {
                     threadPool,
                     "action",
                     randomIntBetween(1, 10000),
-                    Version.CURRENT
+                    TransportVersion.current()
                 )
             );
         }
@@ -289,12 +289,15 @@ public class TaskManagerTests extends ESTestCase {
             public void setParentTask(TaskId taskId) {}
 
             @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
             public TaskId getParentTask() {
                 return TaskId.EMPTY_TASK_ID;
             }
         });
 
-        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("testAction"), anyMap());
+        verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), anyMap());
     }
 
     /**
@@ -310,6 +313,9 @@ public class TaskManagerTests extends ESTestCase {
             public void setParentTask(TaskId taskId) {}
 
             @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
             public TaskId getParentTask() {
                 return TaskId.EMPTY_TASK_ID;
             }
@@ -317,7 +323,7 @@ public class TaskManagerTests extends ESTestCase {
 
         taskManager.unregister(task);
 
-        verify(mockTracer).stopTrace("task-" + task.getId());
+        verify(mockTracer).stopTrace(task);
     }
 
     /**
@@ -353,7 +359,7 @@ public class TaskManagerTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
+        verify(mockTracer).startTrace(any(), eq(task), eq("actionName"), anyMap());
     }
 
     public void testRegisterWithEnabledDisabledTracing() {
@@ -420,6 +426,11 @@ public class TaskManagerTests extends ESTestCase {
         }
 
         @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws TransportException {
             throw new UnsupportedOperationException();
@@ -470,6 +481,9 @@ public class TaskManagerTests extends ESTestCase {
         return new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
 
             @Override
             public TaskId getParentTask() {

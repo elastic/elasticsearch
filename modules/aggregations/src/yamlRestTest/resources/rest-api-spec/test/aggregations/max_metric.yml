@@ -221,3 +221,80 @@ setup:
 
   - match: { aggregations.date_field_max.value: 1619827200000 }
   - match: { aggregations.date_field_max.value_as_string: "2021-05-01T00:00:00.000Z" }
+
+---
+"Counter field":
+  - skip:
+      version: " - 8.6.99"
+      reason: "counter field support added in 8.7"
+
+  - do:
+      indices.create:
+        index: myindex
+        body:
+          mappings:
+            properties:
+              counter_field:
+                type : long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: myindex
+              _id:    "1"
+          - counter_field: 2
+          - index:
+              _index: myindex
+              _id:    "2"
+          - counter_field: 4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: myindex
+        body:
+          aggs:
+            the_counter_max:
+              max:
+                field: counter_field
+
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 2 }
+  - match: { aggregations.the_counter_max.value: 4 }
+
+---
+"Partially unmapped":
+
+  - do:
+      search:
+        index: test_1,date_test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_max:
+              max:
+                field: int_field
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_max.value: 151.0 }
+
+---
+"Partially unmapped with missing":
+
+  - do:
+      search:
+        index: test_1,date_test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_max:
+              max:
+                field: int_field
+                missing: 100000
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_max.value: 100000 }

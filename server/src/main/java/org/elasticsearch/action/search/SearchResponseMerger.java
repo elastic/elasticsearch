@@ -83,7 +83,7 @@ final class SearchResponseMerger {
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
-        this.aggReduceContextBuilder = Objects.requireNonNull(aggReduceContextBuilder);
+        this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
     }
 
     /**

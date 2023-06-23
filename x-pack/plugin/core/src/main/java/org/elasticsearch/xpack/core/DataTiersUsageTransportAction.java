@@ -124,7 +124,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         long docCount = 0;
         int primaryShardCount = 0;
         long primaryByteCount = 0L;
-        final TDigestState valueSketch = new TDigestState(1000);
+        final TDigestState valueSketch = TDigestState.create(1000);
     }
 
     // Visible for testing
@@ -206,7 +206,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                 accumulator.docCount += shardStat.getTotal().getDocs().getCount();
 
                 // Accumulate stats about started shards
-                if (node.getByShardId(shardStat.getShardId()).state() == ShardRoutingState.STARTED) {
+                ShardRouting shardRouting = node.getByShardId(shardStat.getShardId());
+                if (shardRouting != null && shardRouting.state() == ShardRoutingState.STARTED) {
                     accumulator.totalShardCount += 1;
 
                     // Accumulate stats about started primary shards
@@ -245,7 +246,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             return 0;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
+            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch);
             valuesSketch.centroids().forEach(centroid -> {
                 final double deviation = Math.abs(approximateMedian - centroid.mean());
                 approximatedDeviationsSketch.add(deviation, centroid.count());

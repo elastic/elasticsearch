@@ -9,12 +9,9 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -139,7 +136,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -179,13 +176,13 @@ public class SeedHostsResolverTests extends ESTestCase {
         assertThat(ports, equalTo(IntStream.range(9303, 9310).boxed().collect(Collectors.toSet())));
     }
 
-    public void testUnknownHost() throws IllegalAccessException {
+    public void testUnknownHost() {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final String hostname = randomAlphaOfLength(8);
         final UnknownHostException unknownHostException = new UnknownHostException(hostname);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -222,13 +219,11 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        final Logger logger = LogManager.getLogger(SeedHostsResolver.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
         appender.addExpectation(
             new MockLogAppender.ExceptionSeenEventExpectation(
                 getTestName(),
-                logger.getName(),
+                SeedHostsResolver.class.getCanonicalName(),
                 Level.WARN,
                 "failed to resolve host [" + hostname + "]",
                 UnknownHostException.class,
@@ -236,24 +231,18 @@ public class SeedHostsResolverTests extends ESTestCase {
             )
         );
 
-        try {
-            Loggers.addAppender(logger, appender);
-            final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(Collections.singletonList(hostname));
-
-            assertThat(transportAddresses, empty());
+        try (var ignored = appender.capturing(SeedHostsResolver.class)) {
+            assertThat(seedHostsResolver.resolveHosts(Collections.singletonList(hostname)), empty());
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
     }
 
-    public void testResolveTimeout() throws IllegalAccessException {
+    public void testResolveTimeout() {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final CountDownLatch latch = new CountDownLatch(1);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -301,13 +290,11 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        final Logger logger = LogManager.getLogger(SeedHostsResolver.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
         appender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 getTestName(),
-                logger.getName(),
+                SeedHostsResolver.class.getCanonicalName(),
                 Level.WARN,
                 "timed out after [*] ([discovery.seed_resolver.timeout]=["
                     + SeedHostsResolver.getResolveTimeout(Settings.EMPTY)
@@ -315,15 +302,10 @@ public class SeedHostsResolverTests extends ESTestCase {
             )
         );
 
-        try {
-            Loggers.addAppender(logger, appender);
-            final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(Arrays.asList("hostname1", "hostname2"));
-
-            assertThat(transportAddresses, hasSize(1));
+        try (var ignored = appender.capturing(SeedHostsResolver.class)) {
+            assertThat(seedHostsResolver.resolveHosts(Arrays.asList("hostname1", "hostname2")), hasSize(1));
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             latch.countDown();
         }
     }
@@ -334,7 +316,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final CountDownLatch conditionLatch = new CountDownLatch(1);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -394,10 +376,10 @@ public class SeedHostsResolverTests extends ESTestCase {
         assertThat(FutureUtils.get(fut, 10, TimeUnit.SECONDS), hasSize(0));
     }
 
-    public void testInvalidHosts() throws IllegalAccessException {
+    public void testInvalidHosts() {
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -427,20 +409,17 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        final Logger logger = LogManager.getLogger(SeedHostsResolver.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
         appender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 getTestName(),
-                logger.getName(),
+                SeedHostsResolver.class.getCanonicalName(),
                 Level.WARN,
                 "failed to resolve host [127.0.0.1:9300:9300]"
             )
         );
 
-        try {
-            Loggers.addAppender(logger, appender);
+        try (var ignored = appender.capturing(SeedHostsResolver.class)) {
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(
                 Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301")
             );
@@ -448,9 +427,6 @@ public class SeedHostsResolverTests extends ESTestCase {
             assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
             assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
     }
 }

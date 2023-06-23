@@ -45,11 +45,13 @@ dependencies {
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+
+  testImplementation project(':modules:rest-root')
 }
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes'
+    include '_common', 'cluster', 'nodes', 'ping'
   }
 }
 
@@ -60,11 +62,14 @@ tasks.named("dependencyLicenses").configure {
 TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
   include '**/*Tests.class'
   systemProperty 'es.use_unpooled_allocator', 'false'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {
   include '**/*IT.class'
   systemProperty 'es.use_unpooled_allocator', 'false'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
@@ -83,6 +88,14 @@ TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaR
   }
 }
 
+tasks.named("internalClusterTest").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
+}
+
+testClusters.configureEach {
+  module ':modules:rest-root'
+}
+
 tasks.named("check").configure {
   dependsOn(pooledTest, pooledJavaRestTest, pooledInternalClusterTest)
 }
@@ -93,7 +106,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoders',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
@@ -157,6 +171,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.LoggerFactory',
     'org.slf4j.spi.LocationAwareLogger',
 
+
     'com.google.protobuf.ExtensionRegistryLite',
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
@@ -215,6 +230,11 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
   )
 }

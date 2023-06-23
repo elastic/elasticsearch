@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -166,8 +167,11 @@ public interface IndexEventListener {
      *
      * @param indexShard    the shard that is about to recover
      * @param indexSettings the shard's index settings
+     * @param listener      listener notified when this step completes
      */
-    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {}
+    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     /**
      * Called after the raw files have been restored from the repository but any other recovery processing has happened

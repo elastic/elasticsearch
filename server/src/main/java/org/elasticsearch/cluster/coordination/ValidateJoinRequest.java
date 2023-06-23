@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,10 +28,10 @@ public class ValidateJoinRequest extends TransportRequest {
 
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
             // recent versions send a BytesTransportRequest containing a compressed representation of the state
             final var bytes = in.readReleasableBytesReference();
-            final var version = in.getVersion();
+            final var version = in.getTransportVersion();
             final var namedWriteableRegistry = in.namedWriteableRegistry();
             this.stateSupplier = () -> readCompressed(version, bytes, namedWriteableRegistry);
             this.refCounted = bytes;
@@ -43,8 +43,11 @@ public class ValidateJoinRequest extends TransportRequest {
         }
     }
 
-    private static ClusterState readCompressed(Version version, BytesReference bytes, NamedWriteableRegistry namedWriteableRegistry)
-        throws IOException {
+    private static ClusterState readCompressed(
+        TransportVersion version,
+        BytesReference bytes,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) throws IOException {
         try (
             var bytesStreamInput = bytes.streamInput();
             var in = new NamedWriteableAwareStreamInput(
@@ -52,7 +55,7 @@ public class ValidateJoinRequest extends TransportRequest {
                 namedWriteableRegistry
             )
         ) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             return ClusterState.readFrom(in, null);
         }
     }
@@ -64,7 +67,7 @@ public class ValidateJoinRequest extends TransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().before(Version.V_8_3_0);
+        assert out.getTransportVersion().before(TransportVersion.V_8_3_0);
         super.writeTo(out);
         stateSupplier.get().writeTo(out);
     }

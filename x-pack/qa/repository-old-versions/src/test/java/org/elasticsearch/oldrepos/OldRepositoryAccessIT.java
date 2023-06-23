@@ -178,9 +178,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         // register repo on old ES and take snapshot
         Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest.setJsonEntity(sourceOnlyRepository ? formatted("""
+        createRepoRequest.setJsonEntity(sourceOnlyRepository ? Strings.format("""
             {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
-            """, repoLocation) : formatted("""
+            """, repoLocation) : Strings.format("""
             {"type":"fs","settings":{"location":"%s"}}
             """, repoLocation));
         assertOK(oldEs.performRequest(createRepoRequest));
@@ -281,7 +281,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static String sourceForDoc(int i) {
-        return "{\"test\":\"test" + i + "\",\"val\":" + i + ",\"create_date\":\"2020-01-" + formatted("%02d", i + 1) + "\"}";
+        return "{\"test\":\"test" + i + "\",\"val\":" + i + ",\"create_date\":\"2020-01-" + Strings.format("%02d", i + 1) + "\"}";
     }
 
     @SuppressWarnings("removal")

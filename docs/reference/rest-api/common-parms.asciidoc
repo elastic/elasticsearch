@@ -130,8 +130,8 @@ shards. Statuses are:
     All shards are assigned.
 
   * `yellow`:
-    All primary shards are assigned, but one or more replica shards are 
-    unassigned. If a node in the cluster fails, some data could be unavailable 
+    All primary shards are assigned, but one or more replica shards are
+    unassigned. If a node in the cluster fails, some data could be unavailable
     until that node is repaired.
 
   * `red`:
@@ -192,6 +192,25 @@ In the case of a `latest` transform, the mappings are never deduced. If dynamic
 mappings for the destination index are undesirable, use the
 <<indices-create-index,Create index API>> prior to starting the {transform}.
 end::dest-index[]
+
+tag::dest-aliases[]
+The aliases that the destination index for the {transform} should have.
+Aliases are manipulated using the stored credentials of the transform, which means the secondary credentials supplied
+at creation time (if both primary and secondary credentials are specified).
+
+The destination index is added to the aliases regardless whether the destination
+index was created by the transform or pre-created by the user.
+end::dest-aliases[]
+
+tag::dest-aliases-alias[]
+The name of the alias.
+end::dest-aliases-alias[]
+
+tag::dest-aliases-move-on-creation[]
+Whether or not the destination index should be the **only** index in this alias.
+If `true`, all the other indices will be removed from this alias before adding the destination index to this alias.
+Defaults to `false`.
+end::dest-aliases-move-on-creation[]
 
 tag::dest-pipeline[]
 The unique identifier for an <<ingest,ingest pipeline>>.
@@ -255,7 +274,7 @@ Type of data stream that wildcard patterns can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
-Match any data stream, including <<hidden,hidden>> ones.
+Match any data stream, including <<multi-hidden,hidden>> ones.
 
 `open`, `closed`::
 Matches any non-hidden data stream. Data streams cannot be closed.
@@ -276,7 +295,7 @@ streams. Supports comma-separated values, such as `open,hidden`. Valid values
 are:
 
 `all`::
-Match any data stream or index, including <<hidden,hidden>> ones.
+Match any data stream or index, including <<multi-hidden,hidden>> ones.
 
 `open`::
 Match open, non-hidden indices. Also matches any non-hidden data stream.
@@ -491,7 +510,7 @@ Number of documents and deleted docs, which have not yet merged out.
 <<indices-refresh,Index refreshes>> can affect this statistic.
 
 `fielddata`::
-<<fielddata,Fielddata>> statistics.
+<<fielddata-mapping-param,Fielddata>> statistics.
 
 `flush`::
 <<indices-flush,Flush>> statistics.
@@ -535,9 +554,6 @@ Size of the index in <<byte-units, byte units>>.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
-
-`warmer`::
-<<indices-warmers,Warmer>> statistics.
 --
 end::index-metric[]
 
@@ -580,6 +596,23 @@ tag::knn-query-vector[]
 Query vector. Must have the same number of dimensions as the vector field you
 are searching against.
 end::knn-query-vector[]
+
+tag::knn-similarity[]
+The minimum similarity required for a document to be considered a match. The similarity
+value calculated relates to the raw <<dense-vector-similarity, `similarity`>> used. Not the
+document score. The matched documents are then scored according to <<dense-vector-similarity, `similarity`>>
+and the provided `boost` is applied.
+
++
+--
+The `similarity` parameter is the direct vector similarity calculation.
+
+* `l2_norm`: also known as Euclidean, will include documents where the vector is within
+the `dims` dimensional hypersphere with radius `similarity` with origin at `query_vector`.
+* `cosine` & `dot_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
+`similarity`.
+--
+end::knn-similarity[]
 
 tag::lenient[]
 `lenient`::
@@ -678,12 +711,11 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
-tag::node-id-query-parm[]
-`node_id`::
-(Optional, string)
-Comma-separated list of node IDs or names
-used to limit returned information.
-end::node-id-query-parm[]
+tag::nodes[]
+`nodes`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
+end::nodes[]
 
 tag::offsets[]
 `<offsets>`::
@@ -713,7 +745,10 @@ end::payloads[]
 
 tag::pipeline[]
 `pipeline`::
-(Optional, string) ID of the pipeline to use to preprocess incoming documents.
+(Optional, string) ID of the pipeline to use to preprocess incoming documents. If the index has a
+default ingest pipeline specified, then setting the value to `_none` disables the default ingest
+pipeline for this request. If a final pipeline is configured it will always run, regardless of the
+value of this parameter.
 end::pipeline[]
 
 tag::pages-processed[]

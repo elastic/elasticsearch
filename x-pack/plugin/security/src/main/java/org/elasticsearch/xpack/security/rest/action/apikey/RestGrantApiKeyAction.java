@@ -17,6 +17,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -38,6 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest action to create an API key on behalf of another user. Loosely mimics the API of
  * {@link org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction} combined with {@link RestCreateApiKeyAction}
  */
+@ServerlessScope(Scope.INTERNAL)
 public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implements RestRequestFilter {
 
     static final ObjectParser<GrantApiKeyRequest, Void> PARSER = new ObjectParser<>("grant_api_key_request", GrantApiKeyRequest::new);

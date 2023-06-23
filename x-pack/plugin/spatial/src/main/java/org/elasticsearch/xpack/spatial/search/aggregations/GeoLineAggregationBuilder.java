@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,6 +33,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD;
 
 public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<GeoLineAggregationBuilder> {
 
@@ -137,6 +139,7 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
+        validateTimeSeriesConfigs(aggregationContext, configs);
         return new GeoLineAggregatorFactory(
             name,
             configs,
@@ -151,12 +154,46 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
         );
     }
 
+    private void validateTimeSeriesConfigs(AggregationContext context, Map<String, ValuesSourceConfig> configs) {
+        ValuesSourceConfig sourceConfig = configs.get(SORT_FIELD.getPreferredName());
+        if (context.isInSortOrderExecutionRequired()) {
+            if (sourceConfig == null) {
+                var fieldConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(TIMESTAMP_FIELD.getName()).build();
+                sourceConfig = ValuesSourceConfig.resolveUnregistered(
+                    context,
+                    null,
+                    fieldConfig.getFieldName(),
+                    fieldConfig.getScript(),
+                    fieldConfig.getMissing(),
+                    fieldConfig.getTimeZone(),
+                    null,
+                    defaultValueSourceType()
+                );
+                configs.put(SORT_FIELD.getPreferredName(), sourceConfig);
+            } else if (sourceConfig.fieldContext().field().equals(TIMESTAMP_FIELD.getName()) == false) {
+                throw new IllegalArgumentException(
+                    "invalid field ["
+                        + SORT_FIELD.getPreferredName()
+                        + "]='"
+                        + sourceConfig.fieldContext().field()
+                        + "' configured for time-series aggregations"
+                );
+            }
+        } else if (sourceConfig == null) {
+            throw new IllegalArgumentException(
+                "missing field [" + SORT_FIELD.getPreferredName() + "] configured for geo_line aggregations"
+            );
+        }
+    }
+
+    /** only for tests */
     public GeoLineAggregationBuilder point(MultiValuesSourceFieldConfig pointConfig) {
         pointConfig = Objects.requireNonNull(pointConfig, "Configuration for field [" + POINT_FIELD + "] cannot be null");
         field(POINT_FIELD.getPreferredName(), pointConfig);
         return this;
     }
 
+    /** only for tests */
     public GeoLineAggregationBuilder sort(MultiValuesSourceFieldConfig sortConfig) {
         sortConfig = Objects.requireNonNull(sortConfig, "Configuration for field [" + SORT_FIELD + "] cannot be null");
         field(SORT_FIELD.getPreferredName(), sortConfig);
@@ -174,7 +211,7 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_11_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_11_0;
     }
 }

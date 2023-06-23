@@ -60,6 +60,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -721,6 +723,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
 
         @Override

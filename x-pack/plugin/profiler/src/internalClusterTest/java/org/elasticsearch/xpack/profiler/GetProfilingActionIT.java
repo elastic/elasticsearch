@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.rest.RestStatus;
+import java.util.List;
 
 public class GetProfilingActionIT extends ProfilingTestCase {
     @Override
@@ -18,18 +18,17 @@ public class GetProfilingActionIT extends ProfilingTestCase {
     public void testGetProfilingDataUnfiltered() throws Exception {
         GetProfilingRequest request = new GetProfilingRequest(1, null);
         GetProfilingResponse response = client().execute(GetProfilingAction.INSTANCE, request).get();
-        assertEquals(RestStatus.OK, response.status());
         assertEquals(1, response.getTotalFrames());
         assertNotNull(response.getStackTraces());
         StackTrace stackTrace = response.getStackTraces().get("QjoLteG7HX3VUUXr-J4kHQ");
-        assertArrayEquals(new int[] { 1083999 }, stackTrace.addressOrLines);
-        assertArrayEquals(new String[] { "QCCDqjSg3bMK1C4YRK6Tiw" }, stackTrace.fileIds);
-        assertArrayEquals(new String[] { "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf" }, stackTrace.frameIds);
-        assertArrayEquals(new int[] { 2 }, stackTrace.typeIds);
+        assertEquals(List.of(1083999), stackTrace.addressOrLines);
+        assertEquals(List.of("QCCDqjSg3bMK1C4YRK6Tiw"), stackTrace.fileIds);
+        assertEquals(List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"), stackTrace.frameIds);
+        assertEquals(List.of(2), stackTrace.typeIds);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf");
-        assertEquals("_raw_spin_unlock_irqrestore", stackFrame.functionName);
+        assertEquals(List.of("_raw_spin_unlock_irqrestore", "inlined_frame_1", "inlined_frame_0"), stackFrame.functionName);
         assertNotNull(response.getStackTraceEvents());
         assertEquals(1, (int) response.getStackTraceEvents().get("QjoLteG7HX3VUUXr-J4kHQ"));
 

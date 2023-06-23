@@ -8,7 +8,7 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,7 +122,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         numBuckets = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
         }
     }
@@ -130,7 +130,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             out.writeOptionalString(minimumIntervalExpression);
         }
     }
@@ -267,8 +267,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     public static class RoundingInfo implements Writeable {

@@ -1,5 +1,0 @@
-pr: 92327
-summary: Upgrade GCS SDK to 2.13.1
-area: Snapshot/Restore
-type: upgrade
-issues: []

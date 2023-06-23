@@ -35,7 +35,7 @@ one of the active allocation ids in the cluster state.
 `cluster.routing.allocation.node_concurrent_recoveries`::
      (<<dynamic-cluster-setting,Dynamic>>)
      A shortcut to set both `cluster.routing.allocation.node_concurrent_incoming_recoveries` and
-     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`.
+     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`. Defaults to 2.
 
 
 `cluster.routing.allocation.node_initial_primaries_recoveries`::

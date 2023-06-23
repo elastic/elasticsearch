@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -54,7 +55,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         }
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = randomIntBetween(1, 10); i >= 0; i--) {
             final IndexMetadata indexMetadata = IndexMetadata.builder("test" + i)
                 .settings(settings(Version.CURRENT))
@@ -65,7 +66,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             routingTableBuilder.addAsNew(indexMetadata);
         }
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)
             .metadata(metadataBuilder)
             .routingTable(routingTableBuilder.build())
@@ -183,9 +184,11 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")))
@@ -195,15 +198,16 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         assertThat(plugin.canAllocateAttempts, equalTo(0));
     }
 
-    private static AllocationService createAllocationService(Settings.Builder settings, ClusterPlugin plugin) {
-        final ClusterSettings emptyClusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private static AllocationService createAllocationService(Settings.Builder settingsBuilder, ClusterPlugin plugin) {
+        var settings = settingsBuilder.build();
+        var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings.build(), emptyClusterSettings, Collections.singletonList(plugin))
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.singletonList(plugin))
         );
         return new MockAllocationService(
             new AllocationDeciders(deciders),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
+            new BalancedShardsAllocator(clusterSettings),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );

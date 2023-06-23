@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeA
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -30,7 +31,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -115,7 +115,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
+                DataStream dataStream = (DataStream) indexAbstraction;
                 List<Index> indices = dataStream.getIndices();
                 return indices.stream().map(Index::getName);
             } else {
@@ -140,19 +140,15 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         ActionListener.completeWith(listener, () -> {
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-            if (indexShard.routingEntry() == null) {
-                throw new ShardNotFoundException(indexShard.shardId());
-            }
             StoreStats storeStats = indexShard.storeStats();
             IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
             assert indexAbstraction != null;
-            IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+            DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
             long maxTimestamp = 0L;
             try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
                 IndexReader indexReader = searcher.getIndexReader();
-                String fieldName = dataStream.getDataStream().getTimeStampField().getName();
+                String fieldName = dataStream.getTimeStampField().getName();
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
                 if (maxPackedValue != null) {
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
@@ -187,7 +183,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
+                DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
@@ -230,7 +226,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             for (DataStreamsStatsAction.DataStreamShardStats shardStat : dataStreamShardStats) {
                 String indexName = shardStat.getShardRouting().getIndexName();
                 IndexAbstraction indexAbstraction = indicesLookup.get(indexName);
-                IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+                DataStream dataStream = indexAbstraction.getParentDataStream();
                 assert dataStream != null;
 
                 // Aggregate global stats

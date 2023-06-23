@@ -9,7 +9,7 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
@@ -23,7 +23,7 @@ public record HealthIndicatorResult(
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
     List<Diagnosis> diagnosisList
-) implements ChunkedToXContent {
+) implements ChunkedToXContentObject {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         final Iterator<? extends ToXContent> diagnosisIterator;

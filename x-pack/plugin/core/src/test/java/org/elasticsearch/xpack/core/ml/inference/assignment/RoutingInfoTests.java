@@ -32,6 +32,11 @@ public class RoutingInfoTests extends AbstractXContentSerializingTestCase<Routin
         return randomInstance();
     }
 
+    @Override
+    protected RoutingInfo mutateInstance(RoutingInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static RoutingInfo randomInstance() {
         return new RoutingInfo(
             randomIntBetween(1, 10),

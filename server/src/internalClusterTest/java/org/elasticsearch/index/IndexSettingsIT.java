@@ -17,7 +17,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexSettingsIT extends ESIntegTestCase {
@@ -44,9 +43,9 @@ public class IndexSettingsIT extends ESIntegTestCase {
         try {
             internalCluster().fullRestart();
 
-            final var indicesClient = client().admin().indices();
+            final var indicesClient = indicesAdmin();
             assertThat(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"), equalTo("true"));
-            assertAcked(indicesClient.prepareUpdateSettings("test").setSettings(Settings.builder().putNull("archived.*")));
+            updateIndexSettings(Settings.builder().putNull("archived.*"), "test");
             assertNull(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"));
         } finally {
             registerSetting = true;

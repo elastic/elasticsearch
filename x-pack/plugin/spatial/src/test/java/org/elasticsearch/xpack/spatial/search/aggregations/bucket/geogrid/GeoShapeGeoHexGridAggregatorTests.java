@@ -22,7 +22,9 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<InternalGeoHexGridBucket> {
     @Override
@@ -31,19 +33,19 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
     }
 
     @Override
-    protected String hashAsString(double lng, double lat, int precision) {
-        // TODO: In theory we can have more than one hash per point?
+    protected String[] hashAsStrings(double lng, double lat, int precision) {
+        final List<String> strings = new ArrayList<>();
         final long h3 = H3.geoToH3(lat, lng, precision);
         if (LatLonGeometry.create(H3CartesianUtil.getLatLonGeometry(h3)).contains(lng, lat)) {
-            return H3.h3ToString(h3);
+            strings.add(H3.h3ToString(h3));
         }
         for (long n : H3.hexRing(h3)) {
             if (LatLonGeometry.create(H3CartesianUtil.getLatLonGeometry(n)).contains(lng, lat)) {
-                return H3.h3ToString(n);
+                strings.add(H3.h3ToString(n));
             }
         }
-        fail("Could not find valid h3 bin");
-        return null;
+        assertTrue("did not find any hash for point", strings.size() > 0);
+        return strings.toArray(new String[0]);
     }
 
     @Override
@@ -57,14 +59,17 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
     }
 
     @Override
-    protected boolean intersects(double lng, double lat, int precision, GeoShapeValues.GeoShapeValue value) throws IOException {
-        return value.relate(new org.apache.lucene.geo.Point(lat, lng)) != GeoRelation.QUERY_DISJOINT;
+    protected boolean intersects(String hash, GeoShapeValues.GeoShapeValue value) throws IOException {
+        final GeoHexVisitor visitor = new GeoHexVisitor();
+        visitor.reset(H3.stringToH3(hash));
+        value.visit(visitor);
+        return visitor.relation() != GeoRelation.QUERY_DISJOINT;
     }
 
     @Override
-    protected boolean intersectsBounds(double lng, double lat, int precision, GeoBoundingBox box) {
-        final BoundedGeoHexGridTiler tiler = new BoundedGeoHexGridTiler(precision, box);
-        return tiler.h3IntersectsBounds(H3.stringToH3(hashAsString(lng, lat, precision)));
+    protected boolean intersectsBounds(String hash, GeoBoundingBox box) {
+        final GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(H3.getResolution(hash), box);
+        return tiler.h3IntersectsBounds(H3.stringToH3(hash));
     }
 
     @Override
@@ -76,18 +81,8 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
     public void testMappedMissingGeoShape() throws IOException {
         final String lineString = "LINESTRING (30 10, 10 30, 40 40)";
         final GeoGridAggregationBuilder builder = createBuilder("_name").field(FIELD_NAME).missing(lineString);
-        testCase(
-            new MatchAllDocsQuery(),
-            1,
-            null,
-            iw -> { iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a")))); },
-            geoGrid -> { assertEquals(8, geoGrid.getBuckets().size()); },
-            builder
-        );
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92563")
-    public void testGeoShapeBounds() throws IOException {
-        super.testGeoShapeBounds();
+        testCase(new MatchAllDocsQuery(), 1, null, iw -> {
+            iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a"))));
+        }, geoGrid -> { assertEquals(8, geoGrid.getBuckets().size()); }, builder);
     }
 }

@@ -16,16 +16,19 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -39,8 +42,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
  * ActionType to get a single task. If the task isn't running then it'll try to request the status from request index.
@@ -53,6 +57,9 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportLi
  * </ul>
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
+
+    private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -130,19 +137,36 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             getFinishedTaskFromIndex(thisTask, request, listener);
         } else {
             if (request.getWaitForCompletion()) {
-                // Shift to the generic thread pool and let it wait for the task to complete so we don't block any important threads.
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    protected void doRun() {
-                        taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
-                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), listener);
+                final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+                RemovedTaskListener removedTaskListener = task -> {
+                    if (task.equals(runningTask)) {
+                        future.onResponse(null);
                     }
+                };
+                taskManager.registerRemovedTaskListener(removedTaskListener);
+                // Check if the task had finished before we registered the listener, so we wouldn't wait
+                // for an event that would never come
+                if (taskManager.getTask(request.getTaskId().getId()) == null) {
+                    future.onResponse(null);
+                }
+                final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
+                    listener.delegateFailureAndWrap(
+                        (l, v) -> waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), l)
+                    ),
+                    () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
+                );
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+                future.addListener(
+                    new ContextPreservingActionListener<>(
+                        threadPool.getThreadContext().newRestorableContext(false),
+                        waitedForCompletionListener
+                    )
+                );
+                future.addTimeout(
+                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                    threadPool,
+                    ThreadPool.Names.SAME
+                );
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));

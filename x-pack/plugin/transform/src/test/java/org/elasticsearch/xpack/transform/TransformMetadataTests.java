@@ -33,9 +33,4 @@ public class TransformMetadataTests extends AbstractChunkedSerializingTestCase<T
     protected TransformMetadata mutateInstance(TransformMetadata instance) {
         return new TransformMetadata.Builder().isResetMode(instance.isResetMode() == false).build();
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

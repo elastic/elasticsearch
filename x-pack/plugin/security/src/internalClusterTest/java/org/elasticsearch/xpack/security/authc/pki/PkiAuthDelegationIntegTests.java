@@ -11,6 +11,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -105,7 +106,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return formatted("""
+        return Strings.format("""
             %s
             role_manage:
               cluster: [ manage ]
@@ -123,7 +124,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return formatted("""
+        return Strings.format("""
             %s
             role_manage:user_manage
             role_manage_security:user_manage_security

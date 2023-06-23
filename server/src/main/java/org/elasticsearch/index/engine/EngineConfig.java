@@ -128,7 +128,7 @@ public final class EngineConfig {
     @Nullable
     private final Engine.IndexCommitListener indexCommitListener;
 
-    private final boolean recoveringAsPrimary;
+    private final boolean promotableToPrimary;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
@@ -159,7 +159,7 @@ public final class EngineConfig {
         Comparator<LeafReader> leafSorter,
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
-        boolean recoveringAsPrimary
+        boolean promotableToPrimary
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -201,7 +201,7 @@ public final class EngineConfig {
         this.leafSorter = leafSorter;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.recoveringAsPrimary = recoveringAsPrimary;
+        this.promotableToPrimary = promotableToPrimary;
     }
 
     /**
@@ -418,10 +418,9 @@ public final class EngineConfig {
     }
 
     /**
-     * Represents the primary state only in case when a recovery starts.
-     * IMPORTANT: The flag is a temporary solution and should NOT be used outside of Stateless.
+     * @return whether the engine should be configured so that it can be promoted to primary in future
      */
-    public boolean isRecoveringAsPrimary() {
-        return recoveringAsPrimary;
+    public boolean isPromotableToPrimary() {
+        return promotableToPrimary;
     }
 }

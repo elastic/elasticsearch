@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -27,12 +26,7 @@ public final class NetworkService {
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
     public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
-    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING = Setting.listSetting(
-        "network.host",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING = Setting.stringListSetting("network.host", Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_BIND_HOST_SETTING = Setting.listSetting(
         "network.bind_host",
         GLOBAL_NETWORK_HOST_SETTING,

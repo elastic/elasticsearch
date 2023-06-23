@@ -64,11 +64,10 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
-            Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+            Settings.Builder builder = indexSettings(Version.CURRENT, 1, 0).put(
+                MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(),
+                "2"
+            )
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
@@ -95,11 +94,10 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
-            Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+            Settings.Builder builder = indexSettings(Version.CURRENT, 1, 0).put(
+                MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(),
+                "2"
+            )
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "10000")
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000");

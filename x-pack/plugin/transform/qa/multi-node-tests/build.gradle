@@ -45,5 +45,11 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
 
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  rolesFile file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "john_junior", password: "x-pack-test-password", role: "transform_admin"
+  user username: "bill_senior", password: "x-pack-test-password", role: "transform_admin,source_index_access,dest_index_access"
+  user username: "source_and_dest_index_access_only", password: "x-pack-test-password", role: "source_index_access,dest_index_access"
+  user username: "transform_user_but_not_admin", password: "x-pack-test-password", role: "transform_user,source_index_access,dest_index_access"
+  user username: "fleet_access", password: "x-pack-test-password", role: "transform_admin,fleet_index_access,dest_index_access"
 }

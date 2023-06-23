@@ -10,6 +10,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -21,7 +22,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -92,7 +92,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             roleFields.append("          - ").append(field).append('\n');
         }
 
-        return String.format(Locale.ROOT, """
+        return Strings.format("""
             %s
             role1:
               cluster: [ none ]
@@ -156,7 +156,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             fieldMappers[j++] = "type=text";
             doc.put(field, "value");
         }
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(fieldMappers));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(fieldMappers));
         client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 
         for (String allowedField : allowedFields) {
@@ -177,9 +177,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     public void testDuel() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 

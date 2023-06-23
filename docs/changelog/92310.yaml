@@ -1,5 +1,0 @@
-pr: 92310
-summary: Use https in the short URLs for the `shards_availability` indicator
-area: Health
-type: bug
-issues: []

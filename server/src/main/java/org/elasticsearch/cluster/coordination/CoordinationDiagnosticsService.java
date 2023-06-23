@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -37,7 +37,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -1094,11 +1093,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         ActionRequest transportActionRequest,
         BiFunction<R, Exception, T> responseTransformationFunction
     ) {
-        StepListener<Releasable> connectionListener = new StepListener<>();
-        StepListener<R> fetchRemoteResultListener = new StepListener<>();
-        long startTime = System.nanoTime();
-        connectionListener.whenComplete(releasable -> {
+        ListenableFuture<Releasable> connectionListener = new ListenableFuture<>();
+        ListenableFuture<R> fetchRemoteResultListener = new ListenableFuture<>();
+        long startTimeMillis = transportService.getThreadPool().relativeTimeInMillis();
+        connectionListener.addListener(ActionListener.wrap(releasable -> {
             if (masterEligibleNode == null) {
+                Releasables.close(releasable);
                 responseConsumer.accept(null);
             } else {
                 logger.trace("Opened connection to {}, making transport request", masterEligibleNode);
@@ -1111,50 +1111,62 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     TransportRequestOptions.timeout(transportTimeout),
                     new ActionListenerResponseHandler<>(
                         ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
-                        transportActionType.getResponseReader()
+                        transportActionType.getResponseReader(),
+                        ThreadPool.Names.CLUSTER_COORDINATION
                     )
                 );
             }
         }, e -> {
             logger.warn("Exception connecting to master " + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
-        });
+        }));
 
-        fetchRemoteResultListener.whenComplete(response -> {
-            long endTime = System.nanoTime();
-            logger.trace("Received remote response from {} in {}", masterEligibleNode, TimeValue.timeValueNanos(endTime - startTime));
+        fetchRemoteResultListener.addListener(ActionListener.wrap(response -> {
+            long endTimeMillis = transportService.getThreadPool().relativeTimeInMillis();
+            logger.trace(
+                "Received remote response from {} in {}",
+                masterEligibleNode,
+                TimeValue.timeValueMillis(endTimeMillis - startTimeMillis)
+            );
             responseConsumer.accept(responseTransformationFunction.apply(response, null));
         }, e -> {
             logger.warn("Exception in remote request to master" + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
-        });
+        }));
 
-        return transportService.getThreadPool().schedule(() -> {
-            if (masterEligibleNode == null) {
-                /*
-                 * This node's PeerFinder hasn't yet discovered the master-eligible nodes. By notifying the responseConsumer with a null
-                 * value we effectively do nothing, and allow this request to be recheduled.
-                 */
-                responseConsumer.accept(null);
-            } else {
-                Version minSupportedVersion = Version.V_8_4_0;
-                if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) {
-                    logger.trace(
-                        "Cannot get remote result from {} because it is at version {} and {} is required",
-                        masterEligibleNode,
-                        masterEligibleNode.getVersion(),
-                        minSupportedVersion
-                    );
+        return transportService.getThreadPool().schedule(new Runnable() {
+            @Override
+            public void run() {
+                if (masterEligibleNode == null) {
+                    /*
+                     * This node's PeerFinder hasn't yet discovered the master-eligible nodes. By notifying the responseConsumer with a null
+                     * value we effectively do nothing, and allow this request to be recheduled.
+                     */
+                    responseConsumer.accept(null);
                 } else {
-                    transportService.connectToNode(
-                        // Note: This connection must be explicitly closed in the connectionListener
-                        masterEligibleNode,
-                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                        connectionListener
-                    );
+                    Version minSupportedVersion = Version.V_8_4_0;
+                    if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) {
+                        logger.trace(
+                            "Cannot get remote result from {} because it is at version {} and {} is required",
+                            masterEligibleNode,
+                            masterEligibleNode.getVersion(),
+                            minSupportedVersion
+                        );
+                    } else {
+                        transportService.connectToNode(
+                            // Note: This connection must be explicitly closed in the connectionListener
+                            masterEligibleNode,
+                            connectionListener
+                        );
+                    }
                 }
             }
-        }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
+
+            @Override
+            public String toString() {
+                return "delayed retrieval of coordination diagnostics info from " + masterEligibleNode;
+            }
+        }, remoteRequestInitialDelay, ThreadPool.Names.CLUSTER_COORDINATION);
     }
 
     void cancelPollingRemoteMasterStabilityDiagnostic() {
@@ -1279,7 +1291,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
         private static Map<String, String> readClusterFormationStates(StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                return in.readMap(StreamInput::readString, StreamInput::readString);
+                return in.readMap(StreamInput::readString);
             } else {
                 return Map.of();
             }

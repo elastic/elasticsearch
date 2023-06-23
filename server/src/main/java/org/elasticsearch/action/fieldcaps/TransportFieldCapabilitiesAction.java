@@ -16,6 +16,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -23,12 +24,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -46,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -55,6 +60,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
+    public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -93,6 +99,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
+        assert task instanceof CancellableTask;
+        final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
@@ -113,11 +121,21 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         checkIndexBlocks(clusterState, concreteIndices);
-
+        final FailureCollector indexFailures = new FailureCollector();
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
         final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final Runnable releaseResourcesOnCancel = () -> {
+            LOGGER.trace("clear index responses on cancellation");
+            indexFailures.clear();
+            indexResponses.clear();
+            indexMappingHashToResponses.clear();
+        };
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+                return;
+            }
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {
                 FieldCapabilitiesIndexResponse curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp);
                 if (curr != null) {
@@ -125,49 +143,77 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             }
             indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+            }
         };
-        final FailureCollector indexFailures = new FailureCollector();
-        // One for each cluster including the local cluster
-        final CountDown completionCounter = new CountDown(1 + remoteClusterIndices.size());
-        final Runnable countDown = createResponseMerger(request, completionCounter, indexResponses, indexFailures, listener);
-        final RequestDispatcher requestDispatcher = new RequestDispatcher(
-            clusterService,
-            transportService,
-            task,
-            request,
-            localIndices,
-            nowInMillis,
-            concreteIndices,
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            handleIndexResponse,
-            indexFailures::collect,
-            countDown
-        );
-        requestDispatcher.execute();
+        final BiConsumer<String, Exception> handleIndexFailure = (index, error) -> {
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+                return;
+            }
+            indexFailures.collect(index, error);
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+            }
+        };
+        final var finishedOrCancelled = new AtomicBoolean();
+        fieldCapTask.addListener(() -> {
+            if (finishedOrCancelled.compareAndSet(false, true)) {
+                releaseResourcesOnCancel.run();
+            }
+        });
+        try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
+            finishedOrCancelled.set(true);
+            if (fieldCapTask.notifyIfCancelled(listener)) {
+                releaseResourcesOnCancel.run();
+            } else {
+                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
+            }
+        })) {
+            // local cluster
+            final RequestDispatcher requestDispatcher = new RequestDispatcher(
+                clusterService,
+                transportService,
+                task,
+                request,
+                localIndices,
+                nowInMillis,
+                concreteIndices,
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                handleIndexResponse,
+                handleIndexFailure,
+                refs.acquire()::close
+            );
+            requestDispatcher.execute();
 
-        // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
-        // send us back all individual index results.
-        for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
-            String clusterAlias = remoteIndices.getKey();
-            OriginalIndices originalIndices = remoteIndices.getValue();
-            Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
-            FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
-            remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
-                for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
-                    String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                    handleIndexResponse.accept(
-                        new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
-                    );
-                }
-                for (FieldCapabilitiesFailure failure : response.getFailures()) {
-                    Exception ex = failure.getException();
-                    indexFailures.collectRemoteException(ex, clusterAlias, failure.getIndices());
-                }
-                countDown.run();
-            }, ex -> {
-                indexFailures.collectRemoteException(ex, clusterAlias, originalIndices.indices());
-                countDown.run();
-            }));
+            // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
+            // send us back all individual index results.
+            for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+                String clusterAlias = remoteIndices.getKey();
+                OriginalIndices originalIndices = remoteIndices.getValue();
+                Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
+                FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
+                ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
+                    for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
+                        String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
+                        handleIndexResponse.accept(
+                            new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
+                        );
+                    }
+                    for (FieldCapabilitiesFailure failure : response.getFailures()) {
+                        Exception ex = failure.getException();
+                        for (String index : failure.getIndices()) {
+                            handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                        }
+                    }
+                }, ex -> {
+                    for (String index : originalIndices.indices()) {
+                        handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                    }
+                });
+                remoteClusterClient.fieldCaps(remoteRequest, ActionListener.releaseAfter(remoteListener, refs.acquire()));
+            }
         }
     }
 
@@ -178,38 +224,32 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private Runnable createResponseMerger(
+    private void mergeIndexResponses(
         FieldCapabilitiesRequest request,
-        CountDown completionCounter,
+        CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
-        return () -> {
-            if (completionCounter.countDown()) {
-                List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-                if (indexResponses.size() > 0) {
-                    if (request.isMergeResults()) {
-                        // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
-                        // on a transport thread in case of large numbers of indices and/or fields
-                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                            .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, request, new ArrayList<>(failures))));
-                    } else {
-                        listener.onResponse(
-                            new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures))
-                        );
-                    }
-                } else {
-                    // we have no responses at all, maybe because of errors
-                    if (indexFailures.isEmpty() == false) {
-                        // throw back the first exception
-                        listener.onFailure(failures.iterator().next().getException());
-                    } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-                    }
-                }
+        List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
+        if (indexResponses.size() > 0) {
+            if (request.isMergeResults()) {
+                // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
+                // on a transport thread in case of large numbers of indices and/or fields
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
+                    .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, task, request, new ArrayList<>(failures))));
+            } else {
+                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures)));
             }
-        };
+        } else {
+            // we have no responses at all, maybe because of errors
+            if (indexFailures.isEmpty() == false) {
+                // throw back the first exception
+                listener.onFailure(failures.iterator().next().getException());
+            } else {
+                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+            }
+        }
     }
 
     private static FieldCapabilitiesRequest prepareRemoteRequest(
@@ -238,9 +278,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+        CancellableTask task,
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
+        task.ensureNotCancelled();
         final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values()
             .stream()
             .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
@@ -261,6 +303,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         }
 
+        task.ensureNotCancelled();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
             Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
@@ -373,10 +416,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             failuresByIndex.putIfAbsent(index, e);
         }
 
-        void collectRemoteException(Exception ex, String clusterAlias, String[] remoteIndices) {
-            for (String failedIndex : remoteIndices) {
-                collect(RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex), ex);
-            }
+        void clear() {
+            failuresByIndex.clear();
         }
 
         boolean isEmpty() {
@@ -387,7 +428,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private class NodeTransportHandler implements TransportRequestHandler<FieldCapabilitiesNodeRequest> {
         @Override
         public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) throws Exception {
-            final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel, ACTION_NODE_NAME, request);
+            assert task instanceof CancellableTask;
+            final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel);
             ActionListener.completeWith(listener, () -> {
                 final List<FieldCapabilitiesIndexResponse> allResponses = new ArrayList<>();
                 final Map<ShardId, Exception> allFailures = new HashMap<>();
@@ -404,6 +446,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
+                                (CancellableTask) task,
                                 shardId,
                                 request.fields(),
                                 request.filters(),

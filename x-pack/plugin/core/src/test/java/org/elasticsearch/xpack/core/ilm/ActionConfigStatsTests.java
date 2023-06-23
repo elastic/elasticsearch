@@ -13,8 +13,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.ActionConfigStats;
 
-import java.io.IOException;
-
 public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<ActionConfigStats> {
 
     @Override
@@ -80,7 +78,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
     }
 
     @Override
-    protected ActionConfigStats mutateInstance(ActionConfigStats instance) throws IOException {
+    protected ActionConfigStats mutateInstance(ActionConfigStats instance) {
         ActionConfigStats.Builder builder = ActionConfigStats.builder(instance);
         switch (between(0, 14)) {
             case 0 -> {

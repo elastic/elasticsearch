@@ -8,36 +8,34 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.List;
 
 public class ByteKnnDenseVector implements DenseVector {
 
-    protected final BytesRef docVector;
+    protected final byte[] docVector;
 
     protected float[] floatDocVector;
     protected boolean magnitudeCalculated = false;
     protected float magnitude;
 
-    public ByteKnnDenseVector(BytesRef vector) {
+    public ByteKnnDenseVector(byte[] vector) {
         this.docVector = vector;
     }
 
     @Override
     public float[] getVector() {
+        // TODO it would be really nice if we didn't transform the `byte[]` arrays to `float[]`
         if (floatDocVector == null) {
             floatDocVector = new float[docVector.length];
-
             int i = 0;
-            int j = docVector.offset;
-
             while (i < docVector.length) {
-                floatDocVector[i++] = docVector.bytes[j++];
+                floatDocVector[i] = docVector[i];
+                i++;
             }
         }
-
         return floatDocVector;
     }
 
@@ -52,13 +50,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < docVector.length) {
-            result += docVector.bytes[j++] * queryVector[i++];
-        }
-        return result;
+        return VectorUtil.dotProduct(docVector, queryVector);
     }
 
     @Override
@@ -70,9 +62,9 @@ public class ByteKnnDenseVector implements DenseVector {
     public double dotProduct(List<Number> queryVector) {
         int result = 0;
         int i = 0;
-        int j = docVector.offset;
         while (i < docVector.length) {
-            result += docVector.bytes[j++] * queryVector.get(i++).intValue();
+            result += docVector[i] * queryVector.get(i).intValue();
+            i++;
         }
         return result;
     }
@@ -86,9 +78,9 @@ public class ByteKnnDenseVector implements DenseVector {
     public int l1Norm(byte[] queryVector) {
         int result = 0;
         int i = 0;
-        int j = docVector.offset;
         while (i < docVector.length) {
-            result += abs(docVector.bytes[j++] - queryVector[i++]);
+            result += abs(docVector[i] - queryVector[i]);
+            i++;
         }
         return result;
     }
@@ -102,23 +94,16 @@ public class ByteKnnDenseVector implements DenseVector {
     public double l1Norm(List<Number> queryVector) {
         int result = 0;
         int i = 0;
-        int j = docVector.offset;
         while (i < docVector.length) {
-            result += abs(docVector.bytes[j++] - queryVector.get(i++).intValue());
+            result += abs(docVector[i] - queryVector.get(i).intValue());
+            i++;
         }
         return result;
     }
 
     @Override
     public double l2Norm(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < docVector.length) {
-            int diff = docVector.bytes[j++] - queryVector[i++];
-            result += diff * diff;
-        }
-        return Math.sqrt(result);
+        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override
@@ -130,10 +115,10 @@ public class ByteKnnDenseVector implements DenseVector {
     public double l2Norm(List<Number> queryVector) {
         int result = 0;
         int i = 0;
-        int j = docVector.offset;
         while (i < docVector.length) {
-            int diff = docVector.bytes[j++] - queryVector.get(i++).intValue();
+            int diff = docVector[i] - queryVector.get(i).intValue();
             result += diff * diff;
+            i++;
         }
         return Math.sqrt(result);
     }

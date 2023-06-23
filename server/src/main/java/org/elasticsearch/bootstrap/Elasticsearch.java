@@ -14,20 +14,23 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -39,11 +42,13 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -66,7 +71,7 @@ class Elasticsearch {
             initPhase2(bootstrap);
             initPhase3(bootstrap);
         } catch (NodeValidationException e) {
-            bootstrap.exitWithUserException(ExitCodes.CONFIG, e);
+            bootstrap.exitWithNodeValidationException(e);
         } catch (Throwable t) {
             bootstrap.exitWithUnknownException(t);
         }
@@ -143,14 +148,9 @@ class Elasticsearch {
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
         final ServerArgs args = bootstrap.args();
-        final SecureSettings keystore;
-        try {
-            keystore = KeyStoreWrapper.bootstrap(args.configDir(), args::keystorePassword);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        bootstrap.setSecureSettings(keystore);
-        Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), keystore);
+        final SecureSettings secrets = args.secrets();
+        bootstrap.setSecureSettings(secrets);
+        Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), secrets);
         bootstrap.setEnvironment(nodeEnv);
 
         initPidFile(args.pidFile());
@@ -182,12 +182,32 @@ class Elasticsearch {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
+        ensureInitialized(
+            // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            ReferenceDocs.class,
+            // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
+            AbstractRefCounted.class,
+            SubscribableListener.class,
+            // We eagerly initialize to work around log4j permissions & JDK-8309727
+            VectorUtil.class
+        );
+
         // install SM after natives, shutdown hooks, etc.
         org.elasticsearch.bootstrap.Security.configure(
             nodeEnv,
             SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
             args.pidFile()
         );
+    }
+
+    private static void ensureInitialized(Class<?>... classes) {
+        for (final var clazz : classes) {
+            try {
+                MethodHandles.publicLookup().ensureInitialized(clazz);
+            } catch (IllegalAccessException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**
@@ -320,10 +340,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (IndexVersion.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion
+                    + IndexVersion.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"
@@ -421,8 +441,8 @@ class Elasticsearch {
     private final Thread keepAliveThread;
 
     private Elasticsearch(Spawner spawner, Node node) {
-        this.spawner = spawner;
-        this.node = node;
+        this.spawner = Objects.requireNonNull(spawner);
+        this.node = Objects.requireNonNull(node);
         this.keepAliveThread = new Thread(() -> {
             try {
                 keepAliveLatch.await();
@@ -443,20 +463,22 @@ class Elasticsearch {
         }
         var es = INSTANCE;
         try {
+            es.node.prepareForClose();
             IOUtils.close(es.node, es.spawner);
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-            if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException(
                     "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
                 );
             }
         } catch (IOException ex) {
-            throw new ElasticsearchException("failed to stop node", ex);
+            throw new ElasticsearchException("Failure occurred while shutting down node", ex);
         } catch (InterruptedException e) {
             LogManager.getLogger(Elasticsearch.class).warn("Thread got interrupted while waiting for the node to shutdown.");
             Thread.currentThread().interrupt();
         } finally {
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+
             es.keepAliveLatch.countDown();
         }
     }

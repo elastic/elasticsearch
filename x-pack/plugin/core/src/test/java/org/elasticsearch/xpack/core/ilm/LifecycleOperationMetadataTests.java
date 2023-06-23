@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -51,14 +51,11 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
         }
     }
 
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
-
     public void testMinimumSupportedVersion() {
-        Version min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(VersionUtils.randomVersionBetween(random(), Version.V_8_7_0, Version.CURRENT)));
+        TransportVersion min = createTestInstance().getMinimalSupportedVersion();
+        assertTrue(
+            min.onOrBefore(TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.current()))
+        );
     }
 
     public void testcontext() {

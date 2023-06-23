@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -38,7 +38,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
         shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
             searchUsageStats = new SearchUsageStats(in);
         } else {
             searchUsageStats = new SearchUsageStats();
@@ -101,7 +101,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
             searchUsageStats.writeTo(out);
         }
     }

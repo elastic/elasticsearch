@@ -1,5 +1,0 @@
-pr: 90428
-summary: Support malformed numbers in synthetic `_source`
-area: TSDB
-type: enhancement
-issues: []

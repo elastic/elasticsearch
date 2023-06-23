@@ -8,7 +8,7 @@
 package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -226,7 +226,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readList(stream -> new Bucket(stream, format));
         this.targetBuckets = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
             bucketInnerInterval = in.readVLong();
         } else {
             bucketInnerInterval = 1; // Calculated on merge.
@@ -239,7 +239,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         out.writeNamedWriteable(format);
         out.writeList(buckets);
         out.writeVInt(targetBuckets);
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
             out.writeVLong(bucketInnerInterval);
         }
     }
@@ -634,11 +634,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     @Override
     public Number getKey(MultiBucketsAggregation.Bucket bucket) {
         return ((Bucket) bucket).key;
-    }
-
-    @Override
-    public Number nextKey(Number key) {
-        return bucketInfo.roundingInfos[bucketInfo.roundingIdx].rounding.nextRoundingValue(key.longValue());
     }
 
     @Override

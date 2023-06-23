@@ -152,7 +152,7 @@ public class CcrLicenseChecker {
                 }
                 IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
                 final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null
-                    ? indexAbstraction.getParentDataStream().getDataStream()
+                    ? indexAbstraction.getParentDataStream()
                     : null;
                 final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
                 hasPrivilegesToFollowIndices(remoteClient, new String[] { leaderIndex }, e -> {

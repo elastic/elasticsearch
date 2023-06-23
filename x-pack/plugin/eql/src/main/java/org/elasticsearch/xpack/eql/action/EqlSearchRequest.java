@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -115,16 +115,16 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         size = in.readVInt();
         fetchSize = in.readVInt();
         query = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             this.ccsMinimizeRoundtrips = in.readBoolean();
         }
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepAlive = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_17_8)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_8)) {
             resultPosition = in.readString();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
@@ -132,7 +132,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         } else {
             runtimeMappings = emptyMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             maxSamplesPerKey = in.readInt();
         }
     }
@@ -451,23 +451,23 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeString(query);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);
         }
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeOptionalTimeValue(keepAlive);
         out.writeBoolean(keepOnCompletion);
-        if (out.getVersion().onOrAfter(Version.V_7_17_8)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_8)) {
             out.writeString(resultPosition);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
             out.writeGenericMap(runtimeMappings);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeInt(maxSamplesPerKey);
         }
     }

@@ -10,10 +10,8 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -31,10 +29,7 @@ public class ForceMergeIT extends ESIntegTestCase {
     public void testForceMergeUUIDConsistent() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String index = "test-index";
-        createIndex(
-            index,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex(index, 1, 1);
         ensureGreen(index);
         final ClusterState state = clusterService().state();
         final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
@@ -56,13 +51,13 @@ public class ForceMergeIT extends ESIntegTestCase {
         assertThat(getForceMergeUUID(primary), nullValue());
         assertThat(getForceMergeUUID(replica), nullValue());
 
-        final ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
 
         assertThat(forceMergeResponse.getFailedShards(), is(0));
         assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
 
         // Force flush to force a new commit that contains the force flush UUID
-        final FlushResponse flushResponse = client().admin().indices().prepareFlush(index).setForce(true).get();
+        final FlushResponse flushResponse = indicesAdmin().prepareFlush(index).setForce(true).get();
         assertThat(flushResponse.getFailedShards(), is(0));
         assertThat(flushResponse.getSuccessfulShards(), is(2));
 

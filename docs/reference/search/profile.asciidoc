@@ -17,7 +17,7 @@ The Profile API gives the user insight into how search requests are executed at
 a low level so that the user can understand why certain requests are slow, and
 take steps to improve them. Note that the Profile API,
 <<profile-limitations, amongst other things>>, doesn't measure network latency,
-time spent while the requests spends in queues, or while merging shard
+time the requests spend in queues, or time spent merging shard
 responses on the coordinating node.
 
 The output from the Profile API is *very* verbose, especially for complicated
@@ -979,7 +979,7 @@ overall time, the breakdown is inclusive of all children times.
 ===== Profiling Fetch
 
 All shards that fetched documents will have a `fetch` section in the profile.
-Let's execute a small search and have a look a the fetch profile:
+Let's execute a small search and have a look at the fetch profile:
 
 [source,console]
 ----
@@ -1248,7 +1248,8 @@ One of the `dfs.knn` sections for a shard looks like the following:
 [source,js]
 --------------------------------------------------
 "dfs" : {
-    "knn" : {
+    "knn" : [
+        {
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
@@ -1286,7 +1287,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
                 "time_in_nanos" : 17163
             }
         ]
-    }
+    }   ]
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n/]

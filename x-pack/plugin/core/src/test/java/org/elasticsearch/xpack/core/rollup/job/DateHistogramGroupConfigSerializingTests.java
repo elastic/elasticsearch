@@ -65,6 +65,11 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractXContentSe
         return config;
     }
 
+    @Override
+    protected DateHistogramGroupConfig mutateInstance(DateHistogramGroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidateNoMapping() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();

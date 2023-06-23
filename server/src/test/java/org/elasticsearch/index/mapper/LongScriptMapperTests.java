@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -71,23 +72,21 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("LongPoint <field:1>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[1].toString());
-        assertEquals("LongPoint <field:2>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:2>", fields[3].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(2, fields.size());
+        assertEquals("LongField <field:1>", fields.get(0).toString());
+        assertEquals("LongField <field:2>", fields.get(1).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("LongPoint <field:4>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("LongPoint <field:4>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_NUMERIC<field:4>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:4>", fields.get(0).toString());
     }
 }

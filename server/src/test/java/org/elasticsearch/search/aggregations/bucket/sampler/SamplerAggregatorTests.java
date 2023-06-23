@@ -61,9 +61,9 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
 
             SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").shardSize(3)
                 .subAggregation(new MinAggregationBuilder("min").field("int"));
-            try (IndexReader reader = DirectoryReader.open(w)) {
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newIndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
                     searcher,
                     new AggTestConfig(aggBuilder, textFieldType, numericFieldType).withQuery(new TermQuery(new Term("text", "good")))
@@ -97,9 +97,9 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
             // Test with an outrageously large size to ensure that the maxDoc protection works
             SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").shardSize(Integer.MAX_VALUE)
                 .subAggregation(new MinAggregationBuilder("min").field("int"));
-            try (IndexReader reader = DirectoryReader.open(w)) {
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newIndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
                     searcher,
                     new AggTestConfig(aggBuilder, textFieldType, numericFieldType).withQuery(new TermQuery(new Term("text", "good")))

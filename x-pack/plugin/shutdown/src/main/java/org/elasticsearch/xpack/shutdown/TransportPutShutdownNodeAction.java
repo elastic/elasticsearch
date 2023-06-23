@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -37,10 +37,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
-
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
+
+    private final MasterServiceTaskQueue<PutShutdownNodeTask> taskQueue;
 
     private final PutShutdownNodeExecutor executor = new PutShutdownNodeExecutor();
 
@@ -62,6 +62,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             .setNodeSeen(nodeSeen)
             .setAllocationDelay(request.getAllocationDelay())
             .setTargetNodeName(request.getTargetNodeName())
+            .setGracePeriod(request.getGracePeriod())
             .build();
 
         // log the update
@@ -78,14 +79,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     private static void ackAndMaybeReroute(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService) {
         boolean shouldReroute = switch (request.getType()) {
-            case REMOVE, REPLACE -> true;
+            case REMOVE, SIGTERM, REPLACE -> true;
             default -> false;
         };
 
         if (shouldReroute) {
             rerouteService.reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
                 @Override
-                public void onResponse(ClusterState clusterState) {}
+                public void onResponse(Void ignored) {}
 
                 @Override
                 public void onFailure(Exception e) {
@@ -118,7 +119,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         @Override
         public ClusterState execute(BatchExecutionContext<PutShutdownNodeTask> batchExecutionContext) throws Exception {
             final var initialState = batchExecutionContext.initialState();
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
+            var shutdownMetadata = new HashMap<>(initialState.metadata().nodeShutdowns().getAll());
             Predicate<String> nodeExistsPredicate = batchExecutionContext.initialState().getNodes()::nodeExists;
             boolean changed = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -163,17 +164,20 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
+        taskQueue = clusterService.createTaskQueue("put-shutdown", Priority.URGENT, new PutShutdownNodeExecutor());
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (isNoop(getShutdownsOrEmpty(state).getAllNodeMetadataMap(), request)) {
+        if (isNoop(state.getMetadata().nodeShutdowns().getAll(), request)) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
-        var updateTask = new PutShutdownNodeTask(request, listener);
-        var taskConfig = ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout());
-        clusterService.submitStateUpdateTask("put-node-shutdown-" + request.getNodeId(), updateTask, taskConfig, executor);
+        taskQueue.submitTask(
+            "put-node-shutdown-" + request.getNodeId(),
+            new PutShutdownNodeTask(request, listener),
+            request.masterNodeTimeout()
+        );
     }
 
     private static boolean isNoop(Map<String, SingleNodeShutdownMetadata> shutdownMetadata, Request request) {

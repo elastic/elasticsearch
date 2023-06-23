@@ -77,12 +77,12 @@ public class AutoFollowMetadataTests extends AbstractChunkedSerializingTestCase<
     }
 
     @Override
-    protected Writeable.Reader<AutoFollowMetadata> instanceReader() {
-        return AutoFollowMetadata::new;
+    protected AutoFollowMetadata mutateInstance(AutoFollowMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean isFragment() {
-        return true;
+    protected Writeable.Reader<AutoFollowMetadata> instanceReader() {
+        return AutoFollowMetadata::new;
     }
 }

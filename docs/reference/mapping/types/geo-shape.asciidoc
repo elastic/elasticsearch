@@ -70,6 +70,14 @@ and reject the whole document.
 |`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
 | `false`
 
+|`index` |Should the field be quickly searchable? Accepts `true` (default) and `false`.
+Fields that only have <<doc-values,`doc_values`>> enabled can still be queried, albeit slower.
+| `true`
+
+|`doc_values` |Should the field be stored on disk in a column-stride fashion,
+so that it can later be used for aggregations or scripting?
+| `true`
+
 |=======================================================================
 
 

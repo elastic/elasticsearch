@@ -25,7 +25,7 @@ public class CtxMapTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        map = new CtxMap<>(new HashMap<>(), new Metadata(new HashMap<>(), new HashMap<>()));
+        map = new CtxMap<>(new HashMap<>(), new Metadata(Map.of(), Map.of()));
     }
 
     public void testAddingJunkToCtx() {

@@ -11,6 +11,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -41,7 +43,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin;
 import org.junit.After;
 
@@ -59,11 +60,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.blobcache.shared.SharedBytes.pageAligned;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.license.LicenseSettings.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,6 +81,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(BlobCachePlugin.class);
         plugins.add(LocalStateSearchableSnapshots.class);
         plugins.add(LicensedSnapshotBasedRecoveriesPlugin.class);
         return Collections.unmodifiableList(plugins);
@@ -106,17 +108,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         if (DiscoveryNode.canContainData(otherSettings) && randomBoolean()) {
-            builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
+            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
         }
         builder.put(
-            FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+            SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
                 ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                 : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
         );
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -124,7 +126,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -207,7 +209,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         refresh(indexName);
         if (randomBoolean()) {
             assertThat(
-                client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
                 equalTo(0)
             );
         }
@@ -319,7 +321,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     protected void assertRecoveryStats(String indexName, boolean preWarmEnabled) throws Exception {
         int shardCount = getNumShards(indexName).totalNumShards;
         assertBusy(() -> {
-            final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+            final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
             assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
 
             for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
@@ -337,7 +339,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     }
 
     protected DiscoveryNodes getDiscoveryNodes() {
-        return client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        return clusterAdmin().prepareState().clear().setNodes(true).get().getState().nodes();
     }
 
     protected void assertExecutorIsIdle(String executorName) throws Exception {

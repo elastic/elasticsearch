@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,17 +31,19 @@ public class Vocabulary implements Writeable, ToXContentObject {
     private static final String NAME = "vocabulary";
     public static final ParseField VOCABULARY = new ParseField(NAME);
     public static final ParseField MERGES = new ParseField("merges");
+    public static final ParseField SCORES = new ParseField("scores");
 
     @SuppressWarnings({ "unchecked" })
     public static ConstructingObjectParser<Vocabulary, Void> createParser(boolean ignoreUnkownFields) {
         ConstructingObjectParser<Vocabulary, Void> parser = new ConstructingObjectParser<>(
             "vocabulary",
             ignoreUnkownFields,
-            a -> new Vocabulary((List<String>) a[0], (String) a[1], (List<String>) a[2])
+            a -> new Vocabulary((List<String>) a[0], (String) a[1], (List<String>) a[2], (List<Double>) a[3])
         );
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), VOCABULARY);
         parser.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), MERGES);
+        parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), SCORES);
         return parser;
     }
 
@@ -49,21 +51,28 @@ public class Vocabulary implements Writeable, ToXContentObject {
 
     private final List<String> vocab;
     private final List<String> merges;
+    private final List<Double> scores;
     private final String modelId;
 
-    public Vocabulary(List<String> vocab, String modelId, @Nullable List<String> merges) {
+    public Vocabulary(List<String> vocab, String modelId, @Nullable List<String> merges, @Nullable List<Double> scores) {
         this.vocab = ExceptionsHelper.requireNonNull(vocab, VOCABULARY);
         this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
         this.merges = Optional.ofNullable(merges).orElse(List.of());
+        this.scores = Optional.ofNullable(scores).orElse(List.of());
     }
 
     public Vocabulary(StreamInput in) throws IOException {
         vocab = in.readStringList();
         modelId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             merges = in.readStringList();
         } else {
             merges = List.of();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            scores = in.readList(StreamInput::readDouble);
+        } else {
+            scores = List.of();
         }
     }
 
@@ -75,12 +84,19 @@ public class Vocabulary implements Writeable, ToXContentObject {
         return merges;
     }
 
+    public List<Double> scores() {
+        return scores;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(vocab);
         out.writeString(modelId);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeStringCollection(merges);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            out.writeCollection(scores, StreamOutput::writeDouble);
         }
     }
 
@@ -90,12 +106,15 @@ public class Vocabulary implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         Vocabulary that = (Vocabulary) o;
-        return Objects.equals(vocab, that.vocab) && Objects.equals(modelId, that.modelId) && Objects.equals(merges, that.merges);
+        return Objects.equals(vocab, that.vocab)
+            && Objects.equals(modelId, that.modelId)
+            && Objects.equals(merges, that.merges)
+            && Objects.equals(scores, that.scores);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocab, modelId, merges);
+        return Objects.hash(vocab, modelId, merges, scores);
     }
 
     @Override
@@ -108,6 +127,9 @@ public class Vocabulary implements Writeable, ToXContentObject {
         }
         if (merges.isEmpty() == false) {
             builder.field(MERGES.getPreferredName(), merges);
+        }
+        if (scores.isEmpty() == false) {
+            builder.field(SCORES.getPreferredName(), scores);
         }
         builder.endObject();
         return builder;

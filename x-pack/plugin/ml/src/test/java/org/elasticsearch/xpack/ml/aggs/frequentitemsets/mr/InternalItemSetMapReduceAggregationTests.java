@@ -50,6 +50,13 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
 
     private static String[] WORDS = new String[] { "apple", "banana", "orange", "peach", "strawberry" };
 
+    @Override
+    protected InternalItemSetMapReduceAggregation<WordCounts, WordCounts, WordCounts, WordCounts> mutateInstance(
+        InternalItemSetMapReduceAggregation<WordCounts, WordCounts, WordCounts, WordCounts> instance
+    ) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static class WordCountMapReducer extends AbstractItemSetMapReducer<WordCounts, WordCounts, WordCounts, WordCounts> {
 
         static class WordCounts implements ToXContent, Writeable, Closeable {
@@ -65,7 +72,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
             }
 
             WordCounts(StreamInput in) throws IOException {
-                this.frequencies = in.readMap(StreamInput::readString, StreamInput::readLong);
+                this.frequencies = in.readMap(StreamInput::readLong);
             }
 
             @Override
@@ -102,11 +109,9 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
         @Override
         public WordCounts map(Stream<Tuple<Field, List<Object>>> keyValues, WordCounts wordCounts) {
 
-            keyValues.forEach(
-                v -> {
-                    v.v2().stream().forEach(word -> { wordCounts.frequencies.compute((String) word, (k, c) -> (c == null) ? 1 : c + 1); });
-                }
-            );
+            keyValues.forEach(v -> {
+                v.v2().stream().forEach(word -> { wordCounts.frequencies.compute((String) word, (k, c) -> (c == null) ? 1 : c + 1); });
+            });
 
             return wordCounts;
         }
@@ -142,7 +147,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
         }
 
         @Override
-        protected WordCounts mapFinalize(WordCounts mapReduceContext) {
+        protected WordCounts mapFinalize(WordCounts mapReduceContext, List<OrdinalLookupFunction> ordinalLookup) {
             return mapReduceContext;
         }
 

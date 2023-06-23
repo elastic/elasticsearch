@@ -16,6 +16,6 @@ x-pack/plugin/core/src/main/resources/monitoring-logstash.json @elastic/infra-mo
 x-pack/plugin/core/src/main/resources/monitoring-mb-ilm-policy.json @elastic/infra-monitoring-ui
 x-pack/plugin/monitoring/src/main/java/org/elasticsearch/xpack/monitoring/MonitoringTemplateRegistry.java @elastic/infra-monitoring-ui
 
-# Elastic Agent
-x-pack/plugin/fleet/src/main/java/org/elasticsearch/xpack/fleet @elastic/elastic-agent-control-plane
-x-pack/plugin/core/src/main/resources/fleet-* @elastic/elastic-agent-control-plane
+# Fleet
+x-pack/plugin/fleet/src/main/java/org/elasticsearch/xpack/fleet @elastic/fleet
+x-pack/plugin/core/src/main/resources/fleet-* @elastic/fleet

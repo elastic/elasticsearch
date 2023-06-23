@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,7 +38,7 @@ import java.util.Map;
 public final class Cursors {
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
-    private static final Version VERSION = Version.CURRENT;
+    private static final TransportVersion VERSION = TransportVersion.current();
 
     private Cursors() {}
 
@@ -73,7 +73,7 @@ public final class Cursors {
         return encodeToString(info, VERSION, zoneId);
     }
 
-    public static String encodeToString(Cursor info, Version version, ZoneId zoneId) {
+    public static String encodeToString(Cursor info, TransportVersion version, ZoneId zoneId) {
         if (info == Cursor.EMPTY) {
             return StringUtils.EMPTY;
         }

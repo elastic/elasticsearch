@@ -30,6 +30,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -123,7 +124,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         GetDataFrameAnalyticsStatsAction.Request request,
         DataFrameAnalyticsTask task,
         ActionListener<QueryPage<Stats>> listener

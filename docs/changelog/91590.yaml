@@ -1,6 +1,0 @@
-pr: 91590
-summary: Clear up forecasted write load and shard size from previous write index during
-  rollovers
-area: Allocation
-type: enhancement
-issues: []

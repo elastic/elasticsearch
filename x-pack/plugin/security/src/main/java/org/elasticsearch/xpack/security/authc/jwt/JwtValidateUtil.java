@@ -9,27 +9,19 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
-import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
-import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.util.Base64URL;
-import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.SecureString;
 
 import java.util.List;
 
@@ -94,7 +86,7 @@ public class JwtValidateUtil {
         }
 
         for (final JWK jwk : jwksStrength) {
-            if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
+            if (jwt.verify(createJwsVerifier(jwk))) {
                 LOGGER.trace(
                     "JWT signature validation succeeded with JWK kty=[{}], jwtAlg=[{}], jwtKid=[{}], use=[{}], ops=[{}]",
                     jwk.getKeyType(),
@@ -127,22 +119,7 @@ public class JwtValidateUtil {
         } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
             return new MACVerifier(octetSequenceKey);
         }
-        throw JwtValidateUtil.createExceptionInvalidJwkClass(jwk);
-    }
-
-    public static JWSSigner createJwsSigner(final JWK jwk) throws JOSEException {
-        if (jwk instanceof RSAKey rsaKey) {
-            return new RSASSASigner(rsaKey);
-        } else if (jwk instanceof ECKey ecKey) {
-            return new ECDSASigner(ecKey);
-        } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
-            return new MACSigner(octetSequenceKey);
-        }
-        throw JwtValidateUtil.createExceptionInvalidJwkClass(jwk);
-    }
-
-    private static JOSEException createExceptionInvalidJwkClass(final JWK jwk) {
-        return new JOSEException(
+        throw new JOSEException(
             "Unsupported JWK class ["
                 + (jwk == null ? "null" : jwk.getClass().getCanonicalName())
                 + "]. Supported classes are ["
@@ -153,28 +130,5 @@ public class JwtValidateUtil {
                 + OctetSequenceKey.class.getCanonicalName()
                 + "]."
         );
-    }
-
-    // Build from Base64 components. Signature may or may not be valid. Useful for negative test cases.
-    public static SecureString buildJwt(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws Exception {
-        final SignedJWT signedJwt = new SignedJWT(header.toBase64URL(), claims.toPayload().toBase64URL(), signature);
-        return new SecureString(signedJwt.serialize().toCharArray());
-    }
-
-    public static SignedJWT buildUnsignedJwt(final JWSHeader jwtHeader, final JWTClaimsSet jwtClaimsSet) {
-        return new SignedJWT(jwtHeader, jwtClaimsSet);
-    }
-
-    // Convenience method to construct JWSVerifier from JWK, and verify the signed JWT
-    public static boolean verifyJwt(final JWK jwk, final SignedJWT signedJwt) throws Exception {
-        return signedJwt.verify(JwtValidateUtil.createJwsVerifier(jwk));
-    }
-
-    // Convenience method to construct JWSSigner from JWK, sign the JWT, and return serialized SecureString
-    public static SecureString signJwt(final JWK jwk, final SignedJWT unsignedJwt) throws Exception {
-        // Copy the header and claims set to a new unsigned JWT, in case JWT is being re-signing
-        final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
-        signedJwt.sign(JwtValidateUtil.createJwsSigner(jwk));
-        return new SecureString(signedJwt.serialize().toCharArray());
     }
 }

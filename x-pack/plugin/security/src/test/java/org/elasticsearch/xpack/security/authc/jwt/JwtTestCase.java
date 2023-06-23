@@ -10,7 +10,10 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
@@ -83,10 +86,10 @@ public abstract class JwtTestCase extends ESTestCase {
 
     @Before
     public void beforeEachTest() {
-        this.pathHome = createTempDir().toString();
-        this.globalSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), this.pathHome).build();
-        this.env = TestEnvironment.newEnvironment(this.globalSettings); // "path.home" sub-dirs: config,plugins,data,logs,bin,lib,modules
-        this.threadContext = new ThreadContext(this.globalSettings);
+        pathHome = createTempDir().toString();
+        globalSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), pathHome).build();
+        env = TestEnvironment.newEnvironment(globalSettings); // "path.home" sub-dirs: config,plugins,data,logs,bin,lib,modules
+        threadContext = new ThreadContext(globalSettings);
     }
 
     protected Settings.Builder generateRandomRealmSettings(final String name) throws IOException {
@@ -95,7 +98,7 @@ public abstract class JwtTestCase extends ESTestCase {
         final boolean includePublicKey = includeRsa || includeEc;
         final boolean includeHmac = randomBoolean() || (includePublicKey == false); // one of HMAC/RSA/EC must be true
         final boolean populateUserMetadata = randomBoolean();
-        final Path jwtSetPathObj = PathUtils.get(this.pathHome);
+        final Path jwtSetPathObj = PathUtils.get(pathHome);
         final String jwkSetPath = randomBoolean()
             ? "https://op.example.com/jwkset.json"
             : Files.createTempFile(jwtSetPathObj, "jwkset.", ".json").toString();
@@ -229,12 +232,11 @@ public abstract class JwtTestCase extends ESTestCase {
     ) {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(realmType, realmName);
         final Settings settings = Settings.builder()
-            .put(this.globalSettings)
-            // .put("path.home", this.pathHome)
+            .put(globalSettings)
             .put(realmSettings)
             .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), realmOrder)
             .build();
-        return new RealmConfig(realmIdentifier, settings, this.env, this.threadContext);
+        return new RealmConfig(realmIdentifier, settings, env, threadContext);
     }
 
     protected UserRoleMapper buildRoleMapper(final Map<String, User> registeredUsers) {
@@ -479,7 +481,46 @@ public abstract class JwtTestCase extends ESTestCase {
                 + otherClaims
                 + "]}."
         );
-        return JwtValidateUtil.buildUnsignedJwt(jwtHeader, jwtClaimsSet);
+        return buildUnsignedJwt(jwtHeader, jwtClaimsSet);
+    }
+
+    public static SignedJWT buildUnsignedJwt(final JWSHeader jwtHeader, final JWTClaimsSet jwtClaimsSet) {
+        return new SignedJWT(jwtHeader, jwtClaimsSet);
+    }
+
+    // Build from Base64 components. Signature may or may not be valid. Useful for negative test cases.
+    public static SecureString buildJwt(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws Exception {
+        final SignedJWT signedJwt = new SignedJWT(header.toBase64URL(), claims.toPayload().toBase64URL(), signature);
+        return new SecureString(signedJwt.serialize().toCharArray());
+    }
+
+    // Convenience method to construct JWSSigner from JWK, sign the JWT, and return serialized SecureString
+    public static SecureString signJwt(final JWK jwk, final SignedJWT unsignedJwt) throws Exception {
+        // Copy the header and claims set to a new unsigned JWT, in case JWT is being re-signing
+        final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
+        signedJwt.sign(createJwsSigner(jwk));
+        return new SecureString(signedJwt.serialize().toCharArray());
+    }
+
+    public static JWSSigner createJwsSigner(final JWK jwk) throws JOSEException {
+        if (jwk instanceof RSAKey rsaKey) {
+            return new RSASSASigner(rsaKey);
+        } else if (jwk instanceof ECKey ecKey) {
+            return new ECDSASigner(ecKey);
+        } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
+            return new MACSigner(octetSequenceKey);
+        }
+        throw new JOSEException(
+            "Unsupported JWK class ["
+                + (jwk == null ? "null" : jwk.getClass().getCanonicalName())
+                + "]. Supported classes are ["
+                + RSAKey.class.getCanonicalName()
+                + ", "
+                + ECKey.class.getCanonicalName()
+                + ", "
+                + OctetSequenceKey.class.getCanonicalName()
+                + "]."
+        );
     }
 
     public static SecureString randomBespokeJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
@@ -503,7 +544,7 @@ public abstract class JwtTestCase extends ESTestCase {
             randomBoolean() ? null : new Nonce(32).toString(),
             randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
         );
-        return JwtValidateUtil.signJwt(jwk, unsignedJwt);
+        return signJwt(jwk, unsignedJwt);
     }
 
     public static Map<String, User> generateTestUsersWithRoles(final int numUsers, final int numRolesPerUser) {
@@ -566,13 +607,13 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     public String saveToTempFile(final String prefix, final String suffix, final String content) throws IOException {
-        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), prefix, suffix);
+        final Path path = Files.createTempFile(PathUtils.get(pathHome), prefix, suffix);
         Files.writeString(path, content);
         return path.toString();
     }
 
     public ThreadContext createThreadContext(final CharSequence jwt, final CharSequence sharedSecret) {
-        final ThreadContext requestThreadContext = new ThreadContext(this.globalSettings);
+        final ThreadContext requestThreadContext = new ThreadContext(globalSettings);
         if (jwt != null) {
             requestThreadContext.putHeader(
                 JwtRealm.HEADER_END_USER_AUTHENTICATION,

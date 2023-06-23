@@ -21,7 +21,8 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.TermAndBoost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -407,11 +408,11 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
 
         @Override
-        protected Query newSynonymQuery(TermAndBoost[] terms) {
+        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term.bytes();
+                BytesRef bytes = termAndBoost.term;
                 query.addTerm(bytes);
             }
             for (FieldAndBoost fieldAndBoost : fields) {
@@ -424,8 +425,8 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         @Override
         protected Query newTermQuery(Term term, float boost) {
-            TermAndBoost termAndBoost = new TermAndBoost(term, boost);
-            return newSynonymQuery(new TermAndBoost[] { termAndBoost });
+            TermAndBoost termAndBoost = new TermAndBoost(term.bytes(), boost);
+            return newSynonymQuery(term.field(), new TermAndBoost[] { termAndBoost });
         }
 
         @Override
@@ -458,7 +459,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_13_0;
     }
 }

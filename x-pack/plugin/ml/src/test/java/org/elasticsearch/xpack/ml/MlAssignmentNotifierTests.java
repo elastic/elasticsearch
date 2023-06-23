@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -81,25 +80,31 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
             .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job on node [_node_id]");
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job on node [_node_id]");
+        } else {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job");
+        }
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
                     .localNodeId("_node_id")
             )
             .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verifyNoMoreInteractions(anomalyDetectionAuditor);
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verifyNoMoreInteractions(anomalyDetectionAuditor);
+        }
     }
 
     public void testClusterChanged_unassign() {
@@ -118,7 +123,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -132,20 +137,26 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
             .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job unassigned from node [_node_id]");
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job unassigned from node [_node_id]");
+        } else {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job relocating.");
+        }
+
+        verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
             )
             .build();
@@ -172,7 +183,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -186,7 +197,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             .metadata(metadata)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
             )
             .build();
@@ -209,12 +220,17 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
             .build();
         notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().custom(PersistentTasksCustomMetadata.TYPE));
-        verify(anomalyDetectionAuditor, times(1)).warning("job_id", "No node found to open job. Reasons [test assignment]");
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verify(anomalyDetectionAuditor, times(1)).warning("job_id", "No node found to open job. Reasons [test assignment]");
+        } else {
+            // need to account for includeNodeInfo being called here, in the test, and also in anomalyDetectionAuditor
+            verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
+        }
     }
 }

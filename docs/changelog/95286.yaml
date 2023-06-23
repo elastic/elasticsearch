@@ -1,0 +1,5 @@
+pr: 95286
+summary: Bump `TransportVersion` to the first non-release version number. Transport protocol is now versioned independently of release version.
+area: Infra/Transport API
+type: upgrade
+issues: []

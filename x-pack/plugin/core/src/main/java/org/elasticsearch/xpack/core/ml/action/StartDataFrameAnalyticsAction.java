@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -144,6 +145,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
     public static class TaskParams implements PersistentTaskParams, MlTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
+        public static final TransportVersion TRANSPORT_VERSION_INTRODUCED = TransportVersion.V_7_3_0;
         public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
 
         public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
@@ -200,8 +202,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return VERSION_INTRODUCED;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TRANSPORT_VERSION_INTRODUCED;
         }
 
         @Override

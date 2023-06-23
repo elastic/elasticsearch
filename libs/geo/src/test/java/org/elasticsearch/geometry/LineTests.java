@@ -80,4 +80,9 @@ public class LineTests extends BaseGeometryTestCase<Line> {
         );
         assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
     }
+
+    @Override
+    protected Line mutateInstance(Line instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

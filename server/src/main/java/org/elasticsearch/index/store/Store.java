@@ -40,14 +40,12 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -55,12 +53,14 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -108,7 +108,7 @@ import static org.elasticsearch.index.engine.Engine.ES_VERSION;
  * file is a file that belongs to a segment written by a Lucene commit. Files that have not been committed
  * ie. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
  * <p>
- * Note: If you use a store it's reference count should be increased before using it by calling #incRef and a
+ * Note: If you use a store its reference count should be increased before using it by calling #incRef and a
  * corresponding #decRef must be called in a try/finally block to release the store again ie.:
  * <pre>
  *      store.incRef();
@@ -503,7 +503,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         boolean success = false;
         try {
             assert metadata.writtenBy() != null;
-            output = new LuceneVerifyingIndexOutput(metadata, output);
+            output = new VerifyingIndexOutput(metadata, output);
             success = true;
         } finally {
             if (success == false) {
@@ -514,8 +514,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void verify(IndexOutput output) throws IOException {
-        if (output instanceof VerifyingIndexOutput) {
-            ((VerifyingIndexOutput) output).verify();
+        if (output instanceof VerifyingIndexOutput verifyingIndexOutput) {
+            verifyingIndexOutput.verify();
         }
     }
 
@@ -817,7 +817,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     }
                 }
                 if (maxVersion == null) {
-                    maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+                    maxVersion = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 checksumFromLuceneFile(
@@ -859,7 +859,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
             final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
-            final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
+            final var commitUserData = in.readMap(StreamInput::readString);
             final var numDocs = in.readLong();
 
             if (metadata.size() == 0 && commitUserData.size() == 0 && numDocs == 0) {
@@ -1177,98 +1177,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return Long.toString(digest, Character.MAX_RADIX);
     }
 
-    static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
-
-        private final StoreFileMetadata metadata;
-        private long writtenBytes;
-        private final long checksumPosition;
-        private String actualChecksum;
-        private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
-
-        LuceneVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
-            super(out);
-            this.metadata = metadata;
-            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
-        }
-
-        @Override
-        public void verify() throws IOException {
-            String footerDigest = null;
-            if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
-                ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
-                footerDigest = digestToString(CodecUtil.readBELong(indexInput));
-                if (metadata.checksum().equals(footerDigest)) {
-                    return;
-                }
-            }
-            throw new CorruptIndexException(
-                "verification failed (hardware problem?) : expected="
-                    + metadata.checksum()
-                    + " actual="
-                    + actualChecksum
-                    + " footer="
-                    + footerDigest
-                    + " writtenLength="
-                    + writtenBytes
-                    + " expectedLength="
-                    + metadata.length()
-                    + " (resource="
-                    + metadata.toString()
-                    + ")",
-                "VerifyingIndexOutput(" + metadata.name() + ")"
-            );
-        }
-
-        @Override
-        public void writeByte(byte b) throws IOException {
-            final long writtenBytes = this.writtenBytes++;
-            if (writtenBytes >= checksumPosition) { // we are writing parts of the checksum....
-                if (writtenBytes == checksumPosition) {
-                    readAndCompareChecksum();
-                }
-                final int index = Math.toIntExact(writtenBytes - checksumPosition);
-                if (index < footerChecksum.length) {
-                    footerChecksum[index] = b;
-                    if (index == footerChecksum.length - 1) {
-                        verify(); // we have recorded the entire checksum
-                    }
-                } else {
-                    verify(); // fail if we write more than expected
-                    throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
-                }
-            }
-            out.writeByte(b);
-        }
-
-        private void readAndCompareChecksum() throws IOException {
-            actualChecksum = digestToString(getChecksum());
-            if (metadata.checksum().equals(actualChecksum) == false) {
-                throw new CorruptIndexException(
-                    "checksum failed (hardware problem?) : expected="
-                        + metadata.checksum()
-                        + " actual="
-                        + actualChecksum
-                        + " (resource="
-                        + metadata.toString()
-                        + ")",
-                    "VerifyingIndexOutput(" + metadata.name() + ")"
-                );
-            }
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            if (writtenBytes + length > checksumPosition) {
-                for (int i = 0; i < length; i++) { // don't optimize writing the last block of bytes
-                    writeByte(b[offset + i]);
-                }
-            } else {
-                out.writeBytes(b, offset, length);
-                writtenBytes += length;
-            }
-        }
-    }
-
     /**
      * Index input that calculates checksum as data is read from the input.
      * <p>
@@ -1439,7 +1347,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 output.writeBytes(ref.bytes, ref.offset, ref.length);
                 CodecUtil.writeFooter(output);
             } catch (IOException | ImmutableDirectoryException ex) {
-                logger.warn("Can't mark store as corrupted", ex);
+                if (exception != null) {
+                    ex.addSuppressed(exception);
+                }
+                if (ex instanceof ImmutableDirectoryException) {
+                    logger.debug("Can't mark store with an immutable directory as corrupted", ex);
+                } else {
+                    logger.warn("Can't mark store as corrupted", ex);
+                }
             }
             directory().sync(Collections.singleton(corruptionMarkerName));
         }
@@ -1463,7 +1378,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
     public void createEmpty() throws IOException {
-        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion;
+        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion();
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();

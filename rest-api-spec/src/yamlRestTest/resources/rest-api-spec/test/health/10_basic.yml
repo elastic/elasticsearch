@@ -7,7 +7,7 @@
       # reason: "health was only added in 8.2.0, and master_is_stable in 8.4.0"
 
   - do:
-      health: { }
+      health_report: { }
 
   - is_true: cluster_name
   - match:   { status: "green" }

@@ -19,6 +19,11 @@ public class PhaseProgressTests extends AbstractXContentSerializingTestCase<Phas
         return createRandom();
     }
 
+    @Override
+    protected PhaseProgress mutateInstance(PhaseProgress instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static PhaseProgress createRandom() {
         return new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
     }

@@ -79,7 +79,7 @@ public final class TransformScheduler {
     private Scheduler.Cancellable scheduledFuture;
 
     public TransformScheduler(Clock clock, ThreadPool threadPool, Settings settings) {
-        this.clock = Objects.requireNonNull(clock);
+        this.clock = new MonotonicClock(Objects.requireNonNull(clock));
         this.threadPool = Objects.requireNonNull(threadPool);
         this.schedulerFrequency = Transform.SCHEDULER_FREQUENCY.get(settings);
         this.scheduledTasks = new TransformScheduledTaskQueue();
@@ -115,9 +115,12 @@ public final class TransformScheduler {
         }
         if (isTraceEnabled) {
             Instant processingFinished = clock.instant();
-            logger.trace(
-                format("Processing scheduled tasks finished, took %dms", Duration.between(processingStarted, processingFinished).toMillis())
-            );
+            long tookMs = Duration.between(processingStarted, processingFinished).toMillis();
+            if (taskWasProcessed) {
+                logger.trace(format("Processing one scheduled task finished, took %dms", tookMs));
+            } else {
+                logger.trace(format("Looking for scheduled tasks to process finished, took %dms", tookMs));
+            }
         }
         if (taskWasProcessed == false) {
             return;
@@ -226,6 +229,30 @@ public final class TransformScheduler {
                 task.getListener()
             )
         );
+    }
+
+    /**
+     * Updates the transform task's next_scheduled_time so that it is set to now.
+     * Doing so may result in the task being processed earlier that it would normally (i.e.: according to its frequency) be.
+     *
+     * @param transformId id of the transform to schedule now
+     */
+    public void scheduleNow(String transformId) {
+        logger.trace(() -> format("[%s] schedule_now transform", transformId));
+        long currentTimeMillis = clock.millis();
+        // Update the task's next_scheduled_time
+        scheduledTasks.update(
+            transformId,
+            task -> new TransformScheduledTask(
+                task.getTransformId(),
+                task.getFrequency(),
+                task.getLastTriggeredTimeMillis(),
+                task.getFailureCount(),
+                currentTimeMillis,  // we schedule this task at current clock time so that it is processed ASAP
+                task.getListener()
+            )
+        );
+        processScheduledTasks();
     }
 
     /**

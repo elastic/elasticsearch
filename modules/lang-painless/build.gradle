@@ -34,7 +34,7 @@ configurations {
 }
 
 dependencies {
-    api 'org.antlr:antlr4-runtime:4.5.3'
+    api "org.antlr:antlr4-runtime:${versions.antlr4}"
     api 'org.ow2.asm:asm-util:7.2'
     api 'org.ow2.asm:asm-tree:7.2'
     api 'org.ow2.asm:asm-commons:7.2'
@@ -174,7 +174,7 @@ configurations {
 }
 
 dependencies {
-    regenerate 'org.antlr:antlr4:4.5.3'
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String grammarPath = 'src/main/antlr'
@@ -274,7 +274,7 @@ configurations {
 }
 
 dependencies {
-    regenerate 'org.antlr:antlr4:4.5.3'
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String suggestGrammarPath = 'src/main/antlr'

@@ -21,6 +21,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -60,18 +62,29 @@ public class ESIndexInputTestCase extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            switch (randomIntBetween(0, 5)) {
-                case 0:
-                    // Read by one byte at a time
-                    output[readPos++] = indexInput.readByte();
+            final var readStrategy = between(0, 8);
+            switch (readStrategy) {
+                case 0, 1, 2, 3:
+                    if (length - readPos >= Long.BYTES && readStrategy <= 0) {
+                        ByteBuffer.wrap(output, readPos, Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(indexInput.readLong());
+                        readPos += Long.BYTES;
+                    } else if (length - readPos >= Integer.BYTES && readStrategy <= 1) {
+                        ByteBuffer.wrap(output, readPos, Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(indexInput.readInt());
+                        readPos += Integer.BYTES;
+                    } else if (length - readPos >= Short.BYTES && readStrategy <= 2) {
+                        ByteBuffer.wrap(output, readPos, Short.BYTES).order(ByteOrder.LITTLE_ENDIAN).putShort(indexInput.readShort());
+                        readPos += Short.BYTES;
+                    } else {
+                        output[readPos++] = indexInput.readByte();
+                    }
                     break;
-                case 1:
+                case 4:
                     // Read several bytes into target
                     int len = randomIntBetween(1, length - readPos);
                     indexInput.readBytes(output, readPos, len);
                     readPos += len;
                     break;
-                case 2:
+                case 5:
                     // Read several bytes into 0-offset target
                     len = randomIntBetween(1, length - readPos);
                     byte[] temp = new byte[len];
@@ -79,7 +92,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     System.arraycopy(temp, 0, output, readPos, len);
                     readPos += len;
                     break;
-                case 3:
+                case 6:
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
                     final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
@@ -92,7 +105,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     indexInput.seek(readPos);
                     assertEquals(readPos, indexInput.getFilePointer());
                     break;
-                case 4:
+                case 7:
                     // Seek at a random position and read a single byte,
                     // then seek back to original position
                     final int lastReadPos = readPos;
@@ -106,7 +119,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     indexInput.seek(readPos);
                     assertEquals(readPos, indexInput.getFilePointer());
                     break;
-                case 5:
+                case 8:
                     // Read clone or slice concurrently
                     final int cloneCount = between(1, 3);
                     final CountDownLatch startLatch = new CountDownLatch(1 + cloneCount);

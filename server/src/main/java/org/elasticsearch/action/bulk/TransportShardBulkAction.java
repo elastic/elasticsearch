@@ -22,6 +22,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -152,7 +153,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary), postWriteAction);
+        }), listener, threadPool, executor(primary), postWriteRefresh, postWriteAction);
     }
 
     @Override
@@ -186,6 +187,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             listener,
             threadPool,
             executorName,
+            null,
             null
         );
     }
@@ -200,6 +202,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         ThreadPool threadPool,
         String executorName,
+        @Nullable PostWriteRefresh postWriteRefresh,
         @Nullable Consumer<Runnable> postWriteAction
     ) {
         new ActionRunnable<>(listener) {
@@ -273,9 +276,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getBulkShardRequest(),
                         context.buildShardResponse(),
                         context.getLocationToSync(),
-                        null,
                         context.getPrimary(),
                         logger,
+                        postWriteRefresh,
                         postWriteAction
                     )
                 );
@@ -382,7 +385,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         @Override
                         public void onResponse(Void v) {
                             assert context.requiresWaitingForMappingUpdate();
-                            context.resetForExecutionForRetry();
+                            context.resetForMappingUpdateRetry();
                         }
 
                         @Override
@@ -422,8 +425,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (isUpdate
             && isFailed
             && isConflictException(executionResult.getFailure().getCause())
-            && context.getRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
-            context.resetForExecutionForRetry();
+            && context.getUpdateRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
+            context.resetForUpdateRetry();
             return;
         }
         final BulkItemResponse response;

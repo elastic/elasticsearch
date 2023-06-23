@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -108,7 +107,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             // we should forward the request containing the current retention leases to the replica
             assertThat(result.replicaRequest(), sameInstance(request));
             // we should start with an empty replication response
-            assertNull(result.finalResponseIfSuccessful.getShardInfo());
+            assertNull(result.replicationResponse.getShardInfo());
         }));
     }
 
@@ -149,7 +148,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
-        result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
+        result.runPostReplicaActions(ActionTestUtils.assertNoFailureListener(r -> success.set(true)));
         assertTrue(success.get());
     }
 

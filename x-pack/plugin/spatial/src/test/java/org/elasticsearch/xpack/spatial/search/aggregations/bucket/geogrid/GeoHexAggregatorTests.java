@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -27,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.common.H3SphericalUtil;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
@@ -95,14 +95,9 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
 
     @Override
     protected Rectangle getTile(double lng, double lat, int precision) {
-        final LatLonBounds bounds = GeoHexCellIdSource.getGeoBounds(H3.h3ToGeoBoundary(hashAsString(lng, lat, precision)));
-        final double minLat = bounds.checkNoBottomLatitudeBound() ? -90d : Math.toDegrees(bounds.getMinLatitude());
-        final double maxLat = bounds.checkNoTopLatitudeBound() ? 90d : Math.toDegrees(bounds.getMaxLatitude());
-        if (bounds.checkNoLongitudeBound()) {
-            return new Rectangle(-180d, 180d, maxLat, minLat);
-        } else {
-            return new Rectangle(Math.toDegrees(bounds.getLeftLongitude()), Math.toDegrees(bounds.getRightLongitude()), maxLat, minLat);
-        }
+        final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
+        H3SphericalUtil.computeGeoBounds(H3.stringToH3(hashAsString(lng, lat, precision)), boundingBox);
+        return new Rectangle(boundingBox.left(), boundingBox.right(), boundingBox.top(), boundingBox.bottom());
     }
 
     @Override

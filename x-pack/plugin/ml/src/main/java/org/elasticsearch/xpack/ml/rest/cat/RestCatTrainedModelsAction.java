@@ -17,6 +17,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
@@ -28,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -42,6 +44,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatTrainedModelsAction extends AbstractCatAction {
 
     @Override
@@ -96,7 +99,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                 Set<String> potentialAnalyticsIds = new HashSet<>();
                 // Analytics Configs are created by the XPackUser
                 trainedModelConfigs.stream()
-                    .filter(c -> XPackUser.NAME.equals(c.getCreatedBy()))
+                    .filter(c -> InternalUsers.XPACK_USER.principal().equals(c.getCreatedBy()))
                     .forEach(c -> potentialAnalyticsIds.addAll(c.getTags()));
 
                 // Find the related DataFrameAnalyticsConfigs
@@ -277,14 +280,14 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = statsMap.get(config.getModelId());
             table.addCell(modelStats.getPipelineCount());
             boolean hasIngestStats = modelStats != null && modelStats.getIngestStats() != null;
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestCount() : 0);
+            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestCount() : 0);
             table.addCell(
                 hasIngestStats
-                    ? TimeValue.timeValueMillis(modelStats.getIngestStats().getTotalStats().getIngestTimeInMillis())
+                    ? TimeValue.timeValueMillis(modelStats.getIngestStats().totalStats().ingestTimeInMillis())
                     : TimeValue.timeValueMillis(0)
             );
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestCurrent() : 0);
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestFailedCount() : 0);
+            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestCurrent() : 0);
+            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestFailedCount() : 0);
 
             DataFrameAnalyticsConfig dataFrameAnalyticsConfig = config.getTags()
                 .stream()

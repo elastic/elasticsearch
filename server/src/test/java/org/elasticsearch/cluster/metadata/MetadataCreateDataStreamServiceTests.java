@@ -109,7 +109,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             var actualAlias = newState.metadata().dataStreamAliases().get(aliasName);
             assertThat(actualAlias, is(notNullValue()));
             assertThat(actualAlias.getName(), equalTo(expectedAlias.alias()));
-            assertThat(actualAlias.getFilter(), equalTo(expectedAlias.filter()));
+            assertThat(actualAlias.getFilter(dataStreamName), equalTo(expectedAlias.filter()));
             assertThat(actualAlias.getWriteDataStream(), equalTo(expectedAlias.writeIndex() ? dataStreamName : null));
         }
 
@@ -183,7 +183,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 var actualAlias = newState.metadata().dataStreamAliases().get(alias.alias());
                 assertThat(actualAlias, is(notNullValue()));
                 assertThat(actualAlias.getName(), equalTo(alias.alias()));
-                assertThat(actualAlias.getFilter(), equalTo(alias.filter()));
+                assertThat(actualAlias.getFilter(dataStreamName), equalTo(alias.filter()));
                 assertThat(actualAlias.getWriteDataStream(), equalTo(alias.writeIndex() ? dataStreamName : null));
             }
         }

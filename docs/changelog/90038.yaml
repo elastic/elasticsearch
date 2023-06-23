@@ -1,5 +1,0 @@
-pr: 90038
-summary: "Synthetic `_source`: `ignore_malformed` for `ip`"
-area: TSDB
-type: enhancement
-issues: []

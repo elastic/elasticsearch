@@ -66,7 +66,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
                 .collect(toList())
         );
         ensureGreen(indexName);
-        client().admin().indices().prepareFlush(indexName).get();
+        indicesAdmin().prepareFlush(indexName).get();
         // index more documents while one shard copy is offline
         internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
             @Override
@@ -82,7 +82,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
         });
         ensureGreen(indexName);
         internalCluster().assertSameDocIdsOnShards();
-        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), not(empty()));
             }
@@ -90,7 +90,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureGreen(indexName);
         internalCluster().assertSameDocIdsOnShards();
-        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
             }

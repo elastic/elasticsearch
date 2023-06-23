@@ -211,7 +211,7 @@
   - skip:
       version: " - 7.1.99"
       reason:  "closed indices are replicated starting version 7.2.0"
-      features: ["allowed_warnings"]
+      features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.create:

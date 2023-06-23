@@ -28,6 +28,11 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         return new Request(randomAlphaOfLength(8));
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidateRequest() {
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request("my-data-stream");
         ActionRequestValidationException e = req.validate();

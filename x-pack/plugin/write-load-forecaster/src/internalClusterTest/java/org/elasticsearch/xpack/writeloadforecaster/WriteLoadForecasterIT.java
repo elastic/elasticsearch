@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -38,7 +39,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.OptionalDouble;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -179,7 +179,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
                 final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
                 final String writeIndex = dataStream.getWriteIndex().getName();
-                final IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(writeIndex).get();
+                final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(writeIndex).get();
                 for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {
                     for (ShardStats shard : indexShardStats.getShards()) {
                         final IndexingStats.Stats shardIndexingStats = shard.getStats().getIndexing().getTotal();
@@ -190,7 +190,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 }
             });
 
-            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         }
     }
 
@@ -200,7 +200,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
             bulkRequest.add(
                 new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+                    .source(Strings.format("{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
             );
         }
         client().bulk(bulkRequest).actionGet();

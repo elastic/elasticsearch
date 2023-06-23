@@ -1,5 +1,0 @@
-pr: 91006
-summary: Fix potential issue with graph api's timed out field in response
-area: Graph
-type: bug
-issues: []

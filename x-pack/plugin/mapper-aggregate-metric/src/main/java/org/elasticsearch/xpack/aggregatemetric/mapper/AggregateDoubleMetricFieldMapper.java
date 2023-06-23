@@ -15,9 +15,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -157,9 +158,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString);
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
+        private final IndexMode indexMode;
 
-        public Builder(String name, Boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+        public Builder(String name, Boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.boolParam(
                 Names.IGNORE_MALFORMED,
@@ -168,9 +170,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 ignoreMalformedByDefault
             );
 
-            this.timeSeriesMetric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge);
-
+            this.timeSeriesMetric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.GAUGE);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
+            this.indexMode = mode;
         }
 
         @Override
@@ -218,7 +220,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         false,
                         false,
-                        indexCreatedVersion
+                        indexCreatedVersion,
+                        indexMode
                     ).allowMultipleValues(false);
                 } else {
                     builder = new NumberFieldMapper.Builder(
@@ -227,7 +230,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         false,
                         true,
-                        indexCreatedVersion
+                        indexCreatedVersion,
+                        indexMode
                     ).allowMultipleValues(false);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
@@ -236,14 +240,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
             EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = metricMappers.entrySet()
                 .stream()
-                .collect(
-                    Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> e.getValue().fieldType(),
-                        (l, r) -> { throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + "."); },
-                        () -> new EnumMap<>(Metric.class)
-                    )
-                );
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().fieldType(), (l, r) -> {
+                    throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + ".");
+                }, () -> new EnumMap<>(Metric.class)));
 
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
                 context.buildFullName(name),
@@ -258,7 +257,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     public static final FieldMapper.TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated(), c.getIndexSettings().getMode()),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -512,7 +511,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final boolean ignoreMalformedByDefault;
 
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     /** A set of metrics supported */
     private final EnumSet<Metric> metrics;
@@ -522,6 +521,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     /** The metric type (gauge, counter, summary) if  field is a time series metric */
     private final TimeSeriesParams.MetricType metricType;
+
+    private final IndexMode indexMode;
 
     private AggregateDoubleMetricFieldMapper(
         String simpleName,
@@ -537,6 +538,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         this.metricFieldMappers = metricFieldMappers;
         this.metricType = builder.timeSeriesMetric.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexMode = builder.indexMode;
     }
 
     @Override
@@ -661,7 +663,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode).metric(metricType).init(this);
     }
 
     @Override

@@ -288,11 +288,11 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(expectedNdcg, detail.getNDCG(), 0.0);
         assertEquals(unratedDocs, detail.getUnratedDocs());
         if (idcg != 0) {
-            assertEquals(formatted("""
+            assertEquals(Strings.format("""
                 {"dcg":{"dcg":%s,"ideal_dcg":%s,"normalized_dcg":%s,"unrated_docs":%s}}\
                 """, dcg, idcg, expectedNdcg, unratedDocs), Strings.toString(detail));
         } else {
-            assertEquals(formatted("""
+            assertEquals(Strings.format("""
                 {"dcg":{"dcg":%s,"unrated_docs":%s}}\
                 """, dcg, unratedDocs), Strings.toString(detail));
         }
@@ -311,11 +311,9 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(
-            createTestItem(),
-            original -> { return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK()); },
-            DiscountedCumulativeGainTests::mutateTestItem
-        );
+        checkEqualsAndHashCode(createTestItem(), original -> {
+            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK());
+        }, DiscountedCumulativeGainTests::mutateTestItem);
     }
 
     private static DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {

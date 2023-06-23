@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -23,9 +24,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DateProcessorTests extends ESTestCase {
 
@@ -274,6 +281,29 @@ public class DateProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
     }
 
+    public void testEpochMillis() {
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            templatize(ZoneOffset.UTC),
+            templatize(randomLocale(random())),
+            "date_as_string",
+            List.of("epoch_millis"),
+            "date_as_date"
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "1683701716065");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2023-05-10T06:55:16.065Z"));
+
+        document = new HashMap<>();
+        document.put("date_as_string", 1683701716065L);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2023-05-10T06:55:16.065Z"));
+    }
+
     public void testInvalidTimezone() {
         DateProcessor processor = new DateProcessor(
             randomAlphaOfLength(10),
@@ -331,7 +361,34 @@ public class DateProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
         // output format is time only with nanosecond precision
-        String expectedDate = "00:00:00." + formatted("%09d", nanosAfterEpoch);
+        String expectedDate = "00:00:00." + Strings.format("%09d", nanosAfterEpoch);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo(expectedDate));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCacheIsEvictedAfterReachMaxCapacity() {
+        Supplier<Function<String, ZonedDateTime>> supplier1 = mock(Supplier.class);
+        Supplier<Function<String, ZonedDateTime>> supplier2 = mock(Supplier.class);
+        Function<String, ZonedDateTime> zonedDateTimeFunction1 = str -> ZonedDateTime.now();
+        Function<String, ZonedDateTime> zonedDateTimeFunction2 = str -> ZonedDateTime.now();
+        var cache = new DateProcessor.Cache(1);
+        var key1 = new DateProcessor.Cache.Key("format-1", ZoneId.systemDefault().toString(), Locale.ROOT.toString());
+        var key2 = new DateProcessor.Cache.Key("format-2", ZoneId.systemDefault().toString(), Locale.ROOT.toString());
+
+        when(supplier1.get()).thenReturn(zonedDateTimeFunction1);
+        when(supplier2.get()).thenReturn(zonedDateTimeFunction2);
+
+        assertEquals(cache.getOrCompute(key1, supplier1), zonedDateTimeFunction1); // 1 call to supplier1
+        assertEquals(cache.getOrCompute(key2, supplier2), zonedDateTimeFunction2); // 1 call to supplier2
+        assertEquals(cache.getOrCompute(key1, supplier1), zonedDateTimeFunction1); // 1 more call to supplier1
+        assertEquals(cache.getOrCompute(key1, supplier1), zonedDateTimeFunction1); // should use cached value
+        assertEquals(cache.getOrCompute(key2, supplier2), zonedDateTimeFunction2); // 1 more call to supplier2
+        assertEquals(cache.getOrCompute(key2, supplier2), zonedDateTimeFunction2); // should use cached value
+        assertEquals(cache.getOrCompute(key2, supplier2), zonedDateTimeFunction2); // should use cached value
+        assertEquals(cache.getOrCompute(key2, supplier2), zonedDateTimeFunction2); // should use cached value
+        assertEquals(cache.getOrCompute(key1, supplier1), zonedDateTimeFunction1); // 1 more to call to supplier1
+
+        verify(supplier1, times(3)).get();
+        verify(supplier2, times(2)).get();
     }
 }

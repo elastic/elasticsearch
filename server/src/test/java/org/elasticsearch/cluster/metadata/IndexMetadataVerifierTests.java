@@ -135,6 +135,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
     private IndexMetadataVerifier getIndexMetadataVerifier() {
         return new IndexMetadataVerifier(
             Settings.EMPTY,
+            null,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -151,14 +152,10 @@ public class IndexMetadataVerifierTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder newIndexMetaBuilder(String name, Settings indexSettings) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, randomIndexCompatibleVersion(random()))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-            .put(IndexMetadata.SETTING_CREATION_DATE, randomNonNegativeLong())
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            .put(indexSettings)
-            .build();
+        final Settings settings = indexSettings(randomIndexCompatibleVersion(random()), between(1, 5), between(0, 5)).put(
+            IndexMetadata.SETTING_CREATION_DATE,
+            randomNonNegativeLong()
+        ).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())).put(indexSettings).build();
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(name).settings(settings);
         if (randomBoolean()) {
             indexMetadataBuilder.state(IndexMetadata.State.CLOSE);

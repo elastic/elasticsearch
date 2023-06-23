@@ -11,8 +11,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -30,18 +28,18 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,61 +47,6 @@ import static org.mockito.Mockito.when;
  * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link DataStreamIndexSettingsProvider}.
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
-
-    public void testValidateTsdbDataStreamsReferringTsdbTemplate() throws Exception {
-        var state = ClusterState.EMPTY_STATE;
-        final var service = getMetadataIndexTemplateService();
-        var template = new ComposableIndexTemplate(
-            Collections.singletonList("logs-*-*"),
-            new Template(
-                builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(),
-                new CompressedXContent(generateTsdbMapping()),
-                null
-            ),
-            null,
-            100L,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false),
-            null
-        );
-        state = service.addIndexTemplateV2(state, false, "logs", template);
-
-        var now = Instant.now();
-        var mBuilder = Metadata.builder(state.getMetadata());
-        DataStreamTestHelper.getClusterStateWithDataStream(
-            mBuilder,
-            "unreferenced",
-            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
-        );
-        DataStreamTestHelper.getClusterStateWithDataStream(
-            mBuilder,
-            "logs-mysql-default",
-            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
-        );
-        var stateWithDS = ClusterState.builder(state).metadata(mBuilder).build();
-
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                null,
-                null,
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            );
-            service.addIndexTemplateV2(stateWithDS, false, "logs", nonDSTemplate);
-        });
-
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "would cause tsdb data streams [logs-mysql-default] to no longer match a data stream template with a time_series index_mode"
-            )
-        );
-    }
 
     public void testRequireRoutingPath() throws Exception {
         final var service = getMetadataIndexTemplateService();
@@ -197,6 +140,47 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             );
             var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
             assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+        }
+    }
+
+    public void testLifecycleComposition() {
+        // No lifecycles result to null
+        {
+            List<DataLifecycle> lifecycles = List.of();
+            assertThat(composeDataLifecycles(lifecycles), nullValue());
+        }
+        // One lifecycle results to this lifecycle as the final
+        {
+            DataLifecycle lifecycle = switch (randomInt(2)) {
+                case 0 -> new DataLifecycle();
+                case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL);
+                default -> new DataLifecycle(randomMillisUpToYear9999());
+            };
+            List<DataLifecycle> lifecycles = List.of(lifecycle);
+            assertThat(composeDataLifecycles(lifecycles), equalTo(lifecycle));
+        }
+        // If the last lifecycle is missing a property we keep the latest from the previous ones
+        {
+            DataLifecycle lifecycleWithRetention = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycleWithRetention, new DataLifecycle());
+            assertThat(
+                composeDataLifecycles(lifecycles).getEffectiveDataRetention(),
+                equalTo(lifecycleWithRetention.getEffectiveDataRetention())
+            );
+        }
+        // If both lifecycle have all properties, then the latest one overwrites all the others
+        {
+            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
+            assertThat(composeDataLifecycles(lifecycles), equalTo(lifecycle2));
+        }
+        // If the last lifecycle is explicitly null, the result is also null
+        {
+            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2, Template.NO_LIFECYCLE);
+            assertThat(composeDataLifecycles(lifecycles), nullValue());
         }
     }
 

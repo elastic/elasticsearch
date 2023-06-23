@@ -35,6 +35,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -98,6 +99,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -174,10 +176,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
          * check that the value of the label (last value) matches the value
          * of the corresponding metric which uses a last_value metric type.
          */
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+        Settings.Builder settings = indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
             .put(
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
@@ -214,7 +213,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_DOUBLE).field("type", "double").endObject();
         mapping.startObject(FIELD_LABEL_INTEGER).field("type", "integer").endObject();
         mapping.startObject(FIELD_LABEL_KEYWORD).field("type", "keyword").endObject();
-        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").endObject();
+        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").field("store", "true").endObject();
         mapping.startObject(FIELD_LABEL_BOOLEAN).field("type", "boolean").endObject();
         mapping.startObject(FIELD_LABEL_IPv4_ADDRESS).field("type", "ip").endObject();
         mapping.startObject(FIELD_LABEL_IPv6_ADDRESS).field("type", "ip").endObject();
@@ -228,7 +227,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
 
         mapping.endObject().endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
+        assertAcked(indicesAdmin().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
     public void testRollupIndex() throws IOException {
@@ -350,7 +349,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
+            .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
 
         final Integer totalFieldsLimit = randomBoolean() ? randomIntBetween(100, 10_000) : null;
         if (totalFieldsLimit != null) {
@@ -360,7 +359,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         logger.info("Updating index [{}] with settings [{}]", sourceIndex, settings);
 
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
-        assertAcked(client().admin().indices().updateSettings(updateSettingsReq).actionGet());
+        assertAcked(indicesAdmin().updateSettings(updateSettingsReq).actionGet());
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
@@ -376,7 +375,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
         for (String key : settings.keySet()) {
             assertEquals(settings.get(key), indexSettingsResp.getSetting(rollupIndex, key));
@@ -435,13 +434,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(rollupIndex)
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate(rollupIndex).setSettings(indexSettings(1, 0)).get());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
@@ -457,21 +450,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
-    public void testCannotRollupIndexWithNoMetrics() {
+    public void testRollupIndexWithNoMetrics() throws IOException {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", numOfShards)
-                    .put("index.number_of_replicas", numOfReplicas)
-                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-                    .build()
             )
             .setMapping(
                 FIELD_TIMESTAMP,
@@ -485,8 +472,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
-        Exception exception = expectThrows(ActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupWriteableIndex() {
@@ -533,7 +520,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config), rollupListener);
         assertBusy(() -> {
             try {
-                assertEquals(client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
+                assertEquals(indicesAdmin().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
             } catch (IndexNotFoundException e) {
                 fail("rollup index has not been created");
             }
@@ -616,7 +603,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             shard.shardId(),
             rollupIndex,
             config,
-            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {}
         );
@@ -639,9 +625,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         // block rollup index
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate(rollupIndex)
+            indicesAdmin().preparePutTemplate(rollupIndex)
                 .setPatterns(List.of(rollupIndex))
                 .setSettings(Settings.builder().put("index.blocks.write", "true").build())
                 .get()
@@ -649,6 +633,54 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));
+    }
+
+    public void testTooManyBytesInFlight() throws IOException {
+        // create rollup config and index documents into source index
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(sourceIndex);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            config,
+            emptyMap(),
+            shard.shardId()
+        );
+
+        // re-use source index as temp index for test
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            task,
+            client(),
+            indexService,
+            shard.shardId(),
+            rollupIndex,
+            config,
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {}
+        );
+        /*
+         * Here we set the batch size and the total bytes in flight size to tiny numbers so that we are guaranteed to trigger the bulk
+         * processor to reject some calls to add(), so that we can make sure RollupShardIndexer keeps trying until success.
+         */
+        indexer.rollupMaxBytesInFlight = ByteSizeValue.ofBytes(1024);
+        indexer.rollupBulkSize = ByteSizeValue.ofBytes(512);
+        indexer.execute();
     }
 
     private DateHistogramInterval randomInterval() {
@@ -699,9 +731,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private void prepareSourceIndex(String sourceIndex) {
         // Set the source index to read-only state
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIndex)
+            indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
                 .get()
         );
@@ -714,7 +744,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {
-        RolloverResponse response = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
+        RolloverResponse response = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         assertAcked(response);
         return response;
     }
@@ -726,7 +756,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void assertRollupIndex(String sourceIndex, String rollupIndex, DownsampleConfig config) throws IOException {
         // Retrieve field information for the metric fields
-        final GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIndex).get();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
             .entrySet()
             .stream()
@@ -735,7 +765,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
             .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndex + "]"));
 
-        final IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().getMetadata().index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
@@ -746,7 +776,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
             if (helper.isTimeSeriesMetric(field, fieldMapping)) {
-                metricFields.put(field, TimeSeriesParams.MetricType.valueOf(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+                metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
             } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
@@ -754,7 +784,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertRollupIndexAggregations(sourceIndex, rollupIndex, config, metricFields, labelFields);
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
 
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
@@ -764,9 +794,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertFieldMappings(config, metricFields, mappings);
 
-        GetMappingsResponse indexMappings = client().admin()
-            .indices()
-            .getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndex))
+        GetMappingsResponse indexMappings = indicesAdmin().getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndex))
             .actionGet();
         Map<String, String> rollupIndexProperties = (Map<String, String>) indexMappings.mappings()
             .get(rollupIndex)
@@ -911,8 +939,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         metricFields.forEach((field, metricType) -> {
             switch (metricType) {
-                case counter -> assertEquals("double", mappings.get(field).get("type"));
-                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                case COUNTER -> assertEquals("double", mappings.get(field).get("type"));
+                case GAUGE -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
                 default -> fail("Unsupported field type");
             }
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
@@ -1050,10 +1078,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template indexTemplate = new Template(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                 .build(),
             new CompressedXContent("""
@@ -1099,5 +1124,85 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet());
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get());
         return dataStreamName;
+    }
+
+    public void testConcurrentRollup() throws IOException, InterruptedException {
+        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+            int labelIntegerValue = randomInt();
+            long labelLongValue = randomLong();
+            String labelIpv4Address = NetworkAddress.format(randomIp(true));
+            String labelIpv6Address = NetworkAddress.format(randomIp(false));
+            Date labelDateValue = randomDate();
+            int keywordArraySize = randomIntBetween(2, 5);
+            String[] keywordArray = new String[keywordArraySize];
+            for (int i = 0; i < keywordArraySize; ++i) {
+                keywordArray[i] = randomAlphaOfLength(10);
+            }
+            int doubleArraySize = randomIntBetween(3, 10);
+            double[] doubleArray = new double[doubleArraySize];
+            for (int i = 0; i < doubleArraySize; ++i) {
+                doubleArray[i] = randomDouble();
+            }
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_LABEL_INTEGER, labelIntegerValue)
+                .field(FIELD_LABEL_KEYWORD, ts)
+                .field(FIELD_LABEL_UNMAPPED, randomBoolean() ? labelLongValue : labelDoubleValue)
+                .field(FIELD_LABEL_TEXT, ts)
+                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
+                .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
+                .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
+                .field(FIELD_LABEL_DATE, labelDateValue)
+                .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
+                .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
+                .startObject(FIELD_LABEL_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .endObject();
+        };
+        docCount = 512; // Hard code to have 512 documents in the source index, otherwise running this test take too long.
+        bulkIndex(sourceIndex, sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        int n = randomIntBetween(3, 6);
+        final CountDownLatch rollupComplete = new CountDownLatch(n);
+        final List<String> targets = new ArrayList<>();
+        final List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            targets.add(targetIndex);
+            threads.add(new Thread(() -> {
+                rollup(sourceIndex, targetIndex, config);
+                rollupComplete.countDown();
+            }));
+        }
+        for (int i = 0; i < n; i++) {
+            threads.get(i).start();
+        }
+
+        assertTrue(rollupComplete.await(30, TimeUnit.SECONDS));
+
+        for (int i = 0; i < n; i++) {
+            assertRollupIndex(sourceIndex, targets.get(i), config);
+        }
     }
 }

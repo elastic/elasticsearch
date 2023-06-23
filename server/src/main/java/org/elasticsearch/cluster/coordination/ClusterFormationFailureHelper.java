@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -100,7 +101,11 @@ public class ClusterFormationFailureHelper {
                 protected void doRun() {
                     if (isActive()) {
                         logLastFailedJoinAttempt.run();
-                        logger.warn(clusterFormationStateSupplier.get().getDescription());
+                        logger.warn(
+                            "{}; for troubleshooting guidance, see {}",
+                            clusterFormationStateSupplier.get().getDescription(),
+                            ReferenceDocs.DISCOVERY_TROUBLESHOOTING
+                        );
                     }
                 }
 
@@ -201,7 +206,7 @@ public class ClusterFormationFailureHelper {
             this(
                 in.readStringList(),
                 new DiscoveryNode(in),
-                in.readMap(StreamInput::readString, DiscoveryNode::new),
+                in.readMap(DiscoveryNode::new),
                 in.readLong(),
                 in.readLong(),
                 new VotingConfiguration(in),

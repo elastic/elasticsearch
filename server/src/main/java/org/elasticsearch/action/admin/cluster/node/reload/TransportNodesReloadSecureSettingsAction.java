@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +38,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsResponse,
     NodesReloadSecureSettingsRequest.NodeRequest,
     NodesReloadSecureSettingsResponse.NodeResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportNodesReloadSecureSettingsAction.class);
 
     private final Environment environment;
     private final PluginsService pluginsService;

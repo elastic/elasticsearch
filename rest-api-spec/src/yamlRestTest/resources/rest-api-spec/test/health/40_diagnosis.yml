@@ -16,7 +16,7 @@
             index.routing.allocation.enable: none
 
   - do:
-      health:
+      health_report:
         feature: shards_availability
 
   - is_true: cluster_name

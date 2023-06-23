@@ -8,10 +8,9 @@
 
 package org.elasticsearch.gradle.internal.test
 
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.AntFixtureStop
 import org.elasticsearch.gradle.internal.AntTask
-import org.elasticsearch.gradle.internal.test.Fixture
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskProvider
@@ -95,7 +94,7 @@ class AntFixture extends AntTask implements Fixture {
         // We need to choose which executable we are using. In shell mode, or when we
         // are spawning and thus using the wrapper script, the executable is the shell.
         if (useShell || spawn) {
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            if (OS.current() == OS.WINDOWS) {
                 realExecutable = 'cmd'
                 realArgs.add('/C')
                 realArgs.add('"') // quote the entire command
@@ -111,7 +110,7 @@ class AntFixture extends AntTask implements Fixture {
             realArgs.add(wrapperScript)
             realArgs.addAll(arguments)
         }
-        if (Os.isFamily(Os.FAMILY_WINDOWS) && (useShell || spawn)) {
+        if (OS.current() == OS.WINDOWS && (useShell || spawn)) {
             realArgs.add('"')
         }
         commandString.eachLine { line -> logger.info(line) }
@@ -183,7 +182,7 @@ class AntFixture extends AntTask implements Fixture {
         wrapperScript.parentFile.mkdirs()
         String argsPasser = '"$@"'
         String exitMarker = "; if [ \$? != 0 ]; then touch run.failed; fi"
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        if (OS.current() == OS.WINDOWS) {
             argsPasser = '%*'
             exitMarker = "\r\n if \"%errorlevel%\" neq \"0\" ( type nul >> run.failed )"
         }
@@ -267,7 +266,7 @@ class AntFixture extends AntTask implements Fixture {
     /** Returns a file that wraps around the actual command when {@code spawn == true}. */
     @Internal
     protected File getWrapperScript() {
-        return new File(cwd, Os.isFamily(Os.FAMILY_WINDOWS) ? 'run.bat' : 'run')
+        return new File(cwd, (OS.current() == OS.WINDOWS) ? 'run.bat' : 'run')
     }
 
     /** Returns a file that the wrapper script writes when the command failed. */

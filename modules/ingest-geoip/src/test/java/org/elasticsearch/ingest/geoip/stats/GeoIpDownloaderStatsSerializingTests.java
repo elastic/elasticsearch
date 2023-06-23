@@ -31,6 +31,11 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
         return createRandomInstance();
     }
 
+    @Override
+    protected GeoIpDownloaderStats mutateInstance(GeoIpDownloaderStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static GeoIpDownloaderStats createRandomInstance() {
         GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY.databasesCount(randomInt(1000));
         int successes = randomInt(20);

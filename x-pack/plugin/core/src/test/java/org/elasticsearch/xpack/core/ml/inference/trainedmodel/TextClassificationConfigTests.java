@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class TextClassificationConfigTests extends InferenceConfigItemTestCase<TextClassificationConfig> {
 
-    public static TextClassificationConfig mutateForVersion(TextClassificationConfig instance, Version version) {
+    public static TextClassificationConfig mutateForVersion(TextClassificationConfig instance, TransportVersion version) {
         return new TextClassificationConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
@@ -57,7 +57,12 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
     }
 
     @Override
-    protected TextClassificationConfig mutateInstanceForVersion(TextClassificationConfig instance, Version version) {
+    protected TextClassificationConfig mutateInstance(TextClassificationConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TextClassificationConfig mutateInstanceForVersion(TextClassificationConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

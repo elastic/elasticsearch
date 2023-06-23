@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.Version
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
@@ -35,6 +33,8 @@ artifacts {
 
 dependencies {
   clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:rest-root")
+  clusterModules project(":modules:reindex")
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
@@ -45,6 +45,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTestsByFilePattern("**/search.aggregation/*.yml", "run by the aggregation module")
 
   task.skipTest("bulk/11_dynamic_templates/Dynamic templates", "Error message has changed")
+  task.skipTest("index/80_date_nanos/date_nanos requires dates after 1970 and before 2262", "Error message has changed")
   task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
   task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
   task.skipTest("delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types", "Type information about the type is removed and not passed down. The logic to check for this is also removed.");

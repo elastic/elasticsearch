@@ -1652,6 +1652,26 @@
                             "id": {
                               "type": "alias",
                               "path": "beat.stats.cgroup.memory.id"
+                            },
+                            "mem": {
+                              "properties": {
+                                "usage": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.memory.mem.usage.bytes"
+                                    }
+                                  }
+                                },
+                                "limit": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.memory.mem.limit.bytes"
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         }
@@ -2245,6 +2265,7 @@
       }
     },
     "settings": {
+      "index.auto_expand_replicas": "0-1",
       "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }

@@ -569,7 +569,7 @@ instead. A regular flush has the same effect as a synced flush in 7.6 and later.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
-See <<snapshots-repositories>>.
+See <<snapshots-register-repository>>.
 
 [role="exclude",id="_snapshot"]
 === Snapshot
@@ -1868,3 +1868,16 @@ For more information about reindexing from a remote cluster, refer to
 === Infer trained model deployment API
 
 See <<infer-trained-model>>.
+
+[role="exclude",id="watching-meetup-data"]
+=== Watching event data
+
+This example has been removed, as the Meetup.com streaming API has been
+discontinued.
+
+Refer to <<example-watches>> for other Watcher examples.
+
+[role="exclude",id="disk-usage-exceeded"]
+=== Fix watermark errors
+
+Refer to <<fix-watermark-errors>>.

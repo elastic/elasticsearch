@@ -161,6 +161,45 @@ setup:
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
 
 ---
+"Test preview transform with offset":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "offset": "-15m"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.max": {"max": {"field": "time"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+  - match: { preview.0.airline: foo }
+  - match: { preview.0.by-hour: "2017-02-17T23:45:00.000Z" }
+  - match: { preview.0.avg_response: 1.0 }
+  - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
+  - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
+  - match: { preview.1.airline: bar }
+  - match: { preview.1.by-hour: "2017-02-18T00:45:00.000Z" }
+  - match: { preview.1.avg_response: 42.0 }
+  - match: { preview.1.time.max: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.1.time.min: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.2.airline: foo }
+  - match: { preview.2.by-hour: "2017-02-18T00:45:00.000Z" }
+  - match: { preview.2.avg_response: 42.0 }
+  - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
+  - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
+  - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
+  - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
+  - match: { generated_dest_index.mappings.properties.time\.max.type: "date" }
+  - match: { generated_dest_index.mappings.properties.time\.min.type: "date" }
+
+---
 "Test preview transform with timeout":
   - do:
       transform.preview_transform:

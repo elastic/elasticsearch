@@ -23,7 +23,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -54,8 +55,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -74,13 +73,13 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
-    private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String INDEX = RandomStrings.randomAsciiLettersOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String FIELD = RandomStrings.randomAsciiLettersOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+        return List.of(InternalSettingsPlugin.class);
     }
 
     public void testTieBreak() throws Exception {
@@ -381,7 +380,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     /**
      * Suggestions run on an empty index should return a suggest element as part of the response. See #42473 for details.
      */
-    public void testSuggestEmptyIndex() throws IOException, InterruptedException {
+    public void testSuggestEmptyIndex() throws IOException {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         createIndexAndMapping(mapping);
 
@@ -429,8 +428,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatWeightMustBeAnInteger() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -488,8 +487,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatWeightMustNotBeANonNumberString() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -512,8 +511,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         String weight = String.valueOf(Long.MAX_VALUE - 4);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -676,9 +675,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .get();
         ensureGreen(INDEX);
 
-        AcknowledgedResponse putMappingResponse = client().admin()
-            .indices()
-            .preparePutMapping(INDEX)
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(INDEX)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -935,15 +932,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
-        client().admin()
-            .indices()
-            .prepareCreate(INDEX)
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-            .get();
+        indicesAdmin().prepareCreate(INDEX).setSettings(indexSettings(2, 0)).get();
         ensureGreen();
-        AcknowledgedResponse putMappingResponse = client().admin()
-            .indices()
-            .preparePutMapping(INDEX)
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(INDEX)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -984,28 +975,19 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .get();
 
         // Get all stats
-        IndicesStatsResponse indicesStatsResponse = client().admin()
-            .indices()
-            .prepareStats(INDEX)
-            .setIndices(INDEX)
-            .setCompletion(true)
-            .get();
+        IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).get();
         CompletionStats completionStats = indicesStatsResponse.getIndex(INDEX).getPrimaries().completion;
         assertThat(completionStats, notNullValue());
         long totalSizeInBytes = completionStats.getSizeInBytes();
         assertThat(totalSizeInBytes, is(greaterThan(0L)));
 
-        IndicesStatsResponse singleFieldStats = client().admin()
-            .indices()
-            .prepareStats(INDEX)
+        IndicesStatsResponse singleFieldStats = indicesAdmin().prepareStats(INDEX)
             .setIndices(INDEX)
             .setCompletion(true)
             .setCompletionFields(FIELD)
             .get();
         long singleFieldSizeInBytes = singleFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get(FIELD);
-        IndicesStatsResponse otherFieldStats = client().admin()
-            .indices()
-            .prepareStats(INDEX)
+        IndicesStatsResponse otherFieldStats = indicesAdmin().prepareStats(INDEX)
             .setIndices(INDEX)
             .setCompletion(true)
             .setCompletionFields(otherField)
@@ -1014,9 +996,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(singleFieldSizeInBytes + otherFieldSizeInBytes, is(totalSizeInBytes));
 
         // regexes
-        IndicesStatsResponse regexFieldStats = client().admin()
-            .indices()
-            .prepareStats(INDEX)
+        IndicesStatsResponse regexFieldStats = indicesAdmin().prepareStats(INDEX)
             .setIndices(INDEX)
             .setCompletion(true)
             .setCompletionFields("*")
@@ -1119,8 +1099,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                 )
                 .get();
-            fail("Expected MapperParsingException");
-        } catch (MapperParsingException e) {
+            fail("Expected Exception");
+        } catch (DocumentParsingException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
@@ -1177,13 +1157,13 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void assertSuggestions(String suggestion, String... suggestions) {
-        String suggestionName = RandomStrings.randomAsciiOfLength(random(), 10);
+        String suggestionName = RandomStrings.randomAsciiLettersOfLength(random(), 10);
         CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion(FIELD).text(suggestion).size(10);
         assertSuggestions(suggestionName, suggestionBuilder, suggestions);
     }
 
     public void assertSuggestionsNotInOrder(String suggestString, String... suggestions) {
-        String suggestionName = RandomStrings.randomAsciiOfLength(random(), 10);
+        String suggestionName = RandomStrings.randomAsciiLettersOfLength(random(), 10);
         SearchResponse searchResponse = client().prepareSearch(INDEX)
             .suggest(
                 new SuggestBuilder().addSuggestion(suggestionName, SuggestBuilders.completionSuggestion(FIELD).text(suggestString).size(10))
@@ -1248,7 +1228,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             }
         } else {
             for (String expectedSuggestion : suggestions) {
-                String errMsg = String.format(Locale.ROOT, "Expected elem %s to be in list %s", expectedSuggestion, suggestionList);
+                String errMsg = Strings.format("Expected elem %s to be in list %s", expectedSuggestion, suggestionList);
                 assertThat(errMsg, suggestionList, hasItem(expectedSuggestion));
             }
         }
@@ -1299,12 +1279,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         mapping = mapping.endObject().endObject().endObject().endObject();
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
-                .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .setMapping(mapping)
-                .get()
+            indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping).get()
         );
     }
 
@@ -1314,10 +1289,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #3555
     public void testPrunedSegments() throws IOException {
-        createIndexAndMappingAndSettings(
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(),
-            completionMappingBuilder
-        );
+        createIndexAndMappingAndSettings(indexSettings(1, 0).build(), completionMappingBuilder);
 
         client().prepareIndex(INDEX)
             .setId("1")
@@ -1327,18 +1299,18 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .get();
         // we have 2 docs in a segment...
         client().prepareIndex(INDEX).setId("2").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
-        ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
+        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
         client().prepareIndex(INDEX).setId("1").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
-        actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
+        actionGet = indicesAdmin().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();
 
         assertSuggestions("b");
         assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
-        for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
+        for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {
                 assertThat(shardSegments.getSegments().size(), equalTo(1));
@@ -1349,9 +1321,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     // see #3596
     public void testVeryLongInput() throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
+            indicesAdmin().prepareCreate(INDEX)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -1380,9 +1350,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     // see #3648
     public void testReservedChars() throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
+            indicesAdmin().prepareCreate(INDEX)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -1398,8 +1366,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         );
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -1420,9 +1388,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     // see #5930
     public void testIssue5930() throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
+            indicesAdmin().prepareCreate(INDEX)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -1549,12 +1515,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         String index = "test";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 2))
-                .setMapping(mapping)
-                .get()
+            indicesAdmin().prepareCreate(index).setSettings(Settings.builder().put("index.number_of_shards", 2)).setMapping(mapping).get()
         );
 
         int numDocs = 2;
@@ -1564,7 +1525,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             builder.field("collapse_field", "collapse me").endObject();  // all docs the same value for collapsing
             client().prepareIndex(index).setId("" + i).setSource(builder).get();
         }
-        client().admin().indices().prepareRefresh(index).get();
+        indicesAdmin().prepareRefresh(index).get();
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(suggestField).prefix("sug").size(1);
 
         SearchResponse searchResponse = client().prepareSearch("test")

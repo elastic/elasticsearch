@@ -32,7 +32,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.parseRequest(null, parser);
+        return Request.parseRequest(null, null, parser);
     }
 
     @Override
@@ -45,8 +45,15 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         return createRandom();
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Request createRandom() {
-        Request request = new Request(randomAlphaOfLength(10));
+        boolean deploymemtIdSameAsModelId = randomBoolean();
+        String modelId = randomAlphaOfLength(10);
+        Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10));
         if (randomBoolean()) {
             request.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), Request.TIMEOUT.getPreferredName()));
         }
@@ -220,7 +227,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
     }
 
     public void testDefaults() {
-        Request request = new Request(randomAlphaOfLength(10));
+        Request request = new Request(randomAlphaOfLength(10), randomAlphaOfLength(10));
         assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));
         assertThat(request.getWaitForState(), equalTo(AllocationStatus.State.STARTED));
         assertThat(request.getNumberOfAllocations(), equalTo(1));

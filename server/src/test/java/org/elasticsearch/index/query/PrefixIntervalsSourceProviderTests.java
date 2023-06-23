@@ -28,7 +28,7 @@ public class PrefixIntervalsSourceProviderTests extends AbstractXContentSerializ
     }
 
     @Override
-    protected Prefix mutateInstance(Prefix instance) throws IOException {
+    protected Prefix mutateInstance(Prefix instance) {
         String prefix = instance.getPrefix();
         String analyzer = instance.getAnalyzer();
         String useField = instance.getUseField();

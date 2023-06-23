@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,8 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
@@ -135,7 +133,7 @@ public class InboundHandler {
                 }
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
-                    if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
+                    if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.current()) == false) {
                         final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
@@ -197,7 +195,7 @@ public class InboundHandler {
     private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, InboundMessage message) throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
-        final Version version = header.getVersion();
+        final TransportVersion version = header.getVersion();
         if (header.isHandshake()) {
             messageListener.onRequestReceived(requestId, action);
             // Cannot short circuit handshakes
@@ -211,46 +209,65 @@ public class InboundHandler {
                 requestId,
                 version,
                 header.getCompressionScheme(),
+                ResponseStatsConsumer.NONE,
                 header.isHandshake(),
                 message.takeBreakerReleaseControl()
             );
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                if (Version.CURRENT.isCompatible(header.getVersion())) {
-                    sendErrorResponse(action, transportChannel, e);
-                } else {
-                    logger.warn(
-                        () -> format(
-                            "could not send error response to handshake received on [%s] using wire format version [%s], closing channel",
-                            channel,
-                            header.getVersion()
-                        ),
-                        e
-                    );
-                    channel.close();
-                }
+                logger.warn(() -> "error processing handshake version [" + version + "] received on [" + channel + "], closing channel", e);
+                channel.close();
             }
         } else {
-            final TransportChannel transportChannel = new TcpTransportChannel(
-                outboundHandler,
-                channel,
-                action,
-                requestId,
-                version,
-                header.getCompressionScheme(),
-                header.isHandshake(),
-                message.takeBreakerReleaseControl()
-            );
+            final TransportChannel transportChannel;
+            final RequestHandlerRegistry<T> reg;
+            try {
+                reg = requestHandlers.getHandler(action);
+                assert message.isShortCircuit() || reg != null : action;
+                transportChannel = new TcpTransportChannel(
+                    outboundHandler,
+                    channel,
+                    action,
+                    requestId,
+                    version,
+                    header.getCompressionScheme(),
+                    reg == null ? ResponseStatsConsumer.NONE : reg,
+                    header.isHandshake(),
+                    message.takeBreakerReleaseControl()
+                );
+            } catch (Exception e) {
+                assert false : e;
+                sendErrorResponse(
+                    action,
+                    new TcpTransportChannel(
+                        outboundHandler,
+                        channel,
+                        action,
+                        requestId,
+                        version,
+                        header.getCompressionScheme(),
+                        ResponseStatsConsumer.NONE,
+                        header.isHandshake(),
+                        message.takeBreakerReleaseControl()
+                    ),
+                    e
+                );
+                return;
+            }
+
             try {
                 messageListener.onRequestReceived(requestId, action);
+                if (reg != null) {
+                    reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                }
+
                 if (message.isShortCircuit()) {
                     sendErrorResponse(action, transportChannel, message.getException());
                 } else {
+                    assert reg != null;
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                     assertRemoteVersion(stream, header.getVersion());
-                    final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
-                    assert reg != null;
                     final T request;
                     try {
                         request = reg.newRequest(stream);
@@ -260,6 +277,8 @@ public class InboundHandler {
                     }
                     try {
                         request.remoteAddress(channel.getRemoteAddress());
+                        assert requestId > 0;
+                        request.setRequestId(requestId);
                         // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                         final int nextByte = stream.read();
                         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
@@ -450,7 +469,8 @@ public class InboundHandler {
         return new NamedWriteableAwareStreamInput(delegate, namedWriteableRegistry);
     }
 
-    static void assertRemoteVersion(StreamInput in, Version version) {
-        assert version.equals(in.getVersion()) : "Stream version [" + in.getVersion() + "] does not match version [" + version + "]";
+    static void assertRemoteVersion(StreamInput in, TransportVersion version) {
+        assert version.equals(in.getTransportVersion())
+            : "Stream version [" + in.getTransportVersion() + "] does not match version [" + version + "]";
     }
 }

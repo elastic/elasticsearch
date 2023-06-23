@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -122,7 +122,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             ContextPreservingActionListener listener = (ContextPreservingActionListener) invocation.getArguments()[2];
-            DiscoveryNode discoveryNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_2");
             WatcherStatsResponse.Node node = new WatcherStatsResponse.Node(discoveryNode);
             WatchExecutionSnapshot snapshot = mock(WatchExecutionSnapshot.class);
             when(snapshot.watchId()).thenReturn(watchId);

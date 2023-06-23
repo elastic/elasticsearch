@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -33,9 +35,10 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -247,10 +250,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
 
-            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
-            sourceLookup.setSegmentAndDocument(readerContext, 0);
+            Source s = SourceProvider.fromStoredFields().getSource(readerContext, 0);
 
-            Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup, 0);
+            Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
             assertThat(fetchedFields.size(), equalTo(5));
             assertEquals(docId, fetchedFields.get("_id").getValue());
             assertEquals(routing, fetchedFields.get("_routing").getValue());
@@ -264,7 +266,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             SeqNoFieldMapper.NAME,
             SourceFieldMapper.NAME,
             FieldNamesFieldMapper.NAME,
-            NestedPathFieldMapper.name(Version.CURRENT)
+            NestedPathFieldMapper.name(IndexVersion.CURRENT)
         )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
@@ -1143,7 +1145,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(new SourceLookup(new SourceLookup.ReaderSourceProvider()), 0);
+            Source source = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
             assertEquals(1, fields.size());
             DocumentField field = fields.get("runtime_field");
             assertEquals(1L, (long) field.getValue());
@@ -1175,13 +1178,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
-            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
-            sourceLookup.setSegmentAndDocument(readerContext, 0);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(Source.empty(XContentType.JSON), 0);
             assertEquals(1, fields.size());
             DocumentField field = fields.get("_id");
             assertEquals("1", field.getValue());
         });
+    }
+
+    public void testStoredFieldsSpec() throws IOException {
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
+        assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
@@ -1252,18 +1259,14 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup
     ) {
-        Settings settings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             indexFieldDataLookup,
             mapperService,

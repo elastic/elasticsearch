@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
@@ -49,7 +50,7 @@ import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 public class MockTransport extends StubbableTransport {
 
     private TransportMessageListener listener;
-    private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
 
     public TransportService createTransportService(
         Settings settings,
@@ -175,6 +176,11 @@ public class MockTransport extends StubbableTransport {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.current();
             }
 
             @Override

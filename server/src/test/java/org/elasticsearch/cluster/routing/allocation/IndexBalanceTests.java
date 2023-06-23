@@ -12,15 +12,27 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.util.Set;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -49,14 +61,12 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .addAsNew(metadata.index("test1"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -168,14 +178,12 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .addAsNew(metadata.index("test1"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -290,11 +298,11 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -367,17 +375,12 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Add new index 3 shards 1 replica");
 
         Metadata updatedMetadata = Metadata.builder(clusterState.metadata())
-            .put(
-                IndexMetadata.builder("test1")
-                    .settings(
-                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    )
-            )
+            .put(IndexMetadata.builder("test1").settings(indexSettings(Version.CURRENT, 3, 1)))
             .build();
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable())
-            .addAsNew(updatedMetadata.index("test1"))
-            .build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            clusterState.routingTable()
+        ).addAsNew(updatedMetadata.index("test1")).build();
         clusterState = ClusterState.builder(clusterState).metadata(updatedMetadata).routingTable(updatedRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
@@ -435,5 +438,79 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node1").shardsWithState("test1", STARTED).count(), equalTo(2L));
         assertThat(routingNodes.node("node2").shardsWithState("test1", STARTED).count(), equalTo(2L));
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).count(), equalTo(2L));
+    }
+
+    /**
+     * {@see https://github.com/elastic/elasticsearch/issues/87279}
+     */
+    public void testRebalanceShouldNotPerformUnnecessaryMovesWithMultipleConcurrentRebalances() {
+        final var settings = Settings.builder()
+            .put("cluster.routing.allocation.type", "desired_balance")
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", randomIntBetween(3, 9))
+            .build();
+
+        final var allocationService = createAllocationService(settings);
+        assertCriticalWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
+
+        assertTrue(
+            "Only fixed in DesiredBalanceShardsAllocator",
+            allocationService.shardsAllocator instanceof DesiredBalanceShardsAllocator
+        );
+
+        final var discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (int nodeIndex = 0; nodeIndex < 3; nodeIndex++) {
+            discoveryNodesBuilder.add(newNode("node-" + nodeIndex));
+        }
+
+        final var metadataBuilder = Metadata.builder();
+        final var routingTableBuilder = RoutingTable.builder();
+
+        addIndex(metadataBuilder, routingTableBuilder, "index-0", 4, shardId -> "node-" + (shardId / 2));
+        addIndex(metadataBuilder, routingTableBuilder, "index-1", 4, shardId -> "node-" + (shardId / 2));
+        addIndex(metadataBuilder, routingTableBuilder, "index-2", 1, shardId -> "node-2");
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+
+        final var reroutedState = applyStartedShardsUntilNoChange(clusterState, allocationService);
+        // node-0 and node-1 has 4 shards each. node-2 has only [index-2][0]. It should not be moved to achieve even balance.
+        assertThat(reroutedState.getRoutingTable().index("index-2").shard(0).primaryShard().currentNodeId(), equalTo("node-2"));
+    }
+
+    private static void addIndex(
+        Metadata.Builder metadataBuilder,
+        RoutingTable.Builder routingTableBuilder,
+        String indexName,
+        int numberOfShards,
+        IntFunction<String> assignmentFunction
+    ) {
+        final var inSyncIds = randomList(numberOfShards, numberOfShards, () -> UUIDs.randomBase64UUID(random()));
+        final var indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, numberOfShards, 0));
+        for (int shardId = 0; shardId < numberOfShards; shardId++) {
+            indexMetadataBuilder.putInSyncAllocationIds(shardId, Set.of(inSyncIds.get(shardId)));
+        }
+        metadataBuilder.put(indexMetadataBuilder);
+        final var indexId = metadataBuilder.get(indexName).getIndex();
+        final var indexRoutingTableBuilder = IndexRoutingTable.builder(indexId);
+
+        for (int shardId = 0; shardId < numberOfShards; shardId++) {
+            indexRoutingTableBuilder.addShard(
+                TestShardRouting.newShardRouting(
+                    new ShardId(indexId, shardId),
+                    assignmentFunction.apply(shardId),
+                    null,
+                    true,
+                    ShardRoutingState.STARTED,
+                    AllocationId.newInitializing(inSyncIds.get(shardId))
+                )
+            );
+        }
+
+        routingTableBuilder.add(indexRoutingTableBuilder);
     }
 }

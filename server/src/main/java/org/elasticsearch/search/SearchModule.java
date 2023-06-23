@@ -82,6 +82,7 @@ import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
 import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
+import org.elasticsearch.plugins.SearchPlugin.QueryVectorBuilderSpec;
 import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
@@ -244,6 +245,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -305,6 +307,7 @@ public class SearchModule {
         registerSorts();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
+        registerQueryVectorBuilders(plugins);
         this.valuesSourceRegistry = registerAggregations(plugins);
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
@@ -980,6 +983,17 @@ public class SearchModule {
         );
     }
 
+    private void registerQueryVectorBuilders(List<SearchPlugin> plugins) {
+        registerFromPlugin(plugins, SearchPlugin::getQueryVectorBuilders, this::registerQueryVectorBuilder);
+    }
+
+    private <T extends QueryVectorBuilder> void registerQueryVectorBuilder(QueryVectorBuilderSpec<?> spec) {
+        namedXContents.add(new NamedXContentRegistry.Entry(QueryVectorBuilder.class, spec.getName(), p -> spec.getParser().apply(p, null)));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(QueryVectorBuilder.class, spec.getName().getPreferredName(), spec.getReader())
+        );
+    }
+
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
         registerFetchSubPhase(new ExplainPhase());
         registerFetchSubPhase(new StoredFieldsPhase());
@@ -1101,23 +1115,13 @@ public class SearchModule {
         );
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
-        registerQuery(
-            new QuerySpec<>(
-                KnnVectorQueryBuilder.NAME,
-                KnnVectorQueryBuilder::new,
-                parser -> {
-                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
-                }
-            )
-        );
+        registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
+        }));
 
-        registerQuery(
-            new QuerySpec<>(
-                KnnScoreDocQueryBuilder.NAME,
-                KnnScoreDocQueryBuilder::new,
-                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
-            )
-        );
+        registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");
+        }));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 

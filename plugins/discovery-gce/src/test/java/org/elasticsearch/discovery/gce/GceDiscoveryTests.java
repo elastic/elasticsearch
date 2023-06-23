@@ -8,6 +8,7 @@
 
 package org.elasticsearch.discovery.gce;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
@@ -85,7 +86,13 @@ public class GceDiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            Version.CURRENT,
+            TransportVersion.current(),
+            threadPool,
+            null
+        );
     }
 
     @After

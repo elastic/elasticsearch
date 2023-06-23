@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -45,7 +45,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -58,6 +58,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96896")
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -116,9 +118,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
         SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
-        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_11_0));
+        TransportVersion v = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_0_0,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_11_0)
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
-        assertThat(e.getMessage(), equalTo("Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + v + "]"));
+        assertThat(e.getMessage(), equalTo("Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + v + "]"));
     }
 
     public void testShallowCopy() {
@@ -135,10 +141,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return copyBuilder(original, Version.CURRENT);
+        return copyBuilder(original, TransportVersion.current());
     }
 
-    private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, Version version) throws IOException {
+    private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, TransportVersion version) throws IOException {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new, version);
     }
 
@@ -377,7 +383,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithUnits() throws IOException {
         final String timeout = randomTimeValue();
-        final String query = formatted("""
+        final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
@@ -388,7 +394,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithoutUnits() throws IOException {
         final int timeout = randomIntBetween(1, 1024);
-        final String query = formatted("""
+        final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
@@ -739,7 +745,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.fetchField("field");
         // these are not correct runtime mappings but they are counted compared to empty object
         searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
-        searchSourceBuilder.knnSearch(new KnnSearchBuilder("field", new float[] {}, 2, 5));
+        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, null)));
         searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("pitid"));
         searchSourceBuilder.docValueField("field");
         searchSourceBuilder.storedField("field");
@@ -888,9 +894,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
-        return Rewriteable.rewrite(
-            searchSourceBuilder,
-            new QueryRewriteContext(parserConfig(), writableRegistry(), null, Long.valueOf(1)::longValue)
-        );
+        return Rewriteable.rewrite(searchSourceBuilder, new QueryRewriteContext(parserConfig(), null, Long.valueOf(1)::longValue));
     }
 }

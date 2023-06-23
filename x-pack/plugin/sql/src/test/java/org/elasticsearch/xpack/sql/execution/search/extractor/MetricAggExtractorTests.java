@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
-import java.io.IOException;
 import java.time.ZoneId;
 
 import static java.util.Collections.emptyList;
@@ -65,7 +64,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     @Override
-    protected MetricAggExtractor mutateInstance(MetricAggExtractor instance) throws IOException {
+    protected MetricAggExtractor mutateInstance(MetricAggExtractor instance) {
         return new MetricAggExtractor(
             instance.name() + "mutated",
             instance.property() + "mutated",

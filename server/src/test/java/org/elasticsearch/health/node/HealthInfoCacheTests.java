@@ -8,17 +8,16 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,20 +33,12 @@ public class HealthInfoCacheTests extends ESTestCase {
         DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD
     );
     private final ClusterService clusterService = mock(ClusterService.class);
-    private final DiscoveryNode node1 = new DiscoveryNode(
-        "node_1",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-        Version.CURRENT
-    );
-    private final DiscoveryNode node2 = new DiscoveryNode(
-        "node_2",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-        Version.CURRENT
-    );
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
     private final DiscoveryNode[] allNodes = new DiscoveryNode[] { node1, node2 };
 
     public void testAddHealthInfo() {

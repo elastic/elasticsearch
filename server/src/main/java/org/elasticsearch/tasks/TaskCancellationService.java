@@ -12,15 +12,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -43,6 +45,8 @@ import static org.elasticsearch.core.Strings.format;
 
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
+    public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
+    public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersion.V_8_8_0;
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -57,6 +61,12 @@ public class TaskCancellationService {
             ThreadPool.Names.SAME,
             BanParentTaskRequest::new,
             new BanParentRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            CANCEL_CHILD_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            CancelChildRequest::new,
+            new CancelChildRequestHandler()
         );
     }
 
@@ -99,31 +109,43 @@ public class TaskCancellationService {
         final TaskId taskId = task.taskInfo(localNodeId(), false).taskId();
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);
-            StepListener<Void> completedListener = new StepListener<>();
-            CountDownActionListener countDownListener = new CountDownActionListener(3, completedListener);
-            Collection<Transport.Connection> childConnections = taskManager.startBanOnChildTasks(task.getId(), reason, () -> {
-                logger.trace("child tasks of parent [{}] are completed", taskId);
-                countDownListener.onResponse(null);
-            });
-            taskManager.cancel(task, reason, () -> {
-                logger.trace("task [{}] is cancelled", taskId);
-                countDownListener.onResponse(null);
-            });
-            StepListener<Void> setBanListener = new StepListener<>();
+            ListenableFuture<Void> completedListener = new ListenableFuture<>();
+            ListenableFuture<Void> setBanListener = new ListenableFuture<>();
+
+            Collection<Transport.Connection> childConnections;
+            try (var refs = new RefCountingRunnable(() -> setBanListener.addListener(completedListener))) {
+                var banChildrenRef = refs.acquire();
+                var cancelTaskRef = refs.acquire();
+
+                childConnections = taskManager.startBanOnChildTasks(task.getId(), reason, () -> {
+                    logger.trace("child tasks of parent [{}] are completed", taskId);
+                    banChildrenRef.close();
+                });
+
+                taskManager.cancel(task, reason, () -> {
+                    logger.trace("task [{}] is cancelled", taskId);
+                    cancelTaskRef.close();
+                });
+            }
             setBanOnChildConnections(reason, waitForCompletion, task, childConnections, setBanListener);
-            setBanListener.addListener(countDownListener);
-            // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
-            // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
-            final Runnable removeBansRunnable = transportService.getThreadPool()
-                .getThreadContext()
-                .preserveContext(() -> removeBanOnChildConnections(task, childConnections));
+
             // We remove bans after all child tasks are completed although in theory we can do it on a per-connection basis.
-            completedListener.whenComplete(r -> removeBansRunnable.run(), e -> removeBansRunnable.run());
-            // if wait_for_completion is true, then only return when (1) bans are placed on child connections, (2) child tasks are
-            // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child connections.
+            completedListener.addListener(
+                ActionListener.running(
+                    transportService.getThreadPool()
+                        .getThreadContext()
+                        // If we start unbanning when the last child task completed and that child task executed with a specific user, then
+                        // unban requests are denied because internal requests can't run with a user. We need to remove bans with the
+                        // current thread context.
+                        .preserveContext(() -> removeBanOnChildConnections(task, childConnections))
+                )
+            );
+
             if (waitForCompletion) {
+                // Wait until (1) bans are placed on child connections, (2) child tasks are completed or failed, (3) main task is cancelled.
                 completedListener.addListener(listener);
             } else {
+                // Only wait until bans are placed on child connections
                 setBanListener.addListener(listener);
             }
         } else {
@@ -281,7 +303,7 @@ public class TaskCancellationService {
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             reason = ban ? in.readString() : null;
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
                 waitForCompletion = in.readBoolean();
             } else {
                 waitForCompletion = false;
@@ -296,7 +318,7 @@ public class TaskCancellationService {
             if (ban) {
                 out.writeString(reason);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
                 out.writeBoolean(waitForCompletion);
             }
         }
@@ -315,7 +337,7 @@ public class TaskCancellationService {
                 final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason, channel);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     childTasks.size() + 1,
-                    new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request).map(r -> TransportResponse.Empty.INSTANCE)
+                    new ChannelActionListener<>(channel).map(r -> TransportResponse.Empty.INSTANCE)
                 );
                 for (CancellableTask childTask : childTasks) {
                     cancelTaskAndDescendants(childTask, request.reason, request.waitForCompletion, listener);
@@ -328,4 +350,69 @@ public class TaskCancellationService {
             }
         }
     }
+
+    private static class CancelChildRequest extends TransportRequest {
+
+        private final TaskId parentTaskId;
+        private final long childRequestId;
+        private final String reason;
+
+        static CancelChildRequest createCancelChildRequest(TaskId parentTaskId, long childRequestId, String reason) {
+            return new CancelChildRequest(parentTaskId, childRequestId, reason);
+        }
+
+        private CancelChildRequest(TaskId parentTaskId, long childRequestId, String reason) {
+            this.parentTaskId = parentTaskId;
+            this.childRequestId = childRequestId;
+            this.reason = reason;
+        }
+
+        private CancelChildRequest(StreamInput in) throws IOException {
+            super(in);
+            parentTaskId = TaskId.readFromStream(in);
+            childRequestId = in.readLong();
+            reason = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            parentTaskId.writeTo(out);
+            out.writeLong(childRequestId);
+            out.writeString(reason);
+        }
+    }
+
+    private class CancelChildRequestHandler implements TransportRequestHandler<CancelChildRequest> {
+        @Override
+        public void messageReceived(final CancelChildRequest request, final TransportChannel channel, Task task) throws Exception {
+            taskManager.cancelChildLocal(request.parentTaskId, request.childRequestId, request.reason);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    /**
+     * Sends an action to cancel a child task, associated with the given request ID and parent task.
+     */
+    public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
+        if (childConnection.getTransportVersion().onOrAfter(VERSION_SUPPORTING_CANCEL_CHILD_ACTION)) {
+            DiscoveryNode childNode = childConnection.getNode();
+            logger.debug(
+                "sending cancellation of child of parent task [{}] with request ID [{}] to node [{}] because of [{}]",
+                parentTask,
+                childRequestId,
+                childNode,
+                reason
+            );
+            final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
+            transportService.sendRequest(
+                childNode,
+                CANCEL_CHILD_ACTION_NAME,
+                request,
+                TransportRequestOptions.EMPTY,
+                EmptyTransportResponseHandler.INSTANCE_SAME
+            );
+        }
+    }
+
 }

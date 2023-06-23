@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -156,7 +157,7 @@ public class ListTasksResponse extends BaseTasksResponse {
     /**
      * Convert this task response to XContent grouping by executing nodes.
      */
-    public ChunkedToXContent groupedByNode(Supplier<DiscoveryNodes> nodesInCluster) {
+    public ChunkedToXContentObject groupedByNode(Supplier<DiscoveryNodes> nodesInCluster) {
         return ignored -> {
             final var discoveryNodes = nodesInCluster.get();
             return Iterators.concat(Iterators.single((builder, params) -> {
@@ -212,7 +213,7 @@ public class ListTasksResponse extends BaseTasksResponse {
     /**
      * Convert this response to XContent grouping by parent tasks.
      */
-    public ChunkedToXContent groupedByParent() {
+    public ChunkedToXContentObject groupedByParent() {
         return ignored -> Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject();
             toXContentCommon(builder, params);
@@ -232,7 +233,7 @@ public class ListTasksResponse extends BaseTasksResponse {
     /**
      * Presents a flat list of tasks
      */
-    public ChunkedToXContent groupedByNone() {
+    public ChunkedToXContentObject groupedByNone() {
         return ignored -> Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject();
             toXContentCommon(builder, params);
@@ -256,7 +257,7 @@ public class ListTasksResponse extends BaseTasksResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(ChunkedToXContent.wrapAsXContentObject(groupedByNone()), true, true);
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(groupedByNone()), true, true);
     }
 
 }

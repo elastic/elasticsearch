@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -20,7 +20,7 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.Collections;
 
@@ -49,10 +49,14 @@ public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregation
     }
 
     public void testSerializationPreBounds() throws Exception {
-        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_0);
+        TransportVersion noBoundsSupportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_0_0,
+            TransportVersion.V_7_5_0
+        );
         GeoTileGridAggregationBuilder builder = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_6_0);
+            output.setTransportVersion(TransportVersion.V_7_6_0);
             builder.writeTo(output);
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(
@@ -60,7 +64,7 @@ public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregation
                     new NamedWriteableRegistry(Collections.emptyList())
                 )
             ) {
-                in.setVersion(noBoundsSupportVersion);
+                in.setTransportVersion(noBoundsSupportVersion);
                 GeoTileGridAggregationBuilder readBuilder = new GeoTileGridAggregationBuilder(in);
                 assertThat(
                     readBuilder.geoBoundingBox(),

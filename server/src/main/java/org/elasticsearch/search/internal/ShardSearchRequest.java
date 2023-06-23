@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +53,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -88,7 +91,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
-    private final Version channelVersion;
+    private final TransportVersion channelVersion;
 
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
@@ -236,7 +239,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-        this.channelVersion = Version.CURRENT;
+        this.channelVersion = TransportVersion.current();
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
@@ -270,11 +273,34 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         super(in);
         shardId = new ShardId(in);
         searchType = SearchType.fromId(in.readByte());
-        shardRequestIndex = in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readVInt() : -1;
+        shardRequestIndex = in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0) ? in.readVInt() : -1;
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_013)) {
+            // to deserialize between the 8.8 and 8.500.013 version we need to translate
+            // the rank queries into sub searches if we are ranking; if there are no rank queries
+            // we deserialize the empty list and do nothing
+            List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
+            // if we are in the dfs phase in 8.8, we can have no rank queries
+            // and if we are in the query/fetch phase we can have either no rank queries
+            // for a standard query or hybrid search or 2+ rank queries, but we cannot have
+            // exactly 1 rank query ever so we check for this
+            assert rankQueryBuilders.size() != 1 : "[rank] requires at least [2] sub searches, but only found [1]";
+            // if we have 2+ rank queries we know we are ranking, so we set our
+            // sub searches from this; note this will override the boolean query deserialized from source
+            // because we use the same data structure for a single query and multiple queries
+            // but we will just re-create it as necessary
+            if (rankQueryBuilders.size() >= 2) {
+                assert source != null && source.rankBuilder() != null;
+                List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
+                for (QueryBuilder queryBuilder : rankQueryBuilders) {
+                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
+                }
+                source.subSearches(subSearchSourceBuilders);
+            }
+        }
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
             if (types.length > 0) {
@@ -289,11 +315,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         requestCache = in.readOptionalBoolean();
         clusterAlias = in.readOptionalString();
         allowPartialSearchResults = in.readBoolean();
-        if (in.getVersion().before(Version.V_7_11_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_7_11_0)) {
             in.readStringArray();
             in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
             bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
             readerId = in.readOptionalWriteable(ShardSearchContextId::new);
@@ -305,15 +331,15 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             keepAlive = null;
         }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-        channelVersion = Version.min(Version.readVersion(in), in.getVersion());
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             waitForCheckpoint = in.readLong();
             waitForCheckpointsTimeout = in.readTimeValue();
         } else {
             waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             waitForCheckpointsTimeout = SearchService.NO_TIMEOUT;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             /*
@@ -337,14 +363,28 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         shardId.writeTo(out);
         out.writeByte(searchType.id());
         if (asKey == false) {
-            if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
                 out.writeVInt(shardRequestIndex);
             }
             out.writeVInt(numberOfShards);
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)
+            && out.getTransportVersion().before(TransportVersion.V_8_500_013)) {
+            // to serialize between the 8.8 and 8.500.013 version we need to translate
+            // the sub searches into rank queries if we are ranking, otherwise, we
+            // ignore this because linear combination will have multiple sub searches in
+            // 8.500.013+, but only use the combined boolean query in prior versions
+            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
+            if (source != null && source.rankBuilder() != null && source.subSearches().size() >= 2) {
+                for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
+                    rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
+                }
+            }
+            out.writeNamedWriteableList(rankQueryBuilders);
+        }
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
@@ -356,32 +396,32 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalString(clusterAlias);
         out.writeBoolean(allowPartialSearchResults);
-        if (asKey == false && out.getVersion().before(Version.V_7_11_0)) {
+        if (asKey == false && out.getTransportVersion().before(TransportVersion.V_7_11_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
             out.writeOptionalString(null);
         }
-        if (asKey == false && out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (asKey == false && out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
-        Version.writeVersion(channelVersion, out);
-        Version waitForCheckpointsVersion = Version.V_7_16_0;
-        if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
+        TransportVersion.writeVersion(channelVersion, out);
+        TransportVersion waitForCheckpointsVersion = TransportVersion.V_7_16_0;
+        if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeLong(waitForCheckpoint);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException(
                 "Remote node version ["
-                    + out.getVersion()
+                    + out.getTransportVersion()
                     + " incompatible with "
                     + "wait_for_checkpoints. All nodes must be version ["
                     + waitForCheckpointsVersion
                     + "] or greater."
             );
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
@@ -574,9 +614,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         public Rewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
-
             SearchExecutionContext searchExecutionContext = ctx.convertToSearchExecutionContext();
-
             FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
             if (searchExecutionContext != null
                 && primarySort != null
@@ -663,10 +701,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     /**
      * Returns the minimum version of the channel that the request has been passed. If the request never passes around, then the channel
-     * version is {@link Version#CURRENT}; otherwise, it's the minimum version of the coordinating node and data node (and the proxy node
-     * in case the request is sent to the proxy node of the remote cluster before reaching the data node).
+     * version is {@link TransportVersion#current()}; otherwise, it's the minimum transport version of the coordinating node and data node
+     * (and the proxy node in case the request is sent to the proxy node of the remote cluster before reaching the data node).
      */
-    public Version getChannelVersion() {
+    public TransportVersion getChannelVersion() {
         return channelVersion;
     }
 

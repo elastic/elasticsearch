@@ -8,7 +8,7 @@ dependencies {
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat', 'semantic_search'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
   }
   restTests {
     includeXpack 'ml'
@@ -30,6 +30,10 @@ tasks.named("yamlRestTest").configure {
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
     'ml/3rd_party_deployment/Test start deployment with low priority and multiple allocations',
     'ml/3rd_party_deployment/Test start deployment with low priority and multiple threads per allocation',
+    'ml/3rd_party_deployment/Test stop deployments with allow_no_match',
+    'ml/3rd_party_deployment/Test cannot start 2 deployments with the same Id',
+    'ml/3rd_party_deployment/Test cannot start when deployment Id matches a different model',
+    'ml/3rd_party_deployment/Test cannot create model with a deployment Id',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',

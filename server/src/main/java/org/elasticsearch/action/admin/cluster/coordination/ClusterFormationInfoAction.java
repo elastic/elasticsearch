@@ -21,6 +21,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -124,7 +125,13 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
-            super(ClusterFormationInfoAction.NAME, transportService, actionFilters, ClusterFormationInfoAction.Request::new);
+            super(
+                ClusterFormationInfoAction.NAME,
+                transportService,
+                actionFilters,
+                ClusterFormationInfoAction.Request::new,
+                ThreadPool.Names.CLUSTER_COORDINATION
+            );
             this.coordinator = coordinator;
         }
 

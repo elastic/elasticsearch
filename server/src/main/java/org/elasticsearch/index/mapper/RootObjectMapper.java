@@ -9,12 +9,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
@@ -120,36 +120,6 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    /**
-     * Removes redundant root includes in {@link NestedObjectMapper} trees to avoid duplicate
-     * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
-     * itself included into a parent node, for which either {@code isIncludeInRoot} is
-     * {@code true} or which is transitively included in root by a chain of nodes with
-     * {@code isIncludeInParent} returning {@code true}.
-     */
-    // TODO it would be really nice to make this an implementation detail of NestedObjectMapper
-    // and run it as part of the builder, but this does not yet work because of the way that
-    // index templates are merged together. If merge() was run on Builder objects rather than
-    // on Mappers then we could move this.
-    public void fixRedundantIncludes() {
-        fixRedundantIncludes(this, true);
-    }
-
-    private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
-        for (Mapper mapper : objectMapper) {
-            if (mapper instanceof NestedObjectMapper child) {
-                boolean isNested = child.isNested();
-                boolean includeInRootViaParent = parentIncluded && isNested && child.isIncludeInParent();
-                boolean includedInRoot = isNested && child.isIncludeInRoot();
-                if (includeInRootViaParent && includedInRoot) {
-                    child.setIncludeInParent(true);
-                    child.setIncludeInRoot(false);
-                }
-                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
-            }
-        }
-    }
-
     private Explicit<DateFormatter[]> dynamicDateTimeFormatters;
     private Explicit<Boolean> dateDetection;
     private Explicit<Boolean> numericDetection;
@@ -184,7 +154,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+    public RootObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
@@ -364,7 +334,7 @@ public class RootObjectMapper extends ObjectMapper {
             String format = "dynamic template [%s] has invalid content [%s], "
                 + "attempted to validate it with the following match_mapping_type: %s";
             String message = String.format(Locale.ROOT, format, template.getName(), Strings.toString(template), Arrays.toString(types));
-            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
+            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0);
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {

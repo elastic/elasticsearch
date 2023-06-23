@@ -8,10 +8,12 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -116,5 +118,22 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     private String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
+    }
+
+    @Override
+    public void compareAndExchangeRegister(
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        if (skipCas(listener)) return;
+        ActionListener.completeWith(listener, () -> blobStore.compareAndExchangeRegister(buildKey(key), path, key, expected, updated));
+    }
+
+    @Override
+    public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+        if (skipCas(listener)) return;
+        ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), path, key));
     }
 }

@@ -114,7 +114,7 @@ public class RollupIT extends ESRestTestCase {
         final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
         int pageSize = randomIntBetween(2, 50);
         // fast cron so test runs quickly
-        createRollupJobRequest.setJsonEntity(formatted("""
+        createRollupJobRequest.setJsonEntity(Strings.format("""
             {
                 "index_pattern": "rollup-*",
                 "rollup_index": "results-rollup",

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -37,6 +38,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -49,16 +51,19 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         new TestGatewayAllocator(),
         new BalancedShardsAllocator(Settings.EMPTY),
         EmptyClusterInfoService.INSTANCE,
-        EmptySnapshotsInfoService.INSTANCE
+        EmptySnapshotsInfoService.INSTANCE,
+        TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
     );
 
     private ClusterState createInitialClusterState() {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("idx")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("idx"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
@@ -167,9 +172,16 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertEquals(unassignedPrimary.state(), UNASSIGNED);
             assertThat(unassignedPrimary.unassignedInfo().getMessage(), containsString("boom"));
             // MaxRetryAllocationDecider#canForceAllocatePrimary should return a NO decision because canAllocate returns NO here
-            assertEquals(
-                Decision.Type.NO,
-                decider.canForceAllocatePrimary(unassignedPrimary, null, newRoutingAllocation(clusterState)).type()
+            final var allocation = newRoutingAllocation(clusterState);
+            allocation.debugDecision(true);
+            final var decision = decider.canForceAllocatePrimary(unassignedPrimary, null, allocation);
+            assertEquals(Decision.Type.NO, decision.type());
+            assertThat(
+                decision.getExplanation(),
+                allOf(
+                    containsString("shard has exceeded the maximum number of retries"),
+                    containsString("POST /_cluster/reroute?retry_failed&metric=none")
+                )
             );
         }
 
@@ -260,8 +272,16 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
         // shard could not be relocated when retries are exhausted
         withRoutingAllocation(clusterState, allocation -> {
-            var source = allocation.routingTable().index("idx").shard(0).shard(0);
-            assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.NO));
+            allocation.debugDecision(true);
+            final var decision = decider.canAllocate(allocation.routingTable().index("idx").shard(0).shard(0), allocation);
+            assertThat(decision.type(), equalTo(Decision.Type.NO));
+            assertThat(
+                decision.getExplanation(),
+                allOf(
+                    containsString("shard has exceeded the maximum number of retries"),
+                    containsString("POST /_cluster/reroute?retry_failed&metric=none")
+                )
+            );
         });
 
         // manually reset retry count

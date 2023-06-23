@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocationTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -46,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -80,7 +84,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 FillMaskConfigTests.createRandom(),
                 TextEmbeddingConfigTests.createRandom(),
                 QuestionAnsweringConfigTests.createRandom(),
-                TextSimilarityConfigTests.createRandom() }
+                TextSimilarityConfigTests.createRandom(),
+                TextExpansionConfigTests.createRandom() }
             : new InferenceConfig[] {
                 ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig() };
@@ -125,6 +130,11 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     @Override
     protected TrainedModelConfig createTestInstance() {
         return createTestInstance(randomAlphaOfLength(10), lenient).build();
+    }
+
+    @Override
+    protected TrainedModelConfig mutateInstance(TrainedModelConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -180,7 +190,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
-            null
+            null,
+            ModelPackageConfigTests.randomModulePackageConfig()
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -229,7 +240,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
-            null
+            null,
+            ModelPackageConfigTests.randomModulePackageConfig()
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -388,14 +400,57 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .test();
     }
 
+    public void testValidatePackagedModelRequiredFields() {
+        String modelId = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+
+        TrainedModelConfig.Builder builder = TrainedModelConfig.builder().setModelId(modelId);
+
+        // all fine
+        assertNotNull(builder.validate(true));
+        assertNotNull(builder.validateNoPackageOverrides());
+
+        String field = "";
+        switch (randomIntBetween(0, 4)) {
+            case 0:
+                builder.setDescription(randomAlphaOfLength(10));
+                field = "description";
+                break;
+            case 1:
+                builder.setModelType(TrainedModelType.PYTORCH);
+                field = "model_type";
+                break;
+            case 2:
+                builder.setMetadata(Collections.singletonMap("meta", "data"));
+                field = "metadata";
+                break;
+            case 3:
+                builder.setTags(List.of("tag1", "tag2"));
+                field = "tags";
+                break;
+            case 4:
+                builder.setInferenceConfig(
+                    randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig())
+                );
+                field = "inference_config";
+                break;
+        }
+
+        ActionRequestValidationException ex = expectThrows(
+            ActionRequestValidationException.class,
+            "expected to throw for field: " + field,
+            () -> builder.validateNoPackageOverrides()
+        );
+        assertThat(ex.getMessage(), containsString("illegal to set [" + field + "] at inference model creation for packaged model;"));
+    }
+
     @Override
-    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
+    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, TransportVersion version) {
         TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
         if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
             builder.setModelType(null);
             builder.setLocation(null);
         }
-        if (instance.getInferenceConfig()instanceof NlpConfig nlpConfig) {
+        if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
         }
         return builder.build();

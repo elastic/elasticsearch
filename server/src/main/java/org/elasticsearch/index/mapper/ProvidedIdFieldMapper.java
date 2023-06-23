@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -58,27 +56,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
-
-    public static class Defaults {
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-        public static final FieldType NESTED_FIELD_TYPE;
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-
-            NESTED_FIELD_TYPE = new FieldType();
-            NESTED_FIELD_TYPE.setTokenized(false);
-            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            NESTED_FIELD_TYPE.setStored(false);
-            NESTED_FIELD_TYPE.setOmitNorms(true);
-            NESTED_FIELD_TYPE.freeze();
-        }
-    }
 
     public static final ProvidedIdFieldMapper NO_FIELD_DATA = new ProvidedIdFieldMapper(() -> false);
 

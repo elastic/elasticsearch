@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -32,6 +30,7 @@ import java.util.LinkedHashSet;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
 
@@ -105,27 +104,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            var configuration = context.configuration();
-            var functionRegistry = context.functionRegistry();
-            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
-                if (uf.analyzed()) {
-                    return uf;
-                }
-
-                String name = uf.name();
-
-                if (uf.childrenResolved() == false) {
-                    return uf;
-                }
-
-                String functionName = functionRegistry.resolveAlias(name);
-                if (functionRegistry.functionExists(functionName) == false) {
-                    return uf.missing(functionName, functionRegistry.listFunctions());
-                }
-                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                Function f = uf.buildResolved(configuration, def);
-                return f;
-            });
+            return plan.transformExpressionsUp(
+                UnresolvedFunction.class,
+                uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
+            );
         }
     }
 

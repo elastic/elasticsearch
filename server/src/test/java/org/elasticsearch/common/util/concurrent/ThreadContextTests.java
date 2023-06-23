@@ -27,6 +27,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -55,6 +56,54 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testStashContextPreservesDefaultHeadersToCopy() {
+        for (String header : HEADERS_TO_COPY) {
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(header, "bar");
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                assertEquals("bar", threadContext.getHeader(header));
+            }
+        }
+    }
+
+    public void testStashContextPreservingRequestHeaders() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putHeader("bar", "foo");
+        threadContext.putTransient("ctx.foo", 1);
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders("foo", "ctx.foo", "missing")) {
+            assertEquals("bar", threadContext.getHeader("foo"));
+            // only request headers preserved, not transient
+            assertNull(threadContext.getTransient("ctx.foo"));
+            assertNull(threadContext.getHeader("bar"));
+            assertEquals("1", threadContext.getHeader("default"));
+            assertNull(threadContext.getHeader("missing"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals("foo", threadContext.getHeader("bar"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testStashContextPreservingHeadersWithDefaultHeadersToCopy() {
+        for (String header : HEADERS_TO_COPY) {
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(header, "bar");
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders()) {
+                assertEquals("bar", threadContext.getHeader(header));
+            }
+            // Also works if we pass it explicitly
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(header)) {
+                assertEquals("bar", threadContext.getHeader(header));
+            }
+        }
     }
 
     public void testNewContextWithClearedTransients() {

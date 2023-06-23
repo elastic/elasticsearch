@@ -8,6 +8,7 @@
 
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
@@ -25,8 +26,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -44,17 +47,21 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -517,13 +524,13 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
             throw new IllegalStateException(
-                "Cannot start this node because it holds metadata for indices created with version ["
+                "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
                     + Version.CURRENT
                     + "] is incompatible. Revert this node to version ["
                     + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
-                    + "] and delete any indices created in versions earlier than ["
+                    + "] and delete any indices with versions earlier than ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "] before upgrading to version ["
                     + Version.CURRENT
@@ -617,7 +624,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, IndexVersion.CURRENT);
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
@@ -926,6 +933,38 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    // throttle the hot-threads calls: no more than one per minute
+    private final Semaphore shardLockHotThreadsPermit = new Semaphore(1);
+    private long nextShardLockHotThreadsNanos = Long.MIN_VALUE;
+
+    private void maybeLogThreadDump(ShardId shardId, String message) {
+        if (logger.isDebugEnabled() == false) {
+            return;
+        }
+
+        final var prefix = format("hot threads while failing to obtain shard lock for %s: %s", shardId, message);
+        if (shardLockHotThreadsPermit.tryAcquire()) {
+            try {
+                final var now = System.nanoTime();
+                if (now <= nextShardLockHotThreadsNanos) {
+                    return;
+                }
+                nextShardLockHotThreadsNanos = now + TimeUnit.SECONDS.toNanos(60);
+                final var hotThreads = new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect();
+                try (
+                    var stream = ChunkedLoggingStream.create(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
+                    var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
+                ) {
+                    writer.write(hotThreads);
+                }
+            } catch (Exception e) {
+                logger.error(format("could not obtain %s", prefix), e);
+            } finally {
+                shardLockHotThreadsPermit.release();
+            }
+        }
+    }
+
     private final class InternalShardLock {
         /*
          * This class holds a mutex for exclusive access and timeout / wait semantics
@@ -975,18 +1014,15 @@ public final class NodeEnvironment implements Closeable {
                     setDetails(details);
                 } else {
                     final Tuple<Long, String> lockDetails = this.lockDetails; // single volatile read
-                    throw new ShardLockObtainFailedException(
-                        shardId,
-                        "obtaining shard lock for ["
-                            + details
-                            + "] timed out after ["
-                            + timeoutInMillis
-                            + "ms], lock already held for ["
-                            + lockDetails.v2()
-                            + "] with age ["
-                            + TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1())
-                            + "ms]"
+                    final var message = format(
+                        "obtaining shard lock for [%s] timed out after [%dms], lock already held for [%s] with age [%dms]",
+                        details,
+                        timeoutInMillis,
+                        lockDetails.v2(),
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1())
                     );
+                    maybeLogThreadDump(shardId, message);
+                    throw new ShardLockObtainFailedException(shardId, message);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -1161,7 +1197,7 @@ public final class NodeEnvironment implements Closeable {
                 paths.add(indexFolder);
             }
         }
-        return paths.toArray(new Path[paths.size()]);
+        return paths.toArray(Path[]::new);
     }
 
     /**
@@ -1230,12 +1266,14 @@ public final class NodeEnvironment implements Closeable {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    logger.trace("releasing lock [{}]", lock);
-                    lock.close();
-                } catch (IOException e) {
-                    logger.trace(() -> "failed to release lock [" + lock + "]", e);
+            synchronized (locks) {
+                for (Lock lock : locks) {
+                    try {
+                        logger.trace("releasing lock [{}]", lock);
+                        lock.close();
+                    } catch (IOException e) {
+                        logger.trace(() -> "failed to release lock [" + lock + "]", e);
+                    }
                 }
             }
         }
@@ -1243,12 +1281,15 @@ public final class NodeEnvironment implements Closeable {
 
     private void assertEnvIsLocked() {
         if (closed.get() == false && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    lock.ensureValid();
-                } catch (IOException e) {
-                    logger.warn("lock assertion failed", e);
-                    throw new IllegalStateException("environment is not locked", e);
+            synchronized (locks) {
+                if (closed.get()) return; // raced with close() - we lost
+                for (Lock lock : locks) {
+                    try {
+                        lock.ensureValid();
+                    } catch (IOException e) {
+                        logger.warn("lock assertion failed", e);
+                        throw new IllegalStateException("environment is not locked", e);
+                    }
                 }
             }
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -107,7 +108,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             script = mockScript("['key3' : ctx.payload.key1 + ctx.payload.key2]");
         } else {
             logger.info("testing script transform with an indexed script");
-            assertAcked(client().admin().cluster().preparePutStoredScript().setId("my-script").setContent(new BytesArray(formatted("""
+            assertAcked(clusterAdmin().preparePutStoredScript().setId("my-script").setContent(new BytesArray(Strings.format("""
                 {
                   "script": {
                     "lang": "%s",

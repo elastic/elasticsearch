@@ -207,7 +207,8 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                         shardId,
                         primary,
                         primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
-                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                        ShardRouting.Role.DEFAULT
                     );
                     shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -236,11 +237,29 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                             globalCheckpoint - randomLongBetween(10L, 100L)
                         );
                         shardStats.add(
-                            new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null)
+                            new ShardStats(
+                                shardRouting,
+                                new ShardPath(false, path, path, shardId),
+                                stats,
+                                null,
+                                invalidSeqNoStats,
+                                null,
+                                false,
+                                0
+                            )
                         );
                     } else {
                         shardStats.add(
-                            new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null)
+                            new ShardStats(
+                                shardRouting,
+                                new ShardPath(false, path, path, shardId),
+                                stats,
+                                null,
+                                validSeqNoStats,
+                                null,
+                                false,
+                                0
+                            )
                         );
                     }
                 }

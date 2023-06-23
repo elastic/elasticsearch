@@ -49,18 +49,6 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
     private static final String REVIEWS_INDEX_NAME = "basic-crud-reviews";
     private static final int NUM_USERS = 28;
 
-    private static Integer getUserIdForRow(int row) {
-        return row % NUM_USERS;
-    }
-
-    private static String getDateStringForRow(int row) {
-        int day = (11 + (row / 100)) % 28;
-        int hour = 10 + (row % 13);
-        int min = 10 + (row % 49);
-        int sec = 10 + (row % 49);
-        return "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
-    }
-
     private static Map<String, Object> createRuntimeMappings() {
         return new HashMap<>() {
             {
@@ -99,13 +87,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
 
     @Before
     public void createReviewsIndex() throws Exception {
-        createReviewsIndex(
-            REVIEWS_INDEX_NAME,
-            100,
-            NUM_USERS,
-            TransformUsingSearchRuntimeFieldsIT::getUserIdForRow,
-            TransformUsingSearchRuntimeFieldsIT::getDateStringForRow
-        );
+        createReviewsIndex(REVIEWS_INDEX_NAME, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
     }
 
     @After

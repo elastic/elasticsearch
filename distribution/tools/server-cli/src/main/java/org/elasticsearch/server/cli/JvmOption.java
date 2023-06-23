@@ -8,6 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.common.Strings;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +31,11 @@ class JvmOption {
     private final String origin;
 
     JvmOption(String value, String origin) {
+        if (origin == null) {
+            throw new IllegalStateException(Strings.format("""
+                Elasticsearch could not determine the origin of JVM option [%s]. \
+                This indicates that it is running in an unsupported configuration.""", value));
+        }
         this.value = value;
         this.origin = origin;
     }

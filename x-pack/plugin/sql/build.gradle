@@ -11,7 +11,6 @@ esplugin {
 }
 
 ext {
-  antlrVersion = "4.9.2"
   // SQL dependency versions
   jlineVersion = "3.21.0"
 
@@ -63,7 +62,7 @@ configurations {
 }
 
 dependencies {
-  regenerate "org.antlr:antlr4:${antlrVersion}"
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String grammarPath = 'src/main/antlr'

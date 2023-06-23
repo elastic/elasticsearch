@@ -1,5 +1,0 @@
-pr: 89965
-summary: "EQL sequences: support join on multi-values"
-area: EQL
-type: bug
-issues: []

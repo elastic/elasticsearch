@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.client;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -154,9 +155,10 @@ public class RemoteFailureTests extends ESTestCase {
             """);
         int i = 0;
         while (tooBig.length() < RemoteFailure.MAX_RAW_RESPONSE) {
-            tooBig.append(formatted("""
+            Object[] args = new Object[] { i++ };
+            tooBig.append(Strings.format("""
                 "%04d" : "lots and lots and lots and lots and lots of words",
-                """, i++));
+                """, args));
         }
         tooBig.append("""
               "end" : "lots and lots and lots and lots and lots of words"

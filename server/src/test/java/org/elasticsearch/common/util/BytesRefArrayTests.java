@@ -10,7 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +48,7 @@ public class BytesRefArrayTests extends ESTestCase {
                 writableRegistry(),
                 (out, value) -> value.writeTo(out),
                 in -> new BytesRefArray(in, mockBigArrays()),
-                Version.CURRENT
+                TransportVersion.current()
             );
 
             assertEquality(array, copy);
@@ -97,7 +97,7 @@ public class BytesRefArrayTests extends ESTestCase {
                     writableRegistry(),
                     (out, value) -> value.writeTo(out),
                     in -> new BytesRefArray(in, mockBigArrays()),
-                    Version.CURRENT
+                    TransportVersion.current()
                 );
                 assertEquality(inArray, array);
                 inArray.close();

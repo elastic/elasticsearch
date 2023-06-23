@@ -76,6 +76,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     }
 
     @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
+
+    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }

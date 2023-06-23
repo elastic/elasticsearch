@@ -7,7 +7,6 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 archivesBaseName = 'x-pack'
 
@@ -66,6 +65,14 @@ if (BuildParams.isSnapshotBuild() == false) {
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
   // private key, these tests are blacklisted in non-snapshot test runs
   restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
+
+  // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
+  //  which require snapshot builds:
+  // * RCS 2.0. cross_cluster_search is only available with untrusted_remote_cluster_feature_flag_registered set
+  // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
+  // We disable these tests for snapshot builds to maintain release build coverage.
+  restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+  restTestBlacklist.add('api_key/50_cross_cluster/*')
 }
 
 tasks.named("yamlRestTest").configure {
@@ -78,11 +85,19 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'unsigned_long/50_script_values/Scripted sort values',
     'unsigned_long/50_script_values/script_score query',
     'unsigned_long/50_script_values/Script query',
-    'data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action',
     'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with time series mappings',
     'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
     'analytics/histogram/histogram with wrong time series mappings',
     'analytics/histogram/histogram with time series mappings',
+    'analytics/boxplot/Basic Search',
+    'analytics/boxplot/Search With Runtime Field',
+    'analytics/boxplot/Search With Missing',
+    'analytics/moving_percentile/Basic Search TDigest',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
+    'ml/evaluate_data_frame/Test classification auc_roc',
+    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
   ].join(',')
 }
 
@@ -90,6 +105,10 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest(
     "vectors/10_dense_vector_basic/Deprecated function signature",
     "to support it, it would require to almost revert back the #48725 and complicate the code"
+  )
+  task.skipTest(
+    "vectors/20_dense_vector_special_cases/Indexing of Dense vectors should error when dims don't match defined in the mapping",
+    "Error message has changed"
   )
   task.skipTest("vectors/30_sparse_vector_basic/Cosine Similarity", "not supported for compatibility")
   task.skipTest("vectors/30_sparse_vector_basic/Deprecated function signature", "not supported for compatibility")
@@ -150,6 +169,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("sql/translate/Translate SQL", "query folding changed in v 8.5, added track_total_hits: -1")
   task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
   task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
+  task.skipTest("spatial/70_script_doc_values/geoshape value", "error message changed in 8.9.0")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

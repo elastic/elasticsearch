@@ -8,6 +8,8 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -72,14 +74,14 @@ public class StringTests extends ScriptTestCase {
         StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
         StringBuilder result = new StringBuilder("cat");
         for (int i = 1; i < count; i++) {
-            final String s = formatted("%03d", i);
+            final String s = Strings.format("%03d", i);
             script.append(" + '").append(s).append("'.toString()");
             result.append(s);
         }
         final String s = script.toString();
         assertTrue(
             "every string part should be separately pushed to stack.",
-            Debugger.toString(s).contains(formatted("LDC \"%03d\"", count / 2))
+            Debugger.toString(s).contains(Strings.format("LDC \"%03d\"", count / 2))
         );
         assertEquals(result.toString(), exec(s));
     }
@@ -155,11 +157,9 @@ public class StringTests extends ScriptTestCase {
         assertEquals('c', exec("String s = \"c\"; (char)s"));
         assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        ClassCastException expected = expectScriptThrows(
-            ClassCastException.class,
-            false,
-            () -> { assertEquals("cc", exec("return (String)(char)\"cc\"")); }
-        );
+        ClassCastException expected = expectScriptThrows(ClassCastException.class, false, () -> {
+            assertEquals("cc", exec("return (String)(char)\"cc\""));
+        });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, false, () -> { assertEquals("cc", exec("return (String)(char)'cc'")); });

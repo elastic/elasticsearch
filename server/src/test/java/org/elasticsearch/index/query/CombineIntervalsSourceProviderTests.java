@@ -27,7 +27,7 @@ public class CombineIntervalsSourceProviderTests extends AbstractXContentSeriali
     }
 
     @Override
-    protected Combine mutateInstance(Combine instance) throws IOException {
+    protected Combine mutateInstance(Combine instance) {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         boolean ordered = instance.isOrdered();
         int maxGaps = instance.getMaxGaps();

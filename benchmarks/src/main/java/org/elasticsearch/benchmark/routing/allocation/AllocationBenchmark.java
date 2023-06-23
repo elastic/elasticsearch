@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.benchmark.routing.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -31,6 +32,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -131,19 +134,23 @@ public class AllocationBenchmark {
             );
         }
         Metadata metadata = mb.build();
-        RoutingTable.Builder rb = RoutingTable.builder();
+        RoutingTable.Builder rb = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 1; i <= numIndices; i++) {
             rb.addAsNew(metadata.index("test_" + i));
         }
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
+        Map<String, TransportVersion> transportVersions = new HashMap<>();
         for (int i = 1; i <= numNodes; i++) {
-            nb.add(Allocators.newNode("node" + i, Collections.singletonMap("tag", "tag_" + (i % numTags))));
+            String id = "node" + i;
+            nb.add(Allocators.newNode(id, Collections.singletonMap("tag", "tag_" + (i % numTags))));
+            transportVersions.put(id, TransportVersion.current());
         }
-        initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(nb)
+            .transportVersions(transportVersions)
             .build();
     }
 

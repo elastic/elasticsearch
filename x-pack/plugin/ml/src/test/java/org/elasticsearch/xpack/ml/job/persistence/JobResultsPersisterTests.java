@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -289,7 +290,11 @@ public class JobResultsPersisterTests extends ESTestCase {
             666.0,
             new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0)
         );
-        persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
+        persister.persistDatafeedTimingStats(
+            timingStats,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
 
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();

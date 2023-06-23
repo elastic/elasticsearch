@@ -13,14 +13,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -77,7 +75,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardId));
                 ShardPath shardPath = new ShardPath(false, path, path, shId);
                 ShardRouting routing = createShardRouting(shId, (shardId == 0));
-                shards.add(new ShardStats(routing, shardPath, null, null, null, null));
+                shards.add(new ShardStats(routing, shardPath, null, null, null, null, false, 0));
                 AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(
                     index.getName(),
                     k -> new AtomicLong(0L)
@@ -126,7 +124,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
             Path path = createTempDir().resolve("indices").resolve(shId.getIndex().getUUID()).resolve(String.valueOf(shId.id()));
             ShardPath shardPath = new ShardPath(false, path, path, shId);
             ShardRouting routing = createShardRouting(shId, (shId.id() == 0));
-            stats.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null));
+            stats.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null, false, 0));
         }
         final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(
             stats.toArray(new ShardStats[0]),
@@ -137,24 +135,16 @@ public class IndicesStatsResponseTests extends ESTestCase {
             ClusterState.EMPTY_STATE.getMetadata(),
             ClusterState.EMPTY_STATE.routingTable()
         );
-        final ToXContent.Params paramsClusterLevel = new ToXContent.MapParams(Map.of("level", "cluster"));
-        final var iteratorClusterLevel = indicesStatsResponse.toXContentChunked(paramsClusterLevel);
-        int chunksSeenClusterLevel = 0;
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), Streams.NULL_OUTPUT_STREAM);
-        while (iteratorClusterLevel.hasNext()) {
-            iteratorClusterLevel.next().toXContent(builder, paramsClusterLevel);
-            chunksSeenClusterLevel++;
-        }
-        assertEquals(3, chunksSeenClusterLevel);
-
-        final ToXContent.Params paramsIndexLevel = new ToXContent.MapParams(Map.of("level", "indices"));
-        final var iteratorIndexLevel = indicesStatsResponse.toXContentChunked(paramsIndexLevel);
-        int chunksSeenIndexLevel = 0;
-        while (iteratorIndexLevel.hasNext()) {
-            iteratorIndexLevel.next().toXContent(builder, paramsIndexLevel);
-            chunksSeenIndexLevel++;
-        }
-        assertEquals(4 + shards, chunksSeenIndexLevel);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            indicesStatsResponse,
+            new ToXContent.MapParams(Map.of("level", "cluster")),
+            ignored1 -> 3
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            indicesStatsResponse,
+            new ToXContent.MapParams(Map.of("level", "indices")),
+            ignored -> 4 + shards
+        );
     }
 
     private ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {

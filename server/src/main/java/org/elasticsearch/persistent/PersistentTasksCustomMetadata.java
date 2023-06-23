@@ -9,7 +9,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -198,8 +198,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -474,11 +474,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             builder.endObject();
             return builder;
         }
-
-        @Override
-        public boolean isFragment() {
-            return false;
-        }
     }
 
     private static class TaskBuilder<Params extends PersistentTaskParams> {
@@ -537,7 +532,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     public PersistentTasksCustomMetadata(StreamInput in) throws IOException {
         lastAllocationId = in.readLong();
-        tasks = in.readMap(StreamInput::readString, PersistentTask::new);
+        tasks = in.readMap(PersistentTask::new);
     }
 
     @Override

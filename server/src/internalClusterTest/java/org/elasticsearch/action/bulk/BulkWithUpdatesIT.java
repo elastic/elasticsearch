@@ -81,18 +81,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
             scripts.put("ctx._source.field2 = 'value2'", vars -> srcScript(vars, source -> source.replace("field2", "value2")));
 
-            scripts.put(
-                "throw script exception on unknown var",
-                vars -> {
-                    throw new ScriptException(
-                        "message",
-                        null,
-                        Collections.emptyList(),
-                        "exception on unknown var",
-                        CustomScriptPlugin.NAME
-                    );
-                }
-            );
+            scripts.put("throw script exception on unknown var", vars -> {
+                throw new ScriptException("message", null, Collections.emptyList(), "exception on unknown var", CustomScriptPlugin.NAME);
+            });
 
             scripts.put("ctx.op = \"none\"", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "none"));
             scripts.put("ctx.op = \"delete\"", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
@@ -649,7 +640,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("bulkindex*").get();
         assertHitCount(searchResponse, 3);
 
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex2")));
+        assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex2")));
 
         BulkRequest bulkRequest2 = new BulkRequest();
         bulkRequest2.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
@@ -669,7 +660,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("bulkindex1");
 
         client().prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex1")));
+        assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex1")));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulkRequest.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))

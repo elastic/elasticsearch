@@ -7,13 +7,11 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class ObjectMapperMergeTests extends ESTestCase {
 
@@ -117,26 +115,6 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("test", merged.runtimeFields().iterator().next().name());
     }
 
-    public void testMergeNested() {
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(true)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false));
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(false)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false));
-
-        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false)));
-        assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
-
-        NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
-            secondMapper,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperBuilderContext.root(false)
-        );
-        assertFalse(result.isIncludeInParent());
-        assertTrue(result.isIncludeInRoot());
-    }
-
     public void testMergedFieldNamesFieldWithDotsSubobjectsFalseAtRoot() {
         RootObjectMapper mergeInto = createRootSubobjectFalseLeafWithDots();
         RootObjectMapper mergeWith = createRootSubobjectFalseLeafWithDots();
@@ -202,7 +180,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
-        FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", Version.CURRENT);
+        FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.CURRENT);
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false));
         assertEquals("host.name", fieldMapper.simpleName());
         assertEquals("host.name", fieldMapper.name());
@@ -210,7 +188,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper.Builder createObjectSubobjectsFalseLeafWithDots() {
-        KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", Version.CURRENT);
+        KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.CURRENT);
         KeywordFieldMapper fieldMapper = fieldBuilder.build(new MapperBuilderContext("foo.metrics", false));
         assertEquals("host.name", fieldMapper.simpleName());
         assertEquals("foo.metrics.host.name", fieldMapper.name());
@@ -234,7 +212,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name) {
         TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder("keyword", Version.CURRENT));
+        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder("keyword", IndexVersion.CURRENT));
         return builder;
     }
 }

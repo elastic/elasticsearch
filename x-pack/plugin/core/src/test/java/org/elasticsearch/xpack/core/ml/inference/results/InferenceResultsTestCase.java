@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -23,7 +23,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             T inferenceResult = createTestInstance();
             if (randomBoolean()) {
-                inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
+                inferenceResult = copyInstance(inferenceResult, TransportVersion.current());
             }
             IngestDocument document = TestIngestDocument.emptyIngestDocument();
             String parentField = randomAlphaOfLength(10);
@@ -43,7 +43,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             T inferenceResult = createTestInstance();
             if (randomBoolean()) {
-                inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
+                inferenceResult = copyInstance(inferenceResult, TransportVersion.current());
             }
             IngestDocument document = TestIngestDocument.emptyIngestDocument();
             String parentField = randomAlphaOfLength(10);

@@ -188,12 +188,7 @@ public final class DocumentPermissions implements CacheKey {
      * https://github.com/elastic/x-plugins/issues/3145
      */
     static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original) throws IOException {
-        QueryRewriteContext copy = new QueryRewriteContext(
-            original.getParserConfig(),
-            original.getWriteableRegistry(),
-            null,
-            original::nowInMillis
-        );
+        QueryRewriteContext copy = new QueryRewriteContext(original.getParserConfig(), null, original::nowInMillis);
         Rewriteable.rewrite(queryBuilder, copy);
         if (copy.hasAsyncActions()) {
             throw new IllegalStateException("role queries are not allowed to execute additional requests");

@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
@@ -47,8 +45,6 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.InvalidMappedField;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
@@ -77,6 +73,8 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
@@ -168,90 +166,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
-        List<Attribute> matches = new ArrayList<>();
-
-        // first take into account the qualified version
-        boolean qualified = u.qualifier() != null;
-
-        for (Attribute attribute : attrList) {
-            if (attribute.synthetic() == false) {
-                boolean match = qualified ? Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
-                // if the field is unqualified
-                // first check the names directly
-                    (Objects.equals(u.name(), attribute.name())
-                        // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
-                        || Objects.equals(u.name(), attribute.qualifiedName()));
-                if (match) {
-                    matches.add(attribute);
-                }
-            }
-        }
-
-        // none found
-        if (matches.isEmpty()) {
-            return null;
-        }
-
-        if (matches.size() == 1) {
-            // only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            return handleSpecialFields(u, matches.get(0).withLocation(u.source()), allowCompound);
-        }
-
-        List<String> refs = matches.stream().sorted((a, b) -> {
-            int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
-            int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
-            return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.qualifiedName().compareTo(b.qualifiedName()));
-        })
-            .map(
-                a -> "line "
-                    + a.sourceLocation().toString().substring(1)
-                    + " ["
-                    + (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name())
-                    + "]"
-            )
-            .collect(toList());
-        return u.withUnresolvedMessage(
-            "Reference [" + u.qualifiedName() + "] is ambiguous (to disambiguate use quotes or qualifiers); " + "matches any of " + refs
-        );
-    }
-
-    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
-        // if it's a object/compound type, keep it unresolved with a nice error message
-        if (named instanceof FieldAttribute fa) {
-
-            // incompatible mappings
-            if (fa.field() instanceof InvalidMappedField) {
-                named = u.withUnresolvedMessage(
-                    "Cannot use field [" + fa.name() + "] due to ambiguities being " + ((InvalidMappedField) fa.field()).errorMessage()
-                );
-            }
-            // unsupported types
-            else if (DataTypes.isUnsupported(fa.dataType())) {
-                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                if (unsupportedField.hasInherited()) {
-                    named = u.withUnresolvedMessage(
-                        "Cannot use field ["
-                            + fa.name()
-                            + "] with unsupported type ["
-                            + unsupportedField.getOriginalType()
-                            + "] in hierarchy (field ["
-                            + unsupportedField.getInherited()
-                            + "])"
-                    );
-                } else {
-                    named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]"
-                    );
-                }
-            }
-            // compound fields
-            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
-                named = u.withUnresolvedMessage(
-                    "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields"
-                );
-            }
-        }
-        return named;
+        var matches = maybeResolveAgainstList(u, attrList, allowCompound, false);
+        return matches.isEmpty() ? null : matches.get(0);
     }
 
     private static boolean hasStar(List<? extends Expression> exprs) {
@@ -839,9 +755,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof Project p) {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (p.child() instanceof Filter f) {
-                    // end::noformat
                     Expression condition = f.condition();
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
@@ -853,9 +767,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (plan instanceof Aggregate a) {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (a.child() instanceof Filter f) {
-                    // end::noformat
                     Expression condition = f.condition();
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
@@ -899,15 +811,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            var functionRegistry = context.functionRegistry();
-            var configuration = context.configuration();
             return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
                 if (uf.analyzed()) {
                     return uf;
                 }
-
-                String name = uf.name();
-
                 if (hasStar(uf.arguments())) {
                     FunctionResolutionStrategy strategy = uf.resolutionStrategy();
                     if (SqlFunctionResolution.DISTINCT == strategy) {
@@ -929,18 +836,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                if (uf.childrenResolved() == false) {
-                    return uf;
-                }
-
-                String functionName = functionRegistry.resolveAlias(name);
-                if (functionRegistry.functionExists(functionName) == false) {
-                    return uf.missing(functionName, functionRegistry.listFunctions());
-                }
-                // TODO: look into Generator for significant terms, etc..
-                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                Function f = uf.buildResolved(configuration, def);
-                return f;
+                return resolveFunction(uf, context.configuration(), context.functionRegistry());
             });
         }
     }
@@ -1026,9 +922,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(Filter f) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (f.child() instanceof Project p) {
-                // end::noformat
                 for (Expression n : p.projections()) {
                     if (n instanceof Alias) {
                         n = ((Alias) n).child();
@@ -1069,9 +963,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(Filter f, AnalyzerContext context) {
             // HAVING = Filter followed by an Agg
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (f.child() instanceof Aggregate agg && agg.resolved()) {
-                // end::noformat
                 Set<NamedExpression> missing = null;
                 Expression condition = f.condition();
 
@@ -1246,9 +1138,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof SubQueryAlias a) {
-                // end::noformat
                 return plan.transformExpressionsDown(FieldAttribute.class, f -> {
                     if (f.qualifier() != null && f.qualifier().equals(a.alias())) {
                         // Find the underlying concrete relation (EsIndex) and its name as the new qualifier

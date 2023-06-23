@@ -10,7 +10,7 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -276,7 +276,7 @@ public class OsStats implements Writeable, ToXContentFragment {
                 total = 0;
             }
             this.total = total;
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 long adjustedTotal = in.readLong();
                 assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
                 if (adjustedTotal < 0) {
@@ -299,7 +299,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(total);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 out.writeLong(adjustedTotal);
             }
             out.writeLong(free);

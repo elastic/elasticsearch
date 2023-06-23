@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
@@ -124,7 +125,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = in.readBoolean();
         this.maxSequenceLength = in.readVInt();
         this.truncate = in.readEnum(Truncate.class);
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             this.span = in.readInt();
         } else {
             this.span = UNSET_SPAN_VALUE;
@@ -137,7 +138,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         out.writeBoolean(withSpecialTokens);
         out.writeVInt(maxSequenceLength);
         out.writeEnum(truncate);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeInt(span);
         }
     }
@@ -200,5 +201,9 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
 
     public int getSpan() {
         return span;
+    }
+
+    public void validateVocabulary(PutTrainedModelVocabularyAction.Request request) {
+
     }
 }

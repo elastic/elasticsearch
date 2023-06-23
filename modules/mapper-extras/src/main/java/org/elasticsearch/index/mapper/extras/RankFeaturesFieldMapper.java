@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -26,6 +27,8 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
@@ -77,17 +80,13 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        public boolean positiveScoreImpact() {
-            return positiveScoreImpact;
         }
 
         @Override
@@ -107,7 +106,14 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Queries on [rank_features] fields are not supported");
+            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
+        }
+
+        private static String indexedValueForSearch(Object value) {
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            }
+            return value.toString();
         }
     }
 
@@ -149,33 +155,44 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         String feature = null;
-        for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
-            if (token == Token.FIELD_NAME) {
-                feature = context.parser().currentName();
-            } else if (token == Token.VALUE_NULL) {
-                // ignore feature, this is consistent with numeric fields
-            } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                final String key = name() + "." + feature;
-                float value = context.parser().floatValue(true);
-                if (context.doc().getByKey(key) != null) {
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
+                if (token == Token.FIELD_NAME) {
+                    feature = context.parser().currentName();
+                    if (feature.contains(".")) {
+                        throw new IllegalArgumentException(
+                            "[rank_features] fields do not support dots in feature names but found [" + feature + "]"
+                        );
+                    }
+                } else if (token == Token.VALUE_NULL) {
+                    // ignore feature, this is consistent with numeric fields
+                } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
+                    final String key = name() + "." + feature;
+                    float value = context.parser().floatValue(true);
+                    if (context.doc().getByKey(key) != null) {
+                        throw new IllegalArgumentException(
+                            "[rank_features] fields do not support indexing multiple values for the same "
+                                + "rank feature ["
+                                + key
+                                + "] in the same document"
+                        );
+                    }
+                    if (positiveScoreImpact == false) {
+                        value = 1 / value;
+                    }
+                    context.doc().addWithKey(key, new FeatureField(name(), feature, value));
+                } else {
                     throw new IllegalArgumentException(
-                        "[rank_features] fields do not support indexing multiple values for the same "
-                            + "rank feature ["
-                            + key
-                            + "] in the same document"
+                        "[rank_features] fields take hashes that map a feature to a strictly positive "
+                            + "float, but got unexpected token "
+                            + token
                     );
                 }
-                if (positiveScoreImpact == false) {
-                    value = 1 / value;
-                }
-                context.doc().addWithKey(key, new FeatureField(name(), feature, value));
-            } else {
-                throw new IllegalArgumentException(
-                    "[rank_features] fields take hashes that map a feature to a strictly positive "
-                        + "float, but got unexpected token "
-                        + token
-                );
             }
+        } finally {
+            context.path().setWithinLeafObject(false);
         }
     }
 

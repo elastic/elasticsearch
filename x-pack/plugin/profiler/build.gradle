@@ -12,4 +12,14 @@ esplugin {
   name 'x-pack-profiling'
   description 'The profiler plugin adds support for retrieving data from Universal Profiler.'
   classname 'org.elasticsearch.xpack.profiler.ProfilingPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('mapper-unsigned-long'))
+  testImplementation project(path: xpackModule('mapper-version'))
+  testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(':modules:data-streams')
 }

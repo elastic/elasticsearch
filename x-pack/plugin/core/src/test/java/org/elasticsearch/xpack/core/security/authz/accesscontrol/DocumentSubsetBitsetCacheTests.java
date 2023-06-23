@@ -22,18 +22,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.BitSetIterator;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -71,7 +69,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -533,43 +530,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    public void testRoleBitSets() throws Exception {
-        int maxDocs = randomIntBetween(1, 1024);
-        int numDocs = 0;
-        FixedBitSet matches = new FixedBitSet(maxDocs);
-        for (int i = 0; i < maxDocs; i++) {
-            if (numDocs < maxDocs && randomBoolean()) {
-                numDocs++;
-                matches.set(i);
-            }
-        }
-        DocIdSetIterator it = new BitSetIterator(matches, randomIntBetween(0, numDocs));
-        BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
-        assertThat(bitSet.cardinality(), equalTo(numDocs));
-        assertThat(bitSet.length(), equalTo(maxDocs));
-        for (int i = 0; i < maxDocs; i++) {
-            assertThat(bitSet.get(i), equalTo(matches.get(i)));
-            assertThat(bitSet.nextSetBit(i), equalTo(matches.nextSetBit(i)));
-            assertThat(bitSet.prevSetBit(i), equalTo(matches.prevSetBit(i)));
-        }
-    }
-
-    public void testMatchAllRoleBitSet() throws Exception {
-        int maxDocs = randomIntBetween(1, 128);
-        FixedBitSet matches = new FixedBitSet(maxDocs);
-        for (int i = 0; i < maxDocs; i++) {
-            matches.set(i);
-        }
-        DocIdSetIterator it = new BitSetIterator(matches, randomNonNegativeLong());
-        BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
-        assertThat(bitSet, instanceOf(MatchAllRoleBitSet.class));
-        for (int i = 0; i < maxDocs; i++) {
-            assertTrue(bitSet.get(i));
-            assertThat(bitSet.nextSetBit(i), equalTo(matches.nextSetBit(i)));
-            assertThat(bitSet.prevSetBit(i), equalTo(matches.prevSetBit(i)));
-        }
-    }
-
     public void testEquivalentMatchAllDocsQuery() {
         assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new MatchAllDocsQuery()));
         assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new ConstantScoreQuery(new MatchAllDocsQuery())));
@@ -643,6 +603,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 shardId.id(),
                 0,
                 indexSettings,
+                ClusterSettings.createBuiltInClusterSettings(),
                 null,
                 null,
                 null,

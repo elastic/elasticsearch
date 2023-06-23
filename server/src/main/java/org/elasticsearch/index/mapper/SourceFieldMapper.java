@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
@@ -48,7 +49,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         null,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY
+        Strings.EMPTY_ARRAY,
+        null
+    );
+
+    private static final SourceFieldMapper TSDB_DEFAULT = new SourceFieldMapper(
+        Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        IndexMode.TIME_SERIES
     );
 
     public static class Defaults {
@@ -79,7 +89,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final Parameter<Mode> mode = new Parameter<>(
             "mode",
             true,
-            () -> null,
+            () -> getIndexMode() == IndexMode.TIME_SERIES ? Mode.SYNTHETIC : null,
             (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
             m -> toType(m).enabled.explicit() ? null : toType(m).mode,
             (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
@@ -97,8 +107,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             m -> Arrays.asList(toType(m).excludes)
         );
 
-        public Builder() {
+        private final IndexMode indexMode;
+
+        public Builder(IndexMode indexMode) {
             super(Defaults.NAME);
+            this.indexMode = indexMode;
+        }
+
+        public Builder setSynthetic() {
+            this.mode.setValue(Mode.SYNTHETIC);
+            return this;
         }
 
         @Override
@@ -119,21 +137,37 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public SourceFieldMapper build() {
             if (enabled.getValue().explicit() && mode.get() != null) {
-                throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    throw new MapperParsingException("Time series indices only support synthetic source");
+                } else {
+                    throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
+                }
             }
             if (isDefault()) {
-                return DEFAULT;
+                return indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT;
             }
-            return new SourceFieldMapper(
+            SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
                 mode.get(),
                 enabled.get(),
                 includes.getValue().toArray(String[]::new),
-                excludes.getValue().toArray(String[]::new)
+                excludes.getValue().toArray(String[]::new),
+                indexMode
             );
+            if (indexMode != null) {
+                indexMode.validateSourceFieldMapper(sourceFieldMapper);
+            }
+            return sourceFieldMapper;
+        }
+
+        private IndexMode getIndexMode() {
+            return indexMode;
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DEFAULT, c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT,
+        c -> new Builder(c.getIndexSettings().getMode())
+    );
 
     static final class SourceFieldType extends MappedFieldType {
 
@@ -173,7 +207,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] excludes;
     private final SourceFilter sourceFilter;
 
-    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes) {
+    private final IndexMode indexMode;
+
+    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes, IndexMode indexMode) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         assert enabled.explicit() == false || mode == null;
         this.mode = mode;
@@ -185,6 +221,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
         }
         this.complete = stored() && sourceFilter == null;
+        this.indexMode = indexMode;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -254,13 +291,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
+        return new Builder(indexMode).init(this);
     }
 
     /**
      * Build something to load source {@code _source}.
      */
-    public <T> SourceLoader newSourceLoader(Mapping mapping) {
+    public SourceLoader newSourceLoader(Mapping mapping) {
         if (mode == Mode.SYNTHETIC) {
             return new SourceLoader.Synthetic(mapping);
         }

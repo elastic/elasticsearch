@@ -10,7 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -30,10 +31,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -48,10 +49,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,6 +79,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static final float DEFAULT_SCORE = Float.NaN;
     private float score = DEFAULT_SCORE;
 
+    private static final int NO_RANK = -1;
+    private int rank = NO_RANK;
+
     private final Text id;
 
     private final NestedIdentity nestedIdentity;
@@ -95,7 +99,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
-    private String[] matchedQueries = Strings.EMPTY_ARRAY;
+    private Map<String, Float> matchedQueries = Collections.emptyMap();
 
     private Explanation explanation;
 
@@ -134,8 +138,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public SearchHit(StreamInput in) throws IOException {
         docId = -1;
         score = in.readFloat();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            rank = in.readVInt();
+        }
         id = in.readOptionalText();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalText();
         }
         nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
@@ -149,9 +156,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            documentFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
-            metaFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            documentFields.putAll(in.readMap(DocumentField::new));
+            metaFields.putAll(in.readMap(DocumentField::new));
         } else {
             Map<String, DocumentField> fields = readFields(in);
             fields.forEach(
@@ -179,13 +186,16 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         sortValues = new SearchSortValues(in);
 
-        size = in.readVInt();
-        if (size > 0) {
-            matchedQueries = new String[size];
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
+        } else {
+            size = in.readVInt();
+            matchedQueries = new LinkedHashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = in.readString();
+                matchedQueries.put(in.readString(), Float.NaN);
             }
         }
+
         // we call the setter here because that also sets the local index parameter
         shard(in.readOptionalWriteable(SearchShardTarget::new));
         size = in.readVInt();
@@ -233,8 +243,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeVInt(rank);
+        } else if (rank != NO_RANK) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+        }
         out.writeOptionalText(id);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalText(SINGLE_MAPPING_TYPE);
         }
         out.writeOptionalWriteable(nestedIdentity);
@@ -248,7 +263,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
             out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
         } else {
@@ -261,10 +276,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.writeTo(out);
 
-        if (matchedQueries.length == 0) {
-            out.writeVInt(0);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
         } else {
-            out.writeStringArray(matchedQueries);
+            out.writeStringArray(matchedQueries.keySet().toArray(new String[0]));
         }
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {
@@ -287,6 +302,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      */
     public float getScore() {
         return this.score;
+    }
+
+    public void setRank(int rank) {
+        this.rank = rank;
+    }
+
+    public int getRank() {
+        return this.rank;
     }
 
     public void version(long version) {
@@ -402,7 +425,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
     }
 
@@ -578,7 +601,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return clusterAlias;
     }
 
-    public void matchedQueries(String[] matchedQueries) {
+    public void matchedQueries(Map<String, Float> matchedQueries) {
         this.matchedQueries = matchedQueries;
     }
 
@@ -586,7 +609,21 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
      */
     public String[] getMatchedQueries() {
-        return this.matchedQueries;
+        return matchedQueries == null ? new String[0] : matchedQueries.keySet().toArray(new String[0]);
+    }
+
+    /**
+     * @return The score of the provided named query if it matches, {@code null} otherwise.
+     */
+    public Float getMatchedQueryScore(String name) {
+        return getMatchedQueriesAndScores().get(name);
+    }
+
+    /**
+     * @return The map of the named queries that matched and their associated score.
+     */
+    public Map<String, Float> getMatchedQueriesAndScores() {
+        return matchedQueries == null ? Collections.emptyMap() : matchedQueries;
     }
 
     /**
@@ -607,6 +644,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _SEQ_NO = "_seq_no";
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
+        static final String _RANK = "_rank";
         static final String FIELDS = "fields";
         static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
@@ -670,6 +708,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.field(Fields._SCORE, score);
         }
 
+        if (rank != NO_RANK) {
+            builder.field(Fields._RANK, rank);
+        }
+
         for (DocumentField field : metaFields.values()) {
             // ignore empty metadata fields
             if (field.getValues().size() == 0) {
@@ -717,12 +759,21 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.endObject();
         }
         sortValues.toXContent(builder, params);
-        if (matchedQueries.length > 0) {
-            builder.startArray(Fields.MATCHED_QUERIES);
-            for (String matchedFilter : matchedQueries) {
-                builder.value(matchedFilter);
+        if (matchedQueries != null && matchedQueries.size() > 0) {
+            boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
+            if (includeMatchedQueriesScore) {
+                builder.startObject(Fields.MATCHED_QUERIES);
+                for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+                builder.endObject();
+            } else {
+                builder.startArray(Fields.MATCHED_QUERIES);
+                for (String matchedFilter : matchedQueries.keySet()) {
+                    builder.value(matchedFilter);
+                }
+                builder.endArray();
             }
-            builder.endArray();
         }
         if (getExplanation() != null) {
             builder.field(Fields._EXPLANATION);
@@ -732,7 +783,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.startObject(Fields.INNER_HITS);
             for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
                 builder.startObject(entry.getKey());
-                entry.getValue().toXContent(builder, params);
+                ChunkedToXContent.wrapAsToXContent(entry.getValue()).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();
@@ -789,6 +840,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             new ParseField(Fields._SCORE),
             ValueType.FLOAT_OR_NULL
         );
+        parser.declareInt((map, value) -> map.put(Fields._RANK, value), new ParseField(Fields._RANK));
+
         parser.declareLong((map, value) -> map.put(Fields._VERSION, value), new ParseField(Fields._VERSION));
         parser.declareLong((map, value) -> map.put(Fields._SEQ_NO, value), new ParseField(Fields._SEQ_NO));
         parser.declareLong((map, value) -> map.put(Fields._PRIMARY_TERM, value), new ParseField(Fields._PRIMARY_TERM));
@@ -828,7 +881,27 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             (p, c) -> parseInnerHits(p),
             new ParseField(Fields.INNER_HITS)
         );
-        parser.declareStringArray((map, list) -> map.put(Fields.MATCHED_QUERIES, list), new ParseField(Fields.MATCHED_QUERIES));
+
+        parser.declareField((p, map, context) -> {
+            XContentParser.Token token = p.currentToken();
+            Map<String, Float> matchedQueries = new LinkedHashMap<>();
+            if (token == XContentParser.Token.START_OBJECT) {
+                String fieldName = null;
+                while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        fieldName = p.currentName();
+                    } else if (token.isValue()) {
+                        matchedQueries.put(fieldName, p.floatValue());
+                    }
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                    matchedQueries.put(p.text(), Float.NaN);
+                }
+            }
+            map.put(Fields.MATCHED_QUERIES, matchedQueries);
+        }, new ParseField(Fields.MATCHED_QUERIES), ObjectParser.ValueType.OBJECT_ARRAY);
+
         parser.declareField(
             (map, list) -> map.put(Fields.SORT, list),
             SearchSortValues::fromXContent,
@@ -866,6 +939,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             searchHit.clusterAlias = clusterAlias;
         }
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
+        searchHit.setRank(get(Fields._RANK, values, NO_RANK));
         searchHit.version(get(Fields._VERSION, values, -1L));
         searchHit.setSeqNo(get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO));
         searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
@@ -874,10 +948,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));
         searchHit.explanation(get(Fields._EXPLANATION, values, null));
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
-        List<String> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
-        if (matchedQueries != null) {
-            searchHit.matchedQueries(matchedQueries.toArray(new String[0]));
-        }
+        searchHit.matchedQueries(get(Fields.MATCHED_QUERIES, values, null));
         return searchHit;
     }
 
@@ -997,7 +1068,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             && Objects.equals(documentFields, other.documentFields)
             && Objects.equals(metaFields, other.metaFields)
             && Objects.equals(getHighlightFields(), other.getHighlightFields())
-            && Arrays.equals(matchedQueries, other.matchedQueries)
+            && Objects.equals(getMatchedQueriesAndScores(), other.getMatchedQueriesAndScores())
             && Objects.equals(explanation, other.explanation)
             && Objects.equals(shard, other.shard)
             && Objects.equals(innerHits, other.innerHits)
@@ -1017,7 +1088,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             documentFields,
             metaFields,
             getHighlightFields(),
-            Arrays.hashCode(matchedQueries),
+            getMatchedQueriesAndScores(),
             explanation,
             shard,
             innerHits,
@@ -1106,6 +1177,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
                 if (nestedParsedSource == null) {
                     return Source.empty(root.sourceContentType());
+                }
+                if (nested.getOffset() > nestedParsedSource.size() - 1) {
+                    throw new IllegalStateException("Error retrieving path " + this.field);
                 }
                 rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
                 if (nested.getChild() == null) {

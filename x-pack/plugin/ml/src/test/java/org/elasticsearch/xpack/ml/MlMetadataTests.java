@@ -71,9 +71,4 @@ public class MlMetadataTests extends AbstractChunkedSerializingTestCase<MlMetada
 
         return metadataBuilder.build();
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

@@ -4,8 +4,6 @@ setup:
       indices.create:
         index: test-0
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               index_start_at:
@@ -23,8 +21,6 @@ setup:
       indices.create:
         index: test-1
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               index_start_at:

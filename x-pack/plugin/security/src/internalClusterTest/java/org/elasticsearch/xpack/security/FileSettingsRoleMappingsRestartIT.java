@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
+
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testJSONOnlyRoleMappings = """
@@ -75,15 +76,15 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
+        Files.deleteIfExists(fileSettingsService.watchedFile());
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
@@ -108,7 +109,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/92454")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93048")
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
@@ -127,7 +128,9 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
 
-        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        ensureGreen();
+
+        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();
         assertThat(
             clusterStateResponse.getState()
                 .metadata()

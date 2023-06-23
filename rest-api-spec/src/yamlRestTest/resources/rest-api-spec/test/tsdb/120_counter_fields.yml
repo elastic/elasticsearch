@@ -1,0 +1,53 @@
+---
+"avg aggregation on counter field":
+  - skip:
+      version: " - 8.6.99"
+      reason: "counter field support added in 8.7"
+
+  - do:
+      indices.create:
+        index: myindex1
+        body:
+          mappings:
+            properties:
+              counter_field:
+                type : long
+                time_series_metric: counter
+  - do:
+      indices.create:
+        index: myindex2
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ keyword_field ]
+              time_series:
+                start_time: 2023-01-01T00:00:00Z
+                end_time: 2024-01-01T00:00:00Z
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+                time_series_dimension: true
+              counter_field:
+                type : long
+                time_series_metric: counter
+  - do:
+      search:
+        index: myindex1
+        body:
+          aggs:
+            the_counter_avg:
+              avg:
+                field: counter_field
+  - match: { aggregations.the_counter_avg.value: null }
+
+  - do:
+      catch: /Field \[counter_field\] of type \[long\] is not supported for aggregation \[avg\]/
+      search:
+        index: myindex2
+        body:
+          aggs:
+            the_counter_avg:
+              avg:
+                field: counter_field

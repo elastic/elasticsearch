@@ -52,10 +52,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
         String indexName = "test-idx";
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex(indexName, 1, 1);
         ensureGreen();
         // Prevalidate removal of one of the two nodes
         String nodeName = randomFrom(node1, node2);
@@ -77,7 +74,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertThat(nodeResult.result().message(), equalTo(""));
         assertTrue(nodeResult.result().isSafe());
         // Enforce a replica to get unassigned
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node1));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node1), indexName);
         ensureYellow();
         PrevalidateNodeRemovalRequest req2 = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp2 = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req2).get();
@@ -128,14 +125,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
         String indexName = "test-idx";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.require._name", node1)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", node1).build());
         ensureGreen(indexName);
         // Prevent node1 from removing its local index shard copies upon removal, by blocking
         // its ACTION_SHARD_EXISTS requests since after a relocation, the source first waits
@@ -152,7 +142,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node1, node2);
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node2));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), indexName);
         shardActiveRequestSent.await();
         ensureGreen(indexName);
         // To ensure that the index doesn't get relocated back to node1 after stopping node2, we
@@ -184,14 +174,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
         String indexName = "test-index";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put("index.routing.allocation.require._name", node1)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", node1).build());
         ensureGreen(indexName);
         // make it red!
         internalCluster().stopNode(node1);
@@ -199,7 +182,9 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         MockTransportService node2TransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node2);
         node2TransportService.addRequestHandlingBehavior(
             TransportPrevalidateShardPathAction.ACTION_NAME + "[n]",
-            (handler, request, channel, task) -> { logger.info("drop the check shards request"); }
+            (handler, request, channel, task) -> {
+                logger.info("drop the check shards request");
+            }
         );
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()
             .setNames(node2)
@@ -222,9 +207,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
 
     private void ensureRed(String indexName) throws Exception {
         assertBusy(() -> {
-            ClusterHealthResponse healthResponse = client().admin()
-                .cluster()
-                .prepareHealth(indexName)
+            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(indexName)
                 .setWaitForStatus(ClusterHealthStatus.RED)
                 .setWaitForEvents(Priority.LANGUID)
                 .execute()

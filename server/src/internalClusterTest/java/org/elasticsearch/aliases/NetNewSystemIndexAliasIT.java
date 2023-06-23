@@ -49,7 +49,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         ensureGreen();
 
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-        GetAliasesResponse aliasResponse = client().admin().indices().getAliases(getAliasesRequest).get();
+        GetAliasesResponse aliasResponse = indicesAdmin().getAliases(getAliasesRequest).get();
         assertThat(aliasResponse.getAliases().size(), is(0));
     }
 

@@ -118,12 +118,6 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     public JsonParser filter(JsonParser parser) {
         JsonParser filtered = parser;
         if (excludes != null) {
-            for (FilterPath e : excludes) {
-                if (e.hasDoubleWildcard()) {
-                    // Fixed in Jackson 2.13 - https://github.com/FasterXML/jackson-core/issues/700
-                    throw new UnsupportedOperationException("double wildcards are not supported in filtered excludes");
-                }
-            }
             filtered = new FilteringParserDelegate(
                 filtered,
                 new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots),

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,6 +32,9 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
     public static final ParseField UPPER_CONFIDENCE_BOUND = new ParseField("upper_confidence_bound");
     public static final ParseField HIGH_VARIANCE_PENALTY = new ParseField("high_variance_penalty");
     public static final ParseField INCOMPLETE_BUCKET_PENALTY = new ParseField("incomplete_bucket_penalty");
+    public static final ParseField MULTIMODAL_DISTRIBUTION = new ParseField("multimodal_distribution");
+    public static final ParseField BY_FIELD_FIRST_OCCURRENCE = new ParseField("by_field_first_occurrence");
+    public static final ParseField BY_FIELD_RELATIVE_RARITY = new ParseField("by_field_relative_rarity");
 
     public static final ObjectParser<AnomalyScoreExplanation, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<AnomalyScoreExplanation, Void> LENIENT_PARSER = createParser(true);
@@ -51,6 +55,9 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         parser.declareDouble(AnomalyScoreExplanation::setUpperConfidenceBound, UPPER_CONFIDENCE_BOUND);
         parser.declareBoolean(AnomalyScoreExplanation::setHighVariancePenalty, HIGH_VARIANCE_PENALTY);
         parser.declareBoolean(AnomalyScoreExplanation::setIncompleteBucketPenalty, INCOMPLETE_BUCKET_PENALTY);
+        parser.declareBoolean(AnomalyScoreExplanation::setMultimodalDistribution, MULTIMODAL_DISTRIBUTION);
+        parser.declareBoolean(AnomalyScoreExplanation::setByFieldFirstOccurrence, BY_FIELD_FIRST_OCCURRENCE);
+        parser.declareDouble(AnomalyScoreExplanation::setByFieldRelativeRarity, BY_FIELD_RELATIVE_RARITY);
         return parser;
     }
 
@@ -64,6 +71,9 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
     private Double upperConfidenceBound;
     private Boolean highVariancePenalty;
     private Boolean incompleteBucketPenalty;
+    private Boolean multimodalDistribution;
+    private Boolean byFieldFirstOccurrence;
+    private Double byFieldRelativeRarity;
 
     AnomalyScoreExplanation() {}
 
@@ -78,6 +88,13 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         this.upperConfidenceBound = in.readOptionalDouble();
         this.highVariancePenalty = in.readOptionalBoolean();
         this.incompleteBucketPenalty = in.readOptionalBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            this.multimodalDistribution = in.readOptionalBoolean();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            this.byFieldFirstOccurrence = in.readOptionalBoolean();
+            this.byFieldRelativeRarity = in.readOptionalDouble();
+        }
     }
 
     @Override
@@ -92,6 +109,13 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         out.writeOptionalDouble(upperConfidenceBound);
         out.writeOptionalBoolean(highVariancePenalty);
         out.writeOptionalBoolean(incompleteBucketPenalty);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeOptionalBoolean(multimodalDistribution);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalBoolean(byFieldFirstOccurrence);
+            out.writeOptionalDouble(byFieldRelativeRarity);
+        }
     }
 
     @Override
@@ -127,6 +151,15 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         if (incompleteBucketPenalty != null) {
             builder.field(INCOMPLETE_BUCKET_PENALTY.getPreferredName(), incompleteBucketPenalty);
         }
+        if (multimodalDistribution != null) {
+            builder.field(MULTIMODAL_DISTRIBUTION.getPreferredName(), multimodalDistribution);
+        }
+        if (byFieldFirstOccurrence != null) {
+            builder.field(BY_FIELD_FIRST_OCCURRENCE.getPreferredName(), byFieldFirstOccurrence);
+        }
+        if (byFieldRelativeRarity != null) {
+            builder.field(BY_FIELD_RELATIVE_RARITY.getPreferredName(), byFieldRelativeRarity);
+        }
         builder.endObject();
         return builder;
     }
@@ -143,7 +176,10 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
             typicalValue,
             upperConfidenceBound,
             highVariancePenalty,
-            incompleteBucketPenalty
+            incompleteBucketPenalty,
+            multimodalDistribution,
+            byFieldFirstOccurrence,
+            byFieldRelativeRarity
         );
     }
 
@@ -166,7 +202,10 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
             && Objects.equals(this.typicalValue, that.typicalValue)
             && Objects.equals(this.upperConfidenceBound, that.upperConfidenceBound)
             && Objects.equals(this.highVariancePenalty, that.highVariancePenalty)
-            && Objects.equals(this.incompleteBucketPenalty, that.incompleteBucketPenalty);
+            && Objects.equals(this.incompleteBucketPenalty, that.incompleteBucketPenalty)
+            && Objects.equals(this.multimodalDistribution, that.multimodalDistribution)
+            && Objects.equals(this.byFieldFirstOccurrence, that.byFieldFirstOccurrence)
+            && Objects.equals(this.byFieldRelativeRarity, that.byFieldRelativeRarity);
     }
 
     public String getAnomalyType() {
@@ -247,6 +286,30 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
 
     public void setIncompleteBucketPenalty(Boolean incompleteBucketPenalty) {
         this.incompleteBucketPenalty = incompleteBucketPenalty;
+    }
+
+    public Boolean isMultimodalDistribution() {
+        return multimodalDistribution;
+    }
+
+    public void setMultimodalDistribution(Boolean multimodalDistribution) {
+        this.multimodalDistribution = multimodalDistribution;
+    }
+
+    public Boolean isByFieldFirstOccurrence() {
+        return byFieldFirstOccurrence;
+    }
+
+    public void setByFieldFirstOccurrence(Boolean byFieldFirstOccurrence) {
+        this.byFieldFirstOccurrence = byFieldFirstOccurrence;
+    }
+
+    public Double getByFieldRelativeRarity() {
+        return byFieldRelativeRarity;
+    }
+
+    public void setByFieldRelativeRarity(Double byFieldRelativeRarity) {
+        this.byFieldRelativeRarity = byFieldRelativeRarity;
     }
 
 }

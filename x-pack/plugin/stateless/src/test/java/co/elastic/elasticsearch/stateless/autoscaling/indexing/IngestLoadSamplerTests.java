@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -55,9 +56,11 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
+            writeLoadSampler,
             ingestLoadPublisher,
             () -> nodeIngestLoad,
             true,
@@ -96,9 +99,11 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
+            writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
             true,
@@ -155,9 +160,11 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
+            writeLoadSampler,
             ingestLoadPublisher,
             ingestLoadProbe,
             true,
@@ -195,9 +202,11 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
+            writeLoadSampler,
             ingestLoadPublisher,
             readingIter::next,
             true,
@@ -263,9 +272,11 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
+            writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier,
             true,
@@ -294,8 +305,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
 
-        var sampler = new IngestLoadSampler(threadPool, ingestLoadPublisher, () -> indexLoad, true, Settings.EMPTY);
+        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, Settings.EMPTY);
 
         // The sampler does not schedule any task before starting the service or publish any metrics
         assertThat(publishedMetrics, is(empty()));
@@ -330,8 +342,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
 
-        var sampler = new IngestLoadSampler(threadPool, ingestLoadPublisher, () -> indexLoad, false, Settings.EMPTY);
+        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, Settings.EMPTY);
 
         // The sampler does not schedule any task before starting the service or publish any metrics
         assertThat(publishedMetrics, is(empty()));
@@ -359,5 +372,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
     private double randomIngestionLoad(int bound) {
         return randomDoubleBetween(0, bound, true);
+    }
+
+    private static class ConstantAverageWriteLoadSampler extends AverageWriteLoadSampler {
+        ConstantAverageWriteLoadSampler(ThreadPool threadPool) {
+            super(threadPool, TimeValue.timeValueSeconds(1));
+        }
+
+        @Override
+        public double getAverageWriteLoad(String executor) {
+            return 1.0;
+        }
     }
 }

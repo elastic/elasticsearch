@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -47,12 +49,16 @@ import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
  */
 public class IndexEngine extends InternalEngine {
 
+    public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
+
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
     private final Function<String, BlobContainer> translogBlobContainer;
     private final boolean fastRefresh;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
     private final RefreshThrottler refreshThrottler;
+    // This is written and then accessed on the same thread under the flush lock. So not need for volatile
+    private long translogStartFileForNextCommit = 0;
 
     public IndexEngine(
         EngineConfig engineConfig,
@@ -89,6 +95,20 @@ public class IndexEngine extends InternalEngine {
             }
             super.flush(force, waitIfOngoing, listener);
         }
+    }
+
+    @Override
+    protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
+        // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
+        // process, so for now we just store the start file as a thread local.
+        translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+        super.commitIndexWriter(writer, translog);
+    }
+
+    @Override
+    protected Map<String, String> getCommitExtraUserData() {
+        return Map.of(TRANSLOG_RECOVERY_START_FILE, Long.toString(translogStartFileForNextCommit));
     }
 
     @Override
@@ -230,10 +250,18 @@ public class IndexEngine extends InternalEngine {
     protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
         SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(this.store.directory());
         Optional<String> nodeEphemeralId = searchDirectory.getCurrentMetadataNodeEphemeralId();
+        long translogRecoveryStartFile = searchDirectory.getTranslogRecoveryStartFile();
+
         if (nodeEphemeralId.isPresent()) {
             logger.debug("new translog snapshot seqnos [{}]-[{}] and node ephemeral id [{}]", fromSeqNo, toSeqNo, nodeEphemeralId.get());
             BlobContainer translogBlobContainer = this.translogBlobContainer.apply(nodeEphemeralId.get());
-            TranslogReplicatorReader reader = new TranslogReplicatorReader(translogBlobContainer, shardId, fromSeqNo, toSeqNo);
+            TranslogReplicatorReader reader = new TranslogReplicatorReader(
+                translogBlobContainer,
+                shardId,
+                fromSeqNo,
+                toSeqNo,
+                translogRecoveryStartFile
+            );
             return new Translog.Snapshot() {
                 @Override
                 public int totalOperations() {

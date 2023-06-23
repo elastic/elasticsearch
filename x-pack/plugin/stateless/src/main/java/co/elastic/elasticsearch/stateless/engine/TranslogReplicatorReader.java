@@ -52,11 +52,12 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     /**
      * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
      *
-     * @param translogBlobContainer the translog blob container to use
-     * @param shardId               the shard id whose translog operations to return
-     * @param fromSeqNo             each returned operation is equal or larger than this seq no
-     * @param toSeqNo               each returned operation is equal or smaller than this seq no
-     * @throws IOException          related to listing blobs from the object store
+     * @param translogBlobContainer     the translog blob container to use
+     * @param shardId                   the shard id whose translog operations to return
+     * @param fromSeqNo                 each returned operation is equal or larger than this seq no
+     * @param toSeqNo                   each returned operation is equal or smaller than this seq no
+     * @param translogRecoveryStartFile the translog file to initiate recovery from
+     * @throws IOException                related to listing blobs from the object store
      * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect, or an inner
      *                                    {@link IOException} occurred while reading from the translog file and/or the object store
      */
@@ -64,7 +65,8 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         final BlobContainer translogBlobContainer,
         final ShardId shardId,
         final long fromSeqNo,
-        final long toSeqNo
+        final long toSeqNo,
+        final long translogRecoveryStartFile
     ) throws IOException {
         assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
         assert fromSeqNo >= 0 : "fromSeqNo must be non-negative " + fromSeqNo;
@@ -75,6 +77,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         Iterator<BlobMetadata> blobs = translogBlobContainer.listBlobs()
             .entrySet()
             .stream()
+            .filter(e -> Long.parseLong(e.getKey()) >= translogRecoveryStartFile)
             .sorted(Map.Entry.comparingByKey())
             .map(Map.Entry::getValue)
             .iterator();
@@ -88,8 +91,9 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
      * @param shardId               the shard id whose translog operations to return
      * @throws IOException          related to reading from the object store
      */
+    // This ctor is only used in tests
     public TranslogReplicatorReader(final BlobContainer translogBlobContainer, final ShardId shardId) throws IOException {
-        this(translogBlobContainer, shardId, 0, Long.MAX_VALUE);
+        this(translogBlobContainer, shardId, 0, Long.MAX_VALUE, 0);
     }
 
     @Override

@@ -92,9 +92,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStates = new ConcurrentHashMap<>();
     private final Object generateFlushLock = new Object();
     private final AtomicLong fileName = new AtomicLong(0);
-
+    private final AtomicLong maxUploadedFileName = new AtomicLong(-1);
     private final AtomicLong lastFlushTime;
-
     private final TimeValue flushRetryInitialDelay;
     private final TimeValue flushInterval;
     private final ByteSizeValue flushSize;
@@ -110,6 +109,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public void setBigArrays(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
+    }
+
+    public long getMaxUploadedFile() {
+        return maxUploadedFileName.get();
     }
 
     public BigArrays bigArrays() {
@@ -213,6 +216,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private CompoundTranslog createCompoundTranslog() throws IOException {
         synchronized (generateFlushLock) {
+            long fileName = this.fileName.get();
             lastFlushTime.set(getCurrentTimeMillis());
             var checkpoints = new HashMap<ShardId, TranslogMetadata>();
             var onComplete = new ArrayList<Releasable>();
@@ -239,7 +243,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 );
 
                 state.markSyncStarting(syncedLocation);
-                onComplete.add(() -> state.markSyncFinished(syncedLocation));
+                onComplete.add(() -> {
+                    maxUploadedFileName.getAndAccumulate(fileName, Math::max);
+                    state.markSyncFinished(syncedLocation);
+                });
 
                 long position = compoundTranslog.position();
                 buffer.data.bytes().writeTo(compoundTranslog);
@@ -258,8 +265,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             bufferedChecksumStreamOutput.writeMap(checkpoints);
             header.writeLong(bufferedChecksumStreamOutput.getChecksum());
 
+            long beforeIncrement = this.fileName.getAndIncrement();
+            assert beforeIncrement == fileName;
             return new CompoundTranslog(
-                Strings.format("%019d", fileName.getAndIncrement()),
+                Strings.format("%019d", fileName),
                 CompositeBytesReference.of(header.bytes(), compoundTranslog.bytes()),
                 onComplete
             );

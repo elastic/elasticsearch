@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -26,12 +28,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
@@ -39,6 +47,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +56,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
@@ -288,5 +300,64 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")).get();
         assertHitCount(searchResponse, 1);
+    }
+
+    public void testStartingTranslogFileWrittenInCommit() throws Exception {
+        List<String> indexNodes = startIndexNodes(1);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettingsWithRandomFastRefresh(1, 0).put(
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+                new TimeValue(1, TimeUnit.MINUTES)
+            ).build()
+        );
+        ensureGreen(indexName);
+
+        indexDocuments(indexName);
+
+        assertReplicatedTranslogConsistentWithShards();
+
+        var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodes.get(0));
+        Map<String, BlobMetadata> translogFiles = objectStoreService.getTranslogBlobContainer().listBlobs();
+
+        final String newIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            newIndex,
+            indexSettingsWithRandomFastRefresh(1, 0).put(
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+                new TimeValue(1, TimeUnit.MINUTES)
+            ).build()
+        );
+        ensureGreen(newIndex);
+
+        Index index = resolveIndex(newIndex);
+        IndexShard indexShard = findShard(index, 0, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
+        var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+        String commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+        assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+        StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
+            blobContainerForCommit.listBlobs().get(commitFile).length()
+        );
+
+        long initialRecoveryCommitStartingFile = commit.translogRecoveryStartFile();
+
+        // Greater than or equal to because translog files start at 0
+        assertThat(initialRecoveryCommitStartingFile, greaterThanOrEqualTo((long) translogFiles.size()));
+
+        indexDocs(newIndex, randomIntBetween(1, 5));
+
+        flush(newIndex);
+
+        commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+        assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+        commit = StatelessCompoundCommit.readFromStore(
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
+            blobContainerForCommit.listBlobs().get(commitFile).length()
+        );
+
+        // Recovery file has advanced because of flush
+        assertThat(commit.translogRecoveryStartFile(), greaterThan(initialRecoveryCommitStartingFile));
     }
 }

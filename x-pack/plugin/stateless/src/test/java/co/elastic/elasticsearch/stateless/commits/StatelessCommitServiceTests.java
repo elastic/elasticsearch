@@ -558,7 +558,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         new Engine.IndexCommitRef(indexCommit, () -> {}),
                         commitFiles,
                         additionalFiles,
-                        primaryTerm
+                        primaryTerm,
+                        0
                     );
                     commits.add(statelessCommitRef);
                 }

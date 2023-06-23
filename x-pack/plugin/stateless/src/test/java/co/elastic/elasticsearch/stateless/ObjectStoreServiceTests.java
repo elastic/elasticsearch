@@ -188,7 +188,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                                 new Engine.IndexCommitRef(indexCommit, () -> future.onResponse(null)),
                                 commitFiles,
                                 additionalFiles,
-                                1
+                                1,
+                                0
                             )
                         ),
                         10,

@@ -89,132 +89,40 @@ public class CompositeCollector implements Collector {
         Bits postFilterBits = getPostFilterBits(context);
 
         if (aggsCollector == null) {
-            LeafCollector leafCollector;
+            LeafCollector topDocsLeafCollector;
             try {
-                leafCollector = topDocsCollector.getLeafCollector(context);
+                topDocsLeafCollector = topDocsCollector.getLeafCollector(context);
             } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
                 // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf collector).
                 // The reason is only to set the early terminated flag to the QueryResult like some tests expect. This needs fixing.
                 if (terminateAfter == 0) {
                     throw e;
                 }
-                leafCollector = null;
+                topDocsLeafCollector = null;
             }
-            final LeafCollector topDocsLeafCollector = leafCollector;
-            return new LeafCollector() {
-                LeafCollector tdlc = topDocsLeafCollector;
-                Scorable scorer;
-
-                @Override
-                public void setScorer(Scorable scorer) throws IOException {
-                    scorer = new FilterScorable(scorer) {
-                        @Override
-                        public void setMinCompetitiveScore(float minScore) throws IOException {
-                            if (terminateAfter == 0) {
-                                // Ignore calls to setMinCompetitiveScore when terminate_after is used, otherwise early termination
-                                // of total hits tracking makes it impossible to terminate after.
-                                // TODO the reason is only to set the early terminated flag to the QueryResult like some tests expect.
-                                in.setMinCompetitiveScore(minScore);
-                            }
-                        }
-                    };
-                    if (tdlc != null) {
-                        tdlc.setScorer(scorer);
-                    }
-                    this.scorer = scorer;
-                }
-
-                @Override
-                public DocIdSetIterator competitiveIterator() throws IOException {
-                    if (tdlc != null) {
-                        return tdlc.competitiveIterator();
-                    }
-                    return null;
-                }
-
-                @Override
-                public void collect(int doc) throws IOException {
-                    if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
-                        if (tdlc != null) {
-                            try {
-                                tdlc.collect(doc);
-                            } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-                                // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
-                                // collector).
-                                // The reason is only to set the early terminated flag to the QueryResult like some tests expect.
-                                if (terminateAfter == 0) {
-                                    throw e;
-                                }
-                                tdlc = null;
-                            }
-                        }
-                    }
-                }
-            };
+            return new TopDocsLeafCollector(postFilterBits, topDocsLeafCollector);
         }
 
-        LeafCollector leafCollector;
+        LeafCollector topDocsLeafCollector;
         try {
-            leafCollector = topDocsCollector.getLeafCollector(context);
+            topDocsLeafCollector = topDocsCollector.getLeafCollector(context);
         } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
             // top docs collector does not need this segment, but the aggs collector does.
-            leafCollector = null;
+            topDocsLeafCollector = null;
         }
 
-        final LeafCollector topDocsLeafCollector = leafCollector;
-        final LeafCollector aggsLeafCollector = aggsCollector.getLeafCollector(context);
-        return new LeafCollector() {
-            LeafCollector tdlc = topDocsLeafCollector;
-            Scorable scorer;
-
-            @Override
-            public void setScorer(Scorable scorer) throws IOException {
-                if (cacheScores) {
-                    scorer = ScoreCachingWrappingScorer.wrap(scorer);
-                }
-                scorer = new FilterScorable(scorer) {
-                    // TODO aggs can also skip non competitive hits
-                    @Override
-                    public void setMinCompetitiveScore(float minScore) {
-                        // Ignore calls to setMinCompetitiveScore so that if the top docs collector
-                        // wants to skip low-scoring hits, the aggs collector still sees all hits.
-                        // this is important also for terminate_after in case used when total hits tracking is early terminated.
-                    }
-                };
-                if (tdlc != null) {
-                    tdlc.setScorer(scorer);
-                }
-                aggsLeafCollector.setScorer(scorer);
-                this.scorer = scorer;
+        LeafCollector aggsLeafCollector;
+        try {
+            aggsLeafCollector = aggsCollector.getLeafCollector(context);
+        } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+            // aggs collector does not need this segment, but the top docs collector may.
+            if (topDocsLeafCollector == null) {
+                throw e;
             }
+            aggsLeafCollector = null;
+        }
 
-            @Override
-            public void collect(int doc) throws IOException {
-                if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
-                    if (tdlc != null) {
-                        try {
-                            tdlc.collect(doc);
-                        } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-                            // top docs collector does not need this segment, but the aggs collector does.
-                            // Don't collect further from top docs, but keep on counting so aggs can be terminated after.
-                            tdlc = null;
-                        }
-                    }
-                }
-                if (minScore == null || scorer.score() >= minScore) {
-                    aggsLeafCollector.collect(doc);
-                }
-            }
-
-            @Override
-            public DocIdSetIterator competitiveIterator() throws IOException {
-                if (tdlc == null) {
-                    return aggsLeafCollector.competitiveIterator();
-                }
-                // TODO MultiLeafCollector does not override this, should we return a disjunction of the two?
-                return LeafCollector.super.competitiveIterator();
-            }
-        };
+        return new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
     }
 
     @Override
@@ -246,5 +154,135 @@ public class CompositeCollector implements Collector {
             scoreMode = scoreMode == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
         }
         return scoreMode;
+    }
+
+    private class TopDocsLeafCollector implements LeafCollector {
+        private final Bits postFilterBits;
+        private LeafCollector topDocsLeafCollector;
+        private Scorable scorer;
+
+        TopDocsLeafCollector(Bits postFilterBits, LeafCollector topDocsLeafCollector) {
+            this.postFilterBits = postFilterBits;
+            this.topDocsLeafCollector = topDocsLeafCollector;
+        }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {
+            scorer = new FilterScorable(scorer) {
+                @Override
+                public void setMinCompetitiveScore(float minScore) throws IOException {
+                    if (terminateAfter == 0) {
+                        // Ignore calls to setMinCompetitiveScore when terminate_after is used, otherwise early termination
+                        // of total hits tracking makes it impossible to terminate after.
+                        // TODO the reason is only to set the early terminated flag to the QueryResult like some tests expect.
+                        in.setMinCompetitiveScore(minScore);
+                    }
+                }
+            };
+            if (topDocsLeafCollector != null) {
+                topDocsLeafCollector.setScorer(scorer);
+            }
+            this.scorer = scorer;
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            if (topDocsLeafCollector != null) {
+                return topDocsLeafCollector.competitiveIterator();
+            }
+            return null;
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
+                if (topDocsLeafCollector != null) {
+                    try {
+                        topDocsLeafCollector.collect(doc);
+                    } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                        // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
+                        // collector).
+                        // The reason is only to set the early terminated flag to the QueryResult like some tests expect.
+                        if (terminateAfter == 0) {
+                            throw e;
+                        }
+                        topDocsLeafCollector = null;
+                    }
+                }
+            }
+        }
+    }
+
+    private class CompositeLeafCollector implements LeafCollector {
+        private final Bits postFilterBits;
+        private LeafCollector topDocsLeafCollector;
+        private LeafCollector aggsLeafCollector;
+        private Scorable scorer;
+
+        CompositeLeafCollector(Bits postFilterBits, LeafCollector topDocsLeafCollector, LeafCollector aggsLeafCollector) {
+            this.postFilterBits = postFilterBits;
+            this.topDocsLeafCollector = topDocsLeafCollector;
+            this.aggsLeafCollector = aggsLeafCollector;
+        }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {
+            if (cacheScores) {
+                scorer = ScoreCachingWrappingScorer.wrap(scorer);
+            }
+            scorer = new FilterScorable(scorer) {
+                // TODO aggs can also skip non competitive hits
+                @Override
+                public void setMinCompetitiveScore(float minScore) {
+                    // Ignore calls to setMinCompetitiveScore so that if the top docs collector
+                    // wants to skip low-scoring hits, the aggs collector still sees all hits.
+                    // this is important also for terminate_after in case used when total hits tracking is early terminated.
+                }
+            };
+            if (topDocsLeafCollector != null) {
+                topDocsLeafCollector.setScorer(scorer);
+            }
+            if (aggsLeafCollector != null) {
+                aggsLeafCollector.setScorer(scorer);
+            }
+            this.scorer = scorer;
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
+                if (topDocsLeafCollector != null) {
+                    try {
+                        topDocsLeafCollector.collect(doc);
+                    } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                        // top docs collector does not need this segment, but the aggs collector does.
+                        // Don't collect further from top docs, but keep on counting so aggs can be terminated after.
+                        topDocsLeafCollector = null;
+                    }
+                }
+            }
+            if (minScore == null || scorer.score() >= minScore) {
+                if (aggsLeafCollector != null) {
+                    try {
+                        aggsLeafCollector.collect(doc);
+                    } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                        // aggs collector does not need this segment, but the top docs collector may.
+                        if (topDocsLeafCollector == null) {
+                            throw e;
+                        }
+                        aggsLeafCollector = null;
+                    }
+                }
+            }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            if (topDocsLeafCollector == null) {
+                return aggsLeafCollector.competitiveIterator();
+            }
+            // TODO MultiLeafCollector does not override this, should we return a disjunction of the two?
+            return LeafCollector.super.competitiveIterator();
+        }
     }
 }

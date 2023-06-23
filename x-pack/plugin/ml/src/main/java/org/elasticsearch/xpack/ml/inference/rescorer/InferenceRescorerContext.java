@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.ml.inference.rescorer;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class InferenceRescorerContext extends RescoreContext {
 
@@ -29,18 +30,26 @@ public class InferenceRescorerContext extends RescoreContext {
      * @param rescorer The rescorer to apply
      * @param inferenceDefinition The local model inference definition
      * @param executionContext The local shard search context
-     * @param valueFetcherList Field name and value fetchers for document fields
      */
     public InferenceRescorerContext(
         int windowSize,
         Rescorer rescorer,
         LocalModel inferenceDefinition,
-        SearchExecutionContext executionContext,
-        List<FieldValueFetcher> valueFetcherList
+        SearchExecutionContext executionContext
     ) {
         super(windowSize, rescorer);
         this.executionContext = executionContext;
         this.inferenceDefinition = inferenceDefinition;
-        this.valueFetcherList = Collections.unmodifiableList(valueFetcherList);
+        if (inferenceDefinition != null) {
+            this.valueFetcherList = inferenceDefinition.inputFields().stream().map(s -> {
+                MappedFieldType mappedFieldType = executionContext.getFieldType(s);
+                if (mappedFieldType != null) {
+                    return new InferenceRescorerContext.FieldValueFetcher(s, mappedFieldType.valueFetcher(executionContext, null));
+                }
+                return null;
+            }).filter(Objects::nonNull).toList();
+        } else {
+            valueFetcherList = List.of();
+        }
     }
 }

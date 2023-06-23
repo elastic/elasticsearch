@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -105,9 +103,14 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 return this;
             }
             LocalModel inferenceDefinition = inferenceDefinitionSupplier.get();
-            return new InferenceRescorerBuilder(modelId, inferenceDefinition);
+            InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, inferenceDefinition);
+            if (windowSize() != null) {
+                builder.windowSize(windowSize());
+            }
+            return builder;
         }
         // We don't want to rewrite on the coordinator as that doesn't make sense for this rescorer
+        // TODO Do we rewrite rescorers in can_match & term_stats????
         if (ctx.convertToDataRewriteContext() != null) {
             if (modelLoadingServiceSupplier == null || modelLoadingServiceSupplier.get() == null) {
                 throw new IllegalStateException("Model loading service must be available");
@@ -117,9 +120,21 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 inferenceDefinitionSetOnce.set(lm);
                 l.onResponse(null);
             }, l::onFailure)));
-            return new InferenceRescorerBuilder(modelId, modelLoadingServiceSupplier, inferenceDefinitionSetOnce::get);
+            InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+                modelId,
+                modelLoadingServiceSupplier,
+                inferenceDefinitionSetOnce::get
+            );
+            if (windowSize() != null) {
+                builder.windowSize(windowSize());
+            }
+            return builder;
         }
         return this;
+    }
+
+    public String getModelId() {
+        return modelId;
     }
 
     @Override
@@ -144,14 +159,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch?");
         }
         rescoreOccurred = true;
-        List<InferenceRescorerContext.FieldValueFetcher> valueFetchers = inferenceDefinition.inputFields().stream().map(s -> {
-            MappedFieldType mappedFieldType = context.getFieldType(s);
-            if (mappedFieldType != null) {
-                return new InferenceRescorerContext.FieldValueFetcher(s, mappedFieldType.valueFetcher(context, null));
-            }
-            return null;
-        }).filter(Objects::nonNull).toList();
-        return new InferenceRescorerContext(windowSize, InferenceRescorer.INSTANCE, inferenceDefinition, context, valueFetchers);
+        return new InferenceRescorerContext(windowSize, InferenceRescorer.INSTANCE, inferenceDefinition, context);
     }
 
     @Override

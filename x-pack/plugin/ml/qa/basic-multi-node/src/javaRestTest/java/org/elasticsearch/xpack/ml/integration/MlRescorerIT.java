@@ -113,7 +113,7 @@ public class MlRescorerIT extends ESRestTestCase {
                           }
                         }
                       }""");
-        createIndex(INDEX_NAME, Settings.EMPTY, """
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", randomIntBetween(1, 3)).build(), """
             "properties":{
              "product":{"type": "keyword"},
              "cost":{"type": "integer"}}""");
@@ -129,6 +129,9 @@ public class MlRescorerIT extends ESRestTestCase {
     public void testLtrSimple() throws Exception {
         Response searchResponse = search("""
             {
+            "query": {
+              "match": { "product": { "query": "TV"}}
+            },
             "rescore": {
                     "window_size": 10,
                     "inference": {
@@ -139,13 +142,16 @@ public class MlRescorerIT extends ESRestTestCase {
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
-        assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0, 6.0, 6.0, 3.0));
+        assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
     }
 
     @SuppressWarnings("unchecked")
     public void testLtrSimpleDFS() throws Exception {
         Response searchResponse = searchDfs("""
             {
+            "query": {
+              "match": { "product": { "query": "TV"}}
+            },
             "rescore": {
                     "window_size": 10,
                     "inference": {
@@ -156,7 +162,7 @@ public class MlRescorerIT extends ESRestTestCase {
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
-        assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0, 6.0, 6.0, 3.0));
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
     }
 
     @SuppressWarnings("unchecked")
@@ -182,7 +188,7 @@ public class MlRescorerIT extends ESRestTestCase {
     public void testLtrEmptyDFS() throws Exception {
         Response searchResponse = searchDfs("""
             { "query": {
-              "term": { "product": "computer"}
+              "match": { "product": { "query": "computer"}}
             },
             "rescore": {
                     "window_size": 10,
@@ -194,7 +200,42 @@ public class MlRescorerIT extends ESRestTestCase {
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
-        assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", response), empty());
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), empty());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLtrCanMatch() throws Exception {
+        Response searchResponse = searchCanMatch("""
+            { "query": {
+              "match": { "product": { "query": "TV"}}
+            },
+            "rescore": {
+                    "window_size": 10,
+                    "inference": {
+                        "model_id": "basic-ltr-model"
+                        }
+                }
+
+            }""", false);
+
+        Map<String, Object> response = responseAsMap(searchResponse);
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
+
+        searchResponse = searchCanMatch("""
+            { "query": {
+              "match": { "product": { "query": "TV"}}
+            },
+            "rescore": {
+                    "window_size": 10,
+                    "inference": {
+                        "model_id": "basic-ltr-model"
+                        }
+                }
+
+            }""", true);
+
+        response = responseAsMap(searchResponse);
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
     }
 
     private void indexData(String data) throws IOException {
@@ -204,13 +245,21 @@ public class MlRescorerIT extends ESRestTestCase {
     }
 
     private Response search(String searchBody) throws IOException {
-        Request request = new Request("POST", INDEX_NAME + "/_search");
+        Request request = new Request("POST", INDEX_NAME + "/_search?request_cache=false");
         request.setJsonEntity(searchBody);
         return client().performRequest(request);
     }
 
     private Response searchDfs(String searchBody) throws IOException {
-        Request request = new Request("POST", INDEX_NAME + "/_search?search_type=dfs_query_then_fetch");
+        Request request = new Request("POST", INDEX_NAME + "/_search?search_type=dfs_query_then_fetch&request_cache=false");
+        request.setJsonEntity(searchBody);
+        return client().performRequest(request);
+    }
+
+    private Response searchCanMatch(String searchBody, boolean dfs) throws IOException {
+        Request request = dfs
+            ? new Request("POST", INDEX_NAME + "/_search?search_type=dfs_query_then_fetch&request_cache=false&pre_filter_shard_size=1")
+            : new Request("POST", INDEX_NAME + "/_search?request_cache=false&pre_filter_shard_size=1");
         request.setJsonEntity(searchBody);
         return client().performRequest(request);
     }

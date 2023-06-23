@@ -165,6 +165,52 @@ setup:
   - match: { hits.hits.1._score: 6.0 }
   - match: { hits.hits.2._score: 3.0 }
 ---
+"Test rescore with stored model and smaller window_size":
+  - do:
+      search:
+        index: store
+        size: 5
+        body: >
+          {
+            "rescore": {
+              "window_size": 2,
+              "inference": { "model_id": "ltr-model" }
+            }
+          }
+  - match: { hits.hits.0._score: 17.0 }
+  - match: { hits.hits.1._score: 17.0 }
+  - match: { hits.hits.2._score: 1.0 }
+  - match: { hits.hits.3._score: 1.0 }
+  - match: { hits.hits.4._score: 1.0 }
+---
+"Test rescore with stored model and chained rescorers":
+  - do:
+      search:
+        index: store
+        size: 5
+        body: >
+          {
+            "rescore": [
+            {
+              "window_size": 4,
+              "query": { "rescore_query":{ "script_score": {"query": {"match_all": {}}, "script": {"source": "return 4"}}}}
+            },
+            {
+              "window_size": 3,
+              "inference": { "model_id": "ltr-model" }
+            },
+            {
+              "window_size": 2,
+              "query": { "rescore_query": { "script_score": {"query": {"match_all": {}}, "script": {"source": "return 20"}}}}
+            }
+           ]
+          }
+  - match: { hits.hits.0._score: 37.0 }
+  - match: { hits.hits.1._score: 37.0 }
+  - match: { hits.hits.2._score: 14.0 }
+  - match: { hits.hits.3._score: 5.0 }
+  - match: { hits.hits.4._score: 1.0 }
+---
 "Test rescore with missing model":
   - do:
       catch: missing

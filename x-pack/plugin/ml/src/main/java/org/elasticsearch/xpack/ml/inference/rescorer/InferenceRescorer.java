@@ -14,7 +14,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -49,8 +48,10 @@ public class InferenceRescorer implements Rescorer {
 
     @Override
     public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
+        if (topDocs.scoreDocs.length == 0) {
+            return topDocs;
+        }
         InferenceRescorerContext ltrRescoreContext = (InferenceRescorerContext) rescoreContext;
-
         LocalModel definition = ltrRescoreContext.inferenceDefinition;
 
         // First take top slice of incoming docs, to be rescored:
@@ -58,8 +59,8 @@ public class InferenceRescorer implements Rescorer {
         // Save doc IDs for which rescoring was applied to be used in score explanation
         Set<Integer> topNDocIDs = Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
         rescoreContext.setRescoredDocs(topNDocIDs);
-        ScoreDoc[] hits = topNFirstPass.scoreDocs.clone();
-        Arrays.sort(hits, Comparator.comparingInt(a -> a.doc));
+        ScoreDoc[] hitsToRescore = topNFirstPass.scoreDocs;
+        Arrays.sort(hitsToRescore, Comparator.comparingInt(a -> a.doc));
         SearchLookup sourceLookup = ltrRescoreContext.executionContext.lookup();
         int hitUpto = 0;
         int readerUpto = -1;
@@ -70,8 +71,8 @@ public class InferenceRescorer implements Rescorer {
         boolean changedSegment = true;
         List<Map<String, Object>> docFeatures = new ArrayList<>(topNDocIDs.size());
         int featureSize = ltrRescoreContext.valueFetcherList.size();
-        while (hitUpto < hits.length) {
-            final ScoreDoc hit = hits[hitUpto];
+        while (hitUpto < hitsToRescore.length) {
+            final ScoreDoc hit = hitsToRescore[hitUpto];
             final int docID = hit.doc;
             while (docID >= endDoc) {
                 readerUpto++;
@@ -97,27 +98,20 @@ public class InferenceRescorer implements Rescorer {
             docFeatures.add(features);
             hitUpto++;
         }
-        for (int i = 0; i < hits.length; i++) {
+        for (int i = 0; i < hitsToRescore.length; i++) {
             Map<String, Object> features = docFeatures.get(i);
             try {
-                hits[i].score = ((Number) definition.infer(features, RegressionConfigUpdate.EMPTY_PARAMS).predictedValue()).floatValue();
+                hitsToRescore[i].score = ((Number) definition.infer(features, RegressionConfigUpdate.EMPTY_PARAMS).predictedValue())
+                    .floatValue();
             } catch (Exception ex) {
                 logger.warn("Failure rescoring doc...", ex);
             }
         }
-        if (rescoreContext.getWindowSize() < hits.length) {
-            ArrayUtil.select(hits, 0, hits.length, rescoreContext.getWindowSize(), SCORE_DOC_COMPARATOR);
-            ScoreDoc[] subset = new ScoreDoc[rescoreContext.getWindowSize()];
-            System.arraycopy(hits, 0, subset, 0, rescoreContext.getWindowSize());
-            hits = subset;
-        }
+        assert rescoreContext.getWindowSize() >= hitsToRescore.length
+            : "unexpected, windows size [" + rescoreContext.getWindowSize() + "] should be gte [" + hitsToRescore.length + "]";
 
-        Arrays.sort(hits, SCORE_DOC_COMPARATOR);
-
-        // Rescore them:
-        TopDocs rescored = new TopDocs(topDocs.totalHits, hits);
-        // Splice back to non-topN hits and resort all of them:
-        return combine(topDocs, rescored);
+        Arrays.sort(topDocs.scoreDocs, SCORE_DOC_COMPARATOR);
+        return topDocs;
     }
 
     @Override
@@ -138,13 +132,5 @@ public class InferenceRescorer implements Rescorer {
         System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
 
         return new TopDocs(in.totalHits, subset);
-    }
-
-    private static TopDocs combine(TopDocs in, TopDocs resorted) {
-        System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
-        if (in.scoreDocs.length > resorted.scoreDocs.length) {
-            Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
-        }
-        return in;
     }
 }

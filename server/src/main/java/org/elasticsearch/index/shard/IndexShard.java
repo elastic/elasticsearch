@@ -3747,7 +3747,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
      */
     public void scheduledRefresh(ActionListener<Boolean> listener) {
-        try {
+        ActionListener.run(listener, l -> {
             verifyNotClosed();
             boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
             final Engine engine = getEngine();
@@ -3762,19 +3762,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // cause the next schedule to refresh.
                     engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                     setRefreshPending(engine);
-                    listener.onResponse(false);
+                    l.onResponse(false);
                     return;
                 } else {
                     logger.trace("refresh with source [schedule]");
-                    engine.maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
+                    engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
                     return;
                 }
             }
             engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-            listener.onResponse(false);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            l.onResponse(false);
+        });
     }
 
     /**

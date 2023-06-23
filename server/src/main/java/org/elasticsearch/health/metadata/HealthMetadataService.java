@@ -29,6 +29,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING;
@@ -298,7 +299,7 @@ public class HealthMetadataService {
 
         @Override
         HealthMetadata doExecute(HealthMetadata initialHealthMetadata) {
-            return new HealthMetadata(
+            return Objects.requireNonNullElseGet(initialHealthMetadata, () -> new HealthMetadata(
                 new HealthMetadata.Disk(
                     CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
                     CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.get(settings),
@@ -311,7 +312,7 @@ public class HealthMetadataService {
                     SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
                     SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
                 )
-            );
+            ));
         }
     }
 }

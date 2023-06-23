@@ -136,11 +136,11 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-            //post_filter is not applied to aggs
+            // post_filter is not applied to aggs
             assertEquals(reader.maxDoc(), aggsCollector.collected);
         }
         {
-            //the weight is not propagated
+            // the weight is not propagated
             TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
@@ -172,16 +172,22 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-            //post_filter is not applied to aggs
+            // post_filter is not applied to aggs
             assertEquals(reader.maxDoc(), aggsCollector.collected);
         }
         {
-            //the weight is propagated only to the aggs collector
+            // the weight is propagated only to the aggs collector
             TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
             TotalHitCountCollector aggsCollector = new TotalHitCountCollector();
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, filterWeight, 0, assertNoCollection(aggsCollector), null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topDocsCollector,
+                filterWeight,
+                0,
+                assertNoCollection(aggsCollector),
+                null
+            );
             searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topDocsCollector.getTotalHits());
@@ -225,7 +231,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
         }
         {
-            //the weight is not propagated to the top docs collector
+            // the weight is not propagated to the top docs collector
             TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(assertNoCollection(topDocsCollector), null, 0, null, 100f);
             searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
@@ -255,7 +261,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             searcher.search(booleanQuery, queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-            //min_score is applied to aggs as well as top docs
+            // min_score is applied to aggs as well as top docs
             assertEquals(1, aggsCollector.collected);
         }
         {
@@ -277,7 +283,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(0, aggsCollector.collected);
         }
         {
-            //the weight is not propagated to either of the collectors
+            // the weight is not propagated to either of the collectors
             TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
             TotalHitCountCollector aggsCollector = new TotalHitCountCollector();
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, null, 0, aggsCollector, 100f);
@@ -288,8 +294,8 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
     }
 
-    //TODO these terminate after tests are flaky
-/*    public void testTerminateAfterTopDocsOnly() throws IOException {
+    // TODO these terminate after tests are flaky
+    /*    public void testTerminateAfterTopDocsOnly() throws IOException {
         {
             //weight is propagated, collection is early terminated in between segments, terminate_after is somehow honoured
             TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
@@ -327,7 +333,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
             TotalHitCountCollector aggsCollector = new TotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(assertNoCollection(topDocsCollector), null, 0, assertNoCollection(aggsCollector), null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                assertNoCollection(topDocsCollector),
+                null,
+                0,
+                assertNoCollection(aggsCollector),
+                null
+            );
             searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(reader.maxDoc(), topDocsCollector.getTotalHits());

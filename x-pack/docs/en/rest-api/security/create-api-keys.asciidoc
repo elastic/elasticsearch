@@ -48,6 +48,16 @@ The following parameters can be specified in the body of a POST or PUT request:
 `name`::
 (Required, string) Specifies the name for this API key.
 
+`expiration`::
+(Optional, string) Expiration time for the API key. By default, API keys never
+expire.
+
+`metadata`::
+(Optional, object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, keys beginning with `_` are reserved for
+system usage.
+
 [[api-key-role-descriptors]]
 `role_descriptors`::
 (Optional, object) The role descriptors for this API
@@ -72,15 +82,7 @@ The structure of a role descriptor is:
 :role-restriction:
 include::common-role-descriptor-def.asciidoc[]
 
-`expiration`::
-(Optional, string) Expiration time for the API key. By default, API keys never
-expire.
 
-`metadata`::
-(Optional, object) Arbitrary metadata that you want to associate with the API key.
-It supports nested data structure.
-Within the `metadata` object, keys beginning with `_` are reserved for
-system usage.
 
 [[security-api-create-api-key-example]]
 ==== {api-examples-title}

@@ -87,7 +87,6 @@ public class FileOperatorUsersStore {
                         (String) authentication.getEffectiveSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD)
                     ))
                 && (group.tokenNames == null
-                    || group.tokenNames.isEmpty()
                     || group.tokenNames.contains(
                         authentication.getEffectiveSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD)
                     ));
@@ -196,9 +195,20 @@ public class FileOperatorUsersStore {
                 if (false == FileRealmSettings.TYPE.equals(realmType)) {
                     validationException.addValidationError("[realm_type] requires [file] when [auth_type] is [realm] or not specified");
                 }
+                if (tokenNames != null) {
+                    validationException.addValidationError("[token_names] is not valid when [realm_type] is [file]");
+                }
+                if (tokenSource != null) {
+                    validationException.addValidationError("[token_source] is not valid when [realm_type] is [file]");
+                }
             } else if (authenticationType == Authentication.AuthenticationType.TOKEN) {
                 if (false == ServiceAccountSettings.REALM_TYPE.equals(realmType)) {
                     validationException.addValidationError("[realm_type] requires [_service_account] when [auth_type] is [token]");
+                }
+                if (usernames.size() > 1 && ServiceAccountSettings.REALM_TYPE.equals(realmType)) {
+                    validationException.addValidationError(
+                        "[usernames] must be a single value when auth_type is [token] " + "and realm_type is [_service_account]"
+                    );
                 }
                 if (tokenSource == null) {
                     validationException.addValidationError("[token_source] must be set when [auth_type] is [token]");
@@ -211,7 +221,7 @@ public class FileOperatorUsersStore {
                             + "]"
                     );
                 }
-                if (tokenNames == null || tokenNames.isEmpty()) {
+                if (tokenNames == null) {
                     validationException.addValidationError("[token_names] must be set when [auth_type] is [token]");
                 }
             } else {
@@ -251,15 +261,17 @@ public class FileOperatorUsersStore {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Group group = (Group) o;
-            return usernames.equals(group.usernames)
+            return Objects.equals(usernames, group.usernames)
                 && Objects.equals(realmName, group.realmName)
-                && realmType.equals(group.realmType)
+                && Objects.equals(realmType, group.realmType)
+                && Objects.equals(tokenSource, group.tokenSource)
+                && Objects.equals(tokenNames, group.tokenNames)
                 && authenticationType == group.authenticationType;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(usernames, realmName, realmType, authenticationType);
+            return Objects.hash(usernames, realmName, realmType, tokenSource, tokenNames, authenticationType);
         }
     }
 
@@ -307,7 +319,7 @@ public class FileOperatorUsersStore {
             (String) arr[2],
             (String) arr[3],
             (String) arr[4],
-            arr[5] == null ? Set.of() : Set.copyOf((List<String>) arr[5])
+            arr[5] == null ? null : Set.copyOf((List<String>) arr[5])
         )
     );
 

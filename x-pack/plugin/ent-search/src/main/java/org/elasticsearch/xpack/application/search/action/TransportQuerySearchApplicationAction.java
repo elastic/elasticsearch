@@ -28,6 +28,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
 
+import java.util.Map;
+
 public class TransportQuerySearchApplicationAction extends HandledTransportAction<SearchApplicationSearchRequest, SearchResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportQuerySearchApplicationAction.class);
@@ -60,11 +62,21 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
                 SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
                 SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
-                client.execute(
-                    SearchAction.INSTANCE,
-                    searchRequest,
-                    listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
-                );
+                systemIndexService.checkAliasConsistency(searchApplication, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Map<String, String> stringStringMap) {
+                        client.execute(
+                            SearchAction.INSTANCE,
+                            searchRequest,
+                            listener.delegateFailure((l2, searchResponse) -> l2.onResponse(new SearchApplicationSearchResponse(searchResponse, stringStringMap)))
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
             } catch (Exception e) {
                 l.onFailure(e);
             }

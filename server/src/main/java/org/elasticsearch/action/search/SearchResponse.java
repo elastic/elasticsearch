@@ -133,6 +133,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
+    public SearchResponse(SearchResponse searchResponse) {
+        this(searchResponse.internalResponse, searchResponse.scrollId, searchResponse.totalShards, searchResponse.successfulShards,
+            searchResponse.skippedShards, searchResponse.tookInMillis, searchResponse.shardFailures, searchResponse.clusters,
+            searchResponse.pointInTimeId);
+    }
+
     public RestStatus status() {
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }

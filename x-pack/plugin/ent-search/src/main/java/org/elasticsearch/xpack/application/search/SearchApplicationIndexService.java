@@ -73,6 +73,7 @@ import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -206,6 +207,33 @@ public class SearchApplicationIndexService {
             final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
             l.onResponse(res);
         }));
+    }
+
+    public void checkAliasConsistency(SearchApplication app, ActionListener<Map<String,String>> listener) {
+        final Metadata metadata = clusterService.state().metadata();
+        final String searchAliasName = getSearchAliasName(app);
+
+        final Map<String,String> inconsistentIndices = new HashMap<>();
+
+        if (metadata.hasAlias(searchAliasName)) {
+            Set<String> indicesInAlias = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());
+            Set<String> configuredIndices = Set.of(app.indices());
+
+            Set<String> indicesInAliasButNotInSearchApp = new HashSet<>(indicesInAlias);
+            indicesInAliasButNotInSearchApp.removeAll(configuredIndices);
+            indicesInAliasButNotInSearchApp.forEach(index -> inconsistentIndices.put(index, "Index is in alias but not in search app"));
+
+            Set<String> indicesInSearchAppButNotInAlias = new HashSet<>(configuredIndices);
+            indicesInSearchAppButNotInAlias.removeAll(indicesInAlias);
+            indicesInSearchAppButNotInAlias.forEach(index -> inconsistentIndices.put(index, "Index is in search app but not in alias"));
+
+        } else {
+            for (String index : app.indices()) {
+                inconsistentIndices.put(index, "Index is in search app but not in alias");
+            }
+        }
+
+        listener.onResponse(inconsistentIndices);
     }
 
     private static String getSearchAliasName(SearchApplication app) {

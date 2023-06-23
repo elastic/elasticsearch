@@ -18,10 +18,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,6 +37,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
     GetComponentTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
+    private final SettingsFilter settingsFilter;
 
     @Inject
     public TransportGetComponentTemplateAction(
@@ -41,8 +45,8 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SettingsFilter settingsFilter) {
         super(
             GetComponentTemplateAction.NAME,
             transportService,
@@ -55,6 +59,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             ThreadPool.Names.SAME
         );
         clusterSettings = clusterService.getClusterSettings();
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -81,7 +86,13 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             if (Regex.isSimpleMatchPattern(name)) {
                 for (Map.Entry<String, ComponentTemplate> entry : allTemplates.entrySet()) {
                     if (Regex.simpleMatch(name, entry.getKey())) {
-                        results.put(entry.getKey(), entry.getValue());
+                        ComponentTemplate value = entry.getValue();
+                        Settings filter = settingsFilter.filter(value.template().settings());
+                        Template newTemplate = new Template(filter,
+                            value.template().mappings(),
+                            value.template().aliases(),
+                            value.template().lifecycle());
+                        results.put(entry.getKey(), new ComponentTemplate(newTemplate, value.version(), value.metadata()));
                     }
                 }
             } else if (allTemplates.containsKey(name)) {

@@ -64,7 +64,6 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
     );
 
     private final ClusterSettings clusterSettings;
-    private IndexScopedSettings indexScopedSettings;
 
     public DefaultOperatorOnlyRegistry(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
@@ -81,26 +80,11 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         } else if (ClusterUpdateSettingsAction.NAME.equals(action)) {
             assert request instanceof ClusterUpdateSettingsRequest;
             return checkClusterUpdateSettings((ClusterUpdateSettingsRequest) request);
-        } else if (CreateIndexAction.NAME.equals(action)) {
-            assert request instanceof CreateIndexRequest;
-            return checkIndexSettings((CreateIndexRequest) request);
         } else {
             return null;
         }
     }
 
-    private OperatorPrivilegesViolation checkIndexSettings(CreateIndexRequest request) {
-        List<String> list = request.settings()
-            .keySet()
-            .stream()
-            .filter(settingName -> indexScopedSettings.get(settingName).isServerlessPublic())
-            .toList();
-        if (false == list.isEmpty()) {
-            return () -> (list.size() == 1 ? "setting" : "settings") + " [" + Strings.collectionToDelimitedString(list, ",") + "]";
-        } else {
-            return null;
-        }
-    }
 
     @Override
     public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {

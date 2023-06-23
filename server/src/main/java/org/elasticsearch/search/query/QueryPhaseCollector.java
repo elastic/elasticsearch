@@ -44,24 +44,13 @@ final class QueryPhaseCollector implements Collector {
     private int numCollected;
     private boolean terminatedAfter = false;
 
-    public QueryPhaseCollector(
-        Collector topDocsCollector,
-        Weight postFilterWeight,
-        int terminateAfter,
-        Collector aggsCollector,
-        Float minScore
-    ) {
+    QueryPhaseCollector(Collector topDocsCollector, Weight postFilterWeight, int terminateAfter, Collector aggsCollector, Float minScore) {
         this.topDocsCollector = Objects.requireNonNull(topDocsCollector);
         this.postFilterWeight = postFilterWeight;
         this.terminateAfter = terminateAfter;
         this.aggsCollector = aggsCollector;
         this.minScore = minScore;
-        if (aggsCollector == null) {
-            // TODO do we still need to cache scores now that min score is no longer applied by a separate collector?
-            this.cacheScores = minScore != null;
-        } else {
-            this.cacheScores = (topDocsCollector.scoreMode().needsScores() && aggsCollector.scoreMode().needsScores()) || minScore != null;
-        }
+        this.cacheScores = aggsCollector != null && topDocsCollector.scoreMode().needsScores() && aggsCollector.scoreMode().needsScores();
     }
 
     @Override
@@ -83,12 +72,12 @@ final class QueryPhaseCollector implements Collector {
             scoreMode = topDocsCollector.scoreMode();
         } else if (topDocsCollector.scoreMode() == aggsCollector.scoreMode()) {
             scoreMode = topDocsCollector.scoreMode();
+            // TODO should we also look at isExhaustive as well? MultiCollector does not.
         } else if (topDocsCollector.scoreMode().needsScores() || aggsCollector.scoreMode().needsScores()) {
             scoreMode = ScoreMode.COMPLETE;
         } else {
             scoreMode = ScoreMode.COMPLETE_NO_SCORES;
         }
-        // TODO should we also look at isExhaustive? MultiCollector does not.
         if (minScore != null) {
             scoreMode = scoreMode == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
         }
@@ -105,7 +94,7 @@ final class QueryPhaseCollector implements Collector {
     private boolean shouldCollectTopDocs(int doc, Scorable scorer, Bits postFilterBits) throws IOException {
         if (minScore == null || scorer.score() >= minScore) {
             if (postFilterBits == null || postFilterBits.get(doc)) {
-                // TODO terminate_after is purposely applied after post_filter, yet it is weird as it terminates aggs collection
+                // TODO terminate_after is purposely applied after post_filter, yet it is weird as it terminates aggs collection as well
                 // based on number of filtered top hits that have been collected. This may be something that we want to address.
                 if (terminateAfter > 0 && ++numCollected > terminateAfter) {
                     terminatedAfter = true;
@@ -162,7 +151,11 @@ final class QueryPhaseCollector implements Collector {
         } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
             // aggs collector does not need this segment, but the top docs collector may.
             if (topDocsLeafCollector == null) {
-                throw e;
+                // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf collector).
+                // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
+                if (terminateAfter == 0) {
+                    throw e;
+                }
             }
             aggsLeafCollector = null;
         }
@@ -190,7 +183,7 @@ final class QueryPhaseCollector implements Collector {
                     if (terminateAfter == 0) {
                         // Ignore calls to setMinCompetitiveScore when terminate_after is used, otherwise early termination
                         // of total hits tracking makes it impossible to terminate after.
-                        // TODO the reason is only to set the early terminated flag to the QueryResult like some tests expect.
+                        // TODO the reason is only to set the early terminated flag to the QueryResult. We should fix this.
                         in.setMinCompetitiveScore(minScore);
                     }
                 }
@@ -218,7 +211,7 @@ final class QueryPhaseCollector implements Collector {
                     } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
                         // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
                         // collector).
-                        // The reason is only to set the early terminated flag to the QueryResult like some tests expect.
+                        // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
                         if (terminateAfter == 0) {
                             throw e;
                         }
@@ -271,12 +264,20 @@ final class QueryPhaseCollector implements Collector {
                     try {
                         topDocsLeafCollector.collect(doc);
                     } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-                        // top docs collector does not need this segment, but the aggs collector does.
-                        // Don't collect further from top docs, but keep on counting so aggs can be terminated after.
+                        // top docs collector does not need this segment, but the aggs collector may.
+                        if (aggsLeafCollector == null) {
+                            // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
+                            // collector).
+                            // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
+                            if (terminateAfter == 0) {
+                                throw e;
+                            }
+                        }
                         topDocsLeafCollector = null;
                     }
                 }
             }
+            // min_score is applied to aggs as well as top hits
             if (minScore == null || scorer.score() >= minScore) {
                 if (aggsLeafCollector != null) {
                     try {
@@ -286,7 +287,7 @@ final class QueryPhaseCollector implements Collector {
                         if (topDocsLeafCollector == null) {
                             // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
                             // collector).
-                            // The reason is only to set the early terminated flag to the QueryResult like some tests expect.
+                            // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
                             if (terminateAfter == 0) {
                                 throw e;
                             }

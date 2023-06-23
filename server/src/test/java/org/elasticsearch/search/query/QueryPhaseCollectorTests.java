@@ -20,9 +20,11 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.FilterScorable;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.TermQuery;
@@ -32,6 +34,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -90,21 +93,21 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testWithAggs() throws IOException {
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, null);
             searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(numDocs, aggsCollector.collected);
+            assertEquals(numDocs, aggsCollector.getTotalHits());
         }
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, null);
             searcher.search(new TermQuery(new Term("field2", "value")), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(1, aggsCollector.collected);
+            assertEquals(1, aggsCollector.getTotalHits());
         }
     }
 
@@ -129,7 +132,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggsCollector, null);
@@ -137,7 +140,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
             // post_filter is not applied to aggs
-            assertEquals(reader.maxDoc(), aggsCollector.collected);
+            assertEquals(reader.maxDoc(), aggsCollector.getTotalHits());
         }
         {
             // the weight is not propagated
@@ -154,18 +157,18 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testPostFilterWithAggs() throws IOException {
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             TermQuery termQuery = new TermQuery(new Term("field1", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggsCollector, null);
             searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(numDocs, aggsCollector.collected);
+            assertEquals(numDocs, aggsCollector.getTotalHits());
         }
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggsCollector, null);
@@ -173,7 +176,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
             // post_filter is not applied to aggs
-            assertEquals(reader.maxDoc(), aggsCollector.collected);
+            assertEquals(reader.maxDoc(), aggsCollector.getTotalHits());
         }
         {
             // the weight is propagated only to the aggs collector
@@ -256,31 +259,31 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, maxScore);
             searcher.search(booleanQuery, queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
             // min_score is applied to aggs as well as top docs
-            assertEquals(1, aggsCollector.collected);
+            assertEquals(1, aggsCollector.getTotalHits());
         }
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, thresholdScore);
             searcher.search(booleanQuery, queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(numDocs, aggsCollector.collected);
+            assertEquals(numDocs, aggsCollector.getTotalHits());
         }
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            CountingCollector aggsCollector = new CountingCollector();
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, maxScore + 100f);
             searcher.search(booleanQuery, queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(0, aggsCollector.collected);
+            assertEquals(0, aggsCollector.getTotalHits());
         }
         {
             // the weight is not propagated to either of the collectors
@@ -347,9 +350,69 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
     }
 
+    public void testDisablesSetMinCompetitiveScore() throws IOException {
+        Scorable scorer = new Scorable() {
+            @Override
+            public int docID() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public float score() {
+                return 0;
+            }
+
+            @Override
+            public void setMinCompetitiveScore(float minScore) {
+                throw new AssertionError();
+            }
+        };
+
+        Collector collector = new SimpleCollector() {
+            private Scorable scorer;
+            float minScore = 0;
+
+            @Override
+            public ScoreMode scoreMode() {
+                return ScoreMode.TOP_SCORES;
+            }
+
+            @Override
+            public void setScorer(Scorable scorer) {
+                this.scorer = scorer;
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                minScore = Math.nextUp(minScore);
+                scorer.setMinCompetitiveScore(minScore);
+            }
+        };
+        {
+            Collector queryPhaseCollector = new QueryPhaseCollector(collector, null, 0, new DummyTotalHitCountCollector(), null);
+            LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(reader.leaves().get(0));
+            leafCollector.setScorer(scorer);
+            leafCollector.collect(0); // no exception
+        }
+        {
+            // without aggs no need to disable set min competitive score
+            Collector queryPhaseCollector = new QueryPhaseCollector(collector, null, 0, null, null);
+            LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(reader.leaves().get(0));
+            final boolean[] called = new boolean[] { false };
+            leafCollector.setScorer(new FilterScorable(scorer) {
+                @Override
+                public void setMinCompetitiveScore(float minScore) {
+                    called[0] = true;
+                }
+            });
+            leafCollector.collect(0);
+            assertTrue(called[0]);
+        }
+    }
+
     /*
         TODO Missing test coverage:
-        - different combinations of features used
+        - different combinations of features used together
         - different combinations of score mode between top docs and aggs
         - port tests from TestMultiCollector around min competitive score etc.
         - Deeper testing of terminate_after, without shortcut total hit count
@@ -370,17 +433,4 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         };
     }
 
-    private static class CountingCollector extends SimpleCollector {
-        private int collected = 0;
-
-        @Override
-        public void collect(int doc) throws IOException {
-            collected++;
-        }
-
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE;
-        }
-    }
 }

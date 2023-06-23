@@ -10,7 +10,6 @@ setup:
       query_ruleset.put:
         ruleset_id: test-ruleset
         body:
-          ruleset_id: test-ruleset
           rules:
             - rule_id: query-rule-id1
               type: pinned
@@ -72,7 +71,6 @@ setup:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-recreating
         body:
-          ruleset_id: 'test-query-ruleset-recreating'
           rules:
             rule_id: 'test-rule-1'
             type: 'pinned'
@@ -90,7 +88,6 @@ setup:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-recreating
         body:
-          ruleset_id: 'test-query-ruleset-recreating'
           rules:
             rule_id: 'test-rule-1'
             type: 'pinned'
@@ -115,7 +112,6 @@ setup:
       query_ruleset.put:
         ruleset_id: forbidden-query-ruleset
         body:
-          ruleset_id: 'forbidden-query-ruleset'
           rules:
             rule_id: 'test-rule-1'
             type: 'pinned'

@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
@@ -90,6 +91,51 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         indexSearcher.search(new MatchAllDocsQuery(), collector);
         collector.postCollection();
+
+        reader.close();
+        dir.close();
+    }
+
+    public void testCollectMinScoreAcrossSegments() throws IOException, InterruptedException {
+        Directory dir = newDirectory();
+        RandomIndexWriter iw = getIndexWriter(dir);
+
+        AtomicInteger clock = new AtomicInteger(0);
+
+        final int DOC_COUNTS = 5;
+        Document doc = new Document();
+        for (int j = 0; j < DOC_COUNTS; j++) {
+            String tsid = "tsid" + j % 30;
+            long time = clock.addAndGet(j % 10);
+            doc.clear();
+            doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
+            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, time));
+            try {
+                iw.addDocument(doc);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        iw.close();
+
+        IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
+        indexSearcher.setMinimumScore(2f);
+
+        {
+            var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
+            var query = new BoostQuery(new MatchAllDocsQuery(), 2f);
+            indexSearcher.search(query, collector);
+            assertEquals(collector.count.get(), DOC_COUNTS);
+        }
+        {
+            var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
+            var query = new BoostQuery(new MatchAllDocsQuery(), 1f);
+            indexSearcher.search(query, collector);
+            assertEquals(collector.count.get(), 0);
+        }
 
         reader.close();
         dir.close();

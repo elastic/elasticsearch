@@ -32,7 +32,7 @@ public class TransportDeleteSynonymsAction extends HandledTransportAction<Delete
     protected void doExecute(Task task, DeleteSynonymsAction.Request request, ActionListener<DeleteSynonymsAction.Response> listener) {
         synonymsManagementAPIService.deleteSynonymsSet(
             request.synonymsSetId(),
-            listener.map(dr -> new DeleteSynonymsAction.Response(dr.acknowledgedResponse(), dr.reloadAnalyzersResponse()))
+            listener.map(dr -> new DeleteSynonymsAction.Response(dr.synonymsOperationResult(), dr.reloadAnalyzersResponse()))
         );
     }
 }

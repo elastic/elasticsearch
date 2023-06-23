@@ -55,8 +55,8 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     @Override
     public void tearDown() throws Exception {
         assertAcked(indicesAdmin().prepareDelete("mounted-*"));
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot("repository", "snapshot").get());
-        assertAcked(client().admin().cluster().prepareDeleteRepository("repository"));
+        assertAcked(clusterAdmin().prepareDeleteSnapshot("repository", "snapshot").get());
+        assertAcked(clusterAdmin().prepareDeleteRepository("repository"));
         super.tearDown();
     }
 

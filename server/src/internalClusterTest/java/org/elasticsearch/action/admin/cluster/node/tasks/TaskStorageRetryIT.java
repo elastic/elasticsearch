@@ -69,10 +69,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
 
             logger.info("verify that the task has started and is still running");
             assertBusy(() -> {
-                GetTaskResponse runningTask = client().admin()
-                    .cluster()
-                    .prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId()))
-                    .get();
+                GetTaskResponse runningTask = clusterAdmin().prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId())).get();
                 assertNotNull(runningTask.getTask());
                 assertFalse(runningTask.getTask().isCompleted());
                 assertEquals(emptyMap(), runningTask.getTask().getErrorAsMap());
@@ -88,10 +85,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
         future.get(10, TimeUnit.SECONDS);
 
         logger.info("check that it was written successfully");
-        GetTaskResponse finishedTask = client().admin()
-            .cluster()
-            .prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId()))
-            .get();
+        GetTaskResponse finishedTask = clusterAdmin().prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId())).get();
         assertTrue(finishedTask.getTask().isCompleted());
         assertEquals(emptyMap(), finishedTask.getTask().getErrorAsMap());
         assertEquals(singletonMap("failure_count", 0), finishedTask.getTask().getResponseAsMap());

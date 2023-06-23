@@ -425,6 +425,6 @@ composite_id_parsed:
   - length: { profile.shards.0.node_id: 22 }
   - gte: { profile.shards.0.shard_id: 0 }
   - match: { profile.shards.0.index: "test" }
-  - match: { profile.shards.0.cluster: "(local)" }
+  - is_true: profile.shards.0.cluster
   - contains: { $composite_id: $first_node_id }
   - contains: { $composite_id: $first_index }

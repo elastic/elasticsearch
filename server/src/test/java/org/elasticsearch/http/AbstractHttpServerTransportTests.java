@@ -69,7 +69,6 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
@@ -945,11 +944,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(grace))
         ) {
 
-            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
 
-            transport.incomingRequest(httpRequest, httpChannel);
+            transport.incomingRequest(testHttpRequest(), httpChannel);
             // channel now idle
 
             assertTrue(httpChannel.isOpen());
@@ -975,10 +973,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
             transport.serverAcceptedChannel(httpChannel);
             new Thread(
-                () -> transport.incomingRequest(
-                    new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"),
-                    httpChannel
-                ),
+                () -> transport.incomingRequest(testHttpRequest(), httpChannel),
                 "testStopForceClosesConnectionDuringRequest -> incomingRequest"
             ).start();
 
@@ -999,29 +994,40 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testStopClosesChannelAfterRequest() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
+    public void testStopClosesChannelAfterRequest() throws Exception {
+        var grace = 100;
+        try (var noTimeout = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
 
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
-            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            transport.incomingRequest(testHttpRequest(), httpChannel);
 
             TestHttpChannel idleChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(idleChannel);
-            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), idleChannel);
-
-            // one last request, should cause httpChannel to close naturally now that we've set grace period
-            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            transport.incomingRequest(testHttpRequest(), idleChannel);
 
             CountDownLatch stopped = new CountDownLatch(1);
+
+            var inSendResponse = httpChannel.notifyInSendResponse();
+            httpChannel.blockSendResponse();
+
+            // one last request, should cause httpChannel to close after the request once we start shutting down.
+            new Thread(() -> transport.incomingRequest(testHttpRequest(), httpChannel), "testStopClosesChannelAfterRequest last request")
+                .start();
+
+            inSendResponse.await();
 
             new Thread(() -> {
                 transport.doStop();
                 stopped.countDown();
-            }).start();
+            }, "testStopClosesChannelAfterRequest stopping transport").start();
 
-            // transport.waitForDispatch();
-            assertFalse(httpChannel.isOpen());
+            // wait until we are shutting down
+            assertBusy(() -> assertFalse(transport.isAcceptingConnections()));
+            httpChannel.allowSendResponse();
+
+            // wait for channel to close
+            assertBusy(() -> assertFalse(httpChannel.isOpen()));
 
             try {
                 assertTrue(stopped.await(10, TimeUnit.SECONDS));
@@ -1033,23 +1039,27 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertFalse(idleChannel.isOpen());
 
             assertThat(httpChannel.responses, hasSize(2));
+            // should have closed naturally without having to wait
+            noTimeout.assertExpectationsMatched();
         }
     }
 
-    public void testForceClosesOpenChannels() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
+    public void testForceClosesOpenChannels() throws Exception {
+        var grace = 100;
+        TestHttpChannel httpChannel = new TestHttpChannel();
+        try (var timeout = LogExpectation.expectTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
 
-            TestHttpChannel httpChannel = new TestHttpChannel(true);
             transport.serverAcceptedChannel(httpChannel);
-            // transport.continueDispatch();
-            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            transport.incomingRequest(testHttpRequest(), httpChannel);
 
             CountDownLatch stopped = new CountDownLatch(1);
 
-            new Thread(() -> {
-                // one last request, will attempt to close naturally, but we are blocking it
-                transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
-            }).start();
+            var inResponse = httpChannel.notifyInSendResponse();
+            httpChannel.blockSendResponse();
+
+            new Thread(() -> transport.incomingRequest(testHttpRequest(), httpChannel)).start();
+
+            inResponse.await();
 
             new Thread(() -> {
                 transport.doStop();
@@ -1066,11 +1076,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertFalse(httpChannel.isOpen());
 
             HttpResponse first = httpChannel.getResponse();
-            HttpResponse last = httpChannel.getResponse();
-            assertTrue(httpChannel.noResponses());
-            assertFalse(first.containsHeader(CONNECTION));
-            assertThat(last, instanceOf(TestHttpResponse.class));
-            // transport.continueDispatch();
+            assertTrue(httpChannel.noResponses()); // never sent the second response
+            assertThat(first, instanceOf(TestHttpResponse.class));
+
+            timeout.assertExpectationsMatched();
+        } finally {
+            // cleanup thread
+            httpChannel.allowSendResponse();
         }
 
     }
@@ -1122,7 +1134,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     private class TestHttpServerTransport extends AbstractHttpServerTransport {
-        public TestHttpChannel testHttpServerChannel = new TestHttpChannel(false);
+        public TestHttpChannel testHttpServerChannel = new TestHttpChannel();
 
         TestHttpServerTransport(Settings settings, HttpServerTransport.Dispatcher dispatcher) {
             super(
@@ -1173,30 +1185,34 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private static class TestHttpChannel implements HttpChannel, HttpServerChannel {
         private boolean open = true;
-        private int numCloses = 0;
-        private final CountDownLatch closeLatch;
         private ActionListener<Void> closeListener;
         private InetSocketAddress localAddress;
 
-        private BlockingDeque<HttpResponse> responses = new LinkedBlockingDeque<>();
+        private final BlockingDeque<HttpResponse> responses = new LinkedBlockingDeque<>();
 
-        private final AtomicReference<CountDownLatch> notifySendResponse = new AtomicReference<>();
-        private final AtomicReference<CountDownLatch> blockSendResponse = new AtomicReference<>();
+        private CountDownLatch notifySendResponse = null;
+        private CountDownLatch blockSendResponse = null;
 
-        public synchronized CountDownLatch notifyInSendResponse() {
-            var latch = new CountDownLatch(1);
-            notifySendResponse.set(latch);
-            return latch;
+        public CountDownLatch notifyInSendResponse() {
+            synchronized (this) {
+                assert notifySendResponse == null : "already notifying";
+                notifySendResponse = new CountDownLatch(1);
+                return notifySendResponse;
+            }
         }
 
         public synchronized void blockSendResponse() {
-            assert blockSendResponse.get() == null : "blockSendResponse already set";
-            blockSendResponse.set(new CountDownLatch(1));
+            synchronized (this) {
+                assert blockSendResponse == null : "blockSendResponse already set";
+                blockSendResponse = new CountDownLatch(1);
+            }
         }
 
         public synchronized void allowSendResponse() {
-            assert blockSendResponse.get() != null : "blockSendResponse null, no need to allow";
-            blockSendResponse.get().countDown();
+            synchronized (this) {
+                assert blockSendResponse != null : "blockSendResponse null, no need to allow";
+                blockSendResponse.countDown();
+            }
         }
 
         public boolean noResponses() {
@@ -1213,24 +1229,26 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             return null;
         }
 
-        TestHttpChannel() {
-            this(false);
-        }
-
-        TestHttpChannel(boolean blockFirstClose) {
-            closeLatch = blockFirstClose ? new CountDownLatch(1) : null;
-        }
-
         @Override
         public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-            var latch = notifySendResponse.get();
-            if (latch != null) {
-                latch.countDown();
+            CountDownLatch notify;
+            CountDownLatch blockSend;
+            synchronized (this) {
+                notify = notifySendResponse;
+                blockSend = blockSendResponse;
             }
-            latch = blockSendResponse.get();
-            if (latch != null) {
+            if (notify != null) {
+                notify.countDown();
+                synchronized (this) {
+                    notifySendResponse = null;
+                }
+            }
+            if (blockSend != null) {
                 try {
-                    latch.await();
+                    blockSend.await();
+                    synchronized (this) {
+                        blockSendResponse = null;
+                    }
                 } catch (InterruptedException e) {
                     fail("interrupted");
                 }
@@ -1255,26 +1273,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
-            if (closeLatch != null) {
-                boolean waitForever;
-                synchronized (this) {
-                    waitForever = numCloses == 0;
-                    numCloses++;
+            synchronized (this) {
+                if (open == false) {
+                    throw new IllegalStateException("channel already closed!");
                 }
-                if (waitForever) {
-                    try {
-                        if (closeLatch.await(1, TimeUnit.SECONDS) == false) {
-                            return;
-                        }
-                    } catch (InterruptedException ie) {
-                        throw new RuntimeException(ie);
-                    }
-                }
+                open = false;
             }
-            if (open == false) {
-                throw new IllegalStateException("channel already closed!");
-            }
-            open = false;
             if (closeListener != null) {
                 closeListener.onResponse(null);
             }

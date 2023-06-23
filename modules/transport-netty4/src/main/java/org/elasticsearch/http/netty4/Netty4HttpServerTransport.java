@@ -367,11 +367,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         new AcceptChannelHandler(acceptChannelPredicate, HttpServerTransport.HTTP_PROFILE_NAME)
                     );
             }
-            ch.pipeline()
-                .addLast(
-                    "reject_if_server_closing",
-                    new AcceptChannelHandler((profile, addr) -> transport.isAcceptingConnections(), HttpServerTransport.HTTP_PROFILE_NAME)
-                );
             if (tlsConfig.isTLSEnabled()) {
                 ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
             }

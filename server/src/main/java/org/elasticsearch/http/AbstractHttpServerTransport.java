@@ -256,7 +256,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         refCounted.decRef();
         boolean closed = false;
 
-        // httpChannels has no more puts after gracefullyCloseConnections because of the guard in serverAcceptedChannel
+        // httpChannels has no more puts after shuttingDown because of the guard in serverAcceptedChannel
         httpChannels.values().forEach(RequestTrackingHttpChannel::setCloseWhenIdle);
 
         if (shutdownGracePeriodMillis > 0) {
@@ -287,7 +287,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         stopInternal();
     }
 
-    public boolean isAcceptingConnections() {
+    boolean isAcceptingConnections() {
         return shuttingDown == false;
     }
 
@@ -376,6 +376,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
+        if (shuttingDown) {
+            logger.warn("server accepted channel after shutting down");
+            httpChannel.close();
+            return;
+        }
         RequestTrackingHttpChannel trackingChannel = httpChannels.putIfAbsent(httpChannel, new RequestTrackingHttpChannel(httpChannel));
         assert trackingChannel == null : "Channel should only be added to http channel set once";
         refCounted.incRef();

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -62,7 +63,10 @@ public class Enrich extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return policyName.resolved() && matchField.resolved() && Resolvables.resolved(enrichFields());
+        return policyName.resolved()
+            && matchField instanceof EmptyAttribute == false // matchField not defined in the query, needs to be resolved from the policy
+            && matchField.resolved()
+            && Resolvables.resolved(enrichFields());
     }
 
     @Override

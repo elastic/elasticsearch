@@ -1,4 +1,14 @@
 simple
+row language_code = "1"  
+| enrich languages_policy
+;
+
+language_code:keyword  | language_name:keyword 
+1                      | English 
+;
+
+
+enrichOn
 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name;
 
 emp_no:integer | language_name:keyword
@@ -6,7 +16,7 @@ emp_no:integer | language_name:keyword
 ;
 
 
-simple2
+enrichOn2
 from employees | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name | sort emp_no | limit 1 ;
 
 emp_no:integer | language_name:keyword

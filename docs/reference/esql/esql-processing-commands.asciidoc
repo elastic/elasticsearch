@@ -16,6 +16,7 @@ ESQL supports these processing commands:
 
 * <<esql-dissect>>
 * <<esql-drop>>
+* <<esql-enrich>>
 * <<esql-eval>>
 * <<esql-grok>>
 * <<esql-keep>>
@@ -28,6 +29,7 @@ ESQL supports these processing commands:
 
 include::processing-commands/dissect.asciidoc[]
 include::processing-commands/drop.asciidoc[]
+include::processing-commands/enrich.asciidoc[]
 include::processing-commands/eval.asciidoc[]
 include::processing-commands/grok.asciidoc[]
 include::processing-commands/keep.asciidoc[]

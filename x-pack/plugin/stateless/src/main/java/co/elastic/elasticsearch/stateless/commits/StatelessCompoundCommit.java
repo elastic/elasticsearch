@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -58,6 +60,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents a Lucene commit point with additional information required to manage this commit in the object store as well as locally. Such
@@ -67,15 +70,38 @@ public record StatelessCompoundCommit(
     ShardId shardId,
     long generation,
     long primaryTerm,
+    long translogRecoveryStartFile,
     String nodeEphemeralId,
     Map<String, BlobLocation> commitFiles
 ) implements Writeable {
+
+    public StatelessCompoundCommit(
+        ShardId shardId,
+        long generation,
+        long primaryTerm,
+        String nodeEphemeralId,
+        Map<String, BlobLocation> commitFiles
+    ) {
+        this(shardId, generation, primaryTerm, 0, nodeEphemeralId, commitFiles);
+    }
 
     public static final String NAME = "stateless_commit_";
 
     @Override
     public String toString() {
-        return "stateless_commit " + shardId + '[' + primaryTerm + "][" + generation + ']';
+        return "StatelessCompoundCommit{"
+            + "shardId="
+            + shardId
+            + ", generation="
+            + generation
+            + ", primaryTerm="
+            + primaryTerm
+            + ", translogRecoveryStartFile="
+            + translogRecoveryStartFile
+            + ", nodeEphemeralId='"
+            + nodeEphemeralId
+            + '\''
+            + '}';
     }
 
     @Override
@@ -83,6 +109,9 @@ public record StatelessCompoundCommit(
         shardId.writeTo(out);
         out.writeVLong(generation);
         out.writeVLong(primaryTerm);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_022)) {
+            out.writeVLong(translogRecoveryStartFile);
+        }
         out.writeString(nodeEphemeralId);
         out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
@@ -92,6 +121,7 @@ public record StatelessCompoundCommit(
             new ShardId(in),
             in.readVLong(),
             in.readVLong(),
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_022) ? in.readVLong() : 0,
             in.readString(),
             in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport)
         );
@@ -103,6 +133,7 @@ public record StatelessCompoundCommit(
         private final long generation;
         private final long primaryTerm;
         private final String nodeEphemeralId;
+        private final long translogRecoveryStartFile;
 
         // Referenced blob files are files already stored in different blobs on the object store. We already
         // know the location, so we directly serialize the location. Internal files are files that
@@ -113,11 +144,12 @@ public record StatelessCompoundCommit(
         private final Map<String, BlobLocation> referencedBlobFiles = new HashMap<>();
         private final List<InternalFile> internalFiles = new ArrayList<>();
 
-        public Writer(ShardId shardId, long generation, long primaryTerm, String nodeEphemeralId) {
+        public Writer(ShardId shardId, long generation, long primaryTerm, long translogRecoveryStartFile, String nodeEphemeralId) {
             this.shardId = shardId;
             this.generation = generation;
             this.primaryTerm = primaryTerm;
             this.nodeEphemeralId = nodeEphemeralId;
+            this.translogRecoveryStartFile = translogRecoveryStartFile;
         }
 
         public void addReferencedBlobFile(String name, BlobLocation location) {
@@ -218,6 +250,7 @@ public record StatelessCompoundCommit(
                     b.field("generation", generation);
                     b.field("primary_term", primaryTerm);
                     b.field("node_ephemeral_id", nodeEphemeralId);
+                    b.field(IndexEngine.TRANSLOG_RECOVERY_START_FILE, translogRecoveryStartFile);
                     b.startObject("commit_files");
                     {
                         for (Map.Entry<String, BlobLocation> e : referencedBlobFiles.entrySet()) {
@@ -261,7 +294,14 @@ public record StatelessCompoundCommit(
                 referencedBlobFiles
             );
 
-            return new StatelessCompoundCommit(shardId, generation, primaryTerm, nodeEphemeralId, Collections.unmodifiableMap(commitFiles));
+            return new StatelessCompoundCommit(
+                shardId,
+                generation,
+                primaryTerm,
+                translogRecoveryStartFile,
+                nodeEphemeralId,
+                Collections.unmodifiableMap(commitFiles)
+            );
         }
     }
 
@@ -296,6 +336,7 @@ public record StatelessCompoundCommit(
                     shardId,
                     generation,
                     primaryTerm,
+                    0,
                     nodeEphemeralId,
                     referencedBlobLocations,
                     internalFiles,
@@ -337,6 +378,7 @@ public record StatelessCompoundCommit(
             ShardId shardId,
             long generation,
             long primaryTerm,
+            long translogRecoveryStartFile,
             String nodeEphemeralId,
             Map<String, BlobLocation> referencedBlobLocations,
             List<Writer.InternalFile> internalFiles
@@ -349,15 +391,17 @@ public record StatelessCompoundCommit(
                     (ShardId) args[0],
                     (long) args[1],
                     (long) args[2],
-                    (String) args[3],
-                    (Map<String, BlobLocation>) args[4],
-                    (List<Writer.InternalFile>) args[5]
+                    args[3] == null ? 0 : (long) args[3],
+                    (String) args[4],
+                    (Map<String, BlobLocation>) args[5],
+                    (List<Writer.InternalFile>) args[6]
                 )
             );
             static {
                 PARSER.declareObject(constructorArg(), SHARD_ID_PARSER, new ParseField("shard_id"));
                 PARSER.declareLong(constructorArg(), new ParseField("generation"));
                 PARSER.declareLong(constructorArg(), new ParseField("primary_term"));
+                PARSER.declareLong(optionalConstructorArg(), new ParseField(IndexEngine.TRANSLOG_RECOVERY_START_FILE));
                 PARSER.declareString(constructorArg(), new ParseField("node_ephemeral_id"));
                 PARSER.declareObject(
                     constructorArg(),
@@ -380,6 +424,7 @@ public record StatelessCompoundCommit(
                 c.shardId,
                 c.generation,
                 c.primaryTerm,
+                c.translogRecoveryStartFile,
                 c.nodeEphemeralId,
                 c.referencedBlobLocations,
                 c.internalFiles,
@@ -392,6 +437,7 @@ public record StatelessCompoundCommit(
         ShardId shardId,
         long generation,
         long primaryTerm,
+        long translogRecoveryStartFile,
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobLocations,
         List<Writer.InternalFile> internalFiles,
@@ -405,7 +451,14 @@ public record StatelessCompoundCommit(
             headerSize,
             referencedBlobLocations
         );
-        return new StatelessCompoundCommit(shardId, generation, primaryTerm, nodeEphemeralId, Collections.unmodifiableMap(commitFiles));
+        return new StatelessCompoundCommit(
+            shardId,
+            generation,
+            primaryTerm,
+            translogRecoveryStartFile,
+            nodeEphemeralId,
+            Collections.unmodifiableMap(commitFiles)
+        );
     }
 
     // This method combines the pre-existing blob locations with the files internally uploaded in this commit

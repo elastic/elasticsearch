@@ -81,13 +81,21 @@ public class TranslogReplicatorTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
+    private static Settings getSettings() {
+        // Lower the flush intervals to reduce test runtime
+        return Settings.builder()
+            .put(TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(randomLongBetween(10, 20)))
+            .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(randomLongBetween(50, 75)))
+            .build();
+    }
+
     public void testTranslogBytesAreSyncedPeriodically() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -121,7 +129,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -151,27 +159,104 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        assertThat(compoundFiles.size(), equalTo(2));
+        assertThat(compoundFiles.size(), equalTo((int) translogReplicator.getMaxUploadedFile() + 1));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, 5),
-            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[5], operations[2], operations[4] }
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, 5, 0),
+            operations[0],
+            operations[1],
+            operations[3],
+            operations[5],
+            operations[2],
+            operations[4]
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 1),
-            new Translog.Operation[] { operations[1] }
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 1, 0),
+            operations[1]
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 3),
-            new Translog.Operation[] { operations[1], operations[3], operations[2] }
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 3, 0),
+            operations[1],
+            operations[3],
+            operations[2]
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 4, 5),
-            new Translog.Operation[] { operations[5], operations[4] }
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 4, 5, 0),
+            operations[5],
+            operations[4]
         );
+        assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 8, 10, 0));
+    }
+
+    public void testTranslogReplicatorReaderStartingTranslogFile() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        translogReplicator.doStart();
+        translogReplicator.register(shardId);
+
+        Translog.Operation[] operations = generateRandomOperations(6);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        translogReplicator.add(shardId, operationsBytes[2], 2, intermediateLocation);
+        currentLocation += operationsBytes[2].length();
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogReplicator.sync(shardId, intermediateLocation, future);
+        future.actionGet();
+
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 8, 10),
-            new Translog.Operation[] {}
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0),
+            operations[0],
+            operations[1],
+            operations[2]
+        );
+
+        assertThat(
+            translogReplicator.getMaxUploadedFile(),
+            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs().size() - 1)
+        );
+        long startRecoveryFile = translogReplicator.getMaxUploadedFile() + 1;
+
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[5].length();
+        translogReplicator.add(shardId, operationsBytes[4], 4, new Translog.Location(0, currentLocation, operationsBytes[4].length()));
+        currentLocation += operationsBytes[2].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[5].length());
+        translogReplicator.add(shardId, operationsBytes[5], 5, finalLocation);
+
+        future = PlainActionFuture.newFuture();
+        translogReplicator.sync(shardId, finalLocation, future);
+        future.actionGet();
+
+        assertThat(
+            translogReplicator.getMaxUploadedFile(),
+            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs().size() - 1)
+        );
+
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0),
+            operations[0],
+            operations[1],
+            operations[2],
+            operations[3],
+            operations[4],
+            operations[5]
+        );
+
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, startRecoveryFile),
+            operations[3],
+            operations[4],
+            operations[5]
         );
     }
 
@@ -183,7 +268,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -292,7 +377,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         }).when(blobContainer).readBlob(any());
         doReturn(blobContainer).when(objectStoreService).getTranslogBlobContainer();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -324,7 +409,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         ObjectStoreService objectStoreService = mockObjectStoreService(new ArrayList<>());
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -354,7 +439,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -413,7 +498,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -454,7 +539,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId1);
         translogReplicator.register(shardId2);
@@ -514,7 +599,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -553,7 +638,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -578,7 +663,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
         translogReplicator.doStart();
         translogReplicator.register(shardId);
 
@@ -593,7 +678,7 @@ public class TranslogReplicatorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSchedulesFlushCheck() {
         var threadPool = mock(ThreadPool.class);
-        try (var translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, mock(ObjectStoreService.class))) {
+        try (var translogReplicator = new TranslogReplicator(threadPool, getSettings(), mock(ObjectStoreService.class))) {
             translogReplicator.doStart();
             verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueMillis(50)), eq(ThreadPool.Names.GENERIC));
         }

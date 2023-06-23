@@ -57,9 +57,8 @@ public class SearchDirectory extends BaseDirectory {
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
 
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
-
+    private final AtomicReference<StatelessCompoundCommit> currentCommit = new AtomicReference<>(null);
     private volatile Map<String, BlobLocation> currentMetadata = Map.of();
-    private volatile Optional<String> currentMetadataNodeEphemeralId = Optional.empty();
 
     public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         super(new SingleInstanceLockFactory());
@@ -103,14 +102,30 @@ public class SearchDirectory extends BaseDirectory {
             final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
             updated.putAll(newCommit.commitFiles());
             currentMetadata = Map.copyOf(updated);
-            currentMetadataNodeEphemeralId = Optional.of(newCommit.nodeEphemeralId());
+            // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
+            // TODO: files always accumulate
+            currentCommit.getAndAccumulate(newCommit, (current, contender) -> {
+                if (current == null) {
+                    return contender;
+                } else if (current.generation() > contender.generation()) {
+                    return current;
+                } else {
+                    return contender;
+                }
+            });
         } finally {
             assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
         }
     }
 
     public Optional<String> getCurrentMetadataNodeEphemeralId() {
-        return currentMetadataNodeEphemeralId;
+        StatelessCompoundCommit compoundCommit = currentCommit.get();
+        return compoundCommit != null ? Optional.of(compoundCommit.nodeEphemeralId()) : Optional.empty();
+    }
+
+    public long getTranslogRecoveryStartFile() {
+        StatelessCompoundCommit compoundCommit = currentCommit.get();
+        return compoundCommit != null ? compoundCommit.translogRecoveryStartFile() : 0;
     }
 
     private boolean assertCompareAndSetUpdatingCommitThread(Thread current, Thread updated) {

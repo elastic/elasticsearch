@@ -134,4 +134,33 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             assertFalse(engine.refreshNeeded());
         }
     }
+
+    public void testStartingTranslogFileIsPlaceInUserData() throws Exception {
+        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+
+        TranslogReplicator replicator = mock(TranslogReplicator.class);
+        long maxUploadedFile = randomLongBetween(10, 20);
+        when(replicator.getMaxUploadedFile()).thenReturn(maxUploadedFile, maxUploadedFile + 1);
+
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60)).build(),
+                    nodeSettings
+                ),
+                replicator
+            )
+        ) {
+            engine.index(randomDoc(String.valueOf(0)));
+            // Refresh to warm-up engine
+            engine.refresh("test");
+            engine.flush();
+            try (Engine.IndexCommitRef indexCommitRef = engine.acquireLastIndexCommit(false)) {
+                assertEquals(
+                    maxUploadedFile + 1,
+                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
+                );
+            }
+        }
+    }
 }

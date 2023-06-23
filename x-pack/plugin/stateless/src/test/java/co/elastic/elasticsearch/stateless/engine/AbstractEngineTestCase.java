@@ -409,6 +409,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                             shardId,
                             indexCommitRef.getIndexCommit().getGeneration(),
                             primaryTerm,
+                            0,
                             "fake_node_ephemeral_id",
                             store.getMetadata(indexCommitRef.getIndexCommit())
                                 .fileMetadataMap()
@@ -419,6 +420,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                                         Map.Entry::getKey,
                                         entry -> new BlobLocation(
                                             primaryTerm,
+
                                             entry.getKey(),
                                             entry.getValue().length(),
                                             0,

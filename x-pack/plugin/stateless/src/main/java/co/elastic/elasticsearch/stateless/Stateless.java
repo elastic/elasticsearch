@@ -579,13 +579,17 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 Engine.IndexCommitRef indexCommitRef,
                 Set<String> additionalFiles
             ) {
+                final long translogRecoveryStartFile;
+                translogRecoveryStartFile = getTranslogRecoveryStartFile(indexCommitRef);
+
                 statelessCommitService.onCommitCreation(
                     new StatelessCommitRef(
                         shardId,
                         indexCommitRef,
                         getIndexCommitFileNames(indexCommitRef.getIndexCommit()),
                         additionalFiles,
-                        primaryTerm
+                        primaryTerm,
+                        translogRecoveryStartFile
                     )
                 );
             }
@@ -686,6 +690,25 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR
             );
         }
+    }
+
+    private long getTranslogRecoveryStartFile(Engine.IndexCommitRef indexCommitRef) {
+        final long translogRecoveryStartFile;
+        try {
+            Map<String, String> userData = indexCommitRef.getIndexCommit().getUserData();
+            String startFile = userData.get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
+            if (startFile == null) {
+                // If we don't have the TRANSLOG_RECOVERY_START_FILE in the user data, then this is the first commit after a recovery and no
+                // operations have been processed on this node.
+                translogRecoveryStartFile = translogReplicator.get().getMaxUploadedFile() + 1;
+            } else {
+                translogRecoveryStartFile = Long.parseLong(startFile);
+            }
+        } catch (IOException e) {
+            assert false : e; // should never happen, none of the Lucene implementations throw this.
+            throw new UncheckedIOException(e);
+        }
+        return translogRecoveryStartFile;
     }
 
     private static Collection<String> getIndexCommitFileNames(IndexCommit commit) {

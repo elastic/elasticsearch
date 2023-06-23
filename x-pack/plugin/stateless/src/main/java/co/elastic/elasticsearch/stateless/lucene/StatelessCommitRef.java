@@ -37,13 +37,15 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     private final Set<String> additionalFiles;
     private final AtomicBoolean released;
     private final long primaryTerm;
+    private final long translogRecoveryStartFile;
 
     public StatelessCommitRef(
         ShardId shardId,
         Engine.IndexCommitRef indexCommitRef,
         Collection<String> commitFiles,
         Set<String> additionalFiles,
-        long primaryTerm
+        long primaryTerm,
+        long translogRecoveryStartFile
     ) {
         super(indexCommitRef.getIndexCommit());
         this.shardId = Objects.requireNonNull(shardId);
@@ -51,6 +53,7 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
         this.commitFiles = commitFiles;
         this.additionalFiles = Objects.requireNonNull(additionalFiles);
         this.primaryTerm = primaryTerm;
+        this.translogRecoveryStartFile = translogRecoveryStartFile;
         this.released = new AtomicBoolean();
     }
 
@@ -75,6 +78,10 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    public long getTranslogRecoveryStartFile() {
+        return translogRecoveryStartFile;
     }
 
     @Override

@@ -284,7 +284,8 @@ public class StatelessCommitService {
                 generation,
                 reference.getPrimaryTerm(),
                 internalFiles,
-                commitFilesToLength.get()
+                commitFilesToLength.get(),
+                reference.getTranslogRecoveryStartFile()
             );
 
             logger.trace("{} uploading stateless commit file [{}] for commit [{}]", shardId, commitFileName, generation);
@@ -422,12 +423,14 @@ public class StatelessCommitService {
             long generation,
             long primaryTerm,
             Set<String> internalFiles,
-            Map<String, Long> commitFiles
+            Map<String, Long> commitFiles,
+            long translogRecoveryStartFile
         ) {
             StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
                 shardId,
                 generation,
                 primaryTerm,
+                translogRecoveryStartFile,
                 ephemeralNodeIdSupplier.get()
             );
             for (Map.Entry<String, Long> commitFile : commitFiles.entrySet()) {

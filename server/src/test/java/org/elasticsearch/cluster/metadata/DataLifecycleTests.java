@@ -104,7 +104,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 };
             }
         } else {
-            if (downsampling == null || retention == DataLifecycle.Retention.NULL) {
+            if (downsampling == null || downsampling == DataLifecycle.Downsampling.NULL) {
                 downsampling = randomValueOtherThan(downsampling, this::randomDownsampling);
             } else {
                 downsampling = switch (randomInt(2)) {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -639,6 +640,29 @@ public class StatementParserTests extends ESTestCase {
         assertWarnings("PROJECT command is no longer supported, please use KEEP instead");
     }
 
+    public void testInputParams() {
+        LogicalPlan stm = statement("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1), new TypedParamValue("keyword", "2")));
+        assertThat(stm, instanceOf(Row.class));
+        Row row = (Row) stm;
+        assertThat(row.fields().size(), is(2));
+
+        NamedExpression field = row.fields().get(0);
+        assertThat(field.name(), is("x"));
+        assertThat(field, instanceOf(Alias.class));
+        Alias alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+
+        field = row.fields().get(1);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is("2"));
+    }
+
+    public void testMissingInputParams() {
+        expectError("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1)), "Not enough actual parameters 1");
+    }
+
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
@@ -647,7 +671,11 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private LogicalPlan statement(String e) {
-        return parser.createStatement(e);
+        return statement(e, List.of());
+    }
+
+    private LogicalPlan statement(String e, List<TypedParamValue> params) {
+        return parser.createStatement(e, params);
     }
 
     private LogicalPlan processingCommand(String e) {
@@ -710,6 +738,11 @@ public class StatementParserTests extends ESTestCase {
 
     private void expectError(String query, String errorMessage) {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    private void expectError(String query, List<TypedParamValue> params, String errorMessage) {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query, params));
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 }

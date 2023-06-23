@@ -262,3 +262,38 @@ setup:
 
   - length: {columns: 6}
   - length: {values: 1}
+
+---
+"Test Input Params":
+  - do:
+      esql.query:
+        body:
+          query: 'row a = ? | eval b = ?, c = 1 + ?'
+          params: ["foo", 15, 10]
+
+  - length: {columns: 3}
+  - match: {columns.0.name: "a"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "b"}
+  - match: {columns.1.type: "integer"}
+  - match: {columns.2.name: "c"}
+  - match: {columns.2.type: "integer"}
+  - length: {values: 1}
+  - match: {values.0: ["foo", 15, 11]}
+
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where color == ? and count == ? and time == ? | keep data, count, color'
+          params: ["green", 44, 1674835275193]
+
+  - length: {columns: 3}
+  - match: {columns.0.name: "data"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "color"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 1}
+  - match: {values.0: [1, 44, "green"]}

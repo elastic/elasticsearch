@@ -254,6 +254,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx);
   /**
+   * Visit a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
    * Visit a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree

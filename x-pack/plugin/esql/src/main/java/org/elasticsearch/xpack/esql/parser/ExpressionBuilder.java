@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -52,6 +55,7 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -63,6 +67,13 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
+
+    private final Map<Token, TypedParamValue> params;
+
+    ExpressionBuilder(Map<Token, TypedParamValue> params) {
+        this.params = params;
+    }
+
     protected Expression expression(ParseTree ctx) {
         return typedParsing(this, ctx, Expression.class);
     }
@@ -351,4 +362,65 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public List<NamedExpression> visitGrouping(EsqlBaseParser.GroupingContext ctx) {
         return ctx != null ? visitList(this, ctx.qualifiedName(), NamedExpression.class) : emptyList();
     }
+
+    @Override
+    public Object visitInputParam(EsqlBaseParser.InputParamContext ctx) {
+        TypedParamValue param = param(ctx.PARAM());
+        DataType dataType = EsqlDataTypes.fromTypeName(param.type);
+        Source source = source(ctx);
+        if (dataType == null) {
+            throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
+        }
+        if (param.value == null) {
+            // no conversion is required for null values
+            return new Literal(source, null, dataType);
+        }
+        final DataType sourceType;
+        try {
+            sourceType = DataTypes.fromJava(param.value);
+        } catch (QlIllegalArgumentException ex) {
+            throw new ParsingException(
+                ex,
+                source,
+                "Unexpected actual parameter type [{}] for type [{}]",
+                param.value.getClass().getName(),
+                param.type
+            );
+        }
+        if (sourceType == dataType) {
+            // no conversion is required if the value is already have correct type
+            return new Literal(source, param.value, dataType);
+        }
+        // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
+        try {
+
+            if (DataTypeConverter.canConvert(sourceType, dataType) == false) {
+                throw new ParsingException(
+                    source,
+                    "Cannot cast value [{}] of type [{}] to parameter type [{}]",
+                    param.value,
+                    sourceType,
+                    dataType
+                );
+            }
+            return new Literal(source, DataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
+        } catch (QlIllegalArgumentException ex) {
+            throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
+        }
+    }
+
+    private TypedParamValue param(TerminalNode node) {
+        if (node == null) {
+            return null;
+        }
+
+        Token token = node.getSymbol();
+
+        if (params.containsKey(token) == false) {
+            throw new ParsingException(source(node), "Unexpected parameter");
+        }
+
+        return params.get(token);
+    }
+
 }

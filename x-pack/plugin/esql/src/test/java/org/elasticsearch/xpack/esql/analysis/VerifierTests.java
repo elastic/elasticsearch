@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class VerifierTests extends ESTestCase {
 
@@ -129,12 +133,39 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    private String error(String query) {
-        return error(query, defaultAnalyzer);
+    public void testWrongInputParam() {
+        assertEquals(
+            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
+            error("from test | where emp_no == ?", "foo")
+        );
+
+        assertEquals(
+            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [null]",
+            error("from test | where emp_no == ?", new Object[] { null })
+        );
     }
 
-    private String error(String query, Analyzer analyzer) {
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(query)));
+    private String error(String query, Object... params) {
+        return error(query, defaultAnalyzer, params);
+    }
+
+    private String error(String query, Analyzer analyzer, Object... params) {
+        List<TypedParamValue> parameters = new ArrayList<>();
+        for (Object param : params) {
+            if (param == null) {
+                parameters.add(new TypedParamValue("null", null));
+            } else if (param instanceof String) {
+                parameters.add(new TypedParamValue("keyword", param));
+            } else if (param instanceof Number) {
+                parameters.add(new TypedParamValue("param", param));
+            } else {
+                throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
+            }
+        }
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzer.analyze(parser.createStatement(query, parameters))
+        );
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
         String pattern = "\nline ";

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -90,7 +92,7 @@ public class EsqlSession {
 
     public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
         LOGGER.debug("ESQL query:\n{}", request.query());
-        optimizedPhysicalPlan(parse(request.query()), listener.map(plan -> plan.transformUp(FragmentExec.class, f -> {
+        optimizedPhysicalPlan(parse(request.query(), request.params()), listener.map(plan -> plan.transformUp(FragmentExec.class, f -> {
             QueryBuilder filter = request.filter();
             if (filter != null) {
                 var fragmentFilter = f.esFilter();
@@ -105,8 +107,8 @@ public class EsqlSession {
         })));
     }
 
-    private LogicalPlan parse(String query) {
-        var parsed = new EsqlParser().createStatement(query);
+    private LogicalPlan parse(String query, List<TypedParamValue> params) {
+        var parsed = new EsqlParser().createStatement(query, params);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }

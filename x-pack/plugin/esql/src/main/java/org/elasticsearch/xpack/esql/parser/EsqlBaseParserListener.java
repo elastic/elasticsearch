@@ -420,6 +420,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx);
   /**
+   * Enter a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
    * Enter a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree

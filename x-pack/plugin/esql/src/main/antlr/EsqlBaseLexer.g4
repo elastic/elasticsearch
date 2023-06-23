@@ -98,6 +98,7 @@ NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
 OR : 'or';
+PARAM: '?';
 RLIKE: 'rlike';
 RP : ')';
 TRUE : 'true';

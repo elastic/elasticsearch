@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -60,6 +61,10 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
+
+    public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
+        super(params);
+    }
 
     protected LogicalPlan plan(ParseTree ctx) {
         return ParserUtils.typedParsing(this, ctx, LogicalPlan.class);

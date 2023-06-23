@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -48,8 +50,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.emptyMap;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -171,26 +171,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
             parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
+            writableRegistry()
         );
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
@@ -226,10 +210,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             0,
             0,
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),
@@ -241,7 +226,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            Collections.emptyMap()
         );
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
@@ -301,27 +286,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
 
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";

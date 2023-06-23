@@ -70,7 +70,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         this.jobID = in.readString();
         this.rollupIndex = in.readString();
         this.indexPattern = in.readString();
-        this.fieldCapLookup = in.readMap(StreamInput::readString, RollupFieldCaps::new);
+        this.fieldCapLookup = in.readMap(RollupFieldCaps::new);
     }
 
     public Map<String, RollupFieldCaps> getFieldCaps() {

@@ -190,7 +190,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
             LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING,
-            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
+            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
         );
     }
 
@@ -273,7 +276,16 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         );
         snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
-        ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
+        ilmHealthIndicatorService.set(
+            new IlmHealthIndicatorService(
+                clusterService,
+                new IlmHealthIndicatorService.StagnatingIndicesFinder(
+                    clusterService,
+                    IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG.values(),
+                    System::currentTimeMillis
+                )
+            )
+        );
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
         reservedLifecycleAction.set(new ReservedLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
 

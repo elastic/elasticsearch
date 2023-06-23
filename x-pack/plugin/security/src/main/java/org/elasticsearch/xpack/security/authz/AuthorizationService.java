@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -319,7 +320,21 @@ public class AuthorizationService {
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
                     threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
                     maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                }, listener::onFailure), threadContext);
+                }, e -> {
+                    if (e instanceof ElasticsearchRoleRestrictionException) {
+                        logger.debug(
+                            () -> Strings.format(
+                                "denying action [%s] due to role restriction for authentication [%s]",
+                                action,
+                                authentication
+                            ),
+                            e
+                        );
+                        listener.onFailure(actionDenied(authentication, EmptyAuthorizationInfo.INSTANCE, action, unwrappedRequest, e));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
         }
@@ -441,18 +456,18 @@ public class AuthorizationService {
                 }, listener::onFailure, requestInfo, requestId, authzInfo),
                 threadContext
             );
-            authzEngine.authorizeClusterAction(requestInfo, authzInfo, ActionListener.wrap(result -> {
+            authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener.delegateFailureAndWrap((l, result) -> {
                 if (false == result.isGranted() && QueryApiKeyAction.NAME.equals(action)) {
                     assert request instanceof QueryApiKeyRequest : "request does not match action";
                     final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
                     if (false == queryApiKeyRequest.isFilterForCurrentUser()) {
                         queryApiKeyRequest.setFilterForCurrentUser();
-                        authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
+                        authzEngine.authorizeClusterAction(requestInfo, authzInfo, l);
                         return;
                     }
                 }
-                clusterAuthzListener.onResponse(result);
-            }, clusterAuthzListener::onFailure));
+                l.onResponse(result);
+            }));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
@@ -578,10 +593,7 @@ public class AuthorizationService {
                 metadata,
                 requestId,
                 wrapPreservingContext(
-                    ActionListener.wrap(
-                        ignore -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
-                        listener::onFailure
-                    ),
+                    listener.delegateFailureAndWrap((l, ignore) -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, l)),
                     threadContext
                 )
             );
@@ -855,9 +867,8 @@ public class AuthorizationService {
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
                     metadata.getIndicesLookup(),
-                    ActionListener.wrap(
-                        indexAuthorizationResult -> groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
-                        groupedActionListener::onFailure
+                    groupedActionListener.delegateFailureAndWrap(
+                        (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )
                 );
             });

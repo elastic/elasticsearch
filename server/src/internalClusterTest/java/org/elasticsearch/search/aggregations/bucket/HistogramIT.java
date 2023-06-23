@@ -188,7 +188,7 @@ public class HistogramIT extends ESIntegTestCase {
         addExpectedBucket(6, 1, 5, 1);
         addExpectedBucket(7, 1, 5, 1);
 
-        assertAcked(client().admin().indices().prepareCreate("sort_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=double").get());
+        assertAcked(indicesAdmin().prepareCreate("sort_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=double").get());
         for (int i = 1; i <= 3; i++) {
             builders.add(
                 client().prepareIndex("sort_idx")
@@ -300,7 +300,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(expectedNumberOfBuckets));
 
-        int docsCounted = 0;
+        long docsCounted = 0;
         for (int i = 0; i < expectedNumberOfBuckets; ++i) {
             Histogram.Bucket bucket = histo.getBuckets().get(i);
             assertThat(bucket, notNullValue());

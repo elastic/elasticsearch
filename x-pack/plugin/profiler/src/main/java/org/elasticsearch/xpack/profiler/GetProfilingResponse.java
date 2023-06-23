@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,13 +32,11 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
     @Nullable
     private final Map<String, Integer> stackTraceEvents;
     private final int totalFrames;
-    @Nullable
-    private final Exception error;
+    private final double samplingRate;
 
     public GetProfilingResponse(StreamInput in) throws IOException {
         this.stackTraces = in.readBoolean()
             ? in.readMap(
-                StreamInput::readString,
                 i -> new StackTrace(
                     i.readList(StreamInput::readInt),
                     i.readList(StreamInput::readString),
@@ -50,7 +47,6 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
             : null;
         this.stackFrames = in.readBoolean()
             ? in.readMap(
-                StreamInput::readString,
                 i -> new StackFrame(
                     i.readList(StreamInput::readString),
                     i.readList(StreamInput::readString),
@@ -59,10 +55,10 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
                 )
             )
             : null;
-        this.executables = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readString) : null;
-        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readInt) : null;
+        this.executables = in.readBoolean() ? in.readMap(StreamInput::readString) : null;
+        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
-        this.error = in.readBoolean() ? in.readException() : null;
+        this.samplingRate = in.readDouble();
     }
 
     public GetProfilingResponse(
@@ -70,29 +66,15 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
-        int totalFrames
-    ) {
-        this(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, null);
-    }
-
-    public GetProfilingResponse(Exception error) {
-        this(null, null, null, null, 0, error);
-    }
-
-    private GetProfilingResponse(
-        Map<String, StackTrace> stackTraces,
-        Map<String, StackFrame> stackFrames,
-        Map<String, String> executables,
-        Map<String, Integer> stackTraceEvents,
         int totalFrames,
-        Exception error
+        double samplingRate
     ) {
         this.stackTraces = stackTraces;
         this.stackFrames = stackFrames;
         this.executables = executables;
         this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
-        this.error = error;
+        this.samplingRate = samplingRate;
     }
 
     @Override
@@ -132,12 +114,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
             out.writeBoolean(false);
         }
         out.writeInt(totalFrames);
-        if (error != null) {
-            out.writeBoolean(true);
-            out.writeException(error);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeDouble(samplingRate);
     }
 
     public Map<String, StackTrace> getStackTraces() {
@@ -160,29 +137,18 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         return totalFrames;
     }
 
-    public Exception getError() {
-        return error;
-    }
-
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        if (error != null) {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, params, error, true)),
-                ChunkedToXContentHelper.endObject()
-            );
-        } else {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentValuesMap),
-                optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentValuesMap),
-                optional("executables", executables, ChunkedToXContentHelper::map),
-                optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
-                Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
-                ChunkedToXContentHelper.endObject()
-            );
-        }
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentValuesMap),
+            optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentValuesMap),
+            optional("executables", executables, ChunkedToXContentHelper::map),
+            optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
+            Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
+            Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private <T> Iterator<? extends ToXContent> optional(
@@ -203,15 +169,15 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         }
         GetProfilingResponse response = (GetProfilingResponse) o;
         return totalFrames == response.totalFrames
+            && samplingRate == response.samplingRate
             && Objects.equals(stackTraces, response.stackTraces)
             && Objects.equals(stackFrames, response.stackFrames)
             && Objects.equals(executables, response.executables)
-            && Objects.equals(stackTraceEvents, response.stackTraceEvents)
-            && Objects.equals(error, response.error);
+            && Objects.equals(stackTraceEvents, response.stackTraceEvents);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, error);
+        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
     }
 }

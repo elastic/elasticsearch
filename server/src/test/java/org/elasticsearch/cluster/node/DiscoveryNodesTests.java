@@ -329,7 +329,7 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles);
+        return DiscoveryNodeUtils.builder("node_" + nodeId).name("name_" + nodeId).attributes(attributes).roles(roles).build();
     }
 
     private enum NodeSelector {
@@ -467,7 +467,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                             discoveryNodes,
                             writableRegistry(),
                             in -> DiscoveryNodes.readFrom(in, null),
-                            TransportVersion.CURRENT
+                            TransportVersion.current()
                         );
                     } catch (IOException e) {
                         throw new AssertionError("unexpected", e);

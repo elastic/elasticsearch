@@ -31,6 +31,7 @@ final class ElasticServiceAccounts {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "search-*",
+                        ".search-acl-filter-*",
                         ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",

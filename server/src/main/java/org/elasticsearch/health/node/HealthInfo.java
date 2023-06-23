@@ -23,7 +23,7 @@ public record HealthInfo(Map<String, DiskHealthInfo> diskInfoByNode) implements 
     public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of());
 
     public HealthInfo(StreamInput input) throws IOException {
-        this(input.readMap(StreamInput::readString, DiskHealthInfo::new));
+        this(input.readMap(DiskHealthInfo::new));
     }
 
     @Override

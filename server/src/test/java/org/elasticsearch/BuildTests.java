@@ -147,7 +147,7 @@ public class BuildTests extends ESTestCase {
                 )
             ),
             // Note: the cast of the Copy- and MutateFunction is needed for some IDE (specifically Eclipse 4.10.0) to infer the right type
-            (WriteableBuild b) -> copyWriteable(b, writableRegistry(), WriteableBuild::new, TransportVersion.CURRENT),
+            (WriteableBuild b) -> copyWriteable(b, writableRegistry(), WriteableBuild::new, TransportVersion.current()),
             (WriteableBuild b) -> {
                 switch (randomIntBetween(1, 5)) {
                     case 1:

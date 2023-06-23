@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -252,7 +253,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
 
         assertEquals(1, service.getActiveContexts());
-        assertAcked(client().admin().indices().prepareDelete("index"));
+        assertAcked(indicesAdmin().prepareDelete("index"));
         assertEquals(0, service.getActiveContexts());
     }
 
@@ -404,7 +405,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
         service.setOnPutContext(context -> {
             if (context.indexShard() == indexShard) {
-                assertAcked(client().admin().indices().prepareDelete("index"));
+                assertAcked(indicesAdmin().prepareDelete("index"));
             }
         });
 
@@ -438,7 +439,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             // ok
         }
 
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().setIndices("index").get());
+        expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex().setIndices("index").get());
 
         assertEquals(0, service.getActiveContexts());
 
@@ -971,7 +972,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
             ).canMatch()
         );
-        assertEquals(6, numWrapInvocations.get());
+        assertEquals(5, numWrapInvocations.get());
 
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1027,13 +1028,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        assertEquals(8, numWrapInvocations.get());
-        service.executeQueryPhase(request, task, new ActionListener<SearchPhaseResult>() {
+        // Because the foo field used in alias filter is unmapped the term query builder rewrite can resolve to a match no docs query,
+        // without acquiring a searcher and that means the wrapper is not called
+        assertEquals(5, numWrapInvocations.get());
+        service.executeQueryPhase(request, task, new ActionListener<>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
                 try {
                     // make sure that the wrapper is called when the query is actually executed
-                    assertEquals(9, numWrapInvocations.get());
+                    assertEquals(6, numWrapInvocations.get());
                 } finally {
                     latch.countDown();
                 }
@@ -1117,9 +1120,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings("throttled_threadpool_index")
+            () -> indicesAdmin().prepareUpdateSettings("throttled_threadpool_index")
                 .setSettings(Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), false))
                 .get()
         );
@@ -1139,7 +1140,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         Thread currentThread = Thread.currentThread();
         // we still make sure can match is executed on the network thread
-        service.canMatch(req, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));
+        service.canMatch(req, ActionTestUtils.assertNoFailureListener(r -> assertSame(Thread.currentThread(), currentThread)));
     }
 
     public void testAggContextGetsMatchAll() throws IOException {
@@ -1431,7 +1432,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setSource("f", "v").get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
         AtomicBoolean stopped = new AtomicBoolean(false);
         Thread[] searchers = new Thread[randomIntBetween(1, 4)];
         CountDownLatch latch = new CountDownLatch(searchers.length);
@@ -1449,7 +1450,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             searchers[i].start();
         }
         latch.await();
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
         stopped.set(true);
         for (Thread searcher : searchers) {
             searcher.join();
@@ -1834,7 +1835,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setSource("id", Integer.toString(i)).get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         String pitId = client().execute(
             OpenPointInTimeAction.INSTANCE,

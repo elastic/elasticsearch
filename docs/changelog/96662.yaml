@@ -1,0 +1,6 @@
+pr: 96662
+summary: Refactor `RestoreClusterStateListener` to use `ClusterStateObserver`
+area: Snapshot/Restore
+type: bug
+issues:
+ - 96425

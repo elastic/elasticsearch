@@ -56,20 +56,20 @@ public class DataLifecycleUsageTransportAction extends XPackUsageFeatureTranspor
         final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
         LongSummaryStatistics retentionStats = dataStreams.stream()
             .filter(ds -> ds.getLifecycle() != null)
-            .collect(Collectors.summarizingLong(ds -> ds.getLifecycle().getDataRetention().getMillis()));
+            .collect(Collectors.summarizingLong(ds -> ds.getLifecycle().getEffectiveDataRetention().getMillis()));
         long dataStreamsWithLifecycles = retentionStats.getCount();
         long minRetention = dataStreamsWithLifecycles == 0 ? 0 : retentionStats.getMin();
         long maxRetention = dataStreamsWithLifecycles == 0 ? 0 : retentionStats.getMax();
         double averageRetention = retentionStats.getAverage();
         RolloverConfiguration rolloverConfiguration = clusterService.getClusterSettings()
-            .get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+            .get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         String rolloverConfigString = rolloverConfiguration.toString();
         final DataLifecycleFeatureSetUsage.LifecycleStats stats = new DataLifecycleFeatureSetUsage.LifecycleStats(
             dataStreamsWithLifecycles,
             minRetention,
             maxRetention,
             averageRetention,
-            DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getDefault(null).toString().equals(rolloverConfigString)
+            DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).toString().equals(rolloverConfigString)
         );
 
         final DataLifecycleFeatureSetUsage usage = new DataLifecycleFeatureSetUsage(stats);

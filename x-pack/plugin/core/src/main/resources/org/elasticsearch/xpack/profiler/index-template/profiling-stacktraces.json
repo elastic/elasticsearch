@@ -1,13 +1,15 @@
 {
   "index_patterns": [
-    "profiling-stacktraces*"
+    ".profiling-stacktraces*"
   ],
   "composed_of": [
-    "profiling-stacktraces"
+    "profiling-stacktraces",
+    "profiling-ilm",
+    "profiling-hot-tier"
   ],
   "priority": 100,
   "_meta": {
-    "description": "Index template for profiling-stacktraces"
+    "description": "Index template for .profiling-stacktraces"
   },
   "version": ${xpack.profiling.template.version}
 }

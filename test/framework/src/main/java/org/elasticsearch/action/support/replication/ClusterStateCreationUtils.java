@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -500,7 +500,7 @@ public class ClusterStateCreationUtils {
         DiscoveryNode healthNode,
         DiscoveryNode... allNodes
     ) {
-        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.CURRENT);
+        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.current());
     }
 
     /**
@@ -545,7 +545,7 @@ public class ClusterStateCreationUtils {
     }
 
     private static DiscoveryNode newNode(int nodeId) {
-        return TestDiscoveryNode.create("node_" + nodeId);
+        return DiscoveryNodeUtils.create("node_" + nodeId);
     }
 
     private static String selectAndRemove(Set<String> strings) {

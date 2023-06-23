@@ -245,8 +245,12 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         for (int i = 0; i < len; i++) {
             Map<String, Object> event = events.get(i);
             Map<String, Object> source = (Map<String, Object>) event.get("_source");
-            Object field = source.get(idField());
-            ids[i] = ((Number) field).longValue();
+            if (source == null) {
+                ids[i] = -1;
+            } else {
+                Object field = source.get(idField());
+                ids[i] = ((Number) field).longValue();
+            }
         }
         return ids;
     }

@@ -54,19 +54,26 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`. The response will look like this:
  "aggregations": {
     "load_time_outlier": {
       "values": {
-        "1.0": 5.0,
-        "5.0": 25.0,
-        "25.0": 165.0,
+        "1.0": 10.0,
+        "5.0": 30.0,
+        "25.0": 170.0,
         "50.0": 445.0,
-        "75.0": 725.0,
-        "95.0": 945.0,
-        "99.0": 985.0
+        "75.0": 720.0,
+        "95.0": 940.0,
+        "99.0": 980.0
       }
     }
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+// TESTRESPONSE[s/"1.0": 10.0/"1.0": 9.9/]
+// TESTRESPONSE[s/"5.0": 30.0/"5.0": 29.5/]
+// TESTRESPONSE[s/"25.0": 170.0/"25.0": 167.5/]
+// TESTRESPONSE[s/"50.0": 445.0/"50.0": 445.0/]
+// TESTRESPONSE[s/"75.0": 720.0/"75.0": 722.5/]
+// TESTRESPONSE[s/"95.0": 940.0/"95.0": 940.5/]
+// TESTRESPONSE[s/"99.0": 980.0/"99.0": 980.1/]
 
 As you can see, the aggregation will return a calculated value for each percentile
 in the default range. If we assume response times are in milliseconds, it is
@@ -128,15 +135,15 @@ Response:
       "values": [
         {
           "key": 1.0,
-          "value": 5.0
+          "value": 10.0
         },
         {
           "key": 5.0,
-          "value": 25.0
+          "value": 30.0
         },
         {
           "key": 25.0,
-          "value": 165.0
+          "value": 170.0
         },
         {
           "key": 50.0,
@@ -144,15 +151,15 @@ Response:
         },
         {
           "key": 75.0,
-          "value": 725.0
+          "value": 720.0
         },
         {
           "key": 95.0,
-          "value": 945.0
+          "value": 940.0
         },
         {
           "key": 99.0,
-          "value": 985.0
+          "value": 980.0
         }
       ]
     }
@@ -160,6 +167,13 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+// TESTRESPONSE[s/"value": 10.0/"value": 9.9/]
+// TESTRESPONSE[s/"value": 30.0/"value": 29.5/]
+// TESTRESPONSE[s/"value": 170.0/"value": 167.5/]
+// TESTRESPONSE[s/"value": 445.0/"value": 445.0/]
+// TESTRESPONSE[s/"value": 720.0/"value": 722.5/]
+// TESTRESPONSE[s/"value": 940.0/"value": 940.5/]
+// TESTRESPONSE[s/"value": 980.0/"value": 980.1/]
 
 ==== Script
 
@@ -203,13 +217,13 @@ GET latency/_search
  "aggregations": {
     "load_time_outlier": {
       "values": {
-        "1.0": 0.5,
-        "5.0": 2.5,
-        "25.0": 16.5,
+        "1.0": 0.99,
+        "5.0": 2.95,
+        "25.0": 16.75,
         "50.0": 44.5,
-        "75.0": 72.5,
-        "95.0": 94.5,
-        "99.0": 98.5
+        "75.0": 72.25,
+        "95.0": 94.05,
+        "99.0": 98.01
       }
     }
   }
@@ -305,6 +319,38 @@ of data which arrives sorted and in-order) the default settings will produce a
 TDigest roughly 64KB in size. In practice data tends to be more random and
 the TDigest will use less memory.
 // end::t-digest[]
+
+[[search-aggregations-metrics-percentile-aggregation-execution-hint]]
+==== Execution hint
+
+The default implementation of TDigest is optimized for performance, scaling to millions or even
+billions of sample values while maintaining acceptable accuracy levels (close to 1% relative error
+for millions of samples in some cases). There's an option to use an implementation optimized
+for accuracy by setting parameter `execution_hint` to value `high_accuracy`:
+
+[source,console]
+--------------------------------------------------
+GET latency/_search
+{
+  "size": 0,
+  "aggs": {
+    "load_time_outlier": {
+      "percentiles": {
+        "field": "load_time",
+        "tdigest": {
+          "execution_hint": "high_accuracy"    <1>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:latency]
+
+<1> Optimize TDigest for accuracy, at the expense of performance
+
+This option can lead to improved accuracy (relative error close to 0.01% for millions of samples in some
+cases) but then percentile queries take 2x-10x longer to complete.
 
 ==== HDR Histogram
 

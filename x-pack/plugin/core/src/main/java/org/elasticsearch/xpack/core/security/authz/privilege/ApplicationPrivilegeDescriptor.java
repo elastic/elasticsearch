@@ -65,7 +65,7 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
     public ApplicationPrivilegeDescriptor(StreamInput input) throws IOException {
         this.application = input.readString();
         this.name = input.readString();
-        this.actions = Collections.unmodifiableSet(input.readSet(StreamInput::readString));
+        this.actions = input.readImmutableSet(StreamInput::readString);
         this.metadata = Collections.unmodifiableMap(input.readMap());
     }
 

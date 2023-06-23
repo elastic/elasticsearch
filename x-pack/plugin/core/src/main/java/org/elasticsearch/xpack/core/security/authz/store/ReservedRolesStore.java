@@ -14,11 +14,14 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -39,11 +42,15 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static java.util.Map.entry;
 
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
     /** "Security Solutions" only legacy signals index */
@@ -100,7 +107,40 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             : null,
         null
     );
-    private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
+
+    private static final Map<String, RoleDescriptor> ALL_RESERVED_ROLES = initializeReservedRoles();
+
+    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.listSetting(
+        SecurityField.setting("reserved_roles.include"),
+        List.copyOf(ALL_RESERVED_ROLES.keySet()),
+        Function.identity(),
+        value -> {
+            final Set<String> valueSet = Set.copyOf(value);
+            if (false == valueSet.contains("superuser")) {
+                throw new IllegalArgumentException("the [superuser] reserved role must be included");
+            }
+            final Set<String> unknownRoles = Sets.sortedDifference(valueSet, ALL_RESERVED_ROLES.keySet());
+            if (false == unknownRoles.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "unknown reserved roles to include [" + Strings.collectionToCommaDelimitedString(unknownRoles)
+                );
+            }
+        },
+        Setting.Property.NodeScope
+    );
+    private static Map<String, RoleDescriptor> RESERVED_ROLES = null;
+
+    public ReservedRolesStore() {
+        this(ALL_RESERVED_ROLES.keySet());
+    }
+
+    public ReservedRolesStore(Set<String> includes) {
+        assert includes.contains("superuser") : "superuser must be included";
+        RESERVED_ROLES = ALL_RESERVED_ROLES.entrySet()
+            .stream()
+            .filter(entry -> includes.contains(entry.getKey()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 
     private static RoleDescriptor.RemoteIndicesPrivileges getRemoteIndicesReadPrivileges(String indexPattern) {
         return new RoleDescriptor.RemoteIndicesPrivileges(
@@ -114,9 +154,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
-        return MapBuilder.<String, RoleDescriptor>newMapBuilder()
-            .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
-            .put(
+        return Map.ofEntries(
+            entry("superuser", SUPERUSER_ROLE_DESCRIPTOR),
+            entry(
                 "transport_client",
                 new RoleDescriptor(
                     "transport_client",
@@ -125,13 +165,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put("kibana_admin", kibanaAdminUser("kibana_admin", MetadataUtils.DEFAULT_RESERVED_METADATA))
-            .put(
+            ),
+            entry("kibana_admin", kibanaAdminUser("kibana_admin", MetadataUtils.DEFAULT_RESERVED_METADATA)),
+            entry(
                 "kibana_user",
                 kibanaAdminUser("kibana_user", MetadataUtils.getDeprecatedReservedMetadata("Please use the [kibana_admin] role instead"))
-            )
-            .put(
+            ),
+            entry(
                 "monitoring_user",
                 new RoleDescriptor(
                     "monitoring_user",
@@ -167,8 +207,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         : null,
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "remote_monitoring_agent",
                 new RoleDescriptor(
                     "remote_monitoring_agent",
@@ -190,8 +230,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 "remote_monitoring_collector",
                 new RoleDescriptor(
                     "remote_monitoring_collector",
@@ -209,8 +249,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "ingest_admin",
                 new RoleDescriptor(
                     "ingest_admin",
@@ -219,9 +259,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
+            ),
             // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
-            .put(
+            entry(
                 "reporting_user",
                 new RoleDescriptor(
                     "reporting_user",
@@ -233,9 +273,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
                     null
                 )
-            )
-            .put(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME))
-            .put(
+            ),
+            entry(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)),
+            entry(
                 "logstash_system",
                 new RoleDescriptor(
                     "logstash_system",
@@ -244,8 +284,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 "beats_admin",
                 new RoleDescriptor(
                     "beats_admin",
@@ -255,8 +295,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 UsernamesField.BEATS_ROLE,
                 new RoleDescriptor(
                     UsernamesField.BEATS_ROLE,
@@ -269,8 +309,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 UsernamesField.APM_ROLE,
                 new RoleDescriptor(
                     UsernamesField.APM_ROLE,
@@ -283,8 +323,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 "apm_user",
                 new RoleDescriptor(
                     "apm_user",
@@ -337,8 +377,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.getDeprecatedReservedMetadata("This role will be removed in 8.0"),
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "machine_learning_user",
                 new RoleDescriptor(
                     "machine_learning_user",
@@ -370,8 +410,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "machine_learning_admin",
                 new RoleDescriptor(
                     "machine_learning_admin",
@@ -404,9 +444,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null
                 )
-            )
+            ),
             // DEPRECATED: to be removed in 9.0.0
-            .put(
+            entry(
                 "data_frame_transforms_admin",
                 new RoleDescriptor(
                     "data_frame_transforms_admin",
@@ -431,9 +471,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_admin] role instead"),
                     null
                 )
-            )
+            ),
             // DEPRECATED: to be removed in 9.0.0
-            .put(
+            entry(
                 "data_frame_transforms_user",
                 new RoleDescriptor(
                     "data_frame_transforms_user",
@@ -458,8 +498,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_user] role instead"),
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "transform_admin",
                 new RoleDescriptor(
                     "transform_admin",
@@ -479,8 +519,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "transform_user",
                 new RoleDescriptor(
                     "transform_user",
@@ -500,8 +540,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "watcher_admin",
                 new RoleDescriptor(
                     "watcher_admin",
@@ -515,8 +555,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 "watcher_user",
                 new RoleDescriptor(
                     "watcher_user",
@@ -534,8 +574,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 "logstash_admin",
                 new RoleDescriptor(
                     "logstash_admin",
@@ -549,16 +589,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put(
+            ),
+            entry(
                 "rollup_user",
                 new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
-            )
-            .put(
+            ),
+            entry(
                 "rollup_admin",
                 new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
-            )
-            .put(
+            ),
+            entry(
                 "snapshot_user",
                 new RoleDescriptor(
                     "snapshot_user",
@@ -575,8 +615,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null
                 )
-            )
-            .put(
+            ),
+            entry(
                 "enrich_user",
                 new RoleDescriptor(
                     "enrich_user",
@@ -586,10 +626,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
-            )
-            .put("viewer", buildViewerRoleDescriptor())
-            .put("editor", buildEditorRoleDescriptor())
-            .immutableMap();
+            ),
+            entry("viewer", buildViewerRoleDescriptor()),
+            entry("editor", buildEditorRoleDescriptor())
+        );
     }
 
     private static RoleDescriptor buildViewerRoleDescriptor() {
@@ -924,7 +964,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "logs-cloud_security_posture.vulnerabilities_latest-default*"
                     )
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
-                    .build() },
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),
@@ -946,6 +987,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static boolean isReserved(String role) {
+        if (RESERVED_ROLES == null) {
+            throw new IllegalStateException("ReserveRolesStore is not initialized properly");
+        }
         return RESERVED_ROLES.containsKey(role);
     }
 
@@ -962,6 +1006,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static Set<String> names() {
+        if (RESERVED_ROLES == null) {
+            throw new IllegalStateException("ReserveRolesStore is not initialized properly");
+        }
         return RESERVED_ROLES.keySet();
     }
 

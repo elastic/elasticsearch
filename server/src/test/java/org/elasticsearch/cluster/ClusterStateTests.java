@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -54,7 +54,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -66,24 +65,15 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ClusterStateTests extends ESTestCase {
 
     public void testSupersedes() {
-        final DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        final DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         ClusterName name = ClusterName.DEFAULT;
         ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState noMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState withMaster1a = ClusterState.builder(name)
-            .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
-            .build();
-        ClusterState withMaster1b = ClusterState.builder(name)
-            .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
-            .build();
-        ClusterState withMaster2 = ClusterState.builder(name)
-            .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node2.getId()))
-            .build();
+        ClusterState withMaster1a = ClusterState.builder(name).version(randomInt(5)).nodes(nodes.withMasterNodeId(node1.getId())).build();
+        ClusterState withMaster1b = ClusterState.builder(name).version(randomInt(5)).nodes(nodes.withMasterNodeId(node1.getId())).build();
+        ClusterState withMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes.withMasterNodeId(node2.getId())).build();
 
         // states with no master should never supersede anything
         assertFalse(noMaster1.supersedes(noMaster2));
@@ -369,7 +359,7 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
                     Version.CURRENT.id,
                     Version.CURRENT.id,
                     allocationId,
@@ -616,7 +606,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 Version.CURRENT.id,
                 Version.CURRENT.id,
                 allocationId,
@@ -869,7 +859,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 Version.CURRENT.id,
                 Version.CURRENT.id,
                 allocationId,
@@ -1021,10 +1011,10 @@ public class ClusterStateTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .masterNodeId("nodeId1")
-                    .add(TestDiscoveryNode.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
+                    .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .putTransportVersion("nodeId1", TransportVersion.CURRENT)
+            .putTransportVersion("nodeId1", TransportVersion.current())
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1124,7 +1114,7 @@ public class ClusterStateTests extends ESTestCase {
     public void testGetMinTransportVersion() throws IOException {
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
-        TransportVersion minVersion = TransportVersion.CURRENT;
+        TransportVersion minVersion = TransportVersion.current();
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();

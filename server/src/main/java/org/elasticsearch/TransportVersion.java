@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.internal.VersionExtension;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -52,7 +53,7 @@ import java.util.TreeMap;
  * Each transport version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
  * <p>
  * To add a new transport version, add a new constant at the bottom of the list that is one greater than the current highest version,
- * ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
+ * ensure it has a unique id, and update the {@link CurrentHolder#CURRENT} constant to point to the new version.
  * <h2>Reverting a transport version</h2>
  * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version
  * representing the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
@@ -115,6 +116,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_7_0 = registerTransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     public static final TransportVersion V_8_7_1 = registerTransportVersion(8_07_01_99, "018de9d8-9e8b-4ac7-8f4b-3a6fbd0487fb");
     public static final TransportVersion V_8_8_0 = registerTransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
+    public static final TransportVersion V_8_8_1 = registerTransportVersion(8_08_01_99, "291c71bb-5b0a-4b7e-a407-6e53bc128d0f");
+
     public static final TransportVersion V_8_9_0 = registerTransportVersion(8_09_00_99, "13c1c2cb-d975-461f-ab98-309ebc1c01bc");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
@@ -127,12 +130,38 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_004 = registerTransportVersion(8_500_004, "6a00db6a-fd66-42a9-97ea-f6cc53169110");
     public static final TransportVersion V_8_500_005 = registerTransportVersion(8_500_005, "65370d2a-d936-4383-a2e0-8403f708129b");
     public static final TransportVersion V_8_500_006 = registerTransportVersion(8_500_006, "7BB5621A-80AC-425F-BA88-75543C442F23");
+    public static final TransportVersion V_8_500_007 = registerTransportVersion(8_500_007, "77261d43-4149-40af-89c5-7e71e0454fce");
+    public static final TransportVersion V_8_500_008 = registerTransportVersion(8_500_008, "8884ab9d-94cd-4bac-aff8-01f2c394f47c");
 
-    /**
-     * Reference to the most recent transport version.
-     * This should be the transport version with the highest id.
-     */
-    public static final TransportVersion CURRENT = V_8_500_006;
+    public static final TransportVersion V_8_500_009 = registerTransportVersion(8_500_009, "35091358-fd41-4106-a6e2-d2a1315494c1");
+    public static final TransportVersion V_8_500_010 = registerTransportVersion(8_500_010, "9818C628-1EEC-439B-B943-468F61460675");
+    public static final TransportVersion V_8_500_011 = registerTransportVersion(8_500_011, "2209F28D-B52E-4BC4-9889-E780F291C32E");
+    public static final TransportVersion V_8_500_012 = registerTransportVersion(8_500_012, "BB6F4AF1-A860-4FD4-A138-8150FFBE0ABD");
+    public static final TransportVersion V_8_500_013 = registerTransportVersion(8_500_013, "f65b85ac-db5e-4558-a487-a1dde4f6a33a");
+    public static final TransportVersion V_8_500_014 = registerTransportVersion(8_500_014, "D115A2E1-1739-4A02-AB7B-64F6EA157EFB");
+    public static final TransportVersion V_8_500_015 = registerTransportVersion(8_500_015, "651216c9-d54f-4189-9fe1-48d82d276863");
+    public static final TransportVersion V_8_500_016 = registerTransportVersion(8_500_016, "492C94FB-AAEA-4C9E-8375-BDB67A398584");
+    public static final TransportVersion V_8_500_017 = registerTransportVersion(8_500_017, "0EDCB5BA-049C-443C-8AB1-5FA58FB996FB");
+    public static final TransportVersion V_8_500_018 = registerTransportVersion(8_500_018, "827C32CE-33D9-4AC3-A773-8FB768F59EAF");
+    public static final TransportVersion V_8_500_019 = registerTransportVersion(8_500_019, "09bae57f-cab8-423c-aab3-c9778509ffe3");
+    // 8.9.0
+    public static final TransportVersion V_8_500_020 = registerTransportVersion(8_500_020, "ECB42C26-B258-42E5-A835-E31AF84A76DE");
+    public static final TransportVersion V_8_500_021 = registerTransportVersion(8_500_021, "102e0d84-0c08-402c-a696-935f3a3da873");
+
+    private static class CurrentHolder {
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_021);
+
+        // finds the pluggable current version, or uses the given fallback
+        private static TransportVersion findCurrent(TransportVersion fallback) {
+            var versionExtension = VersionExtension.load();
+            if (versionExtension == null) {
+                return fallback;
+            }
+            var version = versionExtension.getCurrentTransportVersion();
+            assert version.onOrAfter(fallback);
+            return version;
+        }
+    }
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -144,7 +173,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_8_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_020;
 
     static {
         // see comment on IDS field
@@ -169,7 +198,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
                 try {
                     version = (TransportVersion) declaredField.get(null);
                 } catch (IllegalAccessException e) {
-                    // should not happen, checked above
                     throw new AssertionError(e);
                 }
                 builder.put(version.id, version);
@@ -234,6 +262,14 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      */
     public static boolean isCompatible(TransportVersion version) {
         return version.onOrAfter(MINIMUM_COMPATIBLE);
+    }
+
+    /**
+     * Reference to the most recent transport version.
+     * This should be the transport version with the highest id.
+     */
+    public static TransportVersion current() {
+        return CurrentHolder.CURRENT;
     }
 
     public boolean after(TransportVersion version) {

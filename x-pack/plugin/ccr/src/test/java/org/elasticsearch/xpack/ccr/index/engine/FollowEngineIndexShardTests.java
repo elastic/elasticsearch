@@ -10,9 +10,10 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,7 +42,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
@@ -99,10 +99,10 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         );
 
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<Releasable> actionListener = ActionListener.wrap(releasable -> {
+        ActionListener<Releasable> actionListener = ActionTestUtils.assertNoFailureListener(releasable -> {
             releasable.close();
             latch.countDown();
-        }, e -> { assert false : "expected no exception, but got [" + e.getMessage() + "]"; });
+        });
         indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
@@ -142,7 +142,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
-        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {

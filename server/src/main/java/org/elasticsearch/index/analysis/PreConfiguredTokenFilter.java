@@ -120,13 +120,6 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
         this.create = create;
     }
 
-    /**
-     * Can this {@link TokenFilter} be used in multi-term queries?
-     */
-    public boolean shouldUseFilterForMultitermQueries() {
-        return useFilterForMultitermQueries;
-    }
-
     @Override
     protected TokenFilterFactory create(Version version) {
         if (useFilterForMultitermQueries) {

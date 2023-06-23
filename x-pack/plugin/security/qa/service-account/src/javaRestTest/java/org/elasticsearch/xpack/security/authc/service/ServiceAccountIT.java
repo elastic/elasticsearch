@@ -187,6 +187,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 {
                     "names": [
                         "search-*",
+                        ".search-acl-filter-*",
                         ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",

@@ -90,6 +90,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
+    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersion.V_8_500_023;
+
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -163,7 +165,11 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
-        this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
+        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+            this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
+        } else {
+            this.type = DEFAULT_TYPE;
+        }
     }
 
     @Override
@@ -186,7 +192,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
-        type.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+            type.writeTo(out);
+        }
     }
 
     /** Returns the text to parse the query from. */
@@ -479,10 +487,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (settings.fuzzyTranspositions() != DEFAULT_FUZZY_TRANSPOSITIONS) {
             builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), settings.fuzzyTranspositions());
         }
-        boostAndQueryNameToXContent(builder);
         if (this.type != DEFAULT_TYPE) {
             builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
         }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

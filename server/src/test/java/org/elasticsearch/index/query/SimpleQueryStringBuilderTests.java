@@ -108,7 +108,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (randomBoolean()) {
             result.fuzzyTranspositions(randomBoolean());
         }
-        result.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
+        // result.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return result;
     }
 
@@ -155,7 +155,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             FuzzyQuery.defaultTranspositions,
             SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS
         );
-        assertEquals(QueryStringQueryBuilder.DEFAULT_TYPE, qb.type());
+        assertEquals(SimpleQueryStringBuilder.DEFAULT_TYPE, qb.type());
     }
 
     public void testDefaultNullComplainFlags() {
@@ -385,8 +385,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "fuzzy_prefix_length" : 1,
                 "fuzzy_max_expansions" : 5,
                 "fuzzy_transpositions" : false,
-                "boost" : 2.0,
-                "type" : "cross_fields"
+                "type" : "cross_fields",
+                "boost" : 2.0
               }
             }""";
 

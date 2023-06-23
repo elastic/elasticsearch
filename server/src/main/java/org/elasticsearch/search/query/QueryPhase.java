@@ -228,7 +228,7 @@ public class QueryPhase {
                     (InternalProfileCollector) topDocsCollector,
                     (InternalProfileCollector) aggsCollector
                 );
-                collectorManager = new SingleThreadCollectorManager(profileCollector);
+                collectorManager = new InternalProfileCollectorManager(profileCollector);
             }
 
             final Runnable timeoutRunnable = getTimeoutCheck(searchContext);

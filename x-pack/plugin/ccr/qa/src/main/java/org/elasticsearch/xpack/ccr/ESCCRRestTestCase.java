@@ -219,21 +219,21 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     protected static void verifyAutoFollowMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_count");
         request.setJsonEntity("""
-            {
-              "query": {
-                "bool" : {
-                  "filter": {
-                    "term" : { "type" : "ccr_auto_follow_stats" }
-                  },
-                  "must" : {
-                    "range" : {
-                      "ccr_auto_follow_stats.number_of_successful_follow_indices" : { "gt" : 0 }
+                {
+                  "query": {
+                    "bool" : {
+                      "filter": {
+                        "term" : { "type" : "ccr_auto_follow_stats" }
+                      },
+                      "must" : {
+                        "range" : {
+                          "ccr_auto_follow_stats.number_of_successful_follow_indices" : { "gt" : 0 }
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
-        """);
+            """);
         String responseEntity;
         Map<String, ?> response;
         try {

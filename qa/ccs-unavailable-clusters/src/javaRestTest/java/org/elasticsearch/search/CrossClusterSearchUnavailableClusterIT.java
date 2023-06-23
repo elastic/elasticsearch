@@ -13,11 +13,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -26,6 +23,9 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -93,25 +93,20 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         final String id,
         final List<DiscoveryNode> knownNodes,
         final Version version,
+        final TransportVersion transportVersion,
         final ThreadPool threadPool
     ) {
         boolean success = false;
         final Settings s = Settings.builder().put("node.name", id).build();
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
-        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
+        MockTransportService newService = MockTransportService.createNewService(s, version, transportVersion, threadPool, null);
         try {
             newService.registerRequestHandler(
-                ClusterSearchShardsAction.NAME,
+                SearchShardsAction.NAME,
                 ThreadPool.Names.SAME,
-                ClusterSearchShardsRequest::new,
+                SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    channel.sendResponse(
-                        new ClusterSearchShardsResponse(
-                            new ClusterSearchShardsGroup[0],
-                            knownNodes.toArray(new DiscoveryNode[0]),
-                            Collections.emptyMap()
-                        )
-                    );
+                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
             newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
@@ -161,7 +156,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     }
 
     public void testSearchSkipUnavailable() throws IOException {
-        try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "node0",
+                new CopyOnWriteArrayList<>(),
+                Version.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
@@ -259,7 +262,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     }
 
     public void testSkipUnavailableDependsOnSeeds() throws IOException {
-        try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "node0",
+                new CopyOnWriteArrayList<>(),
+                Version.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             {

@@ -22,7 +22,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$USERPROFILE\\.java\\$ES_RUNTIME_JAVA
       - batch: |
           del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
           mkdir %USERPROFILE%\.gradle\init.d

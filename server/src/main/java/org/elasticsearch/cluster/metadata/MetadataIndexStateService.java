@@ -32,7 +32,6 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -48,6 +47,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -120,11 +120,11 @@ public class MetadataIndexStateService {
     private final ShardLimitValidator shardLimitValidator;
     private final NodeClient client;
     private final ThreadPool threadPool;
-    private final ClusterStateTaskExecutor<OpenIndicesTask> opensExecutor;
-    private final ClusterStateTaskExecutor<AddBlocksToCloseTask> addBlocksToCloseExecutor;
-    private final ClusterStateTaskExecutor<CloseIndicesTask> closesExecutor;
-    private final ClusterStateTaskExecutor<AddBlocksTask> addBlocksExecutor;
-    private final ClusterStateTaskExecutor<FinalizeBlocksTask> finalizeBlocksExecutor;
+    private final MasterServiceTaskQueue<OpenIndicesTask> opensQueue;
+    private final MasterServiceTaskQueue<AddBlocksToCloseTask> addBlocksToCloseQueue;
+    private final MasterServiceTaskQueue<CloseIndicesTask> closesQueue;
+    private final MasterServiceTaskQueue<AddBlocksTask> addBlocksQueue;
+    private final MasterServiceTaskQueue<FinalizeBlocksTask> finalizeBlocksQueue;
 
     @Inject
     public MetadataIndexStateService(
@@ -143,11 +143,12 @@ public class MetadataIndexStateService {
         this.shardLimitValidator = shardLimitValidator;
         this.client = client;
         this.threadPool = threadPool;
-        this.opensExecutor = new OpenIndicesExecutor();
-        this.addBlocksToCloseExecutor = new AddBlocksToCloseExecutor();
-        this.closesExecutor = new CloseIndicesExecutor();
-        this.addBlocksExecutor = new AddBlocksExecutor();
-        this.finalizeBlocksExecutor = new FinalizeBlocksExecutor();
+
+        opensQueue = clusterService.createTaskQueue("open-index", Priority.URGENT, new OpenIndicesExecutor());
+        addBlocksToCloseQueue = clusterService.createTaskQueue("add-blocks-to-close", Priority.URGENT, new AddBlocksToCloseExecutor());
+        closesQueue = clusterService.createTaskQueue("close-index", Priority.URGENT, new CloseIndicesExecutor());
+        addBlocksQueue = clusterService.createTaskQueue("add-blocks", Priority.URGENT, new AddBlocksExecutor());
+        finalizeBlocksQueue = clusterService.createTaskQueue("finalize-blocks", Priority.URGENT, new FinalizeBlocksExecutor());
     }
 
     /**
@@ -161,11 +162,10 @@ public class MetadataIndexStateService {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        clusterService.submitStateUpdateTask(
+        addBlocksToCloseQueue.submitTask(
             "add-block-index-to-close " + Arrays.toString(request.indices()),
             new AddBlocksToCloseTask(request, listener),
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-            this.addBlocksToCloseExecutor
+            request.masterNodeTimeout()
         );
     }
 
@@ -189,14 +189,14 @@ public class MetadataIndexStateService {
                         new WaitForClosedBlocksApplied(
                             blockedIndices,
                             task.request,
-                            task.listener().delegateFailure((delegate2, verifyResults) -> {
-                                clusterService.submitStateUpdateTask(
-                                    "close-indices",
-                                    new CloseIndicesTask(task.request, blockedIndices, verifyResults, delegate2),
-                                    ClusterStateTaskConfig.build(Priority.URGENT),
-                                    closesExecutor
-                                );
-                            })
+                            task.listener()
+                                .delegateFailure(
+                                    (delegate2, verifyResults) -> closesQueue.submitTask(
+                                        "close-indices",
+                                        new CloseIndicesTask(task.request, blockedIndices, verifyResults, delegate2),
+                                        null
+                                    )
+                                )
                         )
                     );
             }
@@ -468,11 +468,10 @@ public class MetadataIndexStateService {
             );
         }
 
-        clusterService.submitStateUpdateTask(
+        addBlocksQueue.submitTask(
             "add-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
             new AddBlocksTask(request, listener),
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-            addBlocksExecutor
+            request.masterNodeTimeout()
         );
     }
 
@@ -493,18 +492,18 @@ public class MetadataIndexStateService {
                         new WaitForBlocksApplied(
                             blockedIndices,
                             task.request,
-                            task.listener().delegateFailure((delegate2, verifyResults) -> {
-                                clusterService.submitStateUpdateTask(
-                                    "finalize-index-block-["
-                                        + task.request.getBlock().name
-                                        + "]-["
-                                        + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
-                                        + "]",
-                                    new FinalizeBlocksTask(task.request, blockedIndices, verifyResults, delegate2),
-                                    ClusterStateTaskConfig.build(Priority.URGENT),
-                                    finalizeBlocksExecutor
-                                );
-                            })
+                            task.listener()
+                                .delegateFailure(
+                                    (delegate2, verifyResults) -> finalizeBlocksQueue.submitTask(
+                                        "finalize-index-block-["
+                                            + task.request.getBlock().name
+                                            + "]-["
+                                            + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
+                                            + "]",
+                                        new FinalizeBlocksTask(task.request, blockedIndices, verifyResults, delegate2),
+                                        null
+                                    )
+                                )
                         )
                     );
             }
@@ -937,11 +936,10 @@ public class MetadataIndexStateService {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        clusterService.submitStateUpdateTask(
+        opensQueue.submitTask(
             "open-indices " + Arrays.toString(request.indices()),
             new OpenIndicesTask(request, listener),
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-            this.opensExecutor
+            request.masterNodeTimeout()
         );
     }
 

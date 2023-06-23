@@ -9,11 +9,11 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.CleanableResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -87,8 +87,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
     @Before
     public void initTransports() {
-        node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
-        node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
+        node1 = DiscoveryNodeUtils.create("node1");
+        node2 = DiscoveryNodeUtils.create("node2");
 
         disconnectedLinks = new HashSet<>();
         blackholedLinks = new HashSet<>();
@@ -535,7 +535,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
                     service1,
                     node2,
                     new CleanableResponseHandler<>(
-                        ActionListener.wrap(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
+                        ActionListener.running(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
                         TestResponse::new,
                         ThreadPool.Names.SAME,
                         () -> assertFalse(responseHandlerReleased.getAndSet(true))
@@ -584,7 +584,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         );
         blackholedRequestLinks.clear();
 
-        final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode node3 = DiscoveryNodeUtils.create("node3");
         assertThat(
             expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3))
                 .getMessage(),

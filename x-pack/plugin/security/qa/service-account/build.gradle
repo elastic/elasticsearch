@@ -1,8 +1,14 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation project(':x-pack:plugin:security')
   clusterModules(project(":modules:analysis-common"))
+  clusterModules(project(":modules:rest-root"))
+}
+
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
 }

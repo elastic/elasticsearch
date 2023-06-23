@@ -43,11 +43,31 @@ setup:
              double_field: 151.0
              string_field: foo
 
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              other_field:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_2
+              _id:    "1"
+          - other_field: "other value"
 ---
 "Basic test":
 
   - do:
       search:
+        index: test_1
         rest_total_hits_as_int: true
         body:
           aggs:
@@ -68,6 +88,7 @@ setup:
 
   - do:
       search:
+        index: test_1
         rest_total_hits_as_int: true
         body:
           size: 0
@@ -89,6 +110,7 @@ setup:
 
   - do:
       search:
+        index: test_1
         rest_total_hits_as_int: true
         body:
           query:
@@ -116,6 +138,7 @@ setup:
 
   - do:
       search:
+        index: test_1
         rest_total_hits_as_int: true
         body:
           aggs:
@@ -133,6 +156,7 @@ setup:
 
   - do:
       search:
+        index: test_1
         rest_total_hits_as_int: true
         body:
           aggs:
@@ -149,6 +173,7 @@ setup:
 
   - do:
       search:
+        index: test_1
         rest_total_hits_as_int: true
         body:
           aggs:
@@ -169,12 +194,48 @@ setup:
   - do:
       catch: bad_request
       search:
+        index: test_1
         rest_total_hits_as_int: true
         body:
           aggs:
             the_string_avg:
               avg:
                 field: string_field
+
+---
+"Partially unmapped":
+
+  - do:
+      search:
+        index: test_1,test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_avg:
+              avg:
+                field: int_field
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_avg.value: 76.0 }
+
+---
+"Partially unmapped with missing":
+
+  - do:
+      search:
+        index: test_1,test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_avg:
+              avg:
+                field: int_field
+                missing: 10
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_avg.value: 62.8 }
 
 ---
 "Counter field":

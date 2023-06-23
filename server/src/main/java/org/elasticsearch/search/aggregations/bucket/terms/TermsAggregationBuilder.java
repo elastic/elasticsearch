@@ -48,12 +48,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     public static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        1,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(1, 0, 10, -1);
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
@@ -135,6 +131,11 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     @Override
     public boolean supportsSampling() {
         return true;
+    }
+
+    @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
     }
 
     @Override

@@ -5,100 +5,33 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.bwc-test'
 
-def fulfillingCluster = testClusters.register('fulfilling-cluster') {
-  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'remote_cluster.enabled', 'true'
-  setting 'remote_cluster.port', '0'
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:analysis-common"))
+  clusterModules project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:reindex")) // need for deleting transform jobs
+  clusterModules(project(":x-pack:plugin:transform"))
+}
 
-  extraConfigFile 'transport.key', file("src/test/resources/ssl/transport.key")
-  extraConfigFile 'transport.cert', file("src/test/resources/ssl/transport.crt")
-  extraConfigFile 'transport.ca', file("src/test/resources/ssl/transport-ca.crt")
+tasks.named("javaRestTest") {
+  enabled = true
+  // This is tested explicitly in bwc test tasks.
+  exclude '**/RemoteClusterSecurityBwcRestIT.class'
+}
 
-  // Transport SSL can be enabled or disabled. It is independent from the remote cluster server SSL
-  if (BuildParams.random.nextBoolean()) {
-    setting 'xpack.security.transport.ssl.enabled', 'true'
-  } else {
-    setting 'xpack.security.transport.ssl.enabled', 'false'
+BuildParams.bwcVersions.withWireCompatible(v -> v.before('8.8.0')) { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    include '**/RemoteClusterSecurityBwcRestIT.class'
   }
-  setting 'xpack.security.transport.ssl.key', 'transport.key'
-  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
-  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
-  setting 'xpack.security.transport.ssl.client_authentication', 'required'
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-
-  // Server side SSL configuration for remote cluster
-  extraConfigFile 'remote-cluster.key', file("src/test/resources/ssl/remote_cluster.key")
-  extraConfigFile 'remote-cluster.cert', file("src/test/resources/ssl/remote_cluster.crt")
-  extraConfigFile 'remote-cluster.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
-
-  setting 'xpack.security.remote_cluster.ssl.enabled', 'true'
-  setting 'xpack.security.remote_cluster.ssl.key', 'remote-cluster.key'
-  setting 'xpack.security.remote_cluster.ssl.certificate', 'remote-cluster.cert'
-  keystore 'xpack.security.remote_cluster.ssl.secure_key_passphrase', 'remote-cluster-password'
-  // client auth defaults to none for remote_cluster
-  if (BuildParams.random.nextBoolean()) {
-    setting 'xpack.security.remote_cluster.ssl.client_authentication', 'none'
-  }
-
-  user username: "test_user", password: "x-pack-test-password"
 }
-
-def queryingCluster = testClusters.register('querying-cluster') {
-  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.connections_per_cluster', "1"
-
-  extraConfigFile 'transport.key', file("src/test/resources/ssl/transport.key")
-  extraConfigFile 'transport.cert', file("src/test/resources/ssl/transport.crt")
-  extraConfigFile 'transport.ca', file("src/test/resources/ssl/transport-ca.crt")
-
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', 'transport.key'
-  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
-  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
-  setting 'xpack.security.transport.ssl.client_authentication', 'required'
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-
-  // Client (QC) side ssl configuration for remote cluster
-  extraConfigFile 'remote-cluster.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
-  setting 'xpack.security.remote_cluster.ssl.certificate_authorities', 'remote-cluster.ca'
-
-  setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
-  setting 'cluster.remote.my_remote_cluster.proxy_address', {
-    "\"${fulfillingCluster.get().getAllRemoteAccessPortURI().get(0)}\""
-  }
-  setting 'cluster.remote.my_remote_cluster.authorization', 'foobar'
-
-  user username: "test_user", password: "x-pack-test-password"
-}
-
-tasks.register('fulfilling-cluster', RestIntegTestTask) {
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
-}
-
-tasks.register('querying-cluster', RestIntegTestTask) {
-  dependsOn 'fulfilling-cluster'
-  useCluster queryingCluster
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'querying_cluster'
-}
-
-// runs the fulfilling-cluster cluster tests then the querying-cluster tests
-tasks.register("integTest") {
-  dependsOn 'querying-cluster'
-}
-
-tasks.named("check").configure { dependsOn("integTest") }

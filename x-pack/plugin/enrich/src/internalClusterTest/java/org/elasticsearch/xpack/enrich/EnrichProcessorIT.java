@@ -120,7 +120,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
               ]
             }
             """), XContentType.JSON);
-        var response = client().admin().cluster().simulatePipeline(simulatePipelineRequest).actionGet();
+        var response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
         var result = (SimulateDocumentBaseResult) response.getResults().get(0);
         assertThat(result.getFailure(), nullValue());
         assertThat(result.getIngestDocument().getFieldValue("device.name", String.class), equalTo("bla"));
@@ -156,7 +156,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
               ]
             }
             """), XContentType.JSON);
-        response = client().admin().cluster().simulatePipeline(simulatePipelineRequest).actionGet();
+        response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
         result = (SimulateDocumentBaseResult) response.getResults().get(0);
         assertThat(result.getFailure(), nullValue());
         assertThat(result.getIngestDocument().getFieldValue("_tmp.device.name", String.class), equalTo("bla"));

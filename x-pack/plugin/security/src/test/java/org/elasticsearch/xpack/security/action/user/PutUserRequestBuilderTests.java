@@ -214,13 +214,9 @@ public class PutUserRequestBuilderTests extends ESTestCase {
             }""", new String(hash));
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher)
-                    .request();
-            }
-        );
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
         assertThat(
             ex.getMessage(),
             containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
@@ -240,10 +236,9 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         );
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            ValidationException.class,
-            () -> { builder.source("hash_user", json, XContentType.JSON, hasher).request(); }
-        );
+        final IllegalArgumentException ex = expectThrows(ValidationException.class, () -> {
+            builder.source("hash_user", json, XContentType.JSON, hasher).request();
+        });
         assertThat(ex.getMessage(), containsString("password_hash has already been set"));
     }
 }

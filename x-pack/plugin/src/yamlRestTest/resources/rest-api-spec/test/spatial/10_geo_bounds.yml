@@ -1,0 +1,283 @@
+---
+setup:
+  - skip:
+      features: close_to
+
+---
+"Test geo_bounds aggregation on geo_point field with point":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      index:
+        index:  locations
+        id:     point_with_doc_values
+        body:   { location: "POINT(34.25 -21.76)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: -21.76, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: 34.25, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: -21.76, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: 34.25, error: 0.00001 } }
+
+---
+"Test geo_bounds aggregation on geo_shape field with point":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      index:
+        index:  locations
+        id:     point_with_doc_values
+        body:   { location: "POINT(34.25 -21.76)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: -21.76, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: 34.25, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: -21.76, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: 34.25, error: 0.00001 } }
+
+---
+"Test geo_bounds aggregation on geo_point field with points":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      bulk:
+        refresh: true
+        index: locations
+        body: |
+          {"index":{}}
+          {"location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+  - match: { hits.total: 6 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: 52.374081, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: 2.327000, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: 48.860000, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: 4.914722, error: 0.00001 } }
+
+---
+"Test geo_bounds aggregation on geo_shape field with geo_points":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      bulk:
+        refresh: true
+        index: locations
+        body: |
+          {"index":{}}
+          {"location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+  - match: { hits.total: 6 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: 52.374081, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: 2.327000, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: 48.860000, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: 4.914722, error: 0.00001 } }
+
+---
+"Test geo_bounds aggregation on geo_shape field with polygon":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      index:
+        index:  locations
+        id:     big_rectangle
+        body:   { location: "POLYGON((-10 -10, 10 -10, 10 10, -10 10, -10 -10))" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: 10.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: -10.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: -10.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: 10.0, error: 0.00001 } }
+
+---
+"Test geo_bounds aggregation on geo_shape crossing dateline":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      index:
+        index:  locations
+        id:     big_rectangle
+        body:   { location: "POLYGON((170 -10, -170 -10, -170 10, 170 10, 170 -10))" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+                wrap_longitude: true
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: 10.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: 170.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: -10.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: -170.0, error: 0.00001 } }
+
+
+---
+"Test geo_bounds aggregation on geo_shape crossing dateline without wrap_longitude":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      index:
+        index:  locations
+        id:     big_rectangle
+        body:   { location: "POLYGON((170 -10, -170 -10, -170 10, 170 10, 170 -10))" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+                wrap_longitude: false
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: 10.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: -180.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: -10.0, error: 0.00001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: 180.0, error: 0.00001 } }

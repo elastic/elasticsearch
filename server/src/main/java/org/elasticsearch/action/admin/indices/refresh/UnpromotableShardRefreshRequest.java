@@ -8,44 +8,48 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 
-public class UnpromotableShardRefreshRequest extends ActionRequest {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-    private final ShardId shardId;
+public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableRequest {
+
     private final long segmentGeneration;
 
-    public UnpromotableShardRefreshRequest(final ShardId shardId, long segmentGeneration) {
-        this.shardId = shardId;
+    public UnpromotableShardRefreshRequest(
+        IndexShardRoutingTable indexShardRoutingTable,
+        long segmentGeneration,
+        boolean failShardOnError
+    ) {
+        super(indexShardRoutingTable, failShardOnError);
         this.segmentGeneration = segmentGeneration;
     }
 
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
-        shardId = new ShardId(in);
         segmentGeneration = in.readVLong();
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = super.validate();
+        if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
+            validationException = addValidationError("segment generation is unknown", validationException);
+        }
+        return validationException;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        shardId.writeTo(out);
         out.writeVLong(segmentGeneration);
-    }
-
-    public ShardId getShardId() {
-        return shardId;
     }
 
     public long getSegmentGeneration() {
@@ -54,6 +58,6 @@ public class UnpromotableShardRefreshRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "UnpromotableShardRefreshRequest{" + "shardId=" + shardId + ", segmentGeneration=" + segmentGeneration + '}';
+        return "UnpromotableShardRefreshRequest{" + "shardId=" + shardId() + ", segmentGeneration=" + segmentGeneration + '}';
     }
 }

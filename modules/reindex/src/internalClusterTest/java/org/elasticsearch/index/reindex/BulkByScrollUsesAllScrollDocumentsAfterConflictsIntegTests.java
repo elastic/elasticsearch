@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -108,7 +107,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             updateByQuery(),
             true,
-            (bulkByScrollResponse, updatedDocCount) -> { assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount)); }
+            (bulkByScrollResponse, updatedDocCount) -> {
+                assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount));
+            }
         );
     }
 
@@ -130,7 +131,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             reindexRequestBuilder,
             false,
-            (bulkByScrollResponse, reindexDocCount) -> { assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount)); }
+            (bulkByScrollResponse, reindexDocCount) -> {
+                assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
+            }
         );
     }
 
@@ -142,7 +145,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             false,
             deleteByQuery(),
             true,
-            (bulkByScrollResponse, deletedDocCount) -> { assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount)); }
+            (bulkByScrollResponse, deletedDocCount) -> {
+                assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount));
+            }
         );
     }
 
@@ -263,10 +268,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
     }
 
     private void createIndexWithSingleShard(String index) throws Exception {
-        final Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        final Settings indexSettings = indexSettings(1, 0).build();
         final XContentBuilder mappings = jsonBuilder();
         {
             mappings.startObject();

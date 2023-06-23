@@ -7,12 +7,12 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.license.GetFeatureUsageResponse.FeatureUsageInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -24,16 +24,16 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class GetFeatureUsageResponseTests extends ESTestCase {
 
-    public void assertStreamInputOutput(Version version, String family, String context) throws IOException {
+    public void assertStreamInputOutput(TransportVersion version, String family, String context) throws IOException {
         ZonedDateTime zdt = ZonedDateTime.now();
         FeatureUsageInfo fui = new FeatureUsageInfo(family, "feature", zdt, context, "gold");
         GetFeatureUsageResponse originalResponse = new GetFeatureUsageResponse(List.of(fui));
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
+        output.setTransportVersion(version);
         originalResponse.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
-        input.setVersion(version);
+        input.setTransportVersion(version);
         GetFeatureUsageResponse finalResponse = new GetFeatureUsageResponse(input);
         assertThat(finalResponse.getFeatures(), hasSize(1));
         FeatureUsageInfo fui2 = finalResponse.getFeatures().get(0);
@@ -46,12 +46,12 @@ public class GetFeatureUsageResponseTests extends ESTestCase {
     }
 
     public void testPre715StreamFormat() throws IOException {
-        assertStreamInputOutput(VersionUtils.getPreviousVersion(Version.V_7_15_0), null, null);
+        assertStreamInputOutput(TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_15_0), null, null);
     }
 
     public void testStreamFormat() throws IOException {
-        assertStreamInputOutput(Version.CURRENT, "family", "context");
+        assertStreamInputOutput(TransportVersion.current(), "family", "context");
         // family and context are optional
-        assertStreamInputOutput(Version.CURRENT, null, null);
+        assertStreamInputOutput(TransportVersion.current(), null, null);
     }
 }

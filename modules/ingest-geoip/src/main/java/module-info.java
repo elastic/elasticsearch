@@ -12,8 +12,8 @@ module org.elasticsearch.ingest.geoip {
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
-    requires geoip2;
-    requires maxmind.db;
+    requires com.maxmind.geoip2;
+    requires com.maxmind.db;
 
     exports org.elasticsearch.ingest.geoip.stats to org.elasticsearch.server;
 }

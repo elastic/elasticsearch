@@ -76,23 +76,18 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         putComposableIndexTemplate("1", List.of(dataStreamName));
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
         indexDocs(dataStreamName, 10, Instant.now().toEpochMilli());
-        final RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
+        final RolloverResponse rolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         // NOTE: here we calculate a delay to index documents because the next data stream write index is created with a start time of
         // (about) two hours in the future. As a result, we need to have documents whose @timestamp is in the future to avoid documents
         // being indexed in the old data stream backing index.
-        final String newIndexStartTime = client().admin()
-            .indices()
-            .prepareGetSettings(rolloverResponse.getNewIndex())
+        final String newIndexStartTime = indicesAdmin().prepareGetSettings(rolloverResponse.getNewIndex())
             .get()
             .getSetting(rolloverResponse.getNewIndex(), IndexSettings.TIME_SERIES_START_TIME.getKey());
         indexDocs(dataStreamName, 10, Instant.parse(newIndexStartTime).toEpochMilli());
-        client().admin()
-            .indices()
-            .updateSettings(
-                new UpdateSettingsRequest().indices(rolloverResponse.getOldIndex())
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build())
-            )
-            .actionGet();
+        indicesAdmin().updateSettings(
+            new UpdateSettingsRequest().indices(rolloverResponse.getOldIndex())
+                .settings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build())
+        ).actionGet();
 
         // WHEN (simulate downsampling as done by an ILM action)
         final String downsampleTargetIndex = DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-downsample-1h";
@@ -101,23 +96,17 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
             downsampleTargetIndex,
             new DownsampleConfig(DateHistogramInterval.HOUR)
         );
-        final AcknowledgedResponse downsampleResponse = client().admin()
-            .indices()
-            .execute(DownsampleAction.INSTANCE, downsampleRequest)
-            .actionGet();
+        final AcknowledgedResponse downsampleResponse = indicesAdmin().execute(DownsampleAction.INSTANCE, downsampleRequest).actionGet();
 
         /*
          * Force an index update to avoid failing with "Index updates are expected as index settings version has changed",
          * due to a possible bug while checking settings versions and actual settings/metadata changes.
          * See {@link IndexSettings#updateIndexMetadata}.
          */
-        client().admin()
-            .indices()
-            .updateSettings(
-                new UpdateSettingsRequest().indices(downsampleTargetIndex)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build())
-            )
-            .actionGet();
+        indicesAdmin().updateSettings(
+            new UpdateSettingsRequest().indices(downsampleTargetIndex)
+                .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build())
+        ).actionGet();
 
         final ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
             List.of(
@@ -129,10 +118,10 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
 
         // THEN
         assertThat(downsampleResponse.isAcknowledged(), equalTo(true));
-        final GetDataStreamAction.Response getDataStreamActionResponse = client().admin()
-            .indices()
-            .execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName }))
-            .actionGet();
+        final GetDataStreamAction.Response getDataStreamActionResponse = indicesAdmin().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { dataStreamName })
+        ).actionGet();
         assertThat(getDataStreamActionResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(2));
         final List<String> backingIndices = getDataStreamActionResponse.getDataStreams()
             .get(0)
@@ -186,10 +175,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
         final PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         final Template template = new Template(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"))
                 .build(),
             new CompressedXContent("""
@@ -242,7 +228,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         final BulkItemResponse[] items = bulkResponse.getItems();
         assertThat(items.length, equalTo(numDocs));
         assertThat(bulkResponse.hasFailures(), equalTo(false));
-        final RefreshResponse refreshResponse = client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
+        final RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), equalTo(RestStatus.OK.getStatus()));
     }
 }

@@ -36,6 +36,7 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
         PutComposableIndexTemplateAction.Request newTemplateRequest = new PutComposableIndexTemplateAction.Request(randomAlphaOfLength(4));
         newTemplateRequest.indexTemplate(ComposableIndexTemplateTests.randomInstance());
         req.indexTemplateRequest(newTemplateRequest);
+        req.includeDefaults(randomBoolean());
         return req;
     }
 

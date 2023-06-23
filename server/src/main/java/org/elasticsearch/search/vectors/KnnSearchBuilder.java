@@ -10,7 +10,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,11 +45,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
+    public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
     public static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnSearchBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
-        @SuppressWarnings("unchecked")
         // TODO optimize parsing for when BYTE values are provided
         List<Float> vector = (List<Float>) args[1];
         final float[] vectorArray;
@@ -62,7 +62,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             vectorArray = null;
         }
-        return new KnnSearchBuilder((String) args[0], vectorArray, (QueryVectorBuilder) args[4], (int) args[2], (int) args[3]);
+        return new KnnSearchBuilder(
+            (String) args[0],
+            vectorArray,
+            (QueryVectorBuilder) args[4],
+            (int) args[2],
+            (int) args[3],
+            (Float) args[5]
+        );
     });
 
     static {
@@ -75,6 +82,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
             QUERY_VECTOR_BUILDER_FIELD
         );
+        PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
         PARSER.declareFieldArray(
             KnnSearchBuilder::addFilterQueries,
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
@@ -94,6 +102,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     private final Supplier<float[]> querySupplier;
     final int k;
     final int numCands;
+    final Float similarity;
     final List<QueryBuilder> filterQueries;
     float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
@@ -105,8 +114,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param k           the final number of nearest neighbors to return as top hits
      * @param numCands    the number of nearest neighbor candidates to consider per shard
      */
-    public KnnSearchBuilder(String field, float[] queryVector, int k, int numCands) {
-        this(field, Objects.requireNonNull(queryVector, format("[%s] cannot be null", QUERY_VECTOR_FIELD)), null, k, numCands);
+    public KnnSearchBuilder(String field, float[] queryVector, int k, int numCands, Float similarity) {
+        this(field, Objects.requireNonNull(queryVector, format("[%s] cannot be null", QUERY_VECTOR_FIELD)), null, k, numCands, similarity);
     }
 
     /**
@@ -116,17 +125,25 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param k                  the final number of nearest neighbors to return as top hits
      * @param numCands           the number of nearest neighbor candidates to consider per shard
      */
-    public KnnSearchBuilder(String field, QueryVectorBuilder queryVectorBuilder, int k, int numCands) {
+    public KnnSearchBuilder(String field, QueryVectorBuilder queryVectorBuilder, int k, int numCands, Float similarity) {
         this(
             field,
             null,
             Objects.requireNonNull(queryVectorBuilder, format("[%s] cannot be null", QUERY_VECTOR_BUILDER_FIELD.getPreferredName())),
             k,
-            numCands
+            numCands,
+            similarity
         );
     }
 
-    private KnnSearchBuilder(String field, float[] queryVector, QueryVectorBuilder queryVectorBuilder, int k, int numCands) {
+    private KnnSearchBuilder(
+        String field,
+        float[] queryVector,
+        QueryVectorBuilder queryVectorBuilder,
+        int k,
+        int numCands,
+        Float similarity
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
         }
@@ -163,9 +180,17 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.numCands = numCands;
         this.filterQueries = new ArrayList<>();
         this.querySupplier = null;
+        this.similarity = similarity;
     }
 
-    private KnnSearchBuilder(String field, Supplier<float[]> querySupplier, int k, int numCands, List<QueryBuilder> filterQueries) {
+    private KnnSearchBuilder(
+        String field,
+        Supplier<float[]> querySupplier,
+        int k,
+        int numCands,
+        List<QueryBuilder> filterQueries,
+        Float similarity
+    ) {
         this.field = field;
         this.queryVector = new float[0];
         this.queryVectorBuilder = null;
@@ -173,6 +198,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.numCands = numCands;
         this.filterQueries = filterQueries;
         this.querySupplier = querySupplier;
+        this.similarity = similarity;
     }
 
     public KnnSearchBuilder(StreamInput in) throws IOException {
@@ -188,10 +214,24 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             this.queryVectorBuilder = null;
         }
         this.querySupplier = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            this.similarity = in.readOptionalFloat();
+        } else {
+            this.similarity = null;
+        }
     }
 
     public int k() {
         return k;
+    }
+
+    public QueryVectorBuilder getQueryVectorBuilder() {
+        return queryVectorBuilder;
+    }
+
+    // for testing only
+    public float[] getQueryVector() {
+        return queryVector;
     }
 
     public KnnSearchBuilder addFilterQuery(QueryBuilder filterQuery) {
@@ -220,14 +260,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             if (querySupplier.get() == null) {
                 return this;
             }
-            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands).boost(boost).addFilterQueries(filterQueries);
+            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, similarity).boost(boost).addFilterQueries(filterQueries);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, ActionListener.wrap(v -> {
+            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, l.delegateFailureAndWrap((ll, v) -> {
                 toSet.set(v);
                 if (v == null) {
-                    l.onFailure(
+                    ll.onFailure(
                         new IllegalArgumentException(
                             format(
                                 "[%s] with name [%s] returned null query_vector",
@@ -238,9 +278,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                     );
                     return;
                 }
-                l.onResponse(null);
-            }, l::onFailure)));
-            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries).boost(boost);
+                ll.onResponse(null);
+            })));
+            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -252,7 +292,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             rewrittenQueries.add(rewrittenQuery);
         }
         if (changed) {
-            return new KnnSearchBuilder(field, queryVector, k, numCands).boost(boost).addFilterQueries(rewrittenQueries);
+            return new KnnSearchBuilder(field, queryVector, k, numCands, similarity).boost(boost).addFilterQueries(rewrittenQueries);
         }
         return this;
     }
@@ -261,7 +301,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands).boost(boost).addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity).boost(boost).addFilterQueries(filterQueries);
     }
 
     @Override
@@ -276,6 +316,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
             && Objects.equals(querySupplier, that.querySupplier)
             && Objects.equals(filterQueries, that.filterQueries)
+            && Objects.equals(similarity, that.similarity)
             && boost == that.boost;
     }
 
@@ -287,6 +328,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             numCands,
             querySupplier,
             queryVectorBuilder,
+            similarity,
             Arrays.hashCode(queryVector),
             Objects.hashCode(filterQueries),
             boost
@@ -304,6 +346,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             builder.endObject();
         } else {
             builder.array(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+        }
+        if (similarity != null) {
+            builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);
         }
 
         if (filterQueries.isEmpty() == false) {
@@ -343,6 +388,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalFloat(similarity);
         }
     }
 }

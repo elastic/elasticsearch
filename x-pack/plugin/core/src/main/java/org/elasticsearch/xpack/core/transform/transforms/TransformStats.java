@@ -49,16 +49,12 @@ public class TransformStats implements Writeable, ToXContentObject {
     private final TransformHealth health;
 
     public static TransformStats initialStats(String id) {
-        return stoppedStats(id, new TransformIndexerStats());
-    }
-
-    public static TransformStats stoppedStats(String id, TransformIndexerStats indexerTransformStats) {
         return new TransformStats(
             id,
             State.STOPPED,
             null,
             null,
-            indexerTransformStats,
+            new TransformIndexerStats(),
             TransformCheckpointingInfo.EMPTY,
             TransformHealth.GREEN
         );

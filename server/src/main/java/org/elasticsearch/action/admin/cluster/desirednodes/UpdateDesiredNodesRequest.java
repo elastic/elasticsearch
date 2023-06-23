@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -98,7 +99,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         return dryRun;
     }
 
-    public boolean isCompatibleWithVersion(TransportVersion version) {
+    public boolean isCompatibleWithVersion(Version version) {
         if (version.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             return true;
         }

@@ -8,21 +8,26 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -38,6 +43,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.StoredValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
@@ -52,6 +59,8 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -94,6 +103,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
         final Parameter<Boolean> hasDocValues;
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -103,12 +113,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Version version;
+        private final IndexVersion version;
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
         public Builder(
             String name,
-            Version version,
+            IndexVersion version,
             boolean ignoreMalformedByDefault,
             boolean coerceByDefault,
             GeoFormatterFactory<Geometry> geoFormatterFactory
@@ -118,12 +128,18 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), Version.V_7_8_0.onOrBefore(version));
+            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersion.V_7_8_0.onOrBefore(version));
+        }
+
+        // for testing
+        protected Builder setStored(boolean stored) {
+            this.stored.setValue(stored);
+            return this;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { indexed, hasDocValues, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
+            return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
         }
 
         @Override
@@ -145,6 +161,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 context.buildFullName(name),
                 indexed.get(),
                 hasDocValues.get(),
+                stored.get(),
                 orientation.get().value(),
                 parser,
                 geoFormatterFactory,
@@ -171,12 +188,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             String name,
             boolean indexed,
             boolean hasDocValues,
+            boolean isStored,
             Orientation orientation,
             GeoShapeParser parser,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, hasDocValues, parser, orientation, meta);
+            super(name, indexed, isStored, hasDocValues, parser, orientation, meta);
             this.geoFormatterFactory = geoFormatterFactory;
         }
 
@@ -197,19 +215,49 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
+            failIfNotIndexedNorDocValuesFallback(context);
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
+            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersion.V_7_5_0)) {
                 throw new QueryShardException(
                     context,
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
                 );
             }
-            Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
-            if (hasDocValues()) {
-                final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
-                query = new IndexOrDocValuesQuery(query, queryDocValues);
+            Query query;
+            if (isIndexed()) {
+                query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
+                if (hasDocValues()) {
+                    final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
+                    query = new IndexOrDocValuesQuery(query, queryDocValues);
+                }
+            } else {
+                query = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
             }
             return query;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (isStored()) {
+                Function<List<Geometry>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
+                return new StoredValueFetcher(context.lookup(), name()) {
+                    @Override
+                    public List<Object> parseStoredValues(List<Object> storedValues) {
+                        final List<Geometry> values = new ArrayList<>(storedValues.size());
+                        for (Object storedValue : storedValues) {
+                            if (storedValue instanceof BytesRef bytesRef) {
+                                values.add(
+                                    WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytesRef.bytes, bytesRef.offset, bytesRef.length)
+                                );
+                            } else {
+                                throw new IllegalArgumentException("Unexpected class fetching [" + name() + "]: " + storedValue.getClass());
+                            }
+                        }
+                        return formatter.apply(values);
+                    }
+                };
+            }
+            return super.valueFetcher(context, format);
         }
 
         @Override
@@ -234,7 +282,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
             boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
             if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
-                if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                if (parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
                     Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
                     throw new IllegalArgumentException(
                         "using deprecated parameters "
@@ -297,20 +345,26 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         if (geometry == null) {
             return;
         }
-        List<IndexableField> fields = indexer.indexShape(geometry);
+        final Geometry normalizedGeometry = indexer.normalize(geometry);
+        final List<IndexableField> fields = indexer.getIndexableFields(normalizedGeometry);
         if (fieldType().isIndexed()) {
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
-            String name = fieldType().name();
+            final String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
                 context.doc().addWithKey(name, docValuesField);
             }
+            // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
             docValuesField.add(fields, geometry);
         } else if (fieldType().isIndexed()) {
             context.addToFieldNames(fieldType().name());
+        }
+
+        if (fieldType().isStored()) {
+            context.doc().add(new StoredField(fieldType().name(), WellKnownBinary.toWKB(normalizedGeometry, ByteOrder.LITTLE_ENDIAN)));
         }
     }
 

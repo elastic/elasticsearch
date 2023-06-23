@@ -402,7 +402,22 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         public StoredFields storedFields() throws IOException {
-            return getDelegate().storedFields();
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    assert docID == 0;
+                    if (delegate.get() == null) {
+                        if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                            // override this for ShardGetService
+                            if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
+                                readStoredFieldsDirectly(visitor);
+                                return;
+                            }
+                        }
+                    }
+                    getDelegate().storedFields().document(docID, visitor);
+                }
+            };
         }
 
         @Override
@@ -417,21 +432,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            assert docID == 0;
-            if (docID != 0) {
-                throw new IllegalArgumentException("no such doc ID " + docID);
-            }
-            if (delegate.get() == null) {
-                if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
-                    // override this for ShardGetService
-                    if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
-                        readStoredFieldsDirectly(visitor);
-                        return;
-                    }
-                }
-            }
-
-            getDelegate().document(docID, visitor);
+            storedFields().document(docID, visitor);
         }
 
         private void readStoredFieldsDirectly(StoredFieldVisitor visitor) throws IOException {

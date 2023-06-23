@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -41,7 +41,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
     private final DesiredNodesSettingsValidator settingsValidator;
-    private final ClusterStateTaskExecutor<UpdateDesiredNodesTask> taskExecutor;
+    private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
@@ -66,7 +66,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
-        this.taskExecutor = new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService);
+        this.taskQueue = clusterService.createTaskQueue(
+            "update-desired-nodes",
+            Priority.URGENT,
+            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
+        );
     }
 
     @Override
@@ -83,19 +87,14 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     ) throws Exception {
         ActionListener.run(responseListener, listener -> {
             settingsValidator.validate(request.getNodes());
-            clusterService.submitStateUpdateTask(
-                "update-desired-nodes",
-                new UpdateDesiredNodesTask(request, listener),
-                ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-                taskExecutor
-            );
+            taskQueue.submitTask("update-desired-nodes", new UpdateDesiredNodesTask(request, listener), request.masterNodeTimeout());
         });
     }
 
     @Override
     protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
         final var minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        if (request.isCompatibleWithVersion(minNodeVersion.transportVersion) == false) {
+        if (request.isCompatibleWithVersion(minNodeVersion) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "Unable to use processor ranges, floating-point (with greater precision) processors "
@@ -162,7 +161,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     private static class UpdateDesiredNodesExecutor implements ClusterStateTaskExecutor<UpdateDesiredNodesTask> {
-        private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+        private static final ActionListener<Void> REROUTE_LISTENER = ActionListener.wrap(
             r -> logger.trace("reroute after desired nodes update completed"),
             e -> logger.debug("reroute after desired nodes update failed", e)
         );

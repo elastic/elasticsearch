@@ -34,9 +34,9 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();
-        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(
-            () -> { throw new ElasticsearchException("simulated " + openCount.incrementAndGet()); }
-        );
+        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
+            throw new ElasticsearchException("simulated " + openCount.incrementAndGet());
+        });
 
         assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
         assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));

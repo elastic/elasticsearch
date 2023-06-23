@@ -8,6 +8,8 @@
 
 package org.elasticsearch.test.cluster.local;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterFactory;
@@ -66,21 +68,37 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final int DEFAULT_DEBUG_PORT = 5007;
 
-    private final Path baseWorkingDir;
     private final DistributionResolver distributionResolver;
 
-    public LocalClusterFactory(Path baseWorkingDir, DistributionResolver distributionResolver) {
-        this.baseWorkingDir = baseWorkingDir;
+    public LocalClusterFactory(DistributionResolver distributionResolver) {
         this.distributionResolver = distributionResolver;
     }
 
     @Override
     public LocalClusterHandle create(LocalClusterSpec spec) {
-        return new LocalClusterHandle(spec.getName(), spec.getNodes().stream().map(Node::new).toList());
+        Path baseWorkingDir;
+        try {
+            baseWorkingDir = Files.createTempDirectory(spec.getName());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        return createHandle(baseWorkingDir, spec);
     }
 
-    public class Node {
+    protected LocalClusterHandle createHandle(Path baseWorkingDir, LocalClusterSpec spec) {
+        return new LocalClusterHandle(
+            spec.getName(),
+            spec.getNodes().stream().map(s -> new Node(baseWorkingDir, distributionResolver, s)).toList()
+        );
+    }
+
+    public static class Node {
+        private final ObjectMapper objectMapper;
+        private final Path baseWorkingDir;
+        private final DistributionResolver distributionResolver;
         private final LocalNodeSpec spec;
+        private final String name;
         private final Path workingDir;
         private final Path repoDir;
         private final Path dataDir;
@@ -93,9 +111,17 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private Process process = null;
         private DistributionDescriptor distributionDescriptor;
 
-        public Node(LocalNodeSpec spec) {
+        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
+            this(baseWorkingDir, distributionResolver, spec, null);
+        }
+
+        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, String suffix) {
+            this.objectMapper = new ObjectMapper();
+            this.baseWorkingDir = baseWorkingDir;
+            this.distributionResolver = distributionResolver;
             this.spec = spec;
-            this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
+            this.name = suffix == null ? spec.getName() : spec.getName() + "-" + suffix;
+            this.workingDir = baseWorkingDir.resolve(name);
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -104,15 +130,15 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         public synchronized void start(Version version) {
-            LOGGER.info("Starting Elasticsearch node '{}'", spec.getName());
+            LOGGER.info("Starting Elasticsearch node '{}'", name);
             if (version != null) {
                 spec.setVersion(version);
             }
 
             if (currentVersion == null || currentVersion.equals(spec.getVersion()) == false) {
-                LOGGER.info("Creating installation for node '{}' in {}", spec.getName(), workingDir);
+                LOGGER.info("Creating installation for node '{}' in {}", name, workingDir);
                 distributionDescriptor = resolveDistribution();
-                LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
+                LOGGER.info("Distribution for node '{}': {}", name, distributionDescriptor);
                 initializeWorkingDirectory(currentVersion != null);
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
@@ -131,12 +157,14 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             createKeystore();
             addKeystoreSettings();
             addKeystoreFiles();
+            writeSecureSecretsFile();
             configureSecurity();
 
             startElasticsearch();
         }
 
         public synchronized void stop(boolean forcibly) {
+            LOGGER.info("Shutting down node '{}'", name);
             if (process != null) {
                 ProcessUtils.stopHandle(process.toHandle(), forcibly);
                 ProcessReaper.instance().unregister(getServiceName());
@@ -166,18 +194,32 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return readPortsFile(portsFile).get(0);
         }
 
+        public String getRemoteClusterServerEndpoint() {
+            Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
+            if (Files.notExists(portsFile)) {
+                waitUntilReady();
+            }
+            return readPortsFile(portsFile).get(0);
+        }
+
         public void deletePortsFiles() {
             try {
                 Path hostsFile = workingDir.resolve("config").resolve("unicast_hosts.txt");
                 Path httpPortsFile = workingDir.resolve("logs").resolve("http.ports");
                 Path transportPortsFile = workingDir.resolve("logs").resolve("transport.ports");
+                Path remoteClusterServerPortsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
 
                 Files.deleteIfExists(hostsFile);
                 Files.deleteIfExists(httpPortsFile);
                 Files.deleteIfExists(transportPortsFile);
+                Files.deleteIfExists(remoteClusterServerPortsFile);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + this, e);
             }
+        }
+
+        public String getName() {
+            return name;
         }
 
         public LocalNodeSpec getSpec() {
@@ -260,7 +302,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 Files.createDirectories(logsDir);
                 Files.createDirectories(tempDir);
             } catch (IOException e) {
-                throw new UncheckedIOException("Failed to create working directory for node '" + spec.getName() + "'", e);
+                throw new UncheckedIOException("Failed to create working directory for node '" + name + "'", e);
             }
         }
 
@@ -271,7 +313,8 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private boolean canUseSharedDistribution() {
             return OS.current() != WINDOWS // Issues with long file paths on Windows in CI
                 && System.getProperty(TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP) == null
-                && (distributionDescriptor.getType() == DEFAULT || (getSpec().getPlugins().isEmpty() && getSpec().getModules().isEmpty()));
+                && getSpec().getPlugins().isEmpty()
+                && (distributionDescriptor.getType() == DEFAULT || getSpec().getModules().isEmpty());
         }
 
         private void copyExtraJarFiles() {
@@ -304,6 +347,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             try {
                 // Write settings to elasticsearch.yml
                 Map<String, String> finalSettings = new HashMap<>();
+                finalSettings.put("node.name", name);
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
@@ -320,10 +364,12 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 );
 
                 // Copy additional configuration from distribution
-                try (Stream<Path> configFiles = Files.list(distributionDir.resolve("config"))) {
+                try (Stream<Path> configFiles = Files.walk(distributionDir.resolve("config"))) {
                     for (Path file : configFiles.toList()) {
-                        Path dest = configFile.getParent().resolve(file.getFileName());
+                        Path relativePath = distributionDir.resolve("config").relativize(file);
+                        Path dest = configDir.resolve(relativePath);
                         if (Files.exists(dest) == false) {
+                            Files.createDirectories(dest.getParent());
                             Files.copy(file, dest);
                         }
                     }
@@ -357,7 +403,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private void addKeystoreSettings() {
-            spec.getKeystoreSettings().forEach((key, value) -> {
+            spec.resolveKeystore().forEach((key, value) -> {
                 String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;
@@ -391,10 +437,25 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             });
         }
 
+        private void writeSecureSecretsFile() {
+            if (spec.getSecrets().isEmpty() == false) {
+                try {
+                    Path secretsFile = configDir.resolve("secrets/secrets.json");
+                    Files.createDirectories(secretsFile.getParent());
+                    Map<String, Object> secretsFileContent = new HashMap<>();
+                    secretsFileContent.put("secrets", spec.getSecrets());
+                    secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
+                    Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+
         private void configureSecurity() {
             if (spec.isSecurityEnabled()) {
                 if (spec.getUsers().isEmpty() == false) {
-                    LOGGER.info("Setting up roles.yml for node '{}'", spec.getName());
+                    LOGGER.info("Setting up roles.yml for node '{}'", name);
 
                     Path destination = workingDir.resolve("config").resolve("roles.yml");
                     spec.getRolesFiles().forEach(rolesFile -> {
@@ -409,7 +470,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     });
                 }
 
-                LOGGER.info("Creating users for node '{}'", spec.getName());
+                LOGGER.info("Creating users for node '{}'", name);
                 for (User user : spec.getUsers()) {
                     runToolScript(
                         "elasticsearch-users",
@@ -429,7 +490,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             if (spec.getPlugins().isEmpty() == false) {
                 Pattern pattern = Pattern.compile("(.+)(?:-\\d\\.\\d\\.\\d-SNAPSHOT\\.zip)?");
 
-                LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), spec.getName());
+                LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), name);
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
                     .map(Path::of)
                     .toList();
@@ -478,7 +539,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void installModules() {
             if (spec.getModules().isEmpty() == false) {
-                LOGGER.info("Installing modules {} into node '{}", spec.getModules(), spec.getName());
+                LOGGER.info("Installing modules {} into node '{}", spec.getModules(), name);
                 List<Path> modulePaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP).split(File.pathSeparator))
                     .map(Path::of)
                     .toList();
@@ -594,20 +655,19 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private Map<String, String> getJvmOptionsReplacements() {
-            Path relativeLogsDir = workingDir.relativize(logsDir);
             return Map.of(
                 "-XX:HeapDumpPath=data",
-                "-XX:HeapDumpPath=" + relativeLogsDir,
+                "-XX:HeapDumpPath=" + logsDir,
                 "logs/gc.log",
-                relativeLogsDir.resolve("gc.log").toString(),
+                logsDir.resolve("gc.log").toString(),
                 "-XX:ErrorFile=logs/hs_err_pid%p.log",
-                "-XX:ErrorFile=" + relativeLogsDir.resolve("hs_err_pid%p.log")
+                "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log")
             );
         }
 
         private void runToolScript(String tool, String input, String... args) {
             try {
-                ProcessUtils.exec(
+                int exit = ProcessUtils.exec(
                     input,
                     distributionDir,
                     distributionDir.resolve("bin")
@@ -616,18 +676,22 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     false,
                     args
                 ).waitFor();
+
+                if (exit != 0) {
+                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
 
         private String getServiceName() {
-            return baseWorkingDir.getFileName() + "-" + spec.getCluster().getName() + "-" + spec.getName();
+            return baseWorkingDir.getFileName() + "-" + name;
         }
 
         @Override
         public String toString() {
-            return "{ cluster: '" + spec.getCluster().getName() + "', node: '" + spec.getName() + "' }";
+            return "{ cluster: '" + spec.getCluster().getName() + "', node: '" + name + "' }";
         }
     }
 }

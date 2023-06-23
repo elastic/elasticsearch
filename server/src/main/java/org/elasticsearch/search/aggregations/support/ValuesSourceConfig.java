@@ -31,7 +31,7 @@ import java.util.function.Function;
 public class ValuesSourceConfig {
 
     /**
-     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
+     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggregation run, and construct a new
      * {@link ValuesSourceConfig} based on that {@link ValuesSourceType}
      *
      * @param context - the query context

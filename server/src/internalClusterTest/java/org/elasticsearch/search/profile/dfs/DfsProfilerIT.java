@@ -80,7 +80,8 @@ public class DfsProfilerIT extends ESIntegTestCase {
                             vectorField,
                             new float[] { randomFloat(), randomFloat(), randomFloat() },
                             randomIntBetween(5, 10),
-                            50
+                            50,
+                            randomBoolean() ? null : randomFloat()
                         )
                     )
                 )

@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -113,9 +113,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).state(IndexMetadata.State.CLOSE).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
@@ -144,9 +142,7 @@ public class WatcherServiceTests extends ESTestCase {
         // cluster state setup, with one node, one shard
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
@@ -284,9 +280,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
         ClusterState clusterState = csBuilder.build();
@@ -363,13 +357,7 @@ public class WatcherServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode() {
-        return new DiscoveryNode(
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create("node");
     }
 
     @SuppressWarnings("unchecked")

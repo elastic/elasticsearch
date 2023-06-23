@@ -132,6 +132,12 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
             if (metadata.getTargetNodeName() != null) {
                 builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
             }
+            if (metadata.getGracePeriod() != null) {
+                builder.timeField(
+                    SingleNodeShutdownMetadata.GRACE_PERIOD_FIELD.getPreferredName(),
+                    metadata.getGracePeriod().getStringRep()
+                );
+            }
         }
         builder.endObject();
         return builder;

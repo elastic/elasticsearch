@@ -66,12 +66,12 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(indexName, block::countDown);
 
-        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose(indexName).execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = indicesAdmin().prepareClose(indexName).execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertIndexIsBlocked(indexName);
         assertFalse(closeIndexResponse.isDone());
 
-        assertAcked(client().admin().indices().prepareOpen(indexName));
+        assertAcked(indicesAdmin().prepareOpen(indexName));
 
         releaseBlock.close();
         assertFalse(closeIndexResponse.get().isAcknowledged());
@@ -91,13 +91,13 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(randomFrom(indices), block::countDown);
 
-        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose("index-*").execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = indicesAdmin().prepareClose("index-*").execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertFalse(closeIndexResponse.isDone());
         indices.forEach(ReopenWhileClosingIT::assertIndexIsBlocked);
 
         final List<String> reopenedIndices = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
-        assertAcked(client().admin().indices().prepareOpen(reopenedIndices.toArray(Strings.EMPTY_ARRAY)));
+        assertAcked(indicesAdmin().prepareOpen(reopenedIndices.toArray(Strings.EMPTY_ARRAY)));
 
         releaseBlock.close();
         assertFalse(closeIndexResponse.get().isAcknowledged());
@@ -142,7 +142,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
                             if (Glob.globMatch(indexPattern, index)) {
                                 logger.info("request {} intercepted for index {}", requestId, index);
                                 onIntercept.run();
-                                release.addListener(ActionListener.wrap(() -> {
+                                release.addListener(ActionListener.running(() -> {
                                     logger.info("request {} released for index {}", requestId, index);
                                     try {
                                         connection.sendRequest(requestId, action, request, options);
@@ -162,7 +162,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
     }
 
     private static void assertIndexIsBlocked(final String... indices) {
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         for (String index : indices) {
             assertThat(clusterState.metadata().indices().get(index).getState(), is(IndexMetadata.State.OPEN));
             assertThat(clusterState.routingTable().index(index), notNullValue());

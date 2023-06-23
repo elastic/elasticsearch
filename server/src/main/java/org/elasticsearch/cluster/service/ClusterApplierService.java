@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -134,8 +135,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
             daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
     }
 
@@ -282,12 +282,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Run the given clusterStateConsumer on the applier thread. Should only be used in tests and by {@link IndicesStore} when it's deleting
-     * the data behind a shard that moved away from a node.
-     *
-     * @param priority              {@link Priority#HIGH} unless in tests.
+     * Run the given {@code clusterStateConsumer} on the applier thread. Should only be used in tests, by {@link IndicesClusterStateService}
+     * when trying to acquire shard locks and create shards, and by {@link IndicesStore} when it's deleting the data behind a shard that
+     * moved away from a node.
      */
-    // TODO get rid of this, make it so that shard data can be deleted without blocking the applier thread.
     public void runOnApplierThread(
         String source,
         Priority priority,

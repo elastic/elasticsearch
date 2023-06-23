@@ -50,8 +50,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
- * Index request to index a typed JSON document into a specific index and make it searchable. Best
- * created using {@link org.elasticsearch.client.internal.Requests#indexRequest(String)}.
+ * Index request to index a typed JSON document into a specific index and make it searchable.
  *
  * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
@@ -63,7 +62,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
- * @see org.elasticsearch.client.internal.Requests#indexRequest(String)
  * @see org.elasticsearch.client.internal.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
@@ -161,7 +159,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
-            dynamicTemplates = in.readMap(StreamInput::readString, StreamInput::readString);
+            dynamicTemplates = in.readMap(StreamInput::readString);
         }
     }
 
@@ -654,7 +652,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(TransportVersion version) {
         if (id == null && opType == OpType.CREATE && version.before(TransportVersion.V_7_5_0)) {
             throw new IllegalArgumentException(
-                "optype create not supported for indexing requests without explicit id until all nodes " + "are on version 7.5.0 or higher"
+                "optype create not supported for indexing requests without explicit id below transport version 7500099, current version "
+                    + version
+            );
+        }
+    }
+
+    public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
+        if (id == null && opType == OpType.CREATE && version.before(Version.V_7_5_0)) {
+            throw new IllegalArgumentException(
+                "optype create not supported for indexing requests without explicit id until all nodes are on version 7.5.0 or higher,"
+                    + " current version "
+                    + version
             );
         }
     }

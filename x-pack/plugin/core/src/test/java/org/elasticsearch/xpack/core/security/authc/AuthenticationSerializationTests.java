@@ -11,13 +11,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
 
@@ -63,39 +62,40 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFromAuthenticatingUser, equalTo(authentication.getAuthenticatingSubject().getUser()));
     }
 
-    public void testWriteToAndReadFromWithRemoteAccess() throws Exception {
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
-        assertThat(authentication.isRemoteAccess(), is(true));
+    public void testWriteToAndReadFromWithCrossClusterAccess() throws Exception {
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
+        assertThat(authentication.isCrossClusterAccess(), is(true));
 
         BytesStreamOutput output = new BytesStreamOutput();
         authentication.writeTo(output);
         final Authentication readFrom = new Authentication(output.bytes().streamInput());
-        assertThat(readFrom.isRemoteAccess(), is(true));
+        assertThat(readFrom.isCrossClusterAccess(), is(true));
 
         assertThat(readFrom, not(sameInstance(authentication)));
         assertThat(readFrom, equalTo(authentication));
     }
 
-    public void testWriteToWithRemoteAccessThrowsOnUnsupportedVersion() throws Exception {
+    public void testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion() throws Exception {
         final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().remoteAccess().build()
+            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            Authentication.VERSION_REMOTE_ACCESS_REALM
+            TransportVersion.V_7_17_0,
+            TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
         );
         out.setTransportVersion(version);
 
-        if (authentication.isRemoteAccess()) {
+        if (authentication.isCrossClusterAccess()) {
             final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
             assertThat(
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + Authentication.VERSION_REMOTE_ACCESS_REALM
-                        + "] can't handle remote access authentication and attempted to send to ["
+                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + "] can't handle cross cluster access authentication and attempted to send to ["
                         + out.getTransportVersion()
                         + "]"
                 )
@@ -112,28 +112,28 @@ public class AuthenticationSerializationTests extends ESTestCase {
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        AuthenticationSerializationHelper.writeUserTo(SystemUser.INSTANCE, output);
+        AuthenticationSerializationHelper.writeUserTo(InternalUsers.SYSTEM_USER, output);
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
+        assertThat(readFrom, is(sameInstance(InternalUsers.SYSTEM_USER)));
     }
 
     public void testXPackUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        AuthenticationSerializationHelper.writeUserTo(XPackUser.INSTANCE, output);
+        AuthenticationSerializationHelper.writeUserTo(InternalUsers.XPACK_USER, output);
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
+        assertThat(readFrom, is(sameInstance(InternalUsers.XPACK_USER)));
     }
 
     public void testAsyncSearchUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        AuthenticationSerializationHelper.writeUserTo(AsyncSearchUser.INSTANCE, output);
+        AuthenticationSerializationHelper.writeUserTo(InternalUsers.ASYNC_SEARCH_USER, output);
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(AsyncSearchUser.INSTANCE)));
+        assertThat(readFrom, is(sameInstance(InternalUsers.ASYNC_SEARCH_USER)));
     }
 
     public void testFakeInternalUserSerialization() throws Exception {

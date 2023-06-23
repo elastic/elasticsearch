@@ -30,7 +30,6 @@ import org.junit.Before;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +48,7 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
             .put("xpack.security.transport.filter.allow", "127.0.0.1")
             .put("xpack.security.transport.filter.deny", "10.0.0.0/8");
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settingsBuilder.put("remote_cluster.enabled", true);
+            settingsBuilder.put("remote_cluster_server.enabled", true);
         }
         Settings settings = settingsBuilder.build();
 
@@ -85,7 +84,7 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         MockLicenseState licenseState = TestUtils.newMockLicenceState();
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         if (isHttpEnabled) {

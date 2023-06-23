@@ -8,7 +8,6 @@ setup:
         index: tsdb-01
         body:
           settings:
-            number_of_replicas: 0
             mode: time_series
             routing_path: [key]
             time_series:
@@ -29,7 +28,6 @@ setup:
         index: tsdb-02
         body:
           settings:
-            number_of_replicas: 0
             mode: time_series
             routing_path: [key]
             time_series:
@@ -50,7 +48,6 @@ setup:
         index: tsdb-03
         body:
           settings:
-            number_of_replicas: 0
             mode: time_series
             routing_path: [key]
             time_series:
@@ -68,7 +65,7 @@ setup:
                 type: date
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       bulk:

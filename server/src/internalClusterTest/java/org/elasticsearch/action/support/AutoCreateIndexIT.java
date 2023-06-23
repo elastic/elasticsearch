@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -28,17 +27,12 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
     public void testBatchingWithDeprecationWarnings() throws Exception {
         final var masterNodeClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var barrier = new CyclicBarrier(2);
-        masterNodeClusterService.submitStateUpdateTask(
-            "block",
-            e -> { assert false : e; },
-            ClusterStateTaskConfig.build(Priority.NORMAL),
-            batchExecutionContext -> {
-                barrier.await(10, TimeUnit.SECONDS);
-                barrier.await(10, TimeUnit.SECONDS);
-                batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
-                return batchExecutionContext.initialState();
-            }
-        );
+        masterNodeClusterService.createTaskQueue("block", Priority.NORMAL, batchExecutionContext -> {
+            barrier.await(10, TimeUnit.SECONDS);
+            barrier.await(10, TimeUnit.SECONDS);
+            batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
+            return batchExecutionContext.initialState();
+        }).submitTask("block", e -> { assert false : e; }, null);
 
         barrier.await(10, TimeUnit.SECONDS);
 

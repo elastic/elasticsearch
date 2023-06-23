@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  */
 class ParsedMediaType {
     // tchar pattern as defined by RFC7230 section 3.2.6
-    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
     private final String originalHeaderValue;
     private final String type;
@@ -59,7 +59,7 @@ class ParsedMediaType {
             if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
                 return null;
             }
-            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
+            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split(";");
 
             final String[] splitMediaType = elements[0].split("/");
             if ((splitMediaType.length == 2

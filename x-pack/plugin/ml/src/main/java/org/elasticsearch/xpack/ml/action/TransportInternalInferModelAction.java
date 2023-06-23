@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Tuple;
@@ -43,10 +44,13 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -111,7 +115,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             doInfer(task, request, responseBuilder, parentTaskId, listener);
         } else {
             trainedModelProvider.getTrainedModel(
-                request.getModelId(),
+                request.getId(),
                 GetTrainedModelsAction.Includes.empty(),
                 parentTaskId,
                 ActionListener.wrap(trainedModelConfig -> {
@@ -136,18 +140,25 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         TaskId parentTaskId,
         ActionListener<Response> listener
     ) {
-        String concreteModelId = Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getModelId()))
-            .orElse(request.getModelId());
+        String concreteModelId = Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getId()))
+            .orElse(request.getId());
 
-        responseBuilder.setModelId(concreteModelId);
+        responseBuilder.setId(concreteModelId);
 
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
-
-        if (trainedModelAssignmentMetadata.isAssigned(concreteModelId)) {
-            // It is important to use the resolved model ID here as the alias could change between transport calls.
-            inferAgainstAllocatedModel(trainedModelAssignmentMetadata, request, concreteModelId, responseBuilder, parentTaskId, listener);
+        TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getDeploymentAssignment(concreteModelId);
+        List<TrainedModelAssignment> assignments;
+        if (assignment == null) {
+            // look up by model
+            assignments = trainedModelAssignmentMetadata.getDeploymentsUsingModel(concreteModelId);
         } else {
+            assignments = List.of(assignment);
+        }
+
+        if (assignments.isEmpty()) {
             getModelAndInfer(request, responseBuilder, parentTaskId, (CancellableTask) task, listener);
+        } else {
+            inferAgainstAllocatedModel(assignments, request, responseBuilder, parentTaskId, listener);
         }
     }
 
@@ -188,7 +199,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
             // The model was found, check if a more relevant error message can be returned
             trainedModelProvider.getTrainedModel(
-                request.getModelId(),
+                request.getId(),
                 GetTrainedModelsAction.Includes.empty(),
                 parentTaskId,
                 ActionListener.wrap(trainedModelConfig -> {
@@ -197,9 +208,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                         listener.onFailure(
                             ExceptionsHelper.conflictStatusException(
                                 "Model ["
-                                    + request.getModelId()
+                                    + request.getId()
                                     + "] must be deployed to use. Please deploy with the start trained model deployment API.",
-                                request.getModelId()
+                                request.getId()
                             )
                         );
                     } else {
@@ -211,21 +222,20 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         });
 
         // TODO should `getModelForInternalInference` be used here??
-        modelLoadingService.getModelForPipeline(request.getModelId(), parentTaskId, getModelListener);
+        modelLoadingService.getModelForPipeline(request.getId(), parentTaskId, getModelListener);
     }
 
     private void inferAgainstAllocatedModel(
-        TrainedModelAssignmentMetadata assignmentMeta,
+        List<TrainedModelAssignment> assignments,
         Request request,
-        String concreteModelId,
         Response.Builder responseBuilder,
         TaskId parentTaskId,
         ActionListener<Response> listener
     ) {
-        TrainedModelAssignment assignment = assignmentMeta.getModelAssignment(concreteModelId);
+        TrainedModelAssignment assignment = pickAssignment(assignments);
 
-        if (assignment.getAssignmentState() == AssignmentState.STOPPING) {
-            String message = "Trained model [" + request.getModelId() + "] is STOPPING";
+        if (assignment.getAssignmentState() == AssignmentState.STOPPING || assignment.getAssignmentState() == AssignmentState.FAILED) {
+            String message = "Trained model [" + assignment.getDeploymentId() + "] is [" + assignment.getAssignmentState() + "]";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
@@ -234,9 +244,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         // documents for each node.
         var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments());
         if (nodes.isEmpty()) {
-            logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
+            logger.trace(() -> format("[%s] model deployment not allocated to any node", assignment.getDeploymentId()));
             listener.onFailure(
-                ExceptionsHelper.conflictStatusException("Trained model [" + request.getModelId() + "] is not allocated to any nodes")
+                ExceptionsHelper.conflictStatusException("Trained model deployment [" + request.getId() + "] is not allocated to any nodes")
             );
             return;
         }
@@ -254,19 +264,20 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             InferTrainedModelDeploymentAction.Request deploymentRequest;
             if (request.getTextInput() == null) {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
-                    concreteModelId,
+                    assignment.getDeploymentId(),
                     request.getUpdate(),
                     request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
                 );
             } else {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
-                    concreteModelId,
+                    assignment.getDeploymentId(),
                     request.getUpdate(),
                     request.getTextInput().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
                 );
             }
+            deploymentRequest.setHighPriority(request.isHighPriority());
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);
 
@@ -282,6 +293,32 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
             slot++;
         }
+    }
+
+    static TrainedModelAssignment pickAssignment(List<TrainedModelAssignment> assignments) {
+        assert assignments.isEmpty() == false;
+
+        if (assignments.size() == 1) {
+            return assignments.get(0);
+        }
+
+        var map = assignments.stream().collect(Collectors.groupingBy(TrainedModelAssignment::getAssignmentState));
+
+        Random rng = Randomness.get();
+        for (var assignmentStat : new AssignmentState[] {
+            AssignmentState.STARTED,
+            AssignmentState.STARTING,
+            AssignmentState.STOPPING,
+            AssignmentState.FAILED }) {
+            List<TrainedModelAssignment> bestPick = map.get(assignmentStat);
+            if (bestPick != null) {
+                Collections.shuffle(bestPick, rng);
+                return bestPick.get(0);
+            }
+        }
+
+        // should never hit this
+        throw new IllegalStateException();
     }
 
     private ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(

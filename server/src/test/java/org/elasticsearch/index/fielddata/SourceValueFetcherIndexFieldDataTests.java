@@ -9,6 +9,9 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBooleanIndexFieldData.SourceValueFetcherSortedBooleanDocValues;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -24,11 +27,17 @@ public class SourceValueFetcherIndexFieldDataTests extends ESTestCase {
             List.of(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
         );
 
-        SourceValueFetcherSortedBooleanDocValues values = new SourceValueFetcherSortedBooleanDocValues(
-            null,
-            (source, doc, ignoredValues) -> docs.get(doc),
-            (ctx, doc) -> null
-        );
+        SourceValueFetcherSortedBooleanDocValues values = new SourceValueFetcherSortedBooleanDocValues(null, new ValueFetcher() {
+            @Override
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                return docs.get(doc);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+        }, (ctx, doc) -> null);
 
         for (int doc = 0; doc < docs.size(); ++doc) {
             values.advanceExact(doc);

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -68,7 +68,7 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
     }
 
     @Override
-    protected Request mutateInstanceForVersion(Request instance, Version version) {
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
         return instance;
     }
 }

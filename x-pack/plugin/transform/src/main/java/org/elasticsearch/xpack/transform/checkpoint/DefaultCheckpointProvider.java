@@ -333,11 +333,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         // create the final structure
         Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
 
-        checkpointsByIndex.forEach(
-            (indexName, checkpoints) -> {
-                checkpointsByIndexReduced.put(indexName, checkpoints.values().stream().mapToLong(l -> l).toArray());
-            }
-        );
+        checkpointsByIndex.forEach((indexName, checkpoints) -> {
+            checkpointsByIndexReduced.put(indexName, checkpoints.values().stream().mapToLong(l -> l).toArray());
+        });
 
         return checkpointsByIndexReduced;
     }

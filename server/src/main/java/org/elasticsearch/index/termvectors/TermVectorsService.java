@@ -22,6 +22,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -45,7 +46,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -241,7 +241,7 @@ public class TermVectorsService {
         } else {
             return mapperService.indexAnalyzer(
                 field,
-                f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); }
+                f -> Lucene.KEYWORD_ANALYZER    // if no analyzer configured it must be untokenized so return a keyword analyzer
             );
         }
     }
@@ -325,8 +325,9 @@ public class TermVectorsService {
             } else {
                 seenFields.add(field.name());
             }
-            String[] values = getValues(doc.getFields(field.name()));
-            documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
+            @SuppressWarnings("unchecked")
+            List<Object> values = (List) getValues(doc.getFields(field.name()));
+            documentFields.add(new DocumentField(field.name(), values));
         }
         return generateTermVectors(
             indexShard,
@@ -345,7 +346,7 @@ public class TermVectorsService {
      * @param fields The <code>IndexableField</code> to get the values from
      * @return a <code>String[]</code> of field values
      */
-    public static String[] getValues(IndexableField[] fields) {
+    public static List<String> getValues(List<IndexableField> fields) {
         List<String> result = new ArrayList<>();
         for (IndexableField field : fields) {
             if (field.fieldType().indexOptions() != IndexOptions.NONE) {
@@ -356,7 +357,7 @@ public class TermVectorsService {
                 }
             }
         }
-        return result.toArray(new String[0]);
+        return result;
     }
 
     private static Fields mergeFields(Fields fields1, Fields fields2) throws IOException {

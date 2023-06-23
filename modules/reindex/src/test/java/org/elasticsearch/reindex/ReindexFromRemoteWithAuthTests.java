@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -69,7 +70,12 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(Netty4Plugin.class, ReindexFromRemoteWithAuthTests.TestPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(
+            Netty4Plugin.class,
+            ReindexFromRemoteWithAuthTests.TestPlugin.class,
+            ReindexPlugin.class,
+            MainRestPlugin.class
+        );
     }
 
     @Override
@@ -93,7 +99,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void fetchTransportAddress() {
-        NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
+        NodeInfo nodeInfo = clusterAdmin().prepareNodesInfo().get().getNodes().get(0);
         address = nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress();
     }
 

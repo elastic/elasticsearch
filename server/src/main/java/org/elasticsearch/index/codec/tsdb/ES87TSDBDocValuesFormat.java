@@ -17,9 +17,10 @@ import java.io.IOException;
 
 public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
-    static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
-    static final int DEFAULT_NUMERIC_BLOCK_SIZE = 1 << DEFAULT_NUMERIC_BLOCK_SHIFT;
-    static final int DEFAULT_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
+    static final int NUMERIC_BLOCK_SHIFT = 7;
+    public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
+    static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
+    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     static final String CODEC_NAME = "ES87TSDB";
     static final String DATA_CODEC = "ES87TSDBDocValuesData";
     static final String DATA_EXTENSION = "dvd";
@@ -33,64 +34,17 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final byte SORTED_SET = 3;
     static final byte SORTED_NUMERIC = 4;
 
-    private final int numericBlockShift;
-    private final int numericBlockSize;
-    private final int numericBlockMask;
-    private final int directMonotonicBlockShift;
-
     public ES87TSDBDocValuesFormat() {
-        this(DEFAULT_NUMERIC_BLOCK_SHIFT, DEFAULT_DIRECT_MONOTONIC_BLOCK_SHIFT);
-    }
-
-    public ES87TSDBDocValuesFormat(int numericBlockShift, int directMonotonicBlockShift) {
         super(CODEC_NAME);
-        this.numericBlockShift = numericBlockShift;
-        this.numericBlockSize = 1 << numericBlockShift;
-        this.numericBlockMask = numericBlockSize - 1;
-        this.directMonotonicBlockShift = directMonotonicBlockShift;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES87TSDBDocValuesConsumer(
-            state,
-            DATA_CODEC,
-            DATA_EXTENSION,
-            META_CODEC,
-            META_EXTENSION,
-            numericBlockShift,
-            numericBlockSize,
-            directMonotonicBlockShift
-        );
+        return new ES87TSDBDocValuesConsumer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new ES87TSDBDocValuesProducer(
-            state,
-            DATA_CODEC,
-            DATA_EXTENSION,
-            META_CODEC,
-            META_EXTENSION,
-            numericBlockShift,
-            numericBlockSize,
-            numericBlockMask
-        );
-    }
-
-    public int getNumericBlockShift() {
-        return numericBlockShift;
-    }
-
-    public int getNumericBlockSize() {
-        return numericBlockSize;
-    }
-
-    public int getNumericBlockMask() {
-        return numericBlockMask;
-    }
-
-    public int getDirectMonotonicBlockShift() {
-        return directMonotonicBlockShift;
+        return new ES87TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 }

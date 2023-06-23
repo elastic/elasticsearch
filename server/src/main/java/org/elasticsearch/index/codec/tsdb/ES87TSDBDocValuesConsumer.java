@@ -32,24 +32,10 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     IndexOutput data, meta;
     final int maxDoc;
-    private final int numericBlockShift;
-    private final int numericBlockSize;
-    private final int directMonotonicBlockShift;
 
-    ES87TSDBDocValuesConsumer(
-        SegmentWriteState state,
-        String dataCodec,
-        String dataExtension,
-        String metaCodec,
-        String metaExtension,
-        int numericBlockShift,
-        int numericBlockSize,
-        int directMonotonicBlockShift
-    ) throws IOException {
+    ES87TSDBDocValuesConsumer(SegmentWriteState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
+        throws IOException {
         boolean success = false;
-        this.numericBlockShift = numericBlockShift;
-        this.numericBlockSize = numericBlockSize;
-        this.directMonotonicBlockShift = directMonotonicBlockShift;
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
             data = state.directory.createOutput(dataName, state.context);
@@ -123,26 +109,26 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         meta.writeLong(numValues);
 
         if (numValues > 0) {
-            meta.writeInt(directMonotonicBlockShift);
+            meta.writeInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
             final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
             final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
                 meta,
                 new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
-                1L + ((numValues - 1) >>> numericBlockShift),
-                directMonotonicBlockShift
+                1L + ((numValues - 1) >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+                ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
             );
 
-            final long[] buffer = new long[numericBlockSize];
+            final long[] buffer = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
             int bufferSize = 0;
             final long valuesDataOffset = data.getFilePointer();
-            final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder(numericBlockSize);
+            final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
 
             values = valuesProducer.getSortedNumeric(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 final int count = values.docValueCount();
                 for (int i = 0; i < count; ++i) {
                     buffer[bufferSize++] = values.nextValue();
-                    if (bufferSize == numericBlockSize) {
+                    if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
                         indexWriter.add(data.getFilePointer() - valuesDataOffset);
                         encoder.encode(buffer, data);
                         bufferSize = 0;
@@ -152,7 +138,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             if (bufferSize > 0) {
                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
                 // Fill unused slots in the block with zeroes rather than junk
-                Arrays.fill(buffer, bufferSize, numericBlockSize, 0L);
+                Arrays.fill(buffer, bufferSize, ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
                 encoder.encode(buffer, data);
             }
 
@@ -197,13 +183,13 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         if (numValues > numDocsWithField) {
             long start = data.getFilePointer();
             meta.writeLong(start);
-            meta.writeVInt(directMonotonicBlockShift);
+            meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
 
             final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
                 meta,
                 data,
                 numDocsWithField + 1L,
-                directMonotonicBlockShift
+                ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
             );
             long addr = 0;
             addressesWriter.add(addr);

@@ -263,7 +263,7 @@ public final class PhaseCacheManagement {
      * information, returns null.
      */
     @Nullable
-    public static Set<Step.StepKey> readStepKeys(
+    static Set<Step.StepKey> readStepKeys(
         final NamedXContentRegistry xContentRegistry,
         final Client client,
         final String phaseDef,

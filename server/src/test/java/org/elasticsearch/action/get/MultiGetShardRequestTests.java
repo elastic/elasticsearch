@@ -10,49 +10,93 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
-import static org.hamcrest.CoreMatchers.equalTo;
+public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<MultiGetShardRequest> {
 
-public class MultiGetShardRequestTests extends ESTestCase {
-    public void testSerialization() throws IOException {
-        MultiGetShardRequest multiGetShardRequest = createTestInstance(randomBoolean());
+    @Override
+    protected MultiGetShardRequest createTestInstance() {
+        return createTestInstance(randomBoolean());
+    }
 
-        BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion minVersion = TransportVersion.CURRENT.minimumCompatibilityVersion();
-        if (multiGetShardRequest.isForceSyntheticSource()) {
-            minVersion = TransportVersion.V_8_4_0;
+    @Override
+    protected MultiGetShardRequest mutateInstance(MultiGetShardRequest instance) throws IOException {
+        int mutationBranch = randomInt(6);
+        var multiGetRequest = new MultiGetRequest().preference(instance.preference())
+            .realtime(instance.realtime())
+            .refresh(instance.refresh())
+            .setForceSyntheticSource(instance.isForceSyntheticSource());
+        switch (mutationBranch) {
+            case 0 -> {
+                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                multiGetShardRequest.locations = instance.locations;
+                multiGetShardRequest.items = instance.items;
+                multiGetShardRequest.preference(
+                    randomValueOtherThan(instance.preference(), () -> randomAlphaOfLength(randomIntBetween(1, 10)))
+                );
+                return multiGetShardRequest;
+            }
+            case 1 -> {
+                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                multiGetShardRequest.locations = instance.locations;
+                multiGetShardRequest.items = instance.items;
+                multiGetShardRequest.realtime(instance.realtime() ? false : true);
+                return multiGetShardRequest;
+            }
+            case 2 -> {
+                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                multiGetShardRequest.locations = instance.locations;
+                multiGetShardRequest.items = instance.items;
+                multiGetShardRequest.refresh(instance.refresh() ? false : true);
+                return multiGetShardRequest;
+            }
+            case 3 -> {
+                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                multiGetShardRequest.locations = instance.locations;
+                multiGetShardRequest.items = instance.items;
+                multiGetShardRequest.setForceSyntheticSource(instance.isForceSyntheticSource() ? false : true);
+                return multiGetShardRequest;
+            }
+            case 4 -> {
+                var multiGetShardRequest = new MultiGetShardRequest(
+                    multiGetRequest,
+                    instance.index(),
+                    randomValueOtherThan(instance.shardId(), () -> randomInt(10))
+                );
+                multiGetShardRequest.locations = instance.locations;
+                multiGetShardRequest.items = instance.items;
+                return multiGetShardRequest;
+            }
+            case 5 -> {
+                var multiGetShardRequest = new MultiGetShardRequest(
+                    multiGetRequest,
+                    randomValueOtherThan(instance.index(), ESTestCase::randomIdentifier),
+                    instance.shardId()
+                );
+                multiGetShardRequest.locations = instance.locations;
+                multiGetShardRequest.items = instance.items;
+                return multiGetShardRequest;
+            }
+            case 6 -> {
+                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                int numItems = iterations(10, 30);
+                var items = randomValueOtherThan(instance.items, () -> createRandomItems(numItems));
+                for (int i = 0; i < numItems; i++) {
+                    multiGetShardRequest.add(i, items.get(i));
+                }
+                return multiGetShardRequest;
+            }
+            default -> throw new IllegalStateException("Unexpected mutation branch value: " + mutationBranch);
         }
-        out.setTransportVersion(randomVersionBetween(random(), minVersion, TransportVersion.CURRENT));
-        multiGetShardRequest.writeTo(out);
-
-        StreamInput in = out.bytes().streamInput();
-        in.setTransportVersion(out.getTransportVersion());
-        MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest(in);
-        assertThat(multiGetShardRequest2.index(), equalTo(multiGetShardRequest.index()));
-        assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
-        assertThat(multiGetShardRequest2.realtime(), equalTo(multiGetShardRequest.realtime()));
-        assertThat(multiGetShardRequest2.refresh(), equalTo(multiGetShardRequest.refresh()));
-        assertThat(multiGetShardRequest2.items.size(), equalTo(multiGetShardRequest.items.size()));
-        for (int i = 0; i < multiGetShardRequest2.items.size(); i++) {
-            MultiGetRequest.Item item = multiGetShardRequest.items.get(i);
-            MultiGetRequest.Item item2 = multiGetShardRequest2.items.get(i);
-            assertThat(item2.index(), equalTo(item.index()));
-            assertThat(item2.id(), equalTo(item.id()));
-            assertThat(item2.storedFields(), equalTo(item.storedFields()));
-            assertThat(item2.version(), equalTo(item.version()));
-            assertThat(item2.versionType(), equalTo(item.versionType()));
-            assertThat(item2.fetchSourceContext(), equalTo(item.fetchSourceContext()));
-        }
-        assertThat(multiGetShardRequest2.indices(), equalTo(multiGetShardRequest.indices()));
-        assertThat(multiGetShardRequest2.indicesOptions(), equalTo(multiGetShardRequest.indicesOptions()));
     }
 
     public void testForceSyntheticUnsupported() {
@@ -63,7 +107,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 
-    private MultiGetShardRequest createTestInstance(boolean forceSyntheticSource) {
+    static MultiGetShardRequest createTestInstance(boolean forceSyntheticSource) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         if (randomBoolean()) {
             multiGetRequest.preference(randomAlphaOfLength(randomIntBetween(1, 10)));
@@ -79,6 +123,15 @@ public class MultiGetShardRequestTests extends ESTestCase {
         }
         MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
         int numItems = iterations(10, 30);
+        var items = createRandomItems(numItems);
+        for (int i = 0; i < numItems; i++) {
+            multiGetShardRequest.add(i, items.get(i));
+        }
+        return multiGetShardRequest;
+    }
+
+    private static List<MultiGetRequest.Item> createRandomItems(int numItems) {
+        List<MultiGetRequest.Item> items = new ArrayList<>(numItems);
         for (int i = 0; i < numItems; i++) {
             MultiGetRequest.Item item = new MultiGetRequest.Item("alias-" + randomAlphaOfLength(randomIntBetween(1, 10)), "id-" + i);
             if (randomBoolean()) {
@@ -96,9 +149,13 @@ public class MultiGetShardRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 item.fetchSourceContext(FetchSourceContext.of(randomBoolean()));
             }
-            multiGetShardRequest.add(0, item);
+            items.add(item);
         }
-        return multiGetShardRequest;
+        return items;
     }
 
+    @Override
+    protected Writeable.Reader<MultiGetShardRequest> instanceReader() {
+        return MultiGetShardRequest::new;
+    }
 }

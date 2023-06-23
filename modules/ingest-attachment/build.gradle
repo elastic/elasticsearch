@@ -15,14 +15,31 @@ esplugin {
   classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
-versions << [
-  'tika'  : '2.6.0',
+// this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
+// as we (and tika) demand, and are not interested in, say, having the same version of commons-codec as elasticsearch itself
+def versions = [
+  'tika'  : '2.7.0',
   'pdfbox': '2.0.27',
-  'poi'   : '5.2.2',
-  'mime4j': '0.8.5'
+  'poi'   : '5.2.3',
+  'mime4j': '0.8.9'
 ]
 
+// exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
+configurations.testRuntimeClasspath { exclude module: 'commons-logging' }
+
 dependencies {
+  // take over logging for all dependencies
+  api "org.slf4j:slf4j-api:2.0.6"
+  api "org.slf4j:jcl-over-slf4j:2.0.6"
+
+  // route slf4j over log4j
+  // TODO blocked on https://github.com/elastic/elasticsearch/issues/93714
+  // api "org.apache.logging.log4j:log4j-slf4j2-impl:2.19.0"
+
+  // nop all slf4j logging
+  // workaround for https://github.com/elastic/elasticsearch/issues/93714
+  api "org.slf4j:slf4j-nop:2.0.6"
+
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
   api "org.apache.tika:tika-langdetect:${versions.tika}"
@@ -36,9 +53,8 @@ dependencies {
   api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
   api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
   api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
-  api 'org.tukaani:xz:1.8'
+  api 'org.tukaani:xz:1.9'
   api 'commons-io:commons-io:2.11.0'
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
   api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
@@ -50,23 +66,22 @@ dependencies {
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:5.0.3'
-  api 'org.apache.commons:commons-collections4:4.1'
+  api "commons-codec:commons-codec:1.15"
+  api 'org.apache.xmlbeans:xmlbeans:5.1.1'
+  api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api 'org.apache.commons:commons-compress:1.21'
+  api 'org.apache.commons:commons-compress:1.22'
   // Outlook documents
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  api "org.apache.commons:commons-lang3:3.12.0"
   // Microsoft Word files with visio diagrams
   api 'org.apache.commons:commons-math3:3.6.1'
   // POIs dependency
@@ -82,6 +97,10 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
   mapping from: /tika-langdetect-.*/, to: 'tika-langdetect'
+}
+
+esplugin.bundleSpec.from('config/ingest-attachment') {
+  into 'config'
 }
 
 tasks.named("forbiddenPatterns").configure {

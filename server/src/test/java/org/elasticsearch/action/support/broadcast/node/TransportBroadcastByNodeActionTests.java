@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -280,7 +281,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        return DiscoveryNodeUtils.builder("node_" + nodeId).roles(emptySet()).build();
     }
 
     @AfterClass
@@ -621,6 +622,57 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             new TestTransportChannel(nodeResponseFuture),
             new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap())
         );
+
+        assertTrue(nodeResponseFuture.isDone());
+        assertEquals(
+            "task cancelled [simulated]",
+            expectThrows(
+                java.util.concurrent.ExecutionException.class,
+                org.elasticsearch.tasks.TaskCancelledException.class,
+                nodeResponseFuture::get
+            ).getMessage()
+        );
+    }
+
+    public void testShardResultsReleasedOnCancellation() throws Exception {
+        final var listeners = new ArrayList<ActionListener<ShardResult>>();
+
+        action = new TestTransportBroadcastByNodeAction("indices:admin/shard_level_gc_test") {
+            @Override
+            protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardResult> listener) {
+                listeners.add(listener);
+            }
+        };
+
+        final PlainActionFuture<TransportResponse> nodeResponseFuture = new PlainActionFuture<>();
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+
+        action.new BroadcastByNodeTransportRequestHandler().messageReceived(
+            action.new NodeRequest(
+                new Request(), IntStream.range(0, 3)
+                    .mapToObj(shardId -> TestShardRouting.newShardRouting(TEST_INDEX, shardId, "node-id", true, ShardRoutingState.STARTED))
+                    .toList(), "node-id"
+            ),
+            new TestTransportChannel(nodeResponseFuture),
+            task
+        );
+
+        assertEquals(3, listeners.size());
+
+        final var reachabilityChecker = new ReachabilityChecker();
+        listeners.get(0).onResponse(reachabilityChecker.register(new ShardResult()));
+        reachabilityChecker.checkReachable();
+
+        TaskCancelHelper.cancel(task, "simulated");
+        reachabilityChecker.ensureUnreachable();
+
+        listeners.get(1).onResponse(reachabilityChecker.register(new ShardResult()));
+        reachabilityChecker.ensureUnreachable();
+
+        assertFalse(nodeResponseFuture.isDone());
+
+        listeners.get(2).onResponse(reachabilityChecker.register(new ShardResult()));
+        reachabilityChecker.ensureUnreachable();
 
         assertTrue(nodeResponseFuture.isDone());
         assertEquals(

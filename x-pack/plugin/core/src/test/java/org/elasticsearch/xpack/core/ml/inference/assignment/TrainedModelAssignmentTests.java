@@ -290,6 +290,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         long modelSize = randomNonNegativeLong();
         return new StartTrainedModelDeploymentAction.TaskParams(
             randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
             modelSize,
             numberOfAllocations,
             randomIntBetween(1, 8),

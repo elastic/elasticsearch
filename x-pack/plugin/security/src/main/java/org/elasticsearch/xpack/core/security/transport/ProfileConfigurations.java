@@ -16,9 +16,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SSL_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 /**
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  * e.g. `transport.profiles.default.xpack.security.ssl.client_authentication` is NOT valid configuration.
  *
  * The "_remote_cluster" profile also has dedicated settings for both networking (e.g. `remote_cluster.tcp.keep_alive`)
- * and SSL (e.g. `xpack.security.remote_cluster.ssl.client_authentication`).
+ * and SSL (e.g. `xpack.security.remote_cluster_server.ssl.client_authentication`).
  * This profile is completely synthetic in that it does NOT accept either networking or SSL settings
  * with its transport profile name.
  * NOTE the "_remote_cluster" profile name is special ONLY when the remote cluster port is enabled.
@@ -60,7 +60,10 @@ public final class ProfileConfigurations {
     private ProfileConfigurations() {}
 
     /**
-     * Builds SSL configuration for transport profiles.
+     * Builds SSL configuration for transport profiles, including the default profile, any explicitly configured
+     * profiles and synthetic profiles such as _remote_cluster.
+     * NOTE the method builds SSL configurations that are intended for either server usage or server/client usage,
+     * but not pure client usage.
      *
      * @param settings Settings of the ES node
      * @param sslService For resolving the SSL configuration based on its prefix
@@ -72,21 +75,24 @@ public final class ProfileConfigurations {
      */
     public static Map<String, SslConfiguration> get(Settings settings, SSLService sslService, boolean sslEnabledOnly) {
         final boolean transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
-        final boolean remoteClusterSslEnabled = remoteClusterPortEnabled && REMOTE_CLUSTER_SSL_ENABLED.get(settings);
+        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
+        final boolean remoteClusterServerSslEnabled = remoteClusterPortEnabled && REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
 
         final Map<String, SslConfiguration> profileConfigurations = new HashMap<>();
 
         if (sslEnabledOnly) {
-            if (transportSslEnabled == false && remoteClusterSslEnabled == false) {
+            if (transportSslEnabled == false && remoteClusterServerSslEnabled == false) {
                 return profileConfigurations;
             } else if (transportSslEnabled == false) {
                 // The single TRANSPORT_SSL_ENABLED setting determines whether SSL is enabled for both
                 // the default transport profile and any custom transport profiles. That is, SSL is
                 // always either enabled or disabled together for default and custom transport profiles.
-                profileConfigurations.put(REMOTE_CLUSTER_PROFILE, sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
+                profileConfigurations.put(
+                    REMOTE_CLUSTER_PROFILE,
+                    sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX)
+                );
                 return profileConfigurations;
-            } else if (remoteClusterSslEnabled == false) {
+            } else if (remoteClusterServerSslEnabled == false) {
                 populateFromTransportProfiles(settings, sslService, profileConfigurations);
                 return profileConfigurations;
             }
@@ -97,7 +103,10 @@ public final class ProfileConfigurations {
         populateFromTransportProfiles(settings, sslService, profileConfigurations);
         if (remoteClusterPortEnabled) {
             assert profileConfigurations.containsKey(REMOTE_CLUSTER_PROFILE) == false;
-            profileConfigurations.put(REMOTE_CLUSTER_PROFILE, sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
+            profileConfigurations.put(
+                REMOTE_CLUSTER_PROFILE,
+                sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX)
+            );
         }
 
         return profileConfigurations;

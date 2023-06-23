@@ -1,5 +1,4 @@
-Test Suite:
-===========
+= Test Suite:
 :!compat-mode:
 
 [NOTE]
@@ -16,12 +15,11 @@ bin/elasticsearch -Enode.attr.testattr=test -Epath.repo=/tmp -Erepositories.url.
 
 =======================================
 
-Test execution
----------------
+== Test execution
+
 Please refer to xref:/TESTING.asciidoc#testing-the-rest-layer[this section].
 
-Test file structure
---------------------
+== Test file structure
 
 A YAML test file consists of:
 
@@ -68,8 +66,8 @@ order, but individual test sections may be run in any order, as follows:
 3. run `teardown` (if any)
 4. delete all indices and all templates
 
-Dot notation:
--------------
+== Dot notation:
+
 Dot notation is used for (1) method calls and (2) hierarchical data structures. For
 instance, a method call like `cluster.health` would do the equivalent of:
 
@@ -87,8 +85,10 @@ $val -- used for testing the whole response body.
 Use \. to specify paths that actually contain '.' in the key name, for example
 in the `indices.get_settings` API.
 
-Skipping tests:
----------------
+== Skipping tests:
+
+=== Skip for Elasticsearch versions
+
 If a test section should only be run on certain versions of Elasticsearch,
 then the first entry in the section (after the title) should be called
 `skip`, and should contain the range of versions to be
@@ -119,12 +119,40 @@ For instance:
        ... test definitions ...
 ....
 
+The `version` field can also have multiple ranges. Combining this with empty bounds
+allows, for example, specifying an include-range instead of a skip range:
+....
+Unsupported metric type position:
+  - skip:
+      version: " - 8.0.99, 8.8.0 - "
+      reason: index.mode introduced in 8.1.0 and metric position introduced in 8.8.0
+
+  - do:
+    ... test that 'position' causes expected error for versions 8.1.0-8.7.99 ...
+....
+
 The value for version can also be `all`, to skip in any version of
 Elasticsearch. This can be used for example when a feature is being implemented
 or awaiting a fix.
 
-`skip` can also be used at the top level of the file in the `setup` block, so
-all the tests in a file will be skipped if the condition applies.
+`skip` can also be used at the top level of the file in the `setup` and `teardown` blocks,
+so all the tests in a file will be skipped if the condition applies.
+A particular test is skipped if any of the skip conditions for the test,
+the setup or the teardown apply.
+This can have a similar effect to the multi-range support described above
+in that we can specify tests that only run within a specific range.
+For example, if a new feature was introduced in 8.1.0, we could create a test file
+with the `setup` block containing a `skip.version` of `" - 8.0.99"`, causing all tests
+to be skipped for earlier versions. Then specific tests that are added later could
+add to this by either:
+
+* increasing the upper bound for positive tests (test new enhancement works):
+`skip.version: " - 8.6.99"`
+* or creating an additional lower bound for negative tests
+(test that exception is thrown for older versions, as in multi-range example above):
+`skip.version: "8.8.0 - "`
+
+=== Skip on missing runner features
 
 The skip section can also be used to list new features that need to be
 supported in order to run a test. This way the up-to-date runners will
@@ -177,33 +205,33 @@ The skip section requires to specify either a `version`, `features` or `os` list
 
 === Available Features
 
-=== `xpack`
+==== `xpack`
 Requires x-pack to be enabled on the `Elasticsearch` instance the rest test is running against
 
-=== `no_xpack`
+==== `no_xpack`
 Requires the test to run against an oss distribution of `Elasticsearch`
 
-=== `catch_unauthorized`
+==== `catch_unauthorized`
 
 Runner supports `catch: unauthorized` on a `do` operator.
 
-=== `default_shards`
+==== `default_shards`
 
 This test can only run if the cluster is running with the distributions default number of shards.
 
 The Java test runner introduces randomness and sometimes overrides the default number of shards to `2`.
 If the default number of shards is changed, test marked with this feature should *not* run
 
-=== `headers`
+==== `headers`
 
 The runner is able to set per request headers on the `do` operation
 
-=== `node_selector`
+==== `node_selector`
 
 Indicates the runner can parse `node_selector` under the `do` operator and use its metadata to select the node to
 perform the `do` operation on.
 
-=== `stash_in_key`
+==== `stash_in_key`
 
 Allows you to use a stashed value in any key of an object during a `match` assertion
 
@@ -220,7 +248,7 @@ Allows you to use a stashed value in any key of an object during a `match` asser
      }
 ....
 
-=== `stash_in_path`
+==== `stash_in_path`
 
 Allows a stashed value to be referenced in path lookups as a single token. E.g:
 
@@ -228,7 +256,7 @@ Allows a stashed value to be referenced in path lookups as a single token. E.g:
 path.$stash.value
 ....
 
-=== `embedded_stash_key`
+==== `embedded_stash_key`
 
 Allows a stashed key to appear anywhere in the path (note the placeholder needs to be within curly brackets too in this case):
 
@@ -236,7 +264,7 @@ Allows a stashed key to appear anywhere in the path (note the placeholder needs 
 field1.e${placeholder}ments.element1
 ....
 
-=== `stash_path_replace`
+==== `stash_path_replace`
 Used only in the doc snippet tests. Allow you to do ease replacements using a special `$_path` marker.
 
 ....
@@ -244,30 +272,30 @@ Used only in the doc snippet tests. Allow you to do ease replacements using a sp
 somevalue with whatever is the response in the same position."
 ....
 
-=== `warnings`
+==== `warnings`
 
 The runner can assert specific warnings headers are returned by Elasticsearch through the `warning:` assertations
 under `do:`  operations. The test will fail if the warning is not found.
 
-=== `warnings_regex`
+==== `warnings_regex`
 
 The same as `warnings`, but matches warning headers with the given regular expression.
 
 
-=== `allowed_warnings`
+==== `allowed_warnings`
 
 The runner will allow specific warnings headers to be returned by Elasticsearch through the `allowed_warning:` assertations
 under `do:`  operations. The test will not fail if the warning is not found.
 
-=== `allowed_warnings_regex`
+==== `allowed_warnings_regex`
 
 The same as `allowed_warnings`, but matches warning headers with the given regular expression.
 
-=== `yaml`
+==== `yaml`
 
 The runner is able to send and receive `application/yaml` and perform all assertions on the returned data.
 
-=== `contains`
+==== `contains`
 
 Asserts an array of object contains an object with a property set to a certain value. e.g:
 
@@ -277,11 +305,16 @@ contains:  { nodes.$master.plugins: { name: painless-whitelist } }
 
 Asserts the plugins array contains an object with a `name` property with the value `painless-whitelist`
 
-=== `transform_and_set`
+Alternatively, this can be used to assert that a string response contains a certain substring:
+
+...
+contains: { items.0.index.error.reason: "must be mapped" }
+
+==== `transform_and_set`
 
 Supports the `transform_and_set` operator as described in this document.
 
-=== `arbitrary_key`
+==== `arbitrary_key`
 
 Allows you to stash an arbitrary key from a returned map e.g:
 
@@ -292,12 +325,11 @@ Allows you to stash an arbitrary key from a returned map e.g:
 
 This means: Stash any of the keys returned under `nodes` as `$node_id`
 
-=== `fips_140`
+==== `fips_140`
 
 This test should not be run when the test cluster is set in FIPS 140 mode.
 
-Required operators:
--------------------
+== Required operators:
 
 === `do`
 
@@ -531,6 +563,22 @@ Supports also regular expressions with flag X for more readability (accepts whit
 ....
 
 **Note:** `$body` is used to refer to the last obtained response body as a string, while `''` refers to the parsed representation (parsed into a Map by the Java runner for instance). Having the raw string response is for example useful when testing cat APIs.
+
+=== `close_to`
+
+Used to compare floats or doubles with a specified error bound.
+
+....
+    - close_to { path.to.actual.value, {value: 0.12345678, error: 0.00000001}}
+....
+
+**Note: you should use a feature skip along with close_to, as not all runners
+support it:**
+
+....
+    - skip:
+          features: close_to
+....
 
 === `lt` and `gt`
 

@@ -196,7 +196,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
-        Metadata finalMetadata = client().admin().cluster().prepareState().get().getState().metadata();
+        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
         // Check that the results metadata is what we expect.
         FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
@@ -243,9 +243,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
 
         String indexName = INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old");
-
-        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
-
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), indexName);
         ensureGreen();
 
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
@@ -332,9 +330,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             createSystemIndexForDescriptor(descriptor);
         }
 
-        client().admin()
-            .indices()
-            .preparePutTemplate("bad_template")
+        indicesAdmin().preparePutTemplate("bad_template")
             .setPatterns(Collections.singletonList(templatePrefix + "*"))
             .addAlias(new Alias(templatePrefix + "-legacy-alias"))
             .get();

@@ -252,7 +252,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             VectorSimilarityFunction similarity = randomFrom(VectorSimilarityFunction.values());
-            int numDocs = between(100, 1000);
+            int numDocs = between(1000, 5000);
             int dimension = between(10, 200);
 
             indexRandomly(dir, codec, numDocs, doc -> {

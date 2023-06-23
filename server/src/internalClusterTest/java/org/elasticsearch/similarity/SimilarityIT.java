@@ -9,7 +9,6 @@
 package org.elasticsearch.similarity;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -21,14 +20,12 @@ import static org.hamcrest.Matchers.not;
 public class SimilarityIT extends ESIntegTestCase {
     public void testCustomBM25Similarity() throws Exception {
         try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
+            indicesAdmin().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -46,12 +43,7 @@ public class SimilarityIT extends ESIntegTestCase {
                     .endObject()
             )
             .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("similarity.custom.type", "BM25")
-                    .put("similarity.custom.k1", 2.0f)
-                    .put("similarity.custom.b", 0.5f)
+                indexSettings(1, 0).put("similarity.custom.type", "BM25").put("similarity.custom.k1", 2.0f).put("similarity.custom.b", 0.5f)
             )
             .execute()
             .actionGet();

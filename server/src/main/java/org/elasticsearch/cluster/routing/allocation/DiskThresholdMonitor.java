@@ -31,14 +31,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -79,19 +81,19 @@ public class DiskThresholdMonitor {
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
      * can log when such nodes are no longer over the low threshold.
      */
-    private final Set<String> nodesOverLowThreshold = Sets.newConcurrentHashSet();
+    private final Set<String> nodesOverLowThreshold = ConcurrentCollections.newConcurrentSet();
 
     /**
      * The IDs of the nodes that were over the high threshold in the last check (and maybe over another threshold too). Tracked so that we
      * can log when such nodes are no longer over the high threshold.
      */
-    private final Set<String> nodesOverHighThreshold = Sets.newConcurrentHashSet();
+    private final Set<String> nodesOverHighThreshold = ConcurrentCollections.newConcurrentSet();
 
     /**
      * The IDs of the nodes that were over the high threshold in the last check, but which are relocating shards that will bring them
      * under the high threshold again. Tracked so that we can log when such nodes are no longer in this state.
      */
-    private final Set<String> nodesOverHighThresholdAndRelocating = Sets.newConcurrentHashSet();
+    private final Set<String> nodesOverHighThresholdAndRelocating = ConcurrentCollections.newConcurrentSet();
 
     /**
      * The IDs of the nodes in the last info received. Tracked because when a new node joins we consider its disk usage to be equal to
@@ -123,6 +125,12 @@ public class DiskThresholdMonitor {
     }
 
     public void onNewInfo(ClusterInfo info) {
+        final ClusterState state = clusterStateSupplier.get();
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            logger.debug("skipping monitor as the cluster state is not recovered yet");
+            return;
+        }
+
         // TODO find a better way to limit concurrent updates (and potential associated reroutes) while allowing tests to ensure that
         // all ClusterInfo updates are processed and never ignored
         if (checkInProgress.compareAndSet(false, true) == false) {
@@ -166,7 +174,6 @@ public class DiskThresholdMonitor {
             lastNodes = Collections.unmodifiableSet(nodes);
         }
 
-        final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToMarkReadOnly = new HashSet<>();
         RoutingNodes routingNodes = state.getRoutingNodes();
         Set<String> indicesNotToAutoRelease = new HashSet<>();
@@ -310,8 +317,8 @@ public class DiskThresholdMonitor {
                 rerouteService.reroute(
                     "disk threshold monitor",
                     Priority.HIGH,
-                    ActionListener.releaseAfter(ActionListener.runAfter(ActionListener.wrap(reroutedClusterState -> {
-
+                    ActionListener.releaseAfter(ActionListener.runAfter(ActionListener.wrap(ignored -> {
+                        final var reroutedClusterState = clusterStateSupplier.get();
                         for (DiskUsage diskUsage : usagesOverHighThreshold) {
                             final RoutingNode routingNode = reroutedClusterState.getRoutingNodes().node(diskUsage.getNodeId());
                             final DiskUsage usageIncludingRelocations;
@@ -366,10 +373,12 @@ public class DiskThresholdMonitor {
             // Calculate both the source node id and the target node id of a "replace" type shutdown
             final Set<String> nodesIdsPartOfReplacement = state.metadata()
                 .nodeShutdowns()
+                .getAll()
                 .values()
                 .stream()
                 .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
                 .flatMap(meta -> Stream.of(meta.getNodeId(), nodeNameToId.get(meta.getTargetNodeName())))
+                .filter(Objects::nonNull)  // The REPLACE target node might not still be in RoutingNodes
                 .collect(Collectors.toSet());
 
             // Generate a set of all the indices that exist on either the target or source of a node replacement

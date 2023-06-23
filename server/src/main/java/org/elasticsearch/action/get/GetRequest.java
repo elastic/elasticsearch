@@ -27,14 +27,12 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.elasticsearch.client.internal.Requests#getRequest(String)}.
+ * A request to get a document (its source) from an index based on its id.
  * <p>
  * The operation requires the {@link #index()} and {@link #id(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse
- * @see org.elasticsearch.client.internal.Requests#getRequest(String)
  * @see org.elasticsearch.client.internal.Client#get(GetRequest)
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.

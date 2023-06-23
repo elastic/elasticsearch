@@ -62,6 +62,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             null,
             Collections.emptyMap(),
             false,
+            null,
             null
         );
 

@@ -19,7 +19,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -27,7 +26,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -210,20 +208,6 @@ public class QueryProfilerTests extends ESTestCase {
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
-    }
-
-    public void testCollector() throws IOException {
-        TotalHitCountCollector collector = new TotalHitCountCollector();
-        ProfileCollector profileCollector = new ProfileCollector(collector);
-        assertEquals(0, profileCollector.getTime());
-        final LeafCollector leafCollector = profileCollector.getLeafCollector(reader.leaves().get(0));
-        assertThat(profileCollector.getTime(), greaterThan(0L));
-        long time = profileCollector.getTime();
-        leafCollector.setScorer(null);
-        assertThat(profileCollector.getTime(), greaterThan(time));
-        time = profileCollector.getTime();
-        leafCollector.collect(0);
-        assertThat(profileCollector.getTime(), greaterThan(time));
     }
 
     private static class DummyQuery extends Query {

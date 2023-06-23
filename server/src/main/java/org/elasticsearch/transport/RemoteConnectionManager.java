@@ -7,11 +7,14 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -22,6 +25,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 
 public class RemoteConnectionManager implements ConnectionManager {
 
@@ -83,13 +89,20 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+    public void openConnection(DiscoveryNode node, @Nullable ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+        assert profile == null || profile.getTransportProfile().equals(getConnectionProfile().getTransportProfile())
+            : "A single remote connection manager can only ever handle a single transport profile";
         delegate.openConnection(
             node,
             profile,
-            ActionListener.wrap(
-                connection -> listener.onResponse(new InternalRemoteConnection(connection, clusterAlias)),
-                listener::onFailure
+            listener.delegateFailureAndWrap(
+                (l, connection) -> l.onResponse(
+                    new InternalRemoteConnection(
+                        connection,
+                        clusterAlias,
+                        profile != null ? profile.getTransportProfile() : getConnectionProfile().getTransportProfile()
+                    )
+                )
             )
         );
     }
@@ -179,7 +192,7 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return new InternalRemoteConnection(connection, clusterAlias);
+        return new InternalRemoteConnection(connection, clusterAlias, getConnectionProfile().getTransportProfile());
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -287,12 +300,18 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private static final class InternalRemoteConnection implements Transport.Connection {
 
+        private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
         private final String clusterAlias;
+        private final boolean isRemoteClusterProfile;
 
-        InternalRemoteConnection(Transport.Connection connection, String clusterAlias) {
+        InternalRemoteConnection(Transport.Connection connection, String clusterAlias, String transportProfile) {
+            assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
+            assert false == connection instanceof ProxyConnection
+                : "proxy connection should wrap internal remote connection, not the other way around";
             this.clusterAlias = Objects.requireNonNull(clusterAlias);
             this.connection = Objects.requireNonNull(connection);
+            this.isRemoteClusterProfile = REMOTE_CLUSTER_PROFILE.equals(Objects.requireNonNull(transportProfile));
         }
 
         public String getClusterAlias() {
@@ -307,7 +326,14 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            connection.sendRequest(requestId, action, request, options);
+            final String effectiveAction;
+            if (isRemoteClusterProfile && TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
+                logger.trace("sending remote cluster specific handshake to node [{}] of remote cluster [{}]", getNode(), clusterAlias);
+                effectiveAction = REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
+            } else {
+                effectiveAction = action;
+            }
+            connection.sendRequest(requestId, effectiveAction, request, options);
         }
 
         @Override
@@ -369,5 +395,13 @@ public class RemoteConnectionManager implements ConnectionManager {
         public boolean hasReferences() {
             return connection.hasReferences();
         }
+    }
+
+    static InternalRemoteConnection wrapConnectionWithRemoteClusterInfo(
+        Transport.Connection connection,
+        String clusterAlias,
+        String transportProfile
+    ) {
+        return new InternalRemoteConnection(connection, clusterAlias, transportProfile);
     }
 }

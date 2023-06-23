@@ -85,14 +85,18 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         webServer.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93536")
     public void testWebhook() throws Exception {
+        assumeFalse(
+            "Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload"
+                + "settings api call, require TLS to be configured for the transport layer",
+            inFipsJvm()
+        );
         String localServer = "localhost:" + webServer.getPort();
         logger.info("--> updating keystore token hosts to: {}", localServer);
         Path configPath = internalCluster().configPaths().stream().findFirst().orElseThrow();
-        try (KeyStoreWrapper ksw = KeyStoreWrapper.bootstrap(configPath, () -> new SecureString("".toCharArray()))) {
+        try (KeyStoreWrapper ksw = KeyStoreWrapper.create()) {
             ksw.setString(WebhookService.SETTING_WEBHOOK_HOST_TOKEN_PAIRS.getKey(), (localServer + "=token1234").toCharArray());
-            ksw.save(configPath, "".toCharArray());
+            ksw.save(configPath, "".toCharArray(), false);
         }
         // Reload the keystore to load the new settings
         NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest();

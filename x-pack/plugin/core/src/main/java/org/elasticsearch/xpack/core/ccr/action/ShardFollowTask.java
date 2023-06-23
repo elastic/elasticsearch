@@ -122,7 +122,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
         this.remoteCluster = remoteCluster;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
-        this.headers = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        this.headers = in.readImmutableMap(StreamInput::readString);
     }
 
     public String getRemoteCluster() {
@@ -197,6 +197,6 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 }

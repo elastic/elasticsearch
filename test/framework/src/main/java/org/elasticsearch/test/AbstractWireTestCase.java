@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -177,7 +177,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * Serialize the given instance and asserts that both are equal.
      */
     protected final void assertSerialization(T testInstance) throws IOException {
-        assertSerialization(testInstance, Version.CURRENT);
+        assertSerialization(testInstance, TransportVersion.current());
     }
 
     /**
@@ -185,7 +185,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * for sanity checking the backwards compatibility of the wire. It isn't a substitute for
      * real backwards compatibility tests but it is *so* much faster.
      */
-    protected final void assertSerialization(T testInstance, Version version) throws IOException {
+    protected final void assertSerialization(T testInstance, TransportVersion version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
         assertEqualInstances(testInstance, deserializedInstance);
     }
@@ -201,7 +201,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     protected final T copyInstance(T instance) throws IOException {
-        return copyInstance(instance, Version.CURRENT);
+        return copyInstance(instance, TransportVersion.current());
     }
 
     /**
@@ -209,7 +209,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * The version is useful for sanity checking the backwards compatibility of the wire. It isn't
      * a substitute for real backwards compatibility tests but it is *so* much faster.
      */
-    protected abstract T copyInstance(T instance, Version version) throws IOException;
+    protected abstract T copyInstance(T instance, TransportVersion version) throws IOException;
 
     /**
      * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.

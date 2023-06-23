@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,8 +39,8 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
         );
     }
 
-    public static TextSimilarityConfigUpdate mutateForVersion(TextSimilarityConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static TextSimilarityConfigUpdate mutateForVersion(TextSimilarityConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_1_0)) {
             return new TextSimilarityConfigUpdate(instance.getText(), instance.getResultsField(), null, null);
         }
         return instance;
@@ -72,7 +72,7 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
     }
 
     @Override
-    protected TextSimilarityConfigUpdate mutateInstanceForVersion(TextSimilarityConfigUpdate instance, Version version) {
+    protected TextSimilarityConfigUpdate mutateInstanceForVersion(TextSimilarityConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

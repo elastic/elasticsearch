@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -108,7 +109,7 @@ public class CoordinationState {
     }
 
     public boolean isPublishQuorum(VoteCollection votes) {
-        return votes.isQuorum(getLastCommittedConfiguration()) && votes.isQuorum(lastPublishedConfiguration);
+        return electionStrategy.isPublishQuorum(votes, getLastCommittedConfiguration(), lastPublishedConfiguration);
     }
 
     public boolean containsJoinVoteFor(DiscoveryNode node) {
@@ -332,8 +333,7 @@ public class CoordinationState {
             );
         }
 
-        if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
-            && getLastCommittedConfiguration().equals(getLastAcceptedConfiguration()) == false) {
+        if (electionStrategy.isInvalidReconfiguration(clusterState, getLastAcceptedConfiguration(), getLastCommittedConfiguration())) {
             logger.debug("handleClientValue: only allow reconfiguration while not already reconfiguring");
             throw new CoordinationStateRejectedException("only allow reconfiguration while not already reconfiguring");
         }
@@ -500,6 +500,7 @@ public class CoordinationState {
             applyCommit.getVersion()
         );
 
+        assert getLastAcceptedTerm() == applyCommit.getTerm() && getLastAcceptedVersion() == applyCommit.getVersion();
         persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
@@ -569,6 +570,10 @@ public class CoordinationState {
             if (adjustedMetadata != lastAcceptedState.metadata()) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(adjustedMetadata).build());
             }
+        }
+
+        default void getLatestStoredState(long term, ActionListener<ClusterState> listener) {
+            listener.onResponse(null);
         }
 
         default void close() throws IOException {}

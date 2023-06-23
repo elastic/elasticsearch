@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -53,6 +55,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
 public class TransportSimulateIndexTemplateAction extends TransportMasterNodeReadAction<
@@ -64,6 +67,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final IndicesService indicesService;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -94,6 +98,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indicesService = indicesService;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override
@@ -150,7 +155,17 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-        listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        if (request.includeDefaults() && DataLifecycle.isEnabled()) {
+            listener.onResponse(
+                new SimulateIndexTemplateResponse(
+                    template,
+                    overlapping,
+                    clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                )
+            );
+        } else {
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        }
     }
 
     /**
@@ -196,7 +211,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
     /**
      * Take a template and index name as well as state where the template exists, and return a final
-     * {@link Template} that represents all the resolved Settings, Mappings, and Aliases
+     * {@link Template} that represents all the resolved Settings, Mappings, Aliases and Lifecycle
      */
     public static Template resolveTemplate(
         final String matchingTemplate,
@@ -289,6 +304,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         Settings settings = Settings.builder().put(templateSettings).put(additionalSettings.build()).build();
-        return new Template(settings, mergedMapping, aliasesByName);
+        DataLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        return new Template(settings, mergedMapping, aliasesByName, lifecycle);
     }
 }

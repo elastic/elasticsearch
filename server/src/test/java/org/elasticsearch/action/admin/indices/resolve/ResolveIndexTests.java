@@ -499,12 +499,12 @@ public class ResolveIndexTests extends ESTestCase {
                     "test-system-feature",
                     "test system index",
                     List.of(
-                        new SystemIndexDescriptor(
-                            ".test-system*",
-                            "test-system-description",
-                            SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED,
-                            List.of("test-system")
-                        ),
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".test-system*")
+                            .setDescription("test-system-description")
+                            .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+                            .setAllowedElasticProductOrigins(List.of("test-system"))
+                            .build(),
                         SystemIndexDescriptor.builder()
                             .setIndexPattern(".test-net-new-system*")
                             .setDescription("test-net-new-system-description")
@@ -525,13 +525,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(settings(additionalSettings));
-    }
-
-    private static Settings.Builder settings(Settings additionalSettings) {
-        return settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(additionalSettings);
+        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0).put(additionalSettings));
     }
 
     private ThreadContext createThreadContext() {

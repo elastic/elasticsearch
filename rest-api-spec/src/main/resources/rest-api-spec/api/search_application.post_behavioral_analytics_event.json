@@ -1,0 +1,48 @@
+{
+  "search_application.post_behavioral_analytics_event": {
+    "documentation": {
+      "url": "http://todo.com/tbd",
+      "description": "Creates a behavioral analytics event for existing collection."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/analytics/{collection_name}/event/{event_type}",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "collection_name": {
+              "type": "string",
+              "description": "The name of behavioral analytics collection"
+            },
+            "event_type": {
+              "type": "string",
+              "description": "Behavioral analytics event type. Available: page_view, search, search_click"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "debug": {
+        "type": "boolean",
+        "description": "If true, returns event information that will be stored"
+      }
+    },
+    "body": {
+      "description": "The event definition",
+      "required": true
+    }
+  }
+}

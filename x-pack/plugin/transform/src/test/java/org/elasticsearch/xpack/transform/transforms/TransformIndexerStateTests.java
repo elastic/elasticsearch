@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -146,7 +147,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 context.getStateReason(),
                 getProgress(),
                 null,
-                context.shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint(),
+                null
             );
         }
 
@@ -783,10 +785,7 @@ public class TransformIndexerStateTests extends ESTestCase {
 
     private void countResponse(Consumer<ActionListener<Void>> function, CountDownLatch latch) throws InterruptedException {
         LatchedActionListener<Void> listener = new LatchedActionListener<>(
-            ActionListener.wrap(
-                r -> { assertEquals("listener called more than once", 1, latch.getCount()); },
-                e -> { fail("got unexpected exception: " + e.getMessage()); }
-            ),
+            ActionTestUtils.assertNoFailureListener(r -> assertEquals("listener called more than once", 1, latch.getCount())),
             latch
         );
         function.accept(listener);

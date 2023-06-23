@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -38,7 +37,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -47,7 +48,9 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<NodeStatsMonitoringDoc> {
 
@@ -63,6 +66,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         nodeId = randomAlphaOfLength(5);
         isMaster = randomBoolean();
         nodeStats = mock(NodeStats.class);
+        when(nodeStats.toXContentChunked(any())).thenReturn(Collections.emptyIterator());
         mlockall = randomBoolean();
     }
 
@@ -325,7 +329,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         // Indices
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        indicesCommonStats.getFieldData()
+            .add(new FieldDataStats(++iota, ++iota, null, new FieldDataStats.GlobalOrdinalsStats(0L, Map.of())));
         indicesCommonStats.getStore().add(new StoreStats(++iota, no, no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
@@ -438,7 +443,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             new TransportAddress(TransportAddress.META_ADDRESS, 1234),
             emptyMap(),
             emptySet(),
-            Version.CURRENT
+            null
         );
 
         return new NodeStats(
@@ -450,6 +455,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             jvm,
             threadPool,
             fs,
+            null,
             null,
             null,
             null,

@@ -137,11 +137,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
-                super.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
-            } else {
-                super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
-            }
+            storedFields().document(docID, visitor);
         }
 
         @Override

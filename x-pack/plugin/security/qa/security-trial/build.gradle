@@ -22,7 +22,12 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.transport.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.remote_cluster.ssl.enabled', 'false'
+  setting 'xpack.security.remote_cluster_client.ssl.enabled', 'false'
+
+  keystore 'cluster.remote.my_remote_cluster_a.credentials', 'cluster_a_credentials'
+  keystore 'cluster.remote.my_remote_cluster_b.credentials', 'cluster_b_credentials'
+  keystore 'cluster.remote.my_remote_cluster_a_1.credentials', 'cluster_a_credentials'
+  keystore 'cluster.remote.my_remote_cluster_a_2.credentials', 'cluster_a_credentials'
 
   rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"

@@ -62,7 +62,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     }
 
     AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> createResultsService(
-        TransportService transportServiceArg,
+        TransportService transportService,
         ClusterService clusterService,
         NamedWriteableRegistry registry,
         Client client,
@@ -86,7 +86,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
             false,
             asyncTaskClass,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
-            transportServiceArg.getTaskManager(),
+            transportService.getTaskManager(),
             clusterService
         );
     }

@@ -34,6 +34,8 @@ import static org.elasticsearch.core.Strings.format;
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
     public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersion.V_7_16_0;
+    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersion.V_8_9_0;
+    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersion.V_8_500_003;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -43,6 +45,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
     public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
     public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
+    public static final ParseField GRACE_PERIOD_FIELD = new ParseField("grace_period");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -53,7 +56,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             (long) a[3],
             (boolean) a[4],
             (TimeValue) a[5],
-            (String) a[6]
+            (String) a[6],
+            (TimeValue) a[7]
         )
     );
 
@@ -70,6 +74,12 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TARGET_NODE_NAME_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), GRACE_PERIOD_FIELD.getPreferredName()),
+            GRACE_PERIOD_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
     }
 
     public static SingleNodeShutdownMetadata parse(XContentParser parser) {
@@ -87,6 +97,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     private final TimeValue allocationDelay;
     @Nullable
     private final String targetNodeName;
+    @Nullable
+    private final TimeValue gracePeriod;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
@@ -101,7 +113,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         long startedAtMillis,
         boolean nodeSeen,
         @Nullable TimeValue allocationDelay,
-        @Nullable String targetNodeName
+        @Nullable String targetNodeName,
+        @Nullable TimeValue gracePeriod
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
@@ -124,6 +137,20 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
         }
         this.targetNodeName = targetNodeName;
+        if (Type.SIGTERM.equals(type)) {
+            if (gracePeriod == null) {
+                throw new IllegalArgumentException("grace period is required for SIGTERM shutdowns");
+            }
+        } else if (gracePeriod != null) {
+            throw new IllegalArgumentException(
+                format(
+                    "grace period is only valid for SIGTERM type shutdowns, but was given type [%s] and target node name [%s]",
+                    type,
+                    targetNodeName
+                )
+            );
+        }
+        this.gracePeriod = gracePeriod;
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
@@ -137,6 +164,11 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             this.targetNodeName = in.readOptionalString();
         } else {
             this.targetNodeName = null;
+        }
+        if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
+            this.gracePeriod = in.readOptionalTimeValue();
+        } else {
+            this.gracePeriod = null;
         }
     }
 
@@ -196,10 +228,19 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         return null;
     }
 
+    /**
+     * @return the timeout for a graceful shutdown for a SIGTERM type.
+     */
+    @Nullable
+    public TimeValue getGracePeriod() {
+        return gracePeriod;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
+        if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)
+            || (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM)) {
             out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
         } else {
             out.writeEnum(type);
@@ -210,6 +251,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         out.writeOptionalTimeValue(allocationDelay);
         if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
             out.writeOptionalString(targetNodeName);
+        }
+        if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
+            out.writeOptionalTimeValue(gracePeriod);
         }
     }
 
@@ -228,6 +272,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             if (targetNodeName != null) {
                 builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), targetNodeName);
             }
+            if (gracePeriod != null) {
+                builder.field(GRACE_PERIOD_FIELD.getPreferredName(), gracePeriod.getStringRep());
+            }
         }
         builder.endObject();
 
@@ -240,17 +287,27 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         if ((o instanceof SingleNodeShutdownMetadata) == false) return false;
         SingleNodeShutdownMetadata that = (SingleNodeShutdownMetadata) o;
         return getStartedAtMillis() == that.getStartedAtMillis()
+            && getNodeSeen() == that.getNodeSeen()
             && getNodeId().equals(that.getNodeId())
             && getType() == that.getType()
             && getReason().equals(that.getReason())
-            && getNodeSeen() == that.getNodeSeen()
-            && Objects.equals(allocationDelay, that.allocationDelay)
-            && Objects.equals(targetNodeName, that.targetNodeName);
+            && Objects.equals(getAllocationDelay(), that.getAllocationDelay())
+            && Objects.equals(getTargetNodeName(), that.getTargetNodeName())
+            && Objects.equals(getGracePeriod(), that.getGracePeriod());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodeId(), getType(), getReason(), getStartedAtMillis(), getNodeSeen(), allocationDelay, targetNodeName);
+        return Objects.hash(
+            getNodeId(),
+            getType(),
+            getReason(),
+            getStartedAtMillis(),
+            getNodeSeen(),
+            getAllocationDelay(),
+            getTargetNodeName(),
+            getGracePeriod()
+        );
     }
 
     @Override
@@ -270,6 +327,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         }
         if (targetNodeName != null) {
             stringBuilder.append(", targetNodeName=[").append(targetNodeName).append("]");
+        }
+        if (gracePeriod != null) {
+            stringBuilder.append(", gracePeriod=[").append(gracePeriod).append("]");
         }
         stringBuilder.append("}");
         return stringBuilder.toString();
@@ -299,6 +359,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         private boolean nodeSeen = false;
         private TimeValue allocationDelay;
         private String targetNodeName;
+        private TimeValue gracePeriod;
 
         private Builder() {}
 
@@ -365,12 +426,26 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             return this;
         }
 
+        public Builder setGracePeriod(TimeValue gracePeriod) {
+            this.gracePeriod = gracePeriod;
+            return this;
+        }
+
         public SingleNodeShutdownMetadata build() {
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
             }
 
-            return new SingleNodeShutdownMetadata(nodeId, type, reason, startedAtMillis, nodeSeen, allocationDelay, targetNodeName);
+            return new SingleNodeShutdownMetadata(
+                nodeId,
+                type,
+                reason,
+                startedAtMillis,
+                nodeSeen,
+                allocationDelay,
+                targetNodeName,
+                gracePeriod
+            );
         }
     }
 
@@ -380,18 +455,17 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public enum Type {
         REMOVE,
         RESTART,
-        REPLACE;
+        REPLACE,
+        SIGTERM; // locally-initiated version of REMOVE
 
         public static Type parse(String type) {
-            if ("remove".equals(type.toLowerCase(Locale.ROOT))) {
-                return REMOVE;
-            } else if ("restart".equals(type.toLowerCase(Locale.ROOT))) {
-                return RESTART;
-            } else if ("replace".equals(type.toLowerCase(Locale.ROOT))) {
-                return REPLACE;
-            } else {
-                throw new IllegalArgumentException("unknown shutdown type: " + type);
-            }
+            return switch (type.toLowerCase(Locale.ROOT)) {
+                case "remove" -> REMOVE;
+                case "restart" -> RESTART;
+                case "replace" -> REPLACE;
+                case "sigterm" -> SIGTERM;
+                default -> throw new IllegalArgumentException("unknown shutdown type: " + type);
+            };
         }
     }
 

@@ -13,9 +13,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -30,9 +29,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -48,7 +46,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
-import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.Closeable;
@@ -67,32 +65,30 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * An indexer for downsampling that iterates documents collected by {@link TimeSeriesIndexSearcher},
  * computes the rollup buckets and stores the buckets in the downsampled index.
- *
+ * <p>
  * The documents collected by the {@link TimeSeriesIndexSearcher} are expected to be sorted
  * by _tsid in ascending order and @timestamp in descending order.
  */
 class RollupShardIndexer {
+
     private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
     public static final int ROLLUP_BULK_ACTIONS = 10000;
     public static final ByteSizeValue ROLLUP_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue ROLLUP_MAX_BYTES_IN_FLIGHT = new ByteSizeValue(50, ByteSizeUnit.MB);
 
     private final IndexShard indexShard;
     private final Client client;
-    private final DownsampleConfig config;
     private final String rollupIndex;
-
     private final Engine.Searcher searcher;
     private final SearchExecutionContext searchExecutionContext;
-    private final MappedFieldType timestampField;
+    private final DateFieldMapper.DateFieldType timestampField;
     private final DocValueFormat timestampFormat;
     private final Rounding.Prepared rounding;
-
-    private final String[] dimensionFields;
-    private final String[] metricFields;
-    private final String[] labelFields;
     private final List<FieldValueFetcher> fieldValueFetchers;
     private final RollupShardTask task;
     private volatile boolean abort = false;
+    ByteSizeValue rollupBulkSize = ROLLUP_BULK_SIZE;
+    ByteSizeValue rollupMaxBytesInFlight = ROLLUP_MAX_BYTES_IN_FLIGHT;
 
     RollupShardIndexer(
         RollupShardTask task,
@@ -101,18 +97,13 @@ class RollupShardIndexer {
         ShardId shardId,
         String rollupIndex,
         DownsampleConfig config,
-        String[] dimensionFields,
         String[] metricFields,
         String[] labelFields
     ) {
         this.task = task;
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
-        this.config = config;
         this.rollupIndex = rollupIndex;
-        this.dimensionFields = dimensionFields;
-        this.metricFields = metricFields;
-        this.labelFields = labelFields;
         this.searcher = indexShard.acquireSearcher("downsampling");
         Closeable toClose = searcher;
         try {
@@ -124,7 +115,7 @@ class RollupShardIndexer {
                 null,
                 Collections.emptyMap()
             );
-            this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
 
@@ -138,11 +129,11 @@ class RollupShardIndexer {
         }
     }
 
-    public RollupIndexerAction.ShardRollupResponse execute() throws IOException {
+    public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
         long startTime = System.currentTimeMillis();
-        BulkProcessor bulkProcessor = createBulkProcessor();
+        BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
-            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> { checkCancelled(); }));
+            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(new MatchAllDocsQuery(), bucketCollector);
@@ -171,7 +162,19 @@ class RollupShardIndexer {
             );
         }
 
-        return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), task.getNumIndexed());
+        if (task.getNumFailed() > 0) {
+            throw new ElasticsearchException(
+                "Shard ["
+                    + indexShard.shardId()
+                    + "] failed to index all rollup documents. Sent ["
+                    + task.getNumSent()
+                    + "], failed ["
+                    + task.getNumFailed()
+                    + "]."
+            );
+        }
+
+        return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
 
     private void checkCancelled() {
@@ -187,8 +190,8 @@ class RollupShardIndexer {
         }
     }
 
-    private BulkProcessor createBulkProcessor() {
-        final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+    private BulkProcessor2 createBulkProcessor() {
+        final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 task.addNumSent(request.numberOfActions());
@@ -198,9 +201,7 @@ class RollupShardIndexer {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 task.addNumIndexed(request.numberOfActions());
                 if (response.hasFailures()) {
-                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems())
-                        .filter(BulkItemResponse::isFailed)
-                        .collect(Collectors.toList());
+                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
                     task.addNumFailed(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()
@@ -219,7 +220,7 @@ class RollupShardIndexer {
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 if (failure != null) {
                     long items = request.numberOfActions();
                     task.addNumFailed(items);
@@ -231,26 +232,25 @@ class RollupShardIndexer {
             }
         };
 
-        return BulkProcessor.builder(client::bulk, listener, "rollup-shard-indexer")
+        return BulkProcessor2.builder(client::bulk, listener, client.threadPool())
             .setBulkActions(ROLLUP_BULK_ACTIONS)
             .setBulkSize(ROLLUP_BULK_SIZE)
-            // execute the bulk request on the same thread
-            .setConcurrentRequests(0)
-            .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
+            .setMaxBytesInFlight(rollupMaxBytesInFlight)
+            .setMaxNumberOfRetries(3)
             .build();
     }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
-        private final BulkProcessor bulkProcessor;
+        private final BulkProcessor2 bulkProcessor;
         private final RollupBucketBuilder rollupBucketBuilder;
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
         long lastHistoTimestamp = Long.MAX_VALUE;
 
-        TimeSeriesBucketCollector(BulkProcessor bulkProcessor) {
+        TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
-            List<AbstractRollupFieldProducer> rollupFieldProducers = fieldValueFetchers.stream()
+            List<AbstractDownsampleFieldProducer> rollupFieldProducers = fieldValueFetchers.stream()
                 .map(FieldValueFetcher::rollupFieldProducer)
                 .toList();
             this.rollupBucketBuilder = new RollupBucketBuilder(rollupFieldProducers);
@@ -263,7 +263,7 @@ class RollupShardIndexer {
             docCountProvider.setLeafReaderContext(ctx);
 
             // For each field, return a tuple with the rollup field producer and the field value leaf
-            final List<Tuple<AbstractRollupFieldProducer, FormattedDocValues>> fieldValueTuples = fieldValueFetchers.stream()
+            final List<Tuple<AbstractDownsampleFieldProducer, FormattedDocValues>> fieldValueTuples = fieldValueFetchers.stream()
                 .map(fetcher -> Tuple.tuple(fetcher.rollupFieldProducer(), fetcher.getLeaf(ctx)))
                 .toList();
 
@@ -274,7 +274,7 @@ class RollupShardIndexer {
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final int tsidOrd = aggCtx.getTsidOrd();
-                    final long timestamp = aggCtx.getTimestamp();
+                    final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
 
                     boolean tsidChanged = tsidOrd != rollupBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {
@@ -333,8 +333,8 @@ class RollupShardIndexer {
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
                     // Iterate over all field values and collect the doc_values for this docId
-                    for (Tuple<AbstractRollupFieldProducer, FormattedDocValues> tuple : fieldValueTuples) {
-                        AbstractRollupFieldProducer rollupFieldProducer = tuple.v1();
+                    for (Tuple<AbstractDownsampleFieldProducer, FormattedDocValues> tuple : fieldValueTuples) {
+                        AbstractDownsampleFieldProducer rollupFieldProducer = tuple.v1();
                         FormattedDocValues docValues = tuple.v2();
                         rollupFieldProducer.collect(docValues, docId);
                     }
@@ -349,7 +349,7 @@ class RollupShardIndexer {
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing rollup doc: [{}]", Strings.toString(doc));
             }
-            bulkProcessor.add(request.request());
+            bulkProcessor.addWithBackpressure(request.request(), () -> abort);
         }
 
         @Override
@@ -365,7 +365,6 @@ class RollupShardIndexer {
                 XContentBuilder doc = rollupBucketBuilder.buildRollupDocument();
                 indexBucket(doc);
             }
-            bulkProcessor.flush();
 
             // check cancel after the flush all data
             checkCancelled();
@@ -384,28 +383,47 @@ class RollupShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private final List<AbstractRollupFieldProducer> rollupFieldProducers;
+        private final List<AbstractDownsampleFieldProducer> rollupFieldProducers;
+        private final List<DownsampleFieldSerializer> groupedProducers;
 
-        RollupBucketBuilder(List<AbstractRollupFieldProducer> rollupFieldProducers) {
+        RollupBucketBuilder(List<AbstractDownsampleFieldProducer> rollupFieldProducers) {
             this.rollupFieldProducers = rollupFieldProducers;
+            /*
+             * The rollup field producers for aggregate_metric_double all share the same name (this is
+             * the name they will be serialized in the target index). We group all field producers by
+             * name. If grouping yields multiple rollup field producers, we delegate serialization to
+             * the AggregateMetricFieldSerializer class.
+             */
+            groupedProducers = rollupFieldProducers.stream()
+                .collect(groupingBy(AbstractDownsampleFieldProducer::name))
+                .entrySet()
+                .stream()
+                .map(e -> {
+                    if (e.getValue().size() == 1) {
+                        return e.getValue().get(0);
+                    } else {
+                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
+                    }
+                })
+                .toList();
         }
 
         /**
          * tsid changed, reset tsid and timestamp
          */
-        public RollupBucketBuilder resetTsid(BytesRef tsid, int tsidOrd, long timestamp) {
+        public void resetTsid(BytesRef tsid, int tsidOrd, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
             this.tsidOrd = tsidOrd;
-            return resetTimestamp(timestamp);
+            resetTimestamp(timestamp);
         }
 
         /**
          * timestamp change, reset builder
          */
-        public RollupBucketBuilder resetTimestamp(long timestamp) {
+        public void resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            this.rollupFieldProducers.forEach(AbstractRollupFieldProducer::reset);
+            this.rollupFieldProducers.forEach(AbstractDownsampleFieldProducer::reset);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
@@ -413,7 +431,6 @@ class RollupShardIndexer {
                     timestampFormat.format(timestamp)
                 );
             }
-            return this;
         }
 
         public void collectDocCount(int docCount) {
@@ -431,34 +448,14 @@ class RollupShardIndexer {
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
             builder.field(DocCountFieldMapper.NAME, docCount);
             // Extract dimension values from _tsid field, so we avoid loading them from doc_values
-            @SuppressWarnings("unchecked")
-            Map<String, Object> dimensions = (Map<String, Object>) DocValueFormat.TIME_SERIES_ID.format(tsid);
-            for (Map.Entry<String, Object> e : dimensions.entrySet()) {
+            Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
+            for (Map.Entry<?, ?> e : dimensions.entrySet()) {
                 assert e.getValue() != null;
-                builder.field(e.getKey(), e.getValue());
+                builder.field((String) e.getKey(), e.getValue());
             }
 
-            /*
-             * The rollup field producers for aggregate_metric_double all share the same name (this is
-             * the name they will be serialized in the target index). We group all field producers by
-             * name. If grouping yields multiple rollup field producers, we delegate serialization to
-             * the AggregateMetricFieldSerializer class.
-             */
-            List<RollupFieldSerializer> groupedProducers = rollupFieldProducers.stream()
-                .collect(groupingBy(AbstractRollupFieldProducer::name))
-                .entrySet()
-                .stream()
-                .map(e -> {
-                    if (e.getValue().size() == 1) {
-                        return e.getValue().get(0);
-                    } else {
-                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
-                    }
-                })
-                .toList();
-
             // Serialize fields
-            for (RollupFieldSerializer fieldProducer : groupedProducers) {
+            for (DownsampleFieldSerializer fieldProducer : groupedProducers) {
                 fieldProducer.write(builder);
             }
 

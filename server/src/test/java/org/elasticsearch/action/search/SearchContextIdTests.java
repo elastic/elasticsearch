@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -49,7 +49,7 @@ public class SearchContextIdTests extends ESTestCase {
             )
         );
         final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
-        final Version version = Version.CURRENT;
+        final TransportVersion version = TransportVersion.current();
         final Map<String, AliasFilter> aliasFilters = new HashMap<>();
         for (SearchPhaseResult result : queryResults.asList()) {
             final AliasFilter aliasFilter;

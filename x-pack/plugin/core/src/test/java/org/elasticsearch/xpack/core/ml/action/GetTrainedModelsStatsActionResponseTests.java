@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -29,8 +29,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response createTestInstance() {
-        // int listSize = randomInt(10);
-        int listSize = 1;
+        int listSize = randomInt(10);
         List<Response.TrainedModelStats> trainedModelStats = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(listSize)
             .map(
@@ -78,8 +77,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
     }
 
     @Override
-    protected Response mutateInstanceForVersion(Response instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
+    protected Response mutateInstanceForVersion(Response instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_0_0)) {
             return new Response(
                 new QueryPage<>(
                     instance.getResources()
@@ -100,7 +99,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
-        } else if (version.before(Version.V_8_1_0)) {
+        } else if (version.before(TransportVersion.V_8_1_0)) {
             return new Response(
                 new QueryPage<>(
                     instance.getResources()
@@ -116,6 +115,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
@@ -157,7 +157,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
-        } else if (version.before(Version.V_8_2_0)) {
+        } else if (version.before(TransportVersion.V_8_2_0)) {
             return new Response(
                 new QueryPage<>(
                     instance.getResources()
@@ -173,6 +173,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
@@ -214,7 +215,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
-        } else if (version.before(Version.V_8_4_0)) {
+        } else if (version.before(TransportVersion.V_8_4_0)) {
             return new Response(
                 new QueryPage<>(
                     instance.getResources()
@@ -230,6 +231,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
@@ -271,7 +273,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
-        } else if (version.before(Version.V_8_5_0)) {
+        } else if (version.before(TransportVersion.V_8_5_0)) {
             return new Response(
                 new QueryPage<>(
                     instance.getResources()
@@ -287,6 +289,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
@@ -328,7 +331,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
-        } else if (version.before(Version.V_8_6_0)) {
+        } else if (version.before(TransportVersion.V_8_6_0)) {
+            // priority added
             return new Response(
                 new QueryPage<>(
                     instance.getResources()
@@ -344,6 +348,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
@@ -377,6 +382,65 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             )
                                             .toList(),
                                         Priority.NORMAL
+                                    )
+                            )
+                        )
+                        .toList(),
+                    instance.getResources().count(),
+                    RESULTS_FIELD
+                )
+            );
+        } else if (version.before(TransportVersion.V_8_8_0)) {
+            // deployment_id added
+            return new Response(
+                new QueryPage<>(
+                    instance.getResources()
+                        .results()
+                        .stream()
+                        .map(
+                            stats -> new Response.TrainedModelStats(
+                                stats.getModelId(),
+                                stats.getModelSizeStats(),
+                                stats.getIngestStats(),
+                                stats.getPipelineCount(),
+                                stats.getInferenceStats(),
+                                stats.getDeploymentStats() == null
+                                    ? null
+                                    : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getCacheSize(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getCacheHitCount().orElse(null),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                                )
+                                            )
+                                            .toList(),
+                                        stats.getDeploymentStats().getPriority()
                                     )
                             )
                         )

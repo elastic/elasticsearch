@@ -16,9 +16,9 @@ _transform/
 * <<get-transform-stats,Get {transforms} statistics>>
 * <<preview-transform,Preview {transforms}>>
 * <<reset-transform,Reset {transforms}>>
+* <<schedule-now-transform,Schedule now {transforms}>>
 * <<start-transform,Start {transforms}>>
 * <<stop-transform,Stop {transforms}>>
-* <<schedule-now-transform,Schedule Now {transforms}>>
 * <<update-transform,Update {transforms}>>
 
 For the full list, see <<transform-apis>>.

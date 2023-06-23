@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[schedule-now-transform]]
-= Schedule Now {transform} API
+= Schedule now {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Shedule Now {transform}</titleabbrev>
+<titleabbrev>Schedule now {transform}</titleabbrev>
 ++++
 
-Schedules now a {transform}.
+Instantly runs a {transform} to process data.
 
 [[schedule-now-transform-request]]
 == {api-request-title}
@@ -21,13 +21,14 @@ Schedules now a {transform}.
 * Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
 
-[schedule-now-transform-desc]]
+[[schedule-now-transform-desc]]
 == {api-description-title}
 
-If you _schedule_now a {transform}, it will process the new data instantly,
-without waiting for the configured `frequency` interval.
-After _schedule_now API is called, the transform will be processed again at
-`now + frequency` unless _schedule_now API is called again in the meantime.
+When you run this API, processing for the next checkpoint is started immediately 
+without waiting for the configured `frequency` interval. The API returns 
+immediately, data processing happens in the background. Subsequently, the 
+{transform} will be processed again at `now + frequency` unless the API is 
+called again in the meantime.
 
 [[schedule-now-transform-path-parms]]
 == {api-path-parms-title}

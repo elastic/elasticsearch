@@ -71,7 +71,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
             );
 
         IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-        idea.getModule().getTestSourceDirs().addAll(testSourceSet.getJava().getSrcDirs());
+        idea.getModule().getTestSources().from(testSourceSet.getJava().getSrcDirs());
         idea.getModule()
             .getScopes()
             .put(

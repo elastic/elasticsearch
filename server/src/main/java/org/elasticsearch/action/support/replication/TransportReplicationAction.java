@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -265,7 +265,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -329,10 +329,7 @@ public abstract class TransportReplicationAction<
 
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable releasable = checkOperationLimits(request);
-        ActionListener<Response> listener = ActionListener.runBefore(
-            new ChannelActionListener<>(channel, actionName, request),
-            releasable::close
-        );
+        ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
         runReroutePhase(task, request, listener, false);
     }
 
@@ -346,10 +343,7 @@ public abstract class TransportReplicationAction<
             request.sentFromLocalReroute(),
             request.localRerouteInitiatedByNodeClient()
         );
-        ActionListener<Response> listener = ActionListener.runBefore(
-            new ChannelActionListener<>(channel, transportPrimaryAction, request),
-            releasable::close
-        );
+        ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
         try {
             new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
@@ -489,6 +483,7 @@ public abstract class TransportReplicationAction<
                             }
                         }
 
+                        assert primaryShardReference.indexShard.isPrimaryMode();
                         primaryShardReference.close(); // release shard operation lock before responding to caller
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);
@@ -589,10 +584,7 @@ public abstract class TransportReplicationAction<
         final Task task
     ) {
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
-        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(
-            new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest),
-            releasable::close
-        );
+        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
         try {
             new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
@@ -1066,7 +1058,7 @@ public abstract class TransportReplicationAction<
         final Request request,
         final ActionListener<Releasable> onAcquired
     ) {
-        primary.acquirePrimaryOperationPermit(onAcquired, executor, request, forceExecutionOnPrimary);
+        primary.acquirePrimaryOperationPermit(onAcquired, executor, forceExecutionOnPrimary);
     }
 
     /**
@@ -1081,7 +1073,7 @@ public abstract class TransportReplicationAction<
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes
     ) {
-        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor, request);
+        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor);
     }
 
     class PrimaryShardReference
@@ -1342,6 +1334,16 @@ public abstract class TransportReplicationAction<
         @Override
         public TaskId getParentTask() {
             return request.getParentTask();
+        }
+
+        @Override
+        public void setRequestId(long requestId) {
+            request.setRequestId(requestId);
+        }
+
+        @Override
+        public long getRequestId() {
+            return request.getRequestId();
         }
 
         @Override

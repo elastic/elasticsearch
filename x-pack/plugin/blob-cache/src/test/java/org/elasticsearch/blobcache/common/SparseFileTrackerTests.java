@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -53,7 +54,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", length);
 
         final AtomicBoolean invoked = new AtomicBoolean(false);
-        final ActionListener<Void> listener = ActionListener.wrap(() -> invoked.set(true));
+        final ActionListener<Void> listener = ActionListener.running(() -> invoked.set(true));
         assertThat(invoked.get(), is(false));
 
         IllegalArgumentException e = expectThrows(
@@ -142,10 +143,14 @@ public class SparseFileTrackerTests extends ESTestCase {
         if (pending) {
             final AtomicBoolean expectNotification = new AtomicBoolean();
             final AtomicBoolean wasNotified = new AtomicBoolean();
-            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, range, ActionListener.wrap(ignored -> {
-                assertTrue(expectNotification.get());
-                assertTrue(wasNotified.compareAndSet(false, true));
-            }, e -> { throw new AssertionError(e); }));
+            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
+                range,
+                range,
+                ActionTestUtils.assertNoFailureListener(ignored -> {
+                    assertTrue(expectNotification.get());
+                    assertTrue(wasNotified.compareAndSet(false, true));
+                })
+            );
             for (int gapIndex = 0; gapIndex < gaps.size(); gapIndex++) {
                 final SparseFileTracker.Gap gap = gaps.get(gapIndex);
                 assertThat(gap.start(), greaterThanOrEqualTo(start));
@@ -173,7 +178,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
             range,
             range,
-            ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> { throw new AssertionError(e); })
+            ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(wasNotified.compareAndSet(false, true)))
         );
         assertThat(gaps, empty());
         assertTrue(wasNotified.get());
@@ -214,9 +219,8 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         if (pending == false) {
             final AtomicBoolean wasNotified = new AtomicBoolean();
-            final ActionListener<Void> listener = ActionListener.wrap(
-                ignored -> assertTrue(wasNotified.compareAndSet(false, true)),
-                e -> { throw new AssertionError(e); }
+            final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(
+                ignored -> assertTrue(wasNotified.compareAndSet(false, true))
             );
             final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, subRange, listener);
 
@@ -243,18 +247,21 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         } else {
             final AtomicBoolean waitIfPendingWasNotified = new AtomicBoolean();
-            final ActionListener<Void> waitIfPendingListener = ActionListener.wrap(
-                ignored -> assertTrue(waitIfPendingWasNotified.compareAndSet(false, true)),
-                e -> { throw new AssertionError(e); }
+            final ActionListener<Void> waitIfPendingListener = ActionTestUtils.assertNoFailureListener(
+                ignored -> assertTrue(waitIfPendingWasNotified.compareAndSet(false, true))
             );
             assertFalse(sparseFileTracker.waitForRangeIfPending(subRange, waitIfPendingListener));
 
             final AtomicBoolean wasNotified = new AtomicBoolean();
             final AtomicBoolean expectNotification = new AtomicBoolean();
-            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, subRange, ActionListener.wrap(ignored -> {
-                assertTrue(expectNotification.get());
-                assertTrue(wasNotified.compareAndSet(false, true));
-            }, e -> { throw new AssertionError(e); }));
+            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
+                range,
+                subRange,
+                ActionTestUtils.assertNoFailureListener(ignored -> {
+                    assertTrue(expectNotification.get());
+                    assertTrue(wasNotified.compareAndSet(false, true));
+                })
+            );
 
             assertFalse("Listener should not have been executed yet", wasNotified.get());
 
@@ -322,7 +329,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
             range,
             subRange,
-            ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> { throw new AssertionError(e); })
+            ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(wasNotified.compareAndSet(false, true)))
         );
         assertThat(gaps, empty());
         assertTrue(wasNotified.get());

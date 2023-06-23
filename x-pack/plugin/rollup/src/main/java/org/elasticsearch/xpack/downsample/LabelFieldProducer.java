@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * Class that produces values for a label field.
  */
-abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
+abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
 
     LabelFieldProducer(String name) {
         super(name);

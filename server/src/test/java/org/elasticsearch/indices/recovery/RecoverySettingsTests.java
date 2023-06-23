@@ -26,10 +26,12 @@ import org.elasticsearch.test.MockLogAppender;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.DEFAULT_FACTOR_VALUE;
 import static org.elasticsearch.indices.recovery.RecoverySettings.DEFAULT_MAX_BYTES_PER_SEC;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
@@ -44,6 +46,9 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_SETTINGS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.elasticsearch.test.MockLogAppender.LoggingExpectation;
+import static org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
+import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -98,6 +103,87 @@ public class RecoverySettingsTests extends ESTestCase {
         assertThat(recoverySettings.tryAcquireSnapshotDownloadPermits(), is(notNullValue()));
         assertThat(recoverySettings.tryAcquireSnapshotDownloadPermits(), is(nullValue()));
         permit.close();
+    }
+
+    public void testInsufficientNumberOfPermitsMessage() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.getKey(), 5)
+                .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 3)
+                .build(),
+            clusterSettings
+        );
+
+        final String expectedMessage = String.format(
+            Locale.ROOT,
+            """
+                Unable to acquire permit to use snapshot files during recovery, so this recovery will recover index files from \
+                the source node. Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [2]. \
+                Current values of [%s] = [5], [%s] = [2]
+                """,
+            INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+            INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.getKey(),
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey()
+        );
+
+        final LoggingExpectation expectation = new SeenEventExpectation(
+            "WARN-Capture",
+            RecoverySettings.class.getCanonicalName(),
+            Level.WARN,
+            expectedMessage
+        );
+
+        assertThatLogger(() -> {
+            // Allow the first recovery to obtain a permit
+            Releasable permit = recoverySettings.tryAcquireSnapshotDownloadPermits();
+            assertThat(permit, is(notNullValue()));
+
+            // Deny the second recovery to get the permit
+            assertThat(recoverySettings.tryAcquireSnapshotDownloadPermits(), is(nullValue()));
+
+        }, RecoverySettings.class, expectation);
+    }
+
+    public void testToManyRecoveriesSettingsMessage() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.getKey(), 5)
+                .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 20)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 3)
+                .build(),
+            clusterSettings
+        );
+
+        final String expectedMessage = String.format(
+            Locale.ROOT,
+            """
+                Unable to acquire permit to use snapshot files during recovery, so this recovery will recover index files from \
+                the source node. Ensure snapshot files can be used during recovery by reducing [%s] from its current value of \
+                [20] to be no greater than [5], or disable snapshot-based recovery by setting [%s] to [false]
+                """,
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+            INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey()
+        );
+
+        final LoggingExpectation expectation = new SeenEventExpectation(
+            "WARN-Capture",
+            RecoverySettings.class.getCanonicalName(),
+            Level.WARN,
+            expectedMessage
+        );
+
+        assertThatLogger(() -> {
+            // Allow the first recovery to obtain a permit
+            Releasable permit = recoverySettings.tryAcquireSnapshotDownloadPermits();
+            assertThat(permit, is(notNullValue()));
+
+            // Deny the second recovery to get the permit
+            assertThat(recoverySettings.tryAcquireSnapshotDownloadPermits(), is(nullValue()));
+
+        }, RecoverySettings.class, expectation);
     }
 
     public void testMaxConcurrentSnapshotFileDownloadsPerNodeIsValidated() {
@@ -432,10 +518,6 @@ public class RecoverySettingsTests extends ESTestCase {
             Loggers.removeAppender(logger, mockAppender);
             mockAppender.stop();
         }
-    }
-
-    private static ByteSizeValue randomByteSizeValue() {
-        return ByteSizeValue.ofBytes(randomLongBetween(0L, Long.MAX_VALUE >> 16));
     }
 
     private static ByteSizeValue randomNonZeroByteSizeValue() {

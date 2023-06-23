@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ql;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -31,6 +32,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -141,6 +146,14 @@ public final class TestUtils {
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+    public static WildcardLike wildcardLike(Expression left, String exp) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    }
+
+    public static RLike rlike(Expression left, String exp) {
+        return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -288,10 +301,23 @@ public final class TestUtils {
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         TestNodes nodes = new TestNodes();
         for (String id : nodesAsMap.keySet()) {
+            Version nodeVersion = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+
+            Object tvField;
+            TransportVersion transportVersion = null;
+            if (nodeVersion.before(Version.V_8_8_0)) {
+                transportVersion = TransportVersion.fromId(nodeVersion.id);   // no transport_version field
+            } else if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // in which case the transport_version field won't exist. Just ignore it for now.
+                transportVersion = TransportVersion.fromString(tvField.toString());
+            }
+
             nodes.add(
                 new TestNode(
                     id,
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    nodeVersion,
+                    transportVersion,
                     HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
                 )
             );

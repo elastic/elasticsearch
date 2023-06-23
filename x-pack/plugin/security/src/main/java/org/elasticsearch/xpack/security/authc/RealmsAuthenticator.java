@@ -165,7 +165,8 @@ class RealmsAuthenticator implements Authenticator {
                         // the user was not authenticated, call this so we can audit the correct event
                         context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
                         if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                            if (result.getException() != null) {
+                            final var resultException = result.getException();
+                            if (resultException != null) {
                                 logger.info(
                                     () -> format(
                                         "Authentication of [%s] was terminated by realm [%s] - %s",
@@ -173,8 +174,9 @@ class RealmsAuthenticator implements Authenticator {
                                         realm.name(),
                                         result.getMessage()
                                     ),
-                                    result.getException()
+                                    resultException
                                 );
+                                userListener.onFailure(resultException);
                             } else {
                                 logger.info(
                                     "Authentication of [{}] was terminated by realm [{}] - {}",
@@ -182,8 +184,8 @@ class RealmsAuthenticator implements Authenticator {
                                     realm.name(),
                                     result.getMessage()
                                 );
+                                userListener.onFailure(AuthenticationTerminatedSuccessfullyException.INSTANCE);
                             }
-                            userListener.onFailure(result.getException());
                         } else {
                             if (result.getMessage() != null) {
                                 messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
@@ -220,10 +222,11 @@ class RealmsAuthenticator implements Authenticator {
                     );
                 }
             }, e -> {
-                if (e != null) {
-                    listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
-                } else {
+                if (e == AuthenticationTerminatedSuccessfullyException.INSTANCE) {
                     listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
+                } else {
+                    assert e instanceof AuthenticationTerminatedSuccessfullyException == false : e;
+                    listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
                 }
             }), context.getThreadContext()),
             realmAuthenticatingConsumer,
@@ -351,5 +354,15 @@ class RealmsAuthenticator implements Authenticator {
             }
         }
         return orderedRealmList;
+    }
+
+    private static class AuthenticationTerminatedSuccessfullyException extends Exception {
+        static AuthenticationTerminatedSuccessfullyException INSTANCE = new AuthenticationTerminatedSuccessfullyException();
+
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            // singleton instance used solely for control flow, so a stack trace is meaningless
+            return this;
+        }
     }
 }

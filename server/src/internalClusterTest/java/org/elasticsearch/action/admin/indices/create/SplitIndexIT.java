@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -72,19 +73,19 @@ public class SplitIndexIT extends ESIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92183")
     public void testCreateSplitIndexToN() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
+
         int[][] possibleShardSplits = new int[][] { { 2, 4, 8 }, { 3, 6, 12 }, { 1, 2, 4 } };
         int[] shardSplits = randomFrom(possibleShardSplits);
         splitToN(shardSplits[0], shardSplits[1], shardSplits[2]);
     }
 
     public void testSplitFromOneToN() {
-
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
 
         splitToN(1, 5, 10);
-        client().admin().indices().prepareDelete("*").get();
+        indicesAdmin().prepareDelete("*").get();
         int randomSplit = randomIntBetween(2, 6);
         splitToN(1, randomSplit, randomSplit * 2);
     }
@@ -109,7 +110,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             useRoutingPartition = randomBoolean();
         }
         if (useRouting && useMixedRouting == false && useRoutingPartition) {
-            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(secondSplitShards, Version.CURRENT) - 1;
+            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(secondSplitShards, IndexVersion.CURRENT) - 1;
             settings.put("index.routing_partition_size", randomIntBetween(1, numRoutingShards));
             if (useNested) {
                 createInitialIndex.setMapping("_routing", "required=true", "nested1", "type=nested");
@@ -176,19 +177,14 @@ public class SplitIndexIT extends ESIntegTestCase {
         }
 
         ensureYellow();
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
-        Settings.Builder firstSplitSettingsBuilder = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", firstSplitShards)
-            .putNull("index.blocks.write");
+        Settings.Builder firstSplitSettingsBuilder = indexSettings(firstSplitShards, 0).putNull("index.blocks.write");
         if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
             firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
         }
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareResizeIndex("source", "first_split")
+            indicesAdmin().prepareResizeIndex("source", "first_split")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(firstSplitSettingsBuilder.build())
                 .get()
@@ -212,25 +208,13 @@ public class SplitIndexIT extends ESIntegTestCase {
             assertTrue(getResponse.isExists());
         }
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("first_split")
-            .setSettings(Settings.builder().put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "first_split");
         ensureGreen();
         // now split source into a new index
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareResizeIndex("first_split", "second_split")
+            indicesAdmin().prepareResizeIndex("first_split", "second_split")
                 .setResizeType(ResizeType.SPLIT)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", secondSplitShards)
-                        .putNull("index.blocks.write")
-                        .build()
-                )
+                .setSettings(indexSettings(secondSplitShards, 0).putNull("index.blocks.write").build())
                 .get()
         );
         ensureGreen();
@@ -238,11 +222,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertNoResizeSourceIndexSettings("second_split");
 
         // let it be allocated anywhere and bump replicas
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("second_split")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-            .get();
+        setReplicaCount(1, "second_split");
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
 
@@ -340,27 +320,15 @@ public class SplitIndexIT extends ESIntegTestCase {
             }
         }
 
-        final Settings.Builder prepareSplitSettings = Settings.builder().put("index.blocks.write", true);
-        client().admin().indices().prepareUpdateSettings("source").setSettings(prepareSplitSettings).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureYellow();
 
         final IndexMetadata indexMetadata = indexMetadata(client(), "source");
         final long beforeSplitPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetadata::primaryTerm).max().getAsLong();
 
         // now split source into target
-        final Settings splitSettings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", numberOfTargetShards)
-            .putNull("index.blocks.write")
-            .build();
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareResizeIndex("source", "target")
-                .setResizeType(ResizeType.SPLIT)
-                .setSettings(splitSettings)
-                .get()
-        );
+        final Settings splitSettings = indexSettings(numberOfTargetShards, 0).putNull("index.blocks.write").build();
+        assertAcked(indicesAdmin().prepareResizeIndex("source", "target").setResizeType(ResizeType.SPLIT).setSettings(splitSettings).get());
 
         ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to relocate many shards
 
@@ -391,41 +359,27 @@ public class SplitIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
 
-        final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").setSegments(true).get();
+        final IndicesStatsResponse sourceStats = indicesAdmin().prepareStats("source").setSegments(true).get();
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-            )
-            .get();
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         try {
 
             final boolean createWithReplicas = randomBoolean();
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareResizeIndex("source", "target")
+                indicesAdmin().prepareResizeIndex("source", "target")
                     .setResizeType(ResizeType.SPLIT)
-                    .setSettings(
-                        Settings.builder()
-                            .put("index.number_of_replicas", createWithReplicas ? 1 : 0)
-                            .put("index.number_of_shards", 2)
-                            .putNull("index.blocks.write")
-                            .build()
-                    )
+                    .setSettings(indexSettings(2, createWithReplicas ? 1 : 0).putNull("index.blocks.write").build())
                     .get()
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
 
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final ClusterState state = clusterAdmin().prepareState().get().getState();
             DiscoveryNode mergeNode = state.nodes().get(state.getRoutingTable().index("target").shard(0).primaryShard().currentNodeId());
             logger.info("split node {}", mergeNode);
 
@@ -443,7 +397,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .max()
                 .getAsLong();
 
-            final IndicesStatsResponse targetStats = client().admin().indices().prepareStats("target").get();
+            final IndicesStatsResponse targetStats = indicesAdmin().prepareStats("target").get();
             for (final ShardStats shardStats : targetStats.getShards()) {
                 final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                 final ShardRouting shardRouting = shardStats.getShardRouting();
@@ -461,11 +415,7 @@ public class SplitIndexIT extends ESIntegTestCase {
 
             if (createWithReplicas == false) {
                 // bump replicas
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("target")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                    .get();
+                setReplicaCount(1, "target");
                 ensureGreen();
                 assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
             }
@@ -479,17 +429,13 @@ public class SplitIndexIT extends ESIntegTestCase {
                 2 * docs
             );
             assertHitCount(client().prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
-            GetSettingsResponse target = client().admin().indices().prepareGetSettings("target").get();
+            GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
             assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
         } finally {
             // clean up
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
-                )
-                .get();
+            updateClusterSettings(
+                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+            );
         }
 
     }
@@ -521,45 +467,29 @@ public class SplitIndexIT extends ESIntegTestCase {
         flushAndRefresh();
         assertSortedSegments("source", expectedIndexSort);
 
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureYellow();
 
         // check that index sort cannot be set on the target index
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareResizeIndex("source", "target")
+            () -> indicesAdmin().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 4)
-                        .put("index.sort.field", "foo")
-                        .build()
-                )
+                .setSettings(indexSettings(4, 0).put("index.sort.field", "foo").build())
                 .get()
         );
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
 
         // check that the index sort order of `source` is correctly applied to the `target`
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareResizeIndex("source", "target")
+            indicesAdmin().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 4)
-                        .putNull("index.blocks.write")
-                        .build()
-                )
+                .setSettings(indexSettings(4, 0).putNull("index.blocks.write").build())
                 .get()
         );
         ensureGreen();
         flushAndRefresh();
-        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("target").execute().actionGet();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").execute().actionGet();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);

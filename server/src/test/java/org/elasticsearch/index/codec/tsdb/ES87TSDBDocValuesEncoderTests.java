@@ -17,14 +17,15 @@ import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
 
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
     private final ES87TSDBDocValuesEncoder encoder;
-    private final int blockSize = ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE;
+    private final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
     public ES87TSDBDocValuesEncoderTests() {
-        this.encoder = new ES87TSDBDocValuesEncoder(blockSize);
+        this.encoder = new ES87TSDBDocValuesEncoder();
     }
 
     public void testRandomValues() throws IOException {
@@ -133,6 +134,41 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         final long expectedNumBytes = 10 // token + GCD (9 byte)
             + (blockSize * 1) / Byte.SIZE; // data
         doTest(arr, expectedNumBytes);
+    }
+
+    public void testFloatingPointValues() throws IOException {
+        long[] arr = new long[blockSize];
+        // NOTE: these values are crafted in such a way that after applying GCD encoding we get values represented using 36 bits per value.
+        for (int i = 0; i < blockSize; ++i) {
+            double value = (i % 2 == 1) ? (i * 1956.0) : (i * 356923.5);
+            arr[i] = Double.doubleToLongBits(value);
+        }
+        // NOTE: 36 bits per value strictly required, but we round to 40 bits per value to write exactly 5 bytes per value
+        final long expectedNumBytes = 6 // token (2 bytes) + GCD (4 bytes)
+            + (blockSize * 40) / Byte.SIZE; // data
+        doTest(arr, expectedNumBytes);
+    }
+
+    public void testBitsPerValueFullRange() throws IOException {
+        final Random random = new Random(17);
+        long[] arr = new long[blockSize];
+        long constant = 1;
+        for (int bitsPerValue = 0; bitsPerValue <= 64; bitsPerValue++) {
+            for (int i = 0; i < blockSize; ++i) {
+                if (bitsPerValue == 0) {
+                    arr[i] = constant;
+                } else {
+                    arr[i] = random.nextLong(0, bitsPerValue <= 62 ? 1L << bitsPerValue : Long.MAX_VALUE);
+                }
+            }
+            long actualBitsPerValue = DocValuesForUtil.roundBits(bitsPerValue);
+            int actualTokenBytes = bitsPerValue < 16 ? 1 : 2;
+            final long expectedNumBytes = bitsPerValue == 0
+                ? 2
+                : actualTokenBytes // token
+                    + (blockSize * actualBitsPerValue) / Byte.SIZE; // data
+            doTest(arr, expectedNumBytes);
+        }
     }
 
     private void doTest(long[] arr, long expectedNumBytes) throws IOException {

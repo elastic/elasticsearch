@@ -26,7 +26,7 @@ public class RemoteClusterPortSettingsIT extends ESIntegTestCase {
         final Settings.Builder builder = Settings.builder()
             .put(randomBoolean() ? masterNode() : dataOnlyNode())
             .put("discovery.initial_state_timeout", "1s")
-            .put("remote_cluster.enabled", true);
+            .put("remote_cluster_server.enabled", true);
 
         // Test that the same error message is always reported for direct usage of the _remote_cluster profile
         switch (randomIntBetween(0, 2)) {

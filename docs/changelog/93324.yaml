@@ -1,6 +1,0 @@
-pr: 93324
-summary: Fix data counts race condition when starting a datafeed
-area: Machine Learning
-type: bug
-issues:
- - 93298

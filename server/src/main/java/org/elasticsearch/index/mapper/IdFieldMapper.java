@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
@@ -69,6 +70,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * the {@code _id} so it can be fetched easily from the index.
      */
     public static Field standardIdField(String id) {
-        return new Field(NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+        return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
     }
 }

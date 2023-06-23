@@ -14,7 +14,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -130,8 +130,8 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
@@ -148,26 +148,13 @@ public class MultiPhrasePrefixQuery extends Query {
         int position = positions.get(sizeMinus1);
         Set<Term> terms = new HashSet<>();
         for (Term term : suffixTerms) {
-            getPrefixTerms(terms, term, reader);
+            getPrefixTerms(terms, term, searcher.getIndexReader());
             if (terms.size() > maxExpansions) {
                 break;
             }
         }
         if (terms.isEmpty()) {
-            if (sizeMinus1 == 0) {
-                // no prefix and the phrase query is empty
-                return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
-            }
-
-            // Hack so that the Unified Highlighter can still extract the original terms from this query
-            // after rewriting, even though it would normally become a MatchNoDocsQuery against an empty
-            // index
-            return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
-                .add(
-                    new NoRewriteMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
-                    BooleanClause.Occur.MUST
-                )
-                .build();
+            return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
         }
         query.add(terms.toArray(new Term[0]), position);
         return query.build();

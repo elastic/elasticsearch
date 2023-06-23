@@ -469,8 +469,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         this.indexSnapshotDetails = Map.copyOf(indexSnapshotDetails);
     }
 
-    public SnapshotInfo withoutIndices() {
-        if (indices.isEmpty()) {
+    public SnapshotInfo maybeWithoutIndices(boolean retainIndices) {
+        if (retainIndices || indices.isEmpty()) {
             return this;
         }
         return new SnapshotInfo(
@@ -515,10 +515,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         final Map<String, Object> userMetadata = in.readMap();
         final List<String> dataStreams = in.readImmutableStringList();
         final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
-        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(
-            StreamInput::readString,
-            IndexSnapshotDetails::new
-        );
+        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);
         return new SnapshotInfo(
             snapshot,
             indices,

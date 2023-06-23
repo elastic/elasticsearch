@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -87,7 +88,10 @@ public class VectorHighlighterTests extends ESTestCase {
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
 
         PrefixQuery prefixQuery = new PrefixQuery(new Term("content", "ba"));
-        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_REWRITE.getClass().getName()));
+        assertThat(
+            prefixQuery.getRewriteMethod().getClass().getName(),
+            equalTo(PrefixQuery.CONSTANT_SCORE_BLENDED_REWRITE.getClass().getName())
+        );
         String fragment = highlighter.getBestFragment(
             highlighter.getFieldQuery(prefixQuery),
             reader,
@@ -96,15 +100,17 @@ public class VectorHighlighterTests extends ESTestCase {
             30
         );
         assertThat(fragment, nullValue());
-
-        prefixQuery.setRewriteMethod(PrefixQuery.SCORING_BOOLEAN_REWRITE);
-        Query rewriteQuery = prefixQuery.rewrite(reader);
+        prefixQuery = new PrefixQuery(new Term("content", "ba"), MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+        Query rewriteQuery = prefixQuery.rewrite(searcher);
         fragment = highlighter.getBestFragment(highlighter.getFieldQuery(rewriteQuery), reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
 
         // now check with the custom field query
         prefixQuery = new PrefixQuery(new Term("content", "ba"));
-        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_REWRITE.getClass().getName()));
+        assertThat(
+            prefixQuery.getRewriteMethod().getClass().getName(),
+            equalTo(PrefixQuery.CONSTANT_SCORE_BLENDED_REWRITE.getClass().getName())
+        );
         fragment = highlighter.getBestFragment(
             new CustomFieldQuery(prefixQuery, reader, highlighter),
             reader,

@@ -47,12 +47,8 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        1,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(1, 0, 10, -1);
 
     public static final ObjectParser<MultiTermsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -154,6 +150,11 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     @Override
     public boolean supportsSampling() {
         return true;
+    }
+
+    @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
     }
 
     /**

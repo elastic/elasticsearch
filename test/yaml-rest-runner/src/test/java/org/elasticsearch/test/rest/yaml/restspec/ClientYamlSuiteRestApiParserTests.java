@@ -156,6 +156,35 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
+    public void testParseRestSpecDeprecatedApi() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, REST_SPEC_DEPRECATED_ENDPOINT);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("indices.get_template.json", parser);
+        assertThat(restApi, notNullValue());
+        assertThat(restApi.getName(), equalTo("indices.get_template"));
+        assertThat(restApi.getPaths().size(), equalTo(2));
+        Iterator<ClientYamlSuiteRestApi.Path> iterator = restApi.getPaths().iterator();
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.path(), equalTo("/_template"));
+            assertThat(next.methods().length, equalTo(1));
+            assertThat(next.methods()[0], equalTo("GET"));
+            assertEquals(0, next.parts().size());
+        }
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.path(), equalTo("/_template/{name}"));
+            assertThat(next.methods().length, equalTo(1));
+            assertThat(next.methods()[0], equalTo("GET"));
+            assertThat(next.parts().size(), equalTo(1));
+            assertThat(next.parts(), contains("name"));
+        }
+        assertThat(restApi.getParams().size(), equalTo(0));
+        assertThat(restApi.isBodySupported(), equalTo(false));
+        assertThat(restApi.isBodyRequired(), equalTo(false));
+        assertThat(restApi.getRequestMimeTypes(), nullValue());
+        assertThat(restApi.getResponseMimeTypes(), containsInAnyOrder("application/json"));
+    }
+
     private static final String REST_SPEC_COUNT_API = """
         {
           "count":{
@@ -349,6 +378,46 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
               "description":"The document",
               "content_type": ["application/json"],
               "required":true
+            }
+          }
+        }
+        """;
+
+    private static final String REST_SPEC_DEPRECATED_ENDPOINT = """
+        {
+          "indices.get_template":{
+            "documentation":{
+              "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+              "description":"Returns an index template."
+            },
+            "headers": { "accept": ["application/json"] },
+            "stability": "stable",
+            "visibility": "public",
+            "deprecated" : {
+              "description" : "deprecated api",
+              "version" : "8.4.0"
+            },
+            "url":{
+              "paths":[
+                {
+                  "path":"/_template",
+                  "methods":[
+                    "GET"
+                  ]
+                },
+                {
+                  "path":"/_template/{name}",
+                  "methods":[
+                    "GET"
+                  ],
+                  "parts":{
+                    "name":{
+                      "type":"list",
+                      "description":"The comma separated names of the index templates"
+                    }
+                  }
+                }
+              ]
             }
           }
         }

@@ -63,7 +63,7 @@ public class InboundDecoder implements Releasable {
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(version, messageLength, reference);
+                    Header header = readHeader(messageLength, reference);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -171,23 +171,24 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    // exposed for use in tests
-    static Header readHeader(TransportVersion version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    private static Header readHeader(int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
-            TransportVersion remoteVersion = TransportVersion.fromId(streamInput.readInt());
-            Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
-            final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
-            if (invalidVersion != null) {
-                throw invalidVersion;
+            int remoteVersion = streamInput.readInt();
+
+            Header header = new Header(networkMessageSize, requestId, status, TransportVersion.fromId(remoteVersion));
+            if (header.isHandshake()) {
+                checkHandshakeVersionCompatibility(header.getVersion());
             } else {
-                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    // Skip since we already have ensured enough data available
-                    streamInput.readInt();
-                    header.finishParsingHeader(streamInput);
-                }
+                checkVersionCompatibility(header.getVersion());
+            }
+
+            if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                // Skip since we already have ensured enough data available
+                streamInput.readInt();
+                header.finishParsingHeader(streamInput);
             }
             return header;
         }
@@ -203,23 +204,26 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    static IllegalStateException ensureVersionCompatibility(
-        TransportVersion remoteVersion,
-        TransportVersion currentVersion,
-        boolean isHandshake
-    ) {
-        // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
-        // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
-        // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
-        // once the connection is established
-        final TransportVersion compatibilityVersion = isHandshake ? currentVersion.calculateMinimumCompatVersion() : currentVersion;
-        if (remoteVersion.isCompatible(compatibilityVersion) == false) {
-            final TransportVersion minCompatibilityVersion = isHandshake
-                ? compatibilityVersion
-                : compatibilityVersion.calculateMinimumCompatVersion();
-            String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
-            return new IllegalStateException(msg + remoteVersion + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
+    static void checkHandshakeVersionCompatibility(TransportVersion handshakeVersion) {
+        if (TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS.contains(handshakeVersion) == false) {
+            throw new IllegalStateException(
+                "Received message from unsupported version: ["
+                    + handshakeVersion
+                    + "] allowed versions are: "
+                    + TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS
+            );
         }
-        return null;
+    }
+
+    static void checkVersionCompatibility(TransportVersion remoteVersion) {
+        if (TransportVersion.isCompatible(remoteVersion) == false) {
+            throw new IllegalStateException(
+                "Received message from unsupported version: ["
+                    + remoteVersion
+                    + "] minimal compatible version is: ["
+                    + TransportVersion.MINIMUM_COMPATIBLE
+                    + "]"
+            );
+        }
     }
 }

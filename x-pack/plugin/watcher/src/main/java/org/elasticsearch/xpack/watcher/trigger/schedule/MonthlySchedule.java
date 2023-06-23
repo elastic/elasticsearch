@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -62,11 +62,7 @@ public class MonthlySchedule extends CronnableSchedule {
 
     static String[] crons(MonthTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        Set<String> crons = Sets.newHashSetWithExpectedSize(times.length);
-        for (MonthTimes time : times) {
-            crons.addAll(time.crons());
-        }
-        return crons.toArray(new String[crons.size()]);
+        return Arrays.stream(times).flatMap(mt -> mt.crons().stream()).distinct().toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<MonthlySchedule> {
@@ -95,7 +91,7 @@ public class MonthlySchedule extends CronnableSchedule {
                         throw new ElasticsearchParseException("could not parse [{}] schedule. invalid month times", pe, TYPE);
                     }
                 }
-                return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(new MonthTimes[times.size()]));
+                return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(MonthTimes[]::new));
             }
             throw new ElasticsearchParseException(
                 "could not parse [{}] schedule. expected either an object or an array "
@@ -122,7 +118,7 @@ public class MonthlySchedule extends CronnableSchedule {
         }
 
         public MonthlySchedule build() {
-            return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(new MonthTimes[times.size()]));
+            return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(MonthTimes[]::new));
         }
     }
 

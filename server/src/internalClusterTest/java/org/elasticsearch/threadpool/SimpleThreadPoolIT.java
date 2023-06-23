@@ -83,7 +83,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 || threadName.contains("Keep-Alive-Timer")
                 || threadName.contains("readiness-service")
                 || threadName.contains("JVMCI-native") // GraalVM Compiler Thread
-                || threadName.contains("file-settings-watcher")
+                || threadName.contains("file-watcher[") // AbstractFileWatchingService
                 || threadName.contains("FileSystemWatch")) { // FileSystemWatchService(Linux/Windows), FileSystemWatcher(BSD/AIX)
                 continue;
             }

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -22,7 +23,7 @@ import java.util.function.BiFunction;
  * result to get the piggybacked queue size and service time EWMA, adding those
  * values to the coordinating nodes' {@link ResponseCollectorService}.
  */
-public final class SearchExecutionStatsCollector extends ActionListener.Delegating<SearchPhaseResult, SearchPhaseResult> {
+public final class SearchExecutionStatsCollector extends DelegatingActionListener<SearchPhaseResult, SearchPhaseResult> {
 
     private final String nodeId;
     private final ResponseCollectorService collector;

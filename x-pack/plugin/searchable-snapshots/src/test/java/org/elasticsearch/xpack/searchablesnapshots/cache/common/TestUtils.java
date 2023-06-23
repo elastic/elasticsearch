@@ -17,6 +17,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -226,6 +227,16 @@ public final class TestUtils {
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
             throw unsupportedException();
+        }
+
+        @Override
+        public void compareAndExchangeRegister(
+            String key,
+            BytesReference expected,
+            BytesReference updated,
+            ActionListener<OptionalBytesReference> listener
+        ) {
+            listener.onFailure(unsupportedException());
         }
 
         private UnsupportedOperationException unsupportedException() {

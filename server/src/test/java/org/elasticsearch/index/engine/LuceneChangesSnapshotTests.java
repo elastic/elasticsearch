@@ -9,11 +9,11 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
@@ -61,7 +61,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int refreshedSeqNo = -1;
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(i, i + 5));
-            ParsedDocument doc = createParsedDoc(id, idFieldType, null, randomBoolean());
+            ParsedDocument doc = createParsedDoc(id, null, randomBoolean());
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
             } else {
@@ -90,7 +90,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -109,7 +109,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -134,7 +134,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -152,7 +152,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -175,7 +175,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -237,7 +237,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 false,
                 randomBoolean(),
                 accessStats,
-                Version.CURRENT
+                IndexVersion.CURRENT
             )
         ) {
             if (accessStats) {
@@ -264,7 +264,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int numOps = frequently() ? scaledRandomIntBetween(1, 1500) : scaledRandomIntBetween(5000, 20_000);
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(0, randomBoolean() ? 10 : numOps * 2));
-            ParsedDocument doc = createParsedDoc(id, idFieldType, randomAlphaOfLengthBetween(1, 5), randomBoolean());
+            ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5), randomBoolean());
             final Engine.Operation op;
             if (onPrimary) {
                 if (randomBoolean()) {
@@ -298,14 +298,14 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             int smallBatch = between(5, 9);
             long seqNo = 0;
             for (int i = 0; i < smallBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), idFieldType, null), 1, seqNo, true));
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
                 seqNo++;
             }
-            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), idFieldType, null), 1, 1000, true));
+            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), null), 1, 1000, true));
             seqNo = 11;
             int largeBatch = between(15, 100);
             for (int i = 0; i < largeBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), idFieldType, null), 1, seqNo, true));
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
                 seqNo++;
             }
             // disable optimization for a small batch

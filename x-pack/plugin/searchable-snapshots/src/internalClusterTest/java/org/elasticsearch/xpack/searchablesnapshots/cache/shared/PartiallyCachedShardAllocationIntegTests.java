@@ -86,7 +86,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         populateIndex(indexName, 10);
         ensureGreen(indexName);
         createFullSnapshot(fsRepoName, snapshotName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
@@ -103,16 +103,15 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93868")
     public void testPartialSearchableSnapshotNotAllocatedToNodesWithoutCache() throws Exception {
         final MountSearchableSnapshotRequest req = prepareMountRequest();
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
-        final ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        final ClusterState state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
         assertTrue(state.toString(), state.routingTable().index(req.mountedIndexName()).allPrimaryShardsUnassigned());
 
-        final ClusterAllocationExplanation explanation = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
             .setPrimary(true)
             .setIndex(req.mountedIndexName())
             .setShard(0)
@@ -146,7 +145,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(req.mountedIndexName());
 
-        final ClusterState state = client().admin().cluster().prepareState().clear().setNodes(true).setRoutingTable(true).get().getState();
+        final ClusterState state = clusterAdmin().prepareState().clear().setNodes(true).setRoutingTable(true).get().getState();
         final Set<String> newNodeIds = newNodeNames.stream().map(n -> state.nodes().resolveNode(n).getId()).collect(Collectors.toSet());
         for (ShardRouting shardRouting : state.routingTable().index(req.mountedIndexName()).shardsWithState(ShardRoutingState.STARTED)) {
             assertThat(state.toString(), newNodeIds, hasItem(shardRouting.currentNodeId()));
@@ -167,9 +166,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
 
         createIndex("other-index", Settings.builder().putNull(TIER_PREFERENCE).build());
         ensureGreen("other-index");
-        final RoutingNodes routingNodes = client().admin()
-            .cluster()
-            .prepareState()
+        final RoutingNodes routingNodes = clusterAdmin().prepareState()
             .clear()
             .setRoutingTable(true)
             .setNodes(true)
@@ -186,7 +183,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(req.mountedIndexName());
 
-        final ClusterState state = client().admin().cluster().prepareState().clear().setNodes(true).setRoutingTable(true).get().getState();
+        final ClusterState state = clusterAdmin().prepareState().clear().setNodes(true).setRoutingTable(true).get().getState();
         final Set<String> newNodeIds = newNodeNames.stream().map(n -> state.nodes().resolveNode(n).getId()).collect(Collectors.toSet());
         for (ShardRouting shardRouting : state.routingTable().index(req.mountedIndexName()).shardsWithState(ShardRoutingState.STARTED)) {
             assertThat(state.toString(), newNodeIds, hasItem(shardRouting.currentNodeId()));
@@ -196,15 +193,10 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91800")
     public void testPartialSearchableSnapshotDelaysAllocationUntilNodeCacheStatesKnown() throws Exception {
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        // forbid rebalancing, we want to check that the initial allocation is balanced
-                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder()
+                // forbid rebalancing, we want to check that the initial allocation is balanced
+                .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)
         );
 
         final MountSearchableSnapshotRequest req = prepareMountRequest();
@@ -254,9 +246,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
 
         assertBusy(() -> {
             try {
-                final ClusterAllocationExplanation explanation = client().admin()
-                    .cluster()
-                    .prepareAllocationExplain()
+                final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                     .setPrimary(true)
                     .setIndex(req.mountedIndexName())
                     .setShard(0)
@@ -281,9 +271,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
 
         // Still won't be allocated
         assertFalse(responseFuture.isDone());
-        final ClusterAllocationExplanation explanation = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
             .setPrimary(true)
             .setIndex(req.mountedIndexName())
             .setShard(0)
@@ -317,7 +305,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         assertFalse("should have failed before success", failurePermits.tryAcquire());
 
         final Map<String, Integer> shardCountsByNodeName = new HashMap<>();
-        final ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).setNodes(true).get().getState();
+        final ClusterState state = clusterAdmin().prepareState().clear().setRoutingTable(true).setNodes(true).get().getState();
         for (RoutingNode routingNode : state.getRoutingNodes()) {
             shardCountsByNodeName.put(
                 routingNode.node().getName(),
@@ -334,11 +322,6 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
 
     @After
     public void cleanUpSettings() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()))
-        );
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
     }
 }

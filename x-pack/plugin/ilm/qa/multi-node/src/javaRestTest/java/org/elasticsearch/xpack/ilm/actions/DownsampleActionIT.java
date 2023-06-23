@@ -109,15 +109,23 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
     }
 
-    private void createIndex(String index, String alias) throws IOException {
+    @Before
+    public void updatePollInterval() throws IOException {
+        updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
+    }
+
+    private void createIndex(String index, String alias, boolean isTimeSeries) throws IOException {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2006-01-08T23:40:53.384Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
             .put(LifecycleSettings.LIFECYCLE_NAME, policy);
+
+        if (isTimeSeries) {
+            settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2006-01-08T23:40:53.384Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+        }
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
@@ -140,13 +148,12 @@ public class DownsampleActionIT extends ESRestTestCase {
     }
 
     public void testRollupIndex() throws Exception {
-        createIndex(index, alias);
+        createIndex(index, alias, true);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
         updatePolicy(client(), index, policy);
-        updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
 
         String rollupIndex = waitAndGetRollupIndexName(client(), index);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);
@@ -168,7 +175,7 @@ public class DownsampleActionIT extends ESRestTestCase {
     }
 
     public void testRollupIndexInTheHotPhase() throws Exception {
-        createIndex(index, alias);
+        createIndex(index, alias, true);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         ResponseException e = expectThrows(
@@ -213,7 +220,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         client().performRequest(createTemplateRequest);
 
         // then create the index and index a document to trigger rollover
-        createIndex(originalIndex, alias);
+        createIndex(originalIndex, alias, true);
         index(
             client(),
             originalIndex,
@@ -278,6 +285,20 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
+    }
+
+    public void testRollupNonTSIndex() throws Exception {
+        createIndex(index, alias, false);
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        String phaseName = randomFrom("warm", "cold");
+        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
+        updatePolicy(client(), index, policy);
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
+        String rollupIndex = getRollupIndexName(client(), index);
+        assertNull("Rollup index should not have been created", rollupIndex);
+        assertTrue("Source index should not have been deleted", indexExists(index));
     }
 
     /**

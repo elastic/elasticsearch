@@ -35,6 +35,7 @@ public abstract class RetryableAction<Response> {
     private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final ThreadPool threadPool;
     private final long initialDelayMillis;
+    private final long maxDelayBoundMillis;
     private final long timeoutMillis;
     private final long startMillis;
     private final ActionListener<Response> finalListener;
@@ -60,16 +61,46 @@ public abstract class RetryableAction<Response> {
         ActionListener<Response> listener,
         String executor
     ) {
+        this(logger, threadPool, initialDelay, TimeValue.MAX_VALUE, timeoutValue, listener, executor);
+    }
+
+    public RetryableAction(
+        Logger logger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue maxDelayBound,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener
+    ) {
+        this(logger, threadPool, initialDelay, maxDelayBound, timeoutValue, listener, ThreadPool.Names.SAME);
+    }
+
+    public RetryableAction(
+        Logger logger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue maxDelayBound,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener,
+        String executor
+    ) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.initialDelayMillis = initialDelay.getMillis();
+        this.maxDelayBoundMillis = maxDelayBound.getMillis();
         if (initialDelayMillis < 1) {
             throw new IllegalArgumentException("Initial delay was less than 1 millisecond: " + initialDelay);
         }
+        if (maxDelayBoundMillis < initialDelayMillis) {
+            throw new IllegalArgumentException(
+                "Max delay bound [" + maxDelayBound + "] cannot be less than the initial delay [" + initialDelay + "]"
+            );
+        }
         this.timeoutMillis = timeoutValue.getMillis();
         this.startMillis = threadPool.relativeTimeInMillis();
-        this.finalListener = listener;
+        this.finalListener = ActionListener.assertOnce(listener);
         this.executor = executor;
+
     }
 
     public void run() {
@@ -104,8 +135,6 @@ public abstract class RetryableAction<Response> {
             @Override
             public void onRejection(Exception e) {
                 retryTask = null;
-                // TODO: The only implementations of this class use SAME which means the execution will not be
-                // rejected. Future implementations can adjust this functionality as needed.
                 onFailure(e);
             }
         };
@@ -116,11 +145,7 @@ public abstract class RetryableAction<Response> {
     public abstract boolean shouldRetry(Exception e);
 
     protected long calculateDelayBound(long previousDelayBound) {
-        return Math.min(previousDelayBound * 2, Integer.MAX_VALUE);
-    }
-
-    protected static long minimumDelayMillis() {
-        return 0L;
+        return Math.min(previousDelayBound * 2, maxDelayBoundMillis);
     }
 
     public void onFinished() {}
@@ -149,17 +174,30 @@ public abstract class RetryableAction<Response> {
         public void onFailure(Exception e) {
             if (shouldRetry(e)) {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
-                if (elapsedMillis >= timeoutMillis) {
+                long remainingMillis = timeoutMillis - elapsedMillis;
+                if (remainingMillis <= 0) {
                     logger.debug(() -> format("retryable action timed out after %s", TimeValue.timeValueMillis(elapsedMillis)), e);
                     onFinalFailure(e);
                 } else {
                     addException(e);
 
+                    // Adjust the max
                     final long nextDelayMillisBound = calculateDelayBound(delayMillisBound);
                     final RetryingListener retryingListener = new RetryingListener(nextDelayMillisBound, caughtExceptions);
                     final Runnable runnable = createRunnable(retryingListener);
                     int range = Math.toIntExact((delayMillisBound + 1) / 2);
-                    final long delayMillis = Randomness.get().nextInt(range) + delayMillisBound - range + 1L;
+                    long delayMillis = Randomness.get().nextInt(range) + delayMillisBound - range + 1L;
+
+                    long millisExceedingTimeout = delayMillis - remainingMillis;
+                    if (millisExceedingTimeout > 0) {
+                        long twentyPercent = (long) (timeoutMillis * .2);
+                        if (millisExceedingTimeout > twentyPercent) {
+                            // Adjust the actual delay to only exceed the timeout by 10-20%
+                            int tenPercent = Math.toIntExact((long) (timeoutMillis * .1));
+                            int delayBeyondTimeout = Randomness.get().nextInt(tenPercent) + tenPercent;
+                            delayMillis = remainingMillis + delayBeyondTimeout;
+                        }
+                    }
                     assert delayMillis > 0;
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);

@@ -112,12 +112,7 @@ public class PlainHighlighter implements Highlighter {
             queryMaxAnalyzedOffset
         );
 
-        textsToHighlight = HighlightUtils.loadFieldValues(
-            fieldType,
-            context.getSearchExecutionContext(),
-            hitContext,
-            fieldContext.forceSource
-        );
+        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext);
 
         int fragNumBase = 0;
         for (Object textToHighlight : textsToHighlight) {

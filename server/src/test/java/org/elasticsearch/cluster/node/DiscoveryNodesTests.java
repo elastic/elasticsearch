@@ -10,14 +10,16 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +27,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.IntFunction;
+import java.util.function.ObjLongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -160,9 +166,16 @@ public class DiscoveryNodesTests extends ESTestCase {
         final List<DiscoveryNode> returnedNodes = discoBuilder.build().mastersFirstStream().toList();
         assertEquals(returnedNodes.size(), inputNodes.size());
         assertEquals(new HashSet<>(returnedNodes), new HashSet<>(inputNodes));
-        final List<DiscoveryNode> sortedNodes = new ArrayList<>(returnedNodes);
-        Collections.sort(sortedNodes, Comparator.comparing(n -> n.isMasterNode() == false));
-        assertEquals(sortedNodes, returnedNodes);
+
+        boolean mastersOk = true;
+        final var message = returnedNodes.toString();
+        for (final var discoveryNode : returnedNodes) {
+            if (discoveryNode.isMasterNode()) {
+                assertTrue(message, mastersOk);
+            } else {
+                mastersOk = false;
+            }
+        }
     }
 
     public void testDeltaListsMultipleNodes() {
@@ -316,7 +329,7 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder("node_" + nodeId).name("name_" + nodeId).attributes(attributes).roles(roles).build();
     }
 
     private enum NodeSelector {
@@ -438,4 +451,81 @@ public class DiscoveryNodesTests extends ESTestCase {
         return stringBuilder.toString();
     }
 
+    public void testNodeLeftGeneration() {
+
+        final ObjLongConsumer<Consumer<DiscoveryNodes.Builder>> testHarness = new ObjLongConsumer<>() {
+            DiscoveryNodes discoveryNodes;
+
+            @Override
+            public void accept(Consumer<DiscoveryNodes.Builder> update, long expectedGeneration) {
+                final var builder = discoveryNodes == null ? DiscoveryNodes.builder() : DiscoveryNodes.builder(discoveryNodes);
+                update.accept(builder);
+                discoveryNodes = builder.build();
+                if (randomBoolean()) {
+                    try {
+                        discoveryNodes = copyWriteable(
+                            discoveryNodes,
+                            writableRegistry(),
+                            in -> DiscoveryNodes.readFrom(in, null),
+                            TransportVersion.current()
+                        );
+                    } catch (IOException e) {
+                        throw new AssertionError("unexpected", e);
+                    }
+                }
+                assertEquals(expectedGeneration, discoveryNodes.getNodeLeftGeneration());
+            }
+        };
+
+        final BiFunction<Integer, Version, DiscoveryNode> nodeVersionFactory = (i, v) -> new DiscoveryNode(
+            "name" + i,
+            "id" + i,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
+            v
+        );
+
+        final IntFunction<DiscoveryNode> nodeFactory = i -> nodeVersionFactory.apply(i, Version.CURRENT);
+
+        final var node0 = nodeVersionFactory.apply(0, VersionUtils.randomVersion(random()));
+        testHarness.accept(builder -> builder.add(node0), 0L);
+
+        final var node1 = nodeFactory.apply(1);
+        testHarness.accept(builder -> builder.add(node1), 0L);
+
+        // removing a node by ID increments the generation
+        testHarness.accept(builder -> builder.remove(node0.getId()), 1L);
+
+        // no-op removal by ID changes nothing
+        testHarness.accept(builder -> builder.remove("not-an-id"), 1L);
+
+        // no-op removal by instance changes nothing
+        final var node2 = nodeFactory.apply(2);
+        testHarness.accept(builder -> builder.remove(node2), 1L);
+
+        // adding another node changes nothing
+        testHarness.accept(builder -> builder.add(node2), 1L);
+
+        // and removing it by instance increments the generation
+        testHarness.accept(builder -> builder.remove(node2), 2L);
+
+        // if old nodes are present then the generation is forced to zero
+        final var node3 = nodeVersionFactory.apply(3, Version.V_8_8_0);
+        testHarness.accept(builder -> builder.add(node3), 0L);
+
+        // and it remains at zero while the old node is present
+        testHarness.accept(builder -> builder.remove(node1), 0L);
+
+        // but it starts incrementing again when the old node is removed
+        final var node4 = nodeFactory.apply(4);
+        testHarness.accept(builder -> builder.add(node4).remove(node3), 1L);
+
+        // removing multiple nodes at once increments it only by one
+        final var node5 = nodeFactory.apply(5);
+        final var node6 = nodeFactory.apply(6);
+        final var node7 = nodeFactory.apply(7);
+        testHarness.accept(builder -> builder.add(node5).add(node6).add(node7), 1L);
+        testHarness.accept(builder -> builder.remove(node5).remove(node6).remove(node7), 2L);
+    }
 }

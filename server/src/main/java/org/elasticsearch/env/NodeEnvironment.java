@@ -47,6 +47,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -523,13 +524,13 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
             throw new IllegalStateException(
-                "Cannot start this node because it holds metadata for indices created with version ["
+                "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
                     + Version.CURRENT
                     + "] is incompatible. Revert this node to version ["
                     + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
-                    + "] and delete any indices created in versions earlier than ["
+                    + "] and delete any indices with versions earlier than ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "] before upgrading to version ["
                     + Version.CURRENT
@@ -623,7 +624,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, IndexVersion.CURRENT);
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
@@ -1196,7 +1197,7 @@ public final class NodeEnvironment implements Closeable {
                 paths.add(indexFolder);
             }
         }
-        return paths.toArray(new Path[paths.size()]);
+        return paths.toArray(Path[]::new);
     }
 
     /**
@@ -1265,12 +1266,14 @@ public final class NodeEnvironment implements Closeable {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    logger.trace("releasing lock [{}]", lock);
-                    lock.close();
-                } catch (IOException e) {
-                    logger.trace(() -> "failed to release lock [" + lock + "]", e);
+            synchronized (locks) {
+                for (Lock lock : locks) {
+                    try {
+                        logger.trace("releasing lock [{}]", lock);
+                        lock.close();
+                    } catch (IOException e) {
+                        logger.trace(() -> "failed to release lock [" + lock + "]", e);
+                    }
                 }
             }
         }
@@ -1278,12 +1281,15 @@ public final class NodeEnvironment implements Closeable {
 
     private void assertEnvIsLocked() {
         if (closed.get() == false && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    lock.ensureValid();
-                } catch (IOException e) {
-                    logger.warn("lock assertion failed", e);
-                    throw new IllegalStateException("environment is not locked", e);
+            synchronized (locks) {
+                if (closed.get()) return; // raced with close() - we lost
+                for (Lock lock : locks) {
+                    try {
+                        lock.ensureValid();
+                    } catch (IOException e) {
+                        logger.warn("lock assertion failed", e);
+                        throw new IllegalStateException("environment is not locked", e);
+                    }
                 }
             }
         }

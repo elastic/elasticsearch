@@ -1,0 +1,100 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            properties:
+              transaction:
+                type: keyword
+              amount:
+                type: long
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { index: { } }
+          - { transaction: "sale", amount: 80 }
+          - { index: { } }
+          - { transaction: "cost", amount: 10 }
+          - { index: { } }
+          - { transaction: "cost", amount: 30 }
+          - { index: { } }
+          - { transaction: "sale", amount: 130 }
+
+
+---
+"scripted transaction sum":
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            profit:
+              scripted_metric:
+                init_script: |
+                  state.transactions = []
+                map_script: |
+                  state.transactions.add(
+                    doc.transaction.value == 'sale'
+                      ? doc.amount.value
+                      : -1 * doc.amount.value
+                  )
+                combine_script: |
+                  long profit = 0;
+                  for (t in state.transactions) {
+                    profit += t;
+                  }
+                  return profit
+                reduce_script: |
+                  long profit = 0;
+                  for (t in states) {
+                    profit += t;
+                  }
+                  return profit
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.profit.value: 170 }
+
+
+---
+"scripted with params":
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            profit:
+              scripted_metric:
+                init_script: |
+                  state.transactions = []
+                map_script: |
+                  state.transactions.add(
+                    doc.transaction.value == 'sale'
+                      ? doc.amount.value * params.sale_multiplier
+                      : doc.amount.value * params.cost_multiplier
+                  )
+                combine_script: |
+                  long profit = 0;
+                  for (t in state.transactions) {
+                    profit += t;
+                  }
+                  return profit * params.combine_multiplier
+                reduce_script: |
+                  long profit = 0;
+                  for (t in states) {
+                    profit += t;
+                  }
+                  return profit * params.reduce_multiplier
+                params:
+                  cost_multiplier: 4
+                  sale_multiplier: 2
+                  combine_multiplier: 20
+                  reduce_multiplier: 100
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.profit.value: 1160000 }

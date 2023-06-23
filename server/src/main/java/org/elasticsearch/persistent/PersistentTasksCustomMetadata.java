@@ -199,7 +199,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -474,11 +474,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             builder.endObject();
             return builder;
         }
-
-        @Override
-        public boolean isFragment() {
-            return false;
-        }
     }
 
     private static class TaskBuilder<Params extends PersistentTaskParams> {
@@ -537,7 +532,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     public PersistentTasksCustomMetadata(StreamInput in) throws IOException {
         lastAllocationId = in.readLong();
-        tasks = in.readMap(StreamInput::readString, PersistentTask::new);
+        tasks = in.readMap(PersistentTask::new);
     }
 
     @Override

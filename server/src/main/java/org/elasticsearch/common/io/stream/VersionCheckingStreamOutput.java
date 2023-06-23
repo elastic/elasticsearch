@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -19,8 +19,8 @@ import java.io.IOException;
  */
 public class VersionCheckingStreamOutput extends StreamOutput {
 
-    public VersionCheckingStreamOutput(Version version) {
-        setVersion(version);
+    public VersionCheckingStreamOutput(TransportVersion version) {
+        setTransportVersion(version);
     }
 
     @Override

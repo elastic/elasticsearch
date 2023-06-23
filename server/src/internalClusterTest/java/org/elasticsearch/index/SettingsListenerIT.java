@@ -105,43 +105,30 @@ public class SettingsListenerIT extends ESIntegTestCase {
     }
 
     public void testListener() {
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get());
 
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(21, instance.value);
         }
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.test.new.setting", 42)).get();
+        updateIndexSettings(Settings.builder().put("index.test.new.setting", 42), "test");
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("other")
-                .setSettings(Settings.builder().put("index.test.new.setting", 21).build())
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("other").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get());
 
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 
-        client().admin().indices().prepareUpdateSettings("other").setSettings(Settings.builder().put("index.test.new.setting", 84)).get();
-
+        updateIndexSettings(Settings.builder().put("index.test.new.setting", 84), "other");
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("other")
-                .setSettings(Settings.builder().put("index.test.new.setting", -5))
-                .get();
+            indicesAdmin().prepareUpdateSettings("other").setSettings(Settings.builder().put("index.test.new.setting", -5)).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("Failed to parse value [-5] for setting [index.test.new.setting] must be >= -1", ex.getMessage());

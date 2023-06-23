@@ -19,7 +19,6 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -60,32 +59,32 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         assertConnectionAccepted(".http", "127.0.0.8");
         assertConnectionAccepted("client", "127.0.0.8");
 
-        Settings settings = Settings.builder()
-            .put("xpack.security.transport.filter.allow", "127.0.0.1")
-            .put("xpack.security.transport.filter.deny", "127.0.0.8")
-            .build();
-        updateSettings(settings);
+        updateClusterSettings(
+            Settings.builder()
+                .put("xpack.security.transport.filter.allow", "127.0.0.1")
+                .put("xpack.security.transport.filter.deny", "127.0.0.8")
+        );
         assertConnectionRejected("default", "127.0.0.8");
 
-        settings = Settings.builder()
-            .putList("xpack.security.http.filter.allow", "127.0.0.1")
-            .putList("xpack.security.http.filter.deny", "127.0.0.8")
-            .build();
-        updateSettings(settings);
+        updateClusterSettings(
+            Settings.builder()
+                .putList("xpack.security.http.filter.allow", "127.0.0.1")
+                .putList("xpack.security.http.filter.deny", "127.0.0.8")
+        );
         assertConnectionRejected("default", "127.0.0.8");
         assertConnectionRejected(".http", "127.0.0.8");
 
-        settings = Settings.builder()
-            .put("transport.profiles.client.xpack.security.filter.allow", "127.0.0.1")
-            .put("transport.profiles.client.xpack.security.filter.deny", "127.0.0.8")
-            .build();
-        updateSettings(settings);
+        updateClusterSettings(
+            Settings.builder()
+                .put("transport.profiles.client.xpack.security.filter.allow", "127.0.0.1")
+                .put("transport.profiles.client.xpack.security.filter.deny", "127.0.0.8")
+        );
         assertConnectionRejected("default", "127.0.0.8");
         assertConnectionRejected(".http", "127.0.0.8");
         assertConnectionRejected("client", "127.0.0.8");
 
         // check that all is in cluster state
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
         assertEquals(Arrays.asList("127.0.0.1"), clusterState.metadata().settings().getAsList("xpack.security.http.filter.allow"));
@@ -94,16 +93,16 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         assertThat(clusterState.metadata().settings().get("transport.profiles.client.xpack.security.filter.deny"), is("127.0.0.8"));
 
         // now disable ip filtering dynamically and make sure nothing is rejected
-        settings = Settings.builder()
-            .put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false)
-            .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), true)
-            .build();
-        updateSettings(settings);
+        updateClusterSettings(
+            Settings.builder()
+                .put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false)
+                .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), true)
+        );
         assertConnectionAccepted("default", "127.0.0.8");
         assertConnectionAccepted("client", "127.0.0.8");
 
         // disabling should not have any effect on the cluster state settings
-        clusterState = client().admin().cluster().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState().get().getState();
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
         assertEquals(Arrays.asList("127.0.0.1"), clusterState.metadata().settings().getAsList("xpack.security.http.filter.allow"));
@@ -114,8 +113,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         // now also disable for HTTP
         if (httpEnabled) {
             assertConnectionRejected(".http", "127.0.0.8");
-            settings = Settings.builder().put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), false).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), false));
             assertConnectionAccepted(".http", "127.0.0.8");
         }
     }
@@ -128,9 +126,8 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         if (randomBoolean()) {
             initialSettingsBuilder.put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), randomBoolean());
         }
-        final Settings initialSettings = initialSettingsBuilder.build();
-        if (initialSettings.isEmpty() == false) {
-            updateSettings(initialSettings);
+        if (initialSettingsBuilder.build().isEmpty() == false) {
+            updateClusterSettings(initialSettingsBuilder);
         }
 
         final String invalidValue = "http://";
@@ -145,7 +142,11 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
                 final Settings settings = Settings.builder().put(settingName, invalidValue).build();
                 assertThat(
                     settingName,
-                    expectThrows(IllegalArgumentException.class, settingName, () -> updateSettings(settings)).getMessage(),
+                    expectThrows(
+                        IllegalArgumentException.class,
+                        settingName,
+                        () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings).execute().actionGet()
+                    ).getMessage(),
                     allOf(containsString("invalid IP filter"), containsString(invalidValue))
                 );
             }
@@ -154,27 +155,19 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     // issue #762, occurred because in the above test we use HTTP and transport
     public void testThatDisablingIpFilterWorksAsExpected() throws Exception {
-        Settings settings = Settings.builder().put("xpack.security.transport.filter.deny", "127.0.0.8").build();
-        updateSettings(settings);
+        updateClusterSettings(Settings.builder().put("xpack.security.transport.filter.deny", "127.0.0.8"));
         assertConnectionRejected("default", "127.0.0.8");
 
-        settings = Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false).build();
-        updateSettings(settings);
+        updateClusterSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false));
         assertConnectionAccepted("default", "127.0.0.8");
     }
 
     public void testThatDisablingIpFilterForProfilesWorksAsExpected() throws Exception {
-        Settings settings = Settings.builder().put("transport.profiles.client.xpack.security.filter.deny", "127.0.0.8").build();
-        updateSettings(settings);
+        updateClusterSettings(Settings.builder().put("transport.profiles.client.xpack.security.filter.deny", "127.0.0.8"));
         assertConnectionRejected("client", "127.0.0.8");
 
-        settings = Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false).build();
-        updateSettings(settings);
+        updateClusterSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false));
         assertConnectionAccepted("client", "127.0.0.8");
-    }
-
-    private void updateSettings(Settings settings) {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     private void assertConnectionAccepted(String profile, String host) throws UnknownHostException {

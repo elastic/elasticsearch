@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -34,20 +36,38 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A template consists of optional settings, mappings, or alias configuration for an index, however,
- * it is entirely independent from an index. It's a building block forming part of a regular index
+ * A template consists of optional settings, mappings, alias or lifecycle configuration for an index or data stream, however,
+ * it is entirely independent of an index or data stream. It's a building block forming part of a regular index
  * template and a {@link ComponentTemplate}.
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
+
+    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
+    // lifecycle.
+    public static final DataLifecycle NO_LIFECYCLE = new DataLifecycle() {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params, RolloverConfiguration rolloverConfiguration)
+            throws IOException {
+            return builder.nullValue();
+        }
+    };
+
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
+    private static final ParseField LIFECYCLE = new ParseField("lifecycle");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
         "template",
         false,
-        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2])
+        a -> new Template(
+            (Settings) a[0],
+            (CompressedXContent) a[1],
+            (Map<String, AliasMetadata>) a[2],
+            DataLifecycle.isEnabled() ? (DataLifecycle) a[3] : null
+        )
     );
 
     static {
@@ -72,6 +92,15 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             }
             return aliasMap;
         }, ALIASES);
+        // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
+        if (DataLifecycle.isEnabled()) {
+            PARSER.declareObjectOrNull(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> DataLifecycle.fromXContent(p),
+                NO_LIFECYCLE,
+                LIFECYCLE
+            );
+        }
     }
 
     @Nullable
@@ -81,10 +110,27 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     @Nullable
     private final Map<String, AliasMetadata> aliases;
 
-    public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
+    @Nullable
+    private final DataLifecycle lifecycle;
+
+    public Template(
+        @Nullable Settings settings,
+        @Nullable CompressedXContent mappings,
+        @Nullable Map<String, AliasMetadata> aliases,
+        @Nullable DataLifecycle lifecycle
+    ) {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
+        if (DataLifecycle.isEnabled()) {
+            this.lifecycle = lifecycle;
+        } else {
+            this.lifecycle = null;
+        }
+    }
+
+    public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
+        this(settings, mappings, aliases, null);
     }
 
     public Template(StreamInput in) throws IOException {
@@ -99,9 +145,19 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             this.mappings = null;
         }
         if (in.readBoolean()) {
-            this.aliases = in.readMap(StreamInput::readString, AliasMetadata::new);
+            this.aliases = in.readMap(AliasMetadata::new);
         } else {
             this.aliases = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            boolean isExplicitNull = in.readBoolean();
+            if (isExplicitNull) {
+                this.lifecycle = NO_LIFECYCLE;
+            } else {
+                this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+            }
+        } else {
+            this.lifecycle = null;
         }
     }
 
@@ -118,6 +174,11 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     @Nullable
     public Map<String, AliasMetadata> aliases() {
         return aliases;
+    }
+
+    @Nullable
+    public DataLifecycle lifecycle() {
+        return lifecycle;
     }
 
     @Override
@@ -140,11 +201,18 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            boolean isExplicitNull = lifecycle == NO_LIFECYCLE;
+            out.writeBoolean(isExplicitNull);
+            if (isExplicitNull == false) {
+                out.writeOptionalWriteable(lifecycle);
+            }
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(settings, mappings, aliases);
+        return Objects.hash(settings, mappings, aliases, lifecycle);
     }
 
     @Override
@@ -158,7 +226,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         Template other = (Template) obj;
         return Objects.equals(settings, other.settings)
             && mappingsEquals(this.mappings, other.mappings)
-            && Objects.equals(aliases, other.aliases);
+            && Objects.equals(aliases, other.aliases)
+            && Objects.equals(lifecycle, other.lifecycle);
     }
 
     @Override
@@ -168,6 +237,14 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null);
+    }
+
+    /**
+     * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
+        throws IOException {
         builder.startObject();
         if (this.settings != null) {
             builder.startObject(SETTINGS.getPreferredName());
@@ -194,6 +271,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
                 AliasMetadata.Builder.toXContent(alias, builder, params);
             }
             builder.endObject();
+        }
+        if (this.lifecycle != null) {
+            builder.field(LIFECYCLE.getPreferredName());
+            lifecycle.toXContent(builder, params, rolloverConfiguration);
         }
         builder.endObject();
         return builder;

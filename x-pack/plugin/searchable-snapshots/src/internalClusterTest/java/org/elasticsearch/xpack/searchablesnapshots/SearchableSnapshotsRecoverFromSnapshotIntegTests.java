@@ -52,7 +52,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         final var snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final var restoredIndexName = "restored-" + indexName;
         mountSnapshot(
@@ -83,11 +83,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
         Loggers.addAppender(logger, mockAppender);
 
         // Relocate the searchable snapshot shard to the new node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(restoredIndexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", newNode).build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newNode), restoredIndexName);
 
         ensureGreen(restoredIndexName);
 

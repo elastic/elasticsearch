@@ -155,12 +155,19 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
             (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
-                    if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
+                    if (valuesSourceConfig.getValuesSource() instanceof final ValuesSource.Bytes.WithOrdinals source) {
                         if (executionMode.useGlobalOrdinals(context, source, precision)) {
+                            final String field;
+                            if (valuesSourceConfig.alignesWithSearchIndex()) {
+                                field = valuesSourceConfig.fieldType().name();
+                            } else {
+                                field = null;
+                            }
                             final long maxOrd = source.globalMaxOrd(context.searcher().getIndexReader());
                             return new GlobalOrdCardinalityAggregator(
                                 name,
                                 source,
+                                field,
                                 precision,
                                 Math.toIntExact(maxOrd),
                                 context,
@@ -194,7 +201,8 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), null, context, parent, metadata);
+        final InternalCardinality empty = InternalCardinality.empty(name, metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

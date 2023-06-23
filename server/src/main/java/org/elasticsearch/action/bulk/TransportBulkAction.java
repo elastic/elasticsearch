@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -30,8 +29,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -46,12 +43,11 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -179,46 +175,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
         final ActionListener<Response> listener
     ) {
-        return ActionListener.wrap(bulkItemResponses -> {
+        return listener.delegateFailureAndWrap((l, bulkItemResponses) -> {
             assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
             final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
             if (bulkItemResponse.isFailed() == false) {
                 @SuppressWarnings("unchecked")
                 final Response response = (Response) bulkItemResponse.getResponse();
-                listener.onResponse(response);
+                l.onResponse(response);
             } else {
-                listener.onFailure(bulkItemResponse.getFailure().getCause());
+                l.onFailure(bulkItemResponse.getFailure().getCause());
             }
-        }, listener::onFailure);
+        });
     }
 
     @Override
-    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> outerListener) {
-        // As a work-around to support `?refresh`, explicitly replace the refresh policy with a call to the Refresh API,
-        // and always set forced_refresh to true.
-        // TODO: Replace with a less hacky approach.
-        ActionListener<BulkResponse> listener = outerListener;
-        if (DiscoveryNode.isStateless(clusterService.getSettings()) && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
-            listener = outerListener.delegateFailure((l, r) -> {
-                final Set<String> indices = new HashSet<>();
-                for (BulkItemResponse response : r.getItems()) {
-                    if (response.isFailed() == false) {
-                        indices.add(response.getIndex());
-                    }
-                    DocWriteResponse docWriteResponse = response.getResponse();
-                    if (docWriteResponse != null) {
-                        docWriteResponse.setForcedRefresh(true);
-                    }
-                }
-                client.admin()
-                    .indices()
-                    .prepareRefresh()
-                    .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
-                    .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
-                    .execute(l.map(ignored -> r));
-            });
-            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        }
+    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         /*
          * This is called on the Transport tread so we can check the indexing
          * memory pressure *quickly* but we don't want to keep the transport
@@ -258,13 +229,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = IngestService.resolvePipelines(actionRequest, indexRequest, metadata);
-                hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {
-                ir.checkAutoIdWithOpTypeCreateSupportedByVersion(minNodeVersion.transportVersion);
+                ir.checkAutoIdWithOpTypeCreateSupportedByVersion(minNodeVersion);
                 if (ir.getAutoGeneratedTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
                     throw new IllegalArgumentException("autoGeneratedTimestamp should not be set externally");
                 }
@@ -408,7 +378,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
-        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
 
         // At this point with write op is targeting a backing index of a data stream directly,
         // so checking if write op is append-only and if so fail.
@@ -448,8 +418,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         if (writeRequest.routing() != null) {
-            IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-            if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+            DataStream dataStream = (DataStream) indexAbstraction;
+            if (dataStream.isAllowCustomRouting() == false) {
                 throw new IllegalArgumentException(
                     "index request targeting data stream ["
                         + dataStream.getName()

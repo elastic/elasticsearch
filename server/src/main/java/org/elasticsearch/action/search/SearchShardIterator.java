@@ -34,7 +34,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final OriginalIndices originalIndices;
     private final String clusterAlias;
     private final ShardId shardId;
-    private boolean skip = false;
+    private boolean skip;
+    private final boolean prefiltered;
 
     private final ShardSearchContextId searchContextId;
     private final TimeValue searchContextKeepAlive;
@@ -50,25 +51,31 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(
-            clusterAlias,
-            shardId,
-            shards.stream().filter(ShardRouting::isSearchable).map(ShardRouting::currentNodeId).toList(),
-            originalIndices,
-            null,
-            null
-        );
+        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null, false, false);
     }
 
+    /**
+     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     *
+     * @param clusterAlias           the alias of the cluster where the shard is located
+     * @param shardId                shard id of the group
+     * @param targetNodeIds          the list of nodes hosting shard copies
+     * @param originalIndices        the indices that the search request originally related to (before any rewriting happened)
+     * @param searchContextId        the point-in-time specified for this group if exists
+     * @param searchContextKeepAlive the time interval that data nodes should extend the keep alive of the point-in-time
+     * @param prefiltered            if true, then this group already executed the can_match phase
+     * @param skip                   if true, then this group won't have matches, and it can be safely skipped from the search
+     */
     public SearchShardIterator(
         @Nullable String clusterAlias,
         ShardId shardId,
         List<String> targetNodeIds,
         OriginalIndices originalIndices,
         ShardSearchContextId searchContextId,
-        TimeValue searchContextKeepAlive
+        TimeValue searchContextKeepAlive,
+        boolean prefiltered,
+        boolean skip
     ) {
-        // TODO ensure all target nodes hold shards with a searchable ShardRoutingRole - at the moment, PIT searches don't check this
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
         this.originalIndices = originalIndices;
@@ -76,6 +83,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         this.searchContextId = searchContextId;
         this.searchContextKeepAlive = searchContextKeepAlive;
         assert searchContextKeepAlive == null || searchContextId != null;
+        this.prefiltered = prefiltered;
+        this.skip = skip;
+        assert skip == false || prefiltered : "only prefiltered shards are skip-able";
     }
 
     /**
@@ -120,15 +130,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.asList();
     }
 
-    /**
-     * Reset the iterator and mark it as skippable
-     * @see #skip()
-     */
-    void resetAndSkip() {
-        reset();
-        skip = true;
-    }
-
     void reset() {
         targetNodesIterator.reset();
     }
@@ -138,6 +139,20 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      */
     boolean skip() {
         return skip;
+    }
+
+    /**
+     * Specifies if the search execution should skip this shard copies
+     */
+    void skip(boolean skip) {
+        this.skip = skip;
+    }
+
+    /**
+     * Returns {@code true} if this iterator was applied pre-filtered
+     */
+    boolean prefiltered() {
+        return prefiltered;
     }
 
     @Override

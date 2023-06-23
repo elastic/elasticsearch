@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -62,7 +62,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             (out, value) -> value.writeTo(out),
             GetSnapshotsResponse::new,
-            Version.CURRENT
+            TransportVersion.current()
         );
 
     }

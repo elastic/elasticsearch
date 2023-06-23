@@ -10,22 +10,28 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GatewayMetaStateTests extends ESTestCase {
@@ -91,9 +97,9 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testIndexTemplateValidation() {
         Metadata metadata = randomMetadata();
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(
-            Collections.singletonList(customs -> { throw new IllegalStateException("template is incompatible"); })
-        );
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(customs -> {
+            throw new IllegalStateException("template is incompatible");
+        }));
         String message = expectThrows(
             IllegalStateException.class,
             () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader)
@@ -141,11 +147,42 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
+    public void testPluggablePersistedStateValidation() throws IOException {
+        try (
+            var gatewayMetaState = new GatewayMetaState();
+            var testPersistedState = new InMemoryPersistedState(0, ClusterState.EMPTY_STATE)
+        ) {
+            final var duplicatePlugin = new ClusterCoordinationPlugin() {
+                @Override
+                public Optional<PersistedStateFactory> getPersistedStateFactory() {
+                    return Optional.of(
+                        (settings, transportService, persistedClusterStateService) -> { throw new AssertionError("should not be called"); }
+                    );
+                }
+            };
+            assertThat(
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> gatewayMetaState.start(null, null, null, null, null, null, null, List.of(duplicatePlugin, duplicatePlugin))
+                ).getMessage(),
+                containsString("multiple persisted-state factories")
+            );
+
+            gatewayMetaState.start(null, null, null, null, null, null, null, List.of(new ClusterCoordinationPlugin() {
+                @Override
+                public Optional<PersistedStateFactory> getPersistedStateFactory() {
+                    return Optional.of((settings, transportService, persistedClusterStateService) -> testPersistedState);
+                }
+            }));
+            assertSame(testPersistedState, gatewayMetaState.getPersistedState());
+        }
+    }
+
     private static class MockIndexMetadataVerifier extends IndexMetadataVerifier {
         private final boolean upgrade;
 
         MockIndexMetadataVerifier(boolean upgrade) {
-            super(Settings.EMPTY, null, null, null, null);
+            super(Settings.EMPTY, null, null, null, null, null);
             this.upgrade = upgrade;
         }
 
@@ -169,7 +206,7 @@ public class GatewayMetaStateTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override
@@ -198,10 +235,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         for (String template : templates) {
             IndexTemplateMetadata templateMetadata = IndexTemplateMetadata.builder(template)
-                .settings(
-                    settings(Version.CURRENT).put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
-                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
-                )
+                .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 5), randomIntBetween(0, 3)))
                 .patterns(randomIndexPatterns())
                 .build();
             builder.put(templateMetadata);

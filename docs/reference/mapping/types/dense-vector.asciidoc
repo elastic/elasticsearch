@@ -60,9 +60,14 @@ similarity.
 
 In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
-data structure to support fast kNN retrieval through the
-<<knn-search-api, kNN search API>>. You can enable indexing by setting the
-`index` parameter:
+data structure to support fast kNN retrieval through the <<search-api-knn, `knn` option>> in the search API
+
+NOTE: Indexing vectors for approximate kNN search is an expensive process. It
+can take substantial time to ingest documents that contain vector fields with
+`index` enabled. See <<tune-knn-search,k-nearest neighbor (kNN) search>> to
+learn more about the memory requirements.
+
+You can enable indexing by setting the `index` parameter:
 
 [source,console]
 --------------------------------------------------
@@ -86,10 +91,6 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-NOTE: Indexing vectors for approximate kNN search is an expensive process. It
-can take substantial time to ingest documents that contain vector fields with
-`index` enabled.
-
 Dense vector fields cannot be indexed if they are within
 <<nested, `nested`>> mappings.
 
@@ -99,6 +100,7 @@ Dense vector fields cannot be indexed if they are within
 
 The following mapping parameters are accepted:
 
+[[dense-vector-element-type]]
 `element_type`::
 (Optional, string)
 The data type used to encode vectors. The supported data types are
@@ -112,6 +114,10 @@ integer values between -128 to 127, inclusive for both indexing and searching.
 (Required, integer)
 Number of vector dimensions. Can't exceed `1024` for indexed vectors
 (`"index": true`), or `2048` for non-indexed vectors.
+
++
+experimental:[]
+The number of dimensions for indexed vectors can be extended up to `2048`.
 
 `index`::
 (Optional, Boolean)

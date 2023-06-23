@@ -24,9 +24,9 @@ public class PendingListenersQueueTests extends ESTestCase {
         var queue = new PendingListenersQueue(threadPool);
         var executed = new CountDownLatch(2);
 
-        queue.add(1, ActionListener.wrap(executed::countDown));
-        queue.add(2, ActionListener.wrap(executed::countDown));
-        queue.add(3, ActionListener.wrap(() -> fail("Should not complete in test")));
+        queue.add(1, ActionListener.running(executed::countDown));
+        queue.add(2, ActionListener.running(executed::countDown));
+        queue.add(3, ActionListener.running(() -> fail("Should not complete in test")));
         queue.complete(2);
 
         try {
@@ -41,9 +41,9 @@ public class PendingListenersQueueTests extends ESTestCase {
         var queue = new PendingListenersQueue(threadPool);
         var executed = new CountDownLatch(2);
 
-        queue.add(1, ActionListener.wrap(executed::countDown));
-        queue.add(2, ActionListener.wrap(executed::countDown));
-        queue.add(3, ActionListener.wrap(() -> fail("Should not complete in test")));
+        queue.add(1, ActionListener.running(executed::countDown));
+        queue.add(2, ActionListener.running(executed::countDown));
+        queue.add(3, ActionListener.running(() -> fail("Should not complete in test")));
         queue.complete(2);
         queue.complete(1);
 

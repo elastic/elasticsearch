@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -63,6 +64,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -126,6 +128,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NetworkPlugin,
         ClusterPlugin,
         DiscoveryPlugin,
+        ClusterCoordinationPlugin,
         MapperPlugin,
         AnalysisPlugin,
         PersistentTaskPlugin,
@@ -410,6 +413,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -426,6 +430,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
+                        perRequestThreadContext,
                         clusterSettings,
                         tracer
                     )
@@ -481,7 +486,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
         Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
-        filterPlugins(DiscoveryPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
+        filterPlugins(ClusterCoordinationPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
         return electionStrategies;
     }
 
@@ -525,7 +530,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         // There can be only one.
-        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(DiscoveryPlugin.class).stream()
+        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(ClusterCoordinationPlugin.class).stream()
             .map(p -> p.getJoinValidator())
             .collect(Collectors.toList());
         if (items.size() > 1) {
@@ -730,16 +735,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
             systemPlugins.size(),
-            ActionListener.wrap(listenerResults -> {
+            finalListener.delegateFailureAndWrap((delegate, listenerResults) -> {
                 // If the clean-up produced only one result, use that to pass along. In most
                 // cases it should be 1-1 mapping of feature to response. Passing back success
                 // prevents us from writing validation tests on this API.
                 if (listenerResults != null && listenerResults.size() == 1) {
-                    finalListener.onResponse(listenerResults.stream().findFirst().get());
+                    delegate.onResponse(listenerResults.stream().findFirst().get());
                 } else {
-                    finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
+                    delegate.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
                 }
-            }, finalListener::onFailure)
+            })
         );
         systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
     }

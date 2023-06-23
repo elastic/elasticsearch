@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportScheduleNowTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
@@ -83,52 +83,49 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        useSecondaryAuthIfAvailable(securityContext, () -> {
-            ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {
-                PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
-                    request.getId(),
-                    clusterState
-                );
+        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {
+            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(request.getId(), clusterState);
 
-                // to send a request to schedule now the transform at runtime, several requirements must be met:
-                // - transform must be running, meaning a task exists
-                // - transform is not failed (stopped transforms do not have a task)
-                if (transformTask != null
-                    && transformTask.isAssigned()
-                    && transformTask.getState() instanceof TransformState
-                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
+            // to send a request to schedule now the transform at runtime, several requirements must be met:
+            // - transform must be running, meaning a task exists
+            // - transform is not failed (stopped transforms do not have a task)
+            if (transformTask != null
+                && transformTask.isAssigned()
+                && transformTask.getState() instanceof TransformState
+                && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
 
-                    ActionListener<Response> taskScheduleNowListener = ActionListener.wrap(listener::onResponse, e -> {
-                        // benign: A transform might have been stopped meanwhile, this is not a problem
-                        if (e instanceof TransformTaskDisappearedDuringScheduleNowException) {
-                            logger.debug(
-                                () -> format("[%s] transform task disappeared during schedule_now, ignoring.", request.getId()),
-                                e
-                            );
-                            listener.onResponse(Response.TRUE);
-                            return;
-                        }
-                        if (e instanceof TransformTaskScheduleNowException) {
-                            logger.warn(() -> format("[%s] failed to schedule now the running transform.", request.getId()), e);
-                            listener.onResponse(Response.TRUE);
-                            return;
-                        }
-                        listener.onFailure(e);
-                    });
-                    request.setNodes(transformTask.getExecutorNode());
-                    super.doExecute(task, request, taskScheduleNowListener);
-                } else {
-                    listener.onResponse(Response.TRUE);
-                }
-            }, listener::onFailure);
+                ActionListener<Response> taskScheduleNowListener = ActionListener.wrap(listener::onResponse, e -> {
+                    // benign: A transform might have been stopped meanwhile, this is not a problem
+                    if (e instanceof TransformTaskDisappearedDuringScheduleNowException) {
+                        logger.debug(() -> format("[%s] transform task disappeared during schedule_now, ignoring.", request.getId()), e);
+                        listener.onResponse(Response.TRUE);
+                        return;
+                    }
+                    if (e instanceof TransformTaskScheduleNowException) {
+                        logger.warn(() -> format("[%s] failed to schedule now the running transform.", request.getId()), e);
+                        listener.onResponse(Response.TRUE);
+                        return;
+                    }
+                    listener.onFailure(e);
+                });
+                request.setNodes(transformTask.getExecutorNode());
+                super.doExecute(task, request, taskScheduleNowListener);
+            } else {
+                listener.onResponse(Response.TRUE);
+            }
+        }, listener::onFailure);
 
-            // <1> Get the config to verify it exists and is valid
-            transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
-        });
+        // <1> Get the config to verify it exists and is valid
+        transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TransformTask transformTask,
+        ActionListener<Response> listener
+    ) {
         transformScheduler.scheduleNow(request.getId());
         listener.onResponse(Response.TRUE);
     }

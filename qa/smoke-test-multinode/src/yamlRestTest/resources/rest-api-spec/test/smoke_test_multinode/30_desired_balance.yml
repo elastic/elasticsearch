@@ -69,7 +69,12 @@ setup:
 
   - skip:
       version: " - 8.6.99"
-      reason: "Field added in in 8.7.0"
+      reason: "cluster_balance_stats added in in 8.7.0"
+
+  - do:
+      cluster.state: {}
+  - set: { nodes._arbitrary_key_ : node_id }
+  - set: { nodes.$node_id.name : node_name }
 
   - do:
       _internal.get_desired_balance: { }
@@ -101,8 +106,45 @@ setup:
   - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.average'
   - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.std_dev'
   - is_true: 'cluster_balance_stats.nodes'
-  - is_true: 'cluster_balance_stats.nodes.test-cluster-0'
-  - gte: { 'cluster_balance_stats.nodes.test-cluster-0.shard_count' : 0 }
-  - gte: { 'cluster_balance_stats.nodes.test-cluster-0.forecast_write_load': 0.0 }
-  - gte: { 'cluster_balance_stats.nodes.test-cluster-0.forecast_disk_usage_bytes' : 0 }
-  - gte: { 'cluster_balance_stats.nodes.test-cluster-0.actual_disk_usage_bytes' : 0 }
+  - is_true: 'cluster_balance_stats.nodes.$node_name'
+  - gte: { 'cluster_balance_stats.nodes.$node_name.shard_count' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_write_load': 0.0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_disk_usage_bytes' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes' : 0 }
+
+---
+"Test tier_preference":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "tier_preference added in in 8.8.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'routing_table.test.0.current.0.tier_preference'
+
+---
+"Test cluster_info":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "cluster_info added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_info'

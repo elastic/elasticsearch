@@ -171,12 +171,11 @@ NOTE: Only text, match_only_text, and keyword fields are highlighted when
 you use wildcards. If you use a custom mapper and want to highlight on a
 field anyway, you must explicitly specify that field name.
 
-force_source:: Highlight based on the source even if the field is
-stored separately. Defaults to `false`.
-
 fragmenter:: Specifies how text should be broken up in highlight
 snippets: `simple` or `span`. Only valid for the `plain` highlighter.
 Defaults to `span`.
+
+force_source:: deprecated; this parameter has no effect
 
 `simple`::: Breaks up text into same-sized fragments.
 `span`::: Breaks up text into same-sized fragments, but tries to avoid
@@ -277,7 +276,6 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 * <<specify-highlight-query, Specify a highlight query>>
 * <<set-highlighter-type, Set highlighter type>>
 * <<configure-tags, Configure highlighting tags>>
-* <<highlight-source, Highlight source>>
 * <<highlight-all, Highlight all fields>>
 * <<matched-fields, Combine matches on multiple fields>>
 * <<explicit-field-order, Explicitly order highlighted fields>>
@@ -471,30 +469,6 @@ GET /_search
 }
 --------------------------------------------------
 // TEST[setup:my_index]
-
-[discrete]
-[[highlight-source]]
-== Highlight on source
-
-Forces the highlighting to highlight fields based on the source even if fields
-are stored separately. Defaults to `false`.
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "query" : {
-    "match": { "user.id": "kimchy" }
-  },
-  "highlight" : {
-    "fields" : {
-      "comment" : {"force_source" : true}
-    }
-  }
-}
---------------------------------------------------
-// TEST[setup:my_index]
-
 
 [[highlight-all]]
 [discrete]

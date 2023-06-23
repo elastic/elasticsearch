@@ -33,7 +33,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
@@ -229,10 +228,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(20L));
 
         // Make sure that the next delete will be GC. Note we do it on the index settings so it will be cleaned up
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", -1);
-        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
-
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", -1), "test");
         Thread.sleep(300); // gc works based on estimated sampled time. Give it a chance...
 
         // And now we have previous version return -1
@@ -581,10 +577,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // TODO: not great we don't test deletes GC here:
 
         // We test deletes, but can't rely on wall-clock delete GC:
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", "1000000h");
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet());
-
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", "1000000h"), "test");
         Random random = random();
 
         // Generate random IDs:
@@ -772,19 +765,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     public void testDeleteNotLost() throws Exception {
 
         // We require only one shard for this test, so that the 2nd delete provokes pruning the deletes map:
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .execute()
-            .actionGet();
+        indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1)).execute().actionGet();
 
         ensureGreen();
 
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", "10ms");
-        newSettings.put("index.refresh_interval", "-1");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", "10ms").put("index.refresh_interval", "-1"), "test");
 
         // Index a doc:
         client().prepareIndex("test")
@@ -823,10 +808,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         ensureGreen();
 
         // We test deletes, but can't rely on wall-clock delete GC:
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", "0ms");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
-
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", "0ms"), "test");
         // Index a doc:
         client().prepareIndex("test")
             .setId("id")
@@ -886,11 +868,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             .actionGet();
         assertThat(doc4.getVersion(), equalTo(4L));
         // Make sure that these versions are replicated correctly
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
+        setReplicaCount(1, "test");
         ensureGreen("test");
     }
 }

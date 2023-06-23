@@ -39,6 +39,8 @@ include::query-dsl.asciidoc[]
 
 include::aggregations.asciidoc[]
 
+include::geospatial-analysis.asciidoc[]
+
 include::eql/eql.asciidoc[]
 
 include::sql/index.asciidoc[]

@@ -135,14 +135,9 @@ public final class DestinationIndex {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
         AtomicReference<MappingMetadata> mappingsHolder = new AtomicReference<>();
 
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(
-            fieldCapabilitiesResponse -> {
-                listener.onResponse(
-                    createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse)
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(fieldCapabilitiesResponse -> {
+            listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse));
+        }, listener::onFailure);
 
         ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(mappings -> {
             mappingsHolder.set(mappings);

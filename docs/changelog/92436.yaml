@@ -1,6 +1,0 @@
-pr: 92436
-summary: Add `ignore_missing_component_templates` config option
-area: Indices APIs
-type: enhancement
-issues:
-  - 92426

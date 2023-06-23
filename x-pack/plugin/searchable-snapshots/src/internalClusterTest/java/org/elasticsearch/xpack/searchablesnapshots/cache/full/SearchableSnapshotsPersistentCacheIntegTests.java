@@ -79,7 +79,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState().clear().setNodes(true).get().getState().nodes();
         final String dataNode = randomFrom(discoveryNodes.getDataNodes().values()).getName();
 
         mountSnapshot(
@@ -94,9 +94,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .get()
@@ -181,13 +179,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         createRepository(fsRepoName, FsRepository.TYPE);
 
         final String indexName = prefix + "index";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-                .build()
-        );
+        createIndex(indexName, 3, randomIntBetween(0, 1));
         ensureGreen(indexName);
 
         final int numDocs = scaledRandomIntBetween(1_000, 5_000);
@@ -216,13 +208,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                 .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
         );
 
-        final ClusterStateResponse state = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetadata(true)
-            .setIndices(mountedIndexName)
-            .get();
+        final ClusterStateResponse state = clusterAdmin().prepareState().clear().setMetadata(true).setIndices(mountedIndexName).get();
         final Index mountedIndex = state.getState().metadata().index(mountedIndexName).getIndex();
 
         final Set<DiscoveryNode> dataNodes = new HashSet<>();
@@ -243,12 +229,9 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final DiscoveryNode excludedDataNode = randomFrom(dataNodes);
         logger.info("--> relocating mounted index {} away from {}", mountedIndex, excludedDataNode);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(mountedIndexName)
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()))
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()),
+            mountedIndexName
         );
 
         ensureGreen(mountedIndexName);

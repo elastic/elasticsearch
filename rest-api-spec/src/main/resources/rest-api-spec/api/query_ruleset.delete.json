@@ -1,0 +1,32 @@
+{
+  "query_ruleset.delete": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-query-ruleset.html",
+      "description": "Deletes a query ruleset."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_rules_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_rules/{ruleset_id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "ruleset_id": {
+              "type": "string",
+              "description": "The unique identifier of the query ruleset to delete"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

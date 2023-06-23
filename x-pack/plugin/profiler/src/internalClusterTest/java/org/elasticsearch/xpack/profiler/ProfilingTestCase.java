@@ -7,17 +7,27 @@
 
 package org.elasticsearch.xpack.profiler;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
+import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +36,15 @@ import java.util.Map;
 public abstract class ProfilingTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ProfilingPlugin.class, getTestTransportPlugin());
+        return List.of(
+            LocalStateCompositeXPackPlugin.class,
+            DataStreamsPlugin.class,
+            ProfilingPlugin.class,
+            IndexLifecycle.class,
+            UnsignedLongMapperPlugin.class,
+            VersionFieldPlugin.class,
+            getTestTransportPlugin()
+        );
     }
 
     @Override
@@ -35,6 +53,11 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
             .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
+            .put(XPackSettings.PROFILING_ENABLED.getKey(), true)
+            .put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), false)
+            // .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            // Disable ILM history index so that the tests don't have to clean it up
+            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
             .build();
     }
 
@@ -48,16 +71,8 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         return true;
     }
 
-    private byte[] read(String resource) throws IOException {
-        return GetProfilingAction.class.getClassLoader().getResourceAsStream(resource).readAllBytes();
-    }
-
-    private void createIndex(String name, String bodyFileName) throws Exception {
-        client().admin().indices().prepareCreate(name).setSource(read(bodyFileName), XContentType.JSON).execute().get();
-    }
-
     private void indexDoc(String index, String id, Map<String, Object> source) {
-        IndexResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).get();
+        IndexResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 
@@ -71,16 +86,34 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
      */
     protected abstract boolean useOnlyAllEvents();
 
+    protected void waitForIndices() throws Exception {
+        assertBusy(() -> {
+            ClusterState state = clusterAdmin().prepareState().get().getState();
+            assertTrue(
+                "Timed out waiting for the indices to be created",
+                state.metadata()
+                    .indices()
+                    .keySet()
+                    .containsAll(
+                        ProfilingIndexManager.PROFILING_INDICES.stream().map(ProfilingIndexManager.ProfilingIndex::toString).toList()
+                    )
+            );
+        });
+    }
+
+    protected void updateProfilingTemplatesEnabled(boolean newValue) {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(Settings.builder().put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), newValue).build());
+        ClusterUpdateSettingsResponse response = clusterAdmin().updateSettings(request).actionGet();
+        assertTrue("Update of profiling templates enabled setting is not acknowledged", response.isAcknowledged());
+    }
+
     @Before
     public void setupData() throws Exception {
+        // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
+        updateProfilingTemplatesEnabled(true);
         Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();
-
-        for (String idx : eventsIndices) {
-            createIndex(idx, "events.json");
-        }
-        createIndex("profiling-stackframes", "stackframes.json");
-        createIndex("profiling-stacktraces", "stacktraces.json");
-        createIndex("profiling-executables", "executables.json");
+        waitForIndices();
         ensureGreen();
 
         // ensure that we have this in every index, so we find an event
@@ -88,7 +121,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             indexDoc(
                 idx,
                 "QjoLteG7HX3VUUXr-J4kHQ",
-                Map.of("@timestamp", 1668761065, "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
+                Map.of("@timestamp", Instant.now().toEpochMilli(), "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
             );
         }
 
@@ -105,5 +138,10 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         indexDoc("profiling-executables", "QCCDqjSg3bMK1C4YRK6Tiw", Map.of("Executable.file.name", "libc.so.6"));
 
         refresh();
+    }
+
+    @After
+    public void disable() {
+        updateProfilingTemplatesEnabled(false);
     }
 }

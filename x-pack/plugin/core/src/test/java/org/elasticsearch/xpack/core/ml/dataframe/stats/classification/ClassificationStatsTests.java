@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.classification;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,7 +33,7 @@ public class ClassificationStatsTests extends AbstractBWCSerializationTestCase<C
     }
 
     @Override
-    protected ClassificationStats mutateInstanceForVersion(ClassificationStats instance, Version version) {
+    protected ClassificationStats mutateInstanceForVersion(ClassificationStats instance, TransportVersion version) {
         return instance;
     }
 

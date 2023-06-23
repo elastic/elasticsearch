@@ -17,7 +17,7 @@
  * contained in the {@link org.elasticsearch.xpack.core.slm} package.
  *
  * <p>{@link org.elasticsearch.xpack.slm.SnapshotLifecycleService} maintains an internal
- * {@link org.elasticsearch.xpack.core.scheduler.SchedulerEngine SchedulerEngine} that handles scheduling snapshots. The service
+ * {@link org.elasticsearch.common.scheduler.SchedulerEngine SchedulerEngine} that handles scheduling snapshots. The service
  * executes on the currently elected master node. It listens to the cluster state, detecting new policies to schedule, and unscheduling
  * policies when they are deleted or if SLM is stopped. The bulk of this scheduling management is handled within
  * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleService#maybeScheduleSnapshot(SnapshotLifecyclePolicyMetadata)}

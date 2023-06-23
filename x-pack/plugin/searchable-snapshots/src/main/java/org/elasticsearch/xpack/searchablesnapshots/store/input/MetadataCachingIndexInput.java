@@ -20,7 +20,6 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
@@ -45,6 +44,7 @@ import java.util.function.LongConsumer;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.throwEOF;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
+import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -52,16 +52,6 @@ import static org.elasticsearch.core.Strings.format;
  * consisting of a two-level cache (BlobStoreCacheService and CacheService).
  */
 public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIndexInput {
-
-    /**
-     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
-     */
-    protected static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
-        ByteSizeValue.parseBytesSizeValue(
-            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
-            "es.searchable.snapshot.shared_cache.write_buffer.size"
-        ).getBytes()
-    );
 
     protected static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
@@ -378,12 +368,6 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             }
         }
         throw new IOException("failed to read data from cache", e);
-    }
-
-    protected abstract long getDefaultRangeSize();
-
-    protected ByteRange computeRange(long position) {
-        return BlobCacheUtils.computeRange(getDefaultRangeSize(), position, fileInfo.length());
     }
 
     @Override

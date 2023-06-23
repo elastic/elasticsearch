@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.HashSet;
 import java.util.List;
@@ -117,12 +118,17 @@ public interface RoleReference {
         }
     }
 
-    final class RemoteAccessRoleReference implements RoleReference {
+    final class CrossClusterAccessRoleReference implements RoleReference {
 
-        private final RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes;
+        private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;
         private RoleKey id = null;
+        private final String userPrincipal;
 
-        public RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes) {
+        public CrossClusterAccessRoleReference(
+            String userPrincipal,
+            CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes
+        ) {
+            this.userPrincipal = userPrincipal;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
         }
 
@@ -130,23 +136,47 @@ public interface RoleReference {
         public RoleKey id() {
             // Hashing can be expensive. memorize the result in case the method is called multiple times.
             if (id == null) {
-                final String roleDescriptorsHash = MessageDigests.toHexString(
-                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
-                );
-                id = new RoleKey(Set.of("remote_access:" + roleDescriptorsHash), "remote_access");
+                final String roleDescriptorsHash = roleDescriptorsBytes.digest();
+                id = new RoleKey(Set.of("cross_cluster_access:" + roleDescriptorsHash), "cross_cluster_access");
             }
             return id;
         }
 
         @Override
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-            resolver.resolveRemoteAccessRoleReference(this, listener);
+            resolver.resolveCrossClusterAccessRoleReference(this, listener);
         }
 
-        public RemoteAccessAuthentication.RoleDescriptorsBytes getRoleDescriptorsBytes() {
+        public String getUserPrincipal() {
+            return userPrincipal;
+        }
+
+        public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
             return roleDescriptorsBytes;
         }
+    }
 
+    final class FixedRoleReference implements RoleReference {
+
+        private final RoleDescriptor roleDescriptor;
+        private final String source;
+
+        public FixedRoleReference(RoleDescriptor roleDescriptor, String source) {
+            this.roleDescriptor = roleDescriptor;
+            this.source = source;
+        }
+
+        @Override
+        public RoleKey id() {
+            return new RoleKey(Set.of(roleDescriptor.getName()), source);
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+            rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
+            listener.onResponse(rolesRetrievalResult);
+        }
     }
 
     /**

@@ -10,9 +10,11 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,12 +35,22 @@ public abstract class StoredFieldLoader {
      * sufficient size and is contiguous.  Callers may pass {@code null} if the set
      * is not known up front or if the merge reader optimisation will not apply.
      */
-    public abstract LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs);
+    public abstract LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException;
 
     /**
      * @return a list of fields that will be loaded for each document
      */
     public abstract List<String> fieldsToLoad();
+
+    /**
+     * Creates a new StoredFieldLoader using a StoredFieldsSpec
+     */
+    public static StoredFieldLoader fromSpec(StoredFieldsSpec spec) {
+        if (spec.noRequirements()) {
+            return StoredFieldLoader.empty();
+        }
+        return create(spec.requiresSource(), spec.requiredStoredFields());
+    }
 
     /**
      * Creates a new StoredFieldLoader
@@ -49,7 +61,7 @@ public abstract class StoredFieldLoader {
         List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
         return new StoredFieldLoader() {
             @Override
-            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) {
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
                 return new ReaderStoredFieldLoader(reader(ctx, docs), loadSource, fields);
             }
 
@@ -66,7 +78,7 @@ public abstract class StoredFieldLoader {
     public static StoredFieldLoader sequentialSource() {
         return new StoredFieldLoader() {
             @Override
-            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) {
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
                 return new ReaderStoredFieldLoader(sequentialReader(ctx), true, Set.of());
             }
 
@@ -94,23 +106,21 @@ public abstract class StoredFieldLoader {
         };
     }
 
-    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader(LeafReaderContext ctx, int[] docs) {
+    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader(LeafReaderContext ctx, int[] docs) throws IOException {
         LeafReader leafReader = ctx.reader();
-        if (docs == null) {
-            return leafReader::document;
-        }
-        if (docs.length > 10 && hasSequentialDocs(docs)) {
+        if (docs != null && docs.length > 10 && hasSequentialDocs(docs)) {
             return sequentialReader(ctx);
         }
-        return leafReader::document;
+        StoredFields storedFields = leafReader.storedFields();
+        return storedFields::document;
     }
 
-    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> sequentialReader(LeafReaderContext ctx) {
+    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> sequentialReader(LeafReaderContext ctx) throws IOException {
         LeafReader leafReader = ctx.reader();
         if (leafReader instanceof SequentialStoredFieldsLeafReader lf) {
             return lf.getSequentialStoredFieldsReader()::document;
         }
-        return leafReader::document;
+        return leafReader.storedFields()::document;
     }
 
     private static List<String> fieldsToLoad(boolean loadSource, Set<String> fields) {

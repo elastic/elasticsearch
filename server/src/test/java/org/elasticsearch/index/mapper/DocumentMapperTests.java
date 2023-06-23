@@ -12,15 +12,17 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,10 +30,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.containsString;
@@ -103,7 +107,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
@@ -111,9 +115,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()),
                 "whitespace",
                 new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer())
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 
@@ -158,10 +160,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> { throw new IllegalArgumentException(); })
-        );
+        expectThrows(IllegalArgumentException.class, () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> {
+            throw new IllegalArgumentException();
+        }));
 
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -283,7 +284,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testEmptyDocumentMapper() {
-        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+        MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> false);
         DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
         assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
         assertTrue(documentMapper.mappers().hasMappings());
@@ -328,7 +329,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         int max;
         Settings settings;
         if (randomBoolean()) {
-            max = 16; // By default no more than 16 dimensions per document are supported
+            max = 21; // By default no more than 21 dimensions per document are supported
             settings = getIndexSettings();
         } else {
             max = between(1, 10000);
@@ -347,5 +348,105 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
         })));
         assertThat(e.getMessage(), containsString("Limit of total dimension fields [" + max + "] has been exceeded"));
+    }
+
+    public void testDeeplyNestedMapping() throws Exception {
+        final int maxDepth = INDEX_MAPPING_DEPTH_LIMIT_SETTING.get(Settings.EMPTY).intValue();
+        {
+            // test that the depth limit is enforced for object field
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
+            for (int i = 0; i < maxDepth + 5; i++) {
+                builder.startObject("obj" + i);
+                builder.startObject("properties");
+            }
+            builder.startObject("foo").field("type", "keyword").endObject();
+            for (int i = 0; i < maxDepth + 5; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+            builder.endObject().endObject().endObject();
+
+            MapperParsingException exc = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(Settings.builder().put(getIndexSettings()).build(), builder)
+            );
+            assertThat(exc.getMessage(), containsString("Limit of mapping depth [" + maxDepth + "] has been exceeded"));
+        }
+
+        {
+            // test that the limit is per individual field, so several object fields don't trip the limit
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
+            for (int i = 0; i < maxDepth - 3; i++) {
+                builder.startObject("obj" + i);
+                builder.startObject("properties");
+            }
+
+            for (int i = 0; i < 2; i++) {
+                builder.startObject("sub_obj1" + i);
+                builder.startObject("properties");
+            }
+            builder.startObject("foo").field("type", "keyword").endObject();
+            for (int i = 0; i < 2; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+
+            for (int i = 0; i < 2; i++) {
+                builder.startObject("sub_obj2" + i);
+                builder.startObject("properties");
+            }
+            builder.startObject("foo2").field("type", "keyword").endObject();
+            for (int i = 0; i < 2; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+
+            for (int i = 0; i < maxDepth - 3; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+            builder.endObject().endObject().endObject();
+
+            createMapperService(Settings.builder().put(getIndexSettings()).build(), builder);
+        }
+        {
+            // test that parsing correct objects in parallel using the same MapperService don't trip the limit
+            final int numThreads = randomIntBetween(2, 5);
+            final XContentBuilder[] builders = new XContentBuilder[numThreads];
+
+            for (int i = 0; i < numThreads; i++) {
+                builders[i] = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
+                for (int j = 0; j < maxDepth - 1; j++) {
+                    builders[i].startObject("obj" + i + "_" + j);
+                    builders[i].startObject("properties");
+                }
+                builders[i].startObject("foo").field("type", "keyword").endObject();
+                for (int j = 0; j < maxDepth - 1; j++) {
+                    builders[i].endObject();
+                    builders[i].endObject();
+                }
+                builders[i].endObject().endObject().endObject();
+            }
+
+            final MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> false);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Thread[] threads = new Thread[numThreads];
+            for (int i = 0; i < threads.length; i++) {
+                final int threadId = i;
+                threads[threadId] = new Thread(() -> {
+                    try {
+                        latch.await();
+                        mapperService.parseMapping("_doc", new CompressedXContent(Strings.toString(builders[threadId])));
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
+                threads[threadId].start();
+            }
+            latch.countDown();
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        }
     }
 }

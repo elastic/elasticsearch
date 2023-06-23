@@ -183,8 +183,8 @@ PUT my-index-000001/_doc/1
 [[match-unmatch]]
 ==== `match` and `unmatch`
 
-The `match` parameter uses a pattern to match on the field name, while
-`unmatch` uses a pattern to exclude fields matched by `match`.
+The `match` parameter uses one or more patterns to match on the field name, while
+`unmatch` uses one or more patterns to exclude fields matched by `match`.
 
 The `match_pattern` parameter adjusts the behavior of the `match` parameter
 to support full Java regular expressions matching on the field name
@@ -231,6 +231,48 @@ PUT my-index-000001/_doc/1
 <1> The `long_num` field is mapped as a `long`.
 <2> The `long_text` field uses the default `string` mapping.
 
+
+You can specify a list of patterns using a JSON array for either the
+`match` or `unmatch` fields.
+
+The next example matches all fields whose name starts with `ip_` or ends with `_ip`, 
+except for fields which start with `one` or end with `two` and maps them
+as `ip` fields:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "ip_fields": {
+          "match":   ["ip_*", "*_ip"],
+          "unmatch": ["one*", "*two"],
+          "mapping": {
+            "type": "ip"
+          }
+        }
+      }
+    ]
+  }
+}
+
+PUT my-index/_doc/1
+{
+  "one_ip":   "will not match", <1>
+  "ip_two":   "will not match", <2>
+  "three_ip": "12.12.12.12", <3>
+  "ip_four":  "13.13.13.13" <4>
+}
+--------------------------------------------------
+
+<1> The `one_ip` field is unmatched, so uses the default mapping of `text`.
+<2> The `ip_two` field is unmatched, so uses the default mapping of `text`.
+<3> The `three_ip` field is mapped as type `ip`.
+<4> The `ip_four` field is mapped as type `ip`.
+
+
 [[path-match-unmatch]]
 ==== `path_match` and `path_unmatch`
 
@@ -270,6 +312,55 @@ PUT my-index-000001/_doc/1
   }
 }
 --------------------------------------------------
+
+And the following example uses an array of patterns for both `path_match`
+and `path_unmatch`.
+
+The values of any fields in the `name` object or the `user.name` object
+are copied to the top-level `full_name` field, except for the `middle`
+and `midinitial` fields:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "full_name": {
+          "path_match":   ["name.*", "user.name.*"],
+          "path_unmatch": ["*.middle", "*.midinitial"],
+          "mapping": {
+            "type":       "text",
+            "copy_to":    "full_name"
+          }
+        }
+      }
+    ]
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "name": {
+    "first":  "John",
+    "middle": "Winston",
+    "last":   "Lennon"
+  }
+}
+
+PUT my-index-000001/_doc/2
+{
+  "user": {
+    "name": {
+      "first":      "Jane",
+      "midinitial": "M",
+      "last":       "Salazar"
+    }
+  }
+}
+--------------------------------------------------
+
 
 Note that the `path_match` and `path_unmatch` parameters match on object paths
 in addition to leaf fields. As an example, indexing the following document will

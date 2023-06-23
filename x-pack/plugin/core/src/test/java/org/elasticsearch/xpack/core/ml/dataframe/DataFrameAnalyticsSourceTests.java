@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +90,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
         return new DataFrameAnalyticsSource(index, queryProvider, sourceFiltering, runtimeMappings);
     }
 
-    public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, Version version) {
+    public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, TransportVersion version) {
         return instance;
     }
 
@@ -179,7 +179,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected DataFrameAnalyticsSource mutateInstanceForVersion(DataFrameAnalyticsSource instance, Version version) {
+    protected DataFrameAnalyticsSource mutateInstanceForVersion(DataFrameAnalyticsSource instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 }

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -50,6 +49,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
@@ -60,7 +60,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -87,6 +86,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 /**
  * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
@@ -95,7 +95,7 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
  * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
  * </p>
  */
-public class Metadata extends AbstractCollection<IndexMetadata> implements Diffable<Metadata>, ChunkedToXContent {
+public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ChunkedToXContent {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
@@ -231,7 +231,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private volatile SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
-    private final Version oldestIndexVersion;
+    private final IndexVersion oldestIndexVersion;
 
     private Metadata(
         String clusterUUID,
@@ -256,7 +256,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
         Map<String, MappingMetadata> mappingsByHash,
-        Version oldestIndexVersion,
+        IndexVersion oldestIndexVersion,
         Map<String, ReservedStateMetadata> reservedStateMetadata
     ) {
         this.clusterUUID = clusterUUID;
@@ -638,7 +638,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             updatedVisibleClosedIndices,
             null,
             updatedMappingsByHash,
-            index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
+            IndexVersion.min(IndexVersion.fromId(index.getCompatibilityVersion().id), oldestIndexVersion),
             reservedStateMetadata
         );
     }
@@ -719,7 +719,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return this.coordinationMetadata;
     }
 
-    public Version oldestIndexVersion() {
+    public IndexVersion oldestIndexVersion() {
         return this.oldestIndexVersion;
     }
 
@@ -881,9 +881,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     /**
      * Finds the parent data streams, if any, for the specified concrete indices.
      */
-    public Map<String, IndexAbstraction.DataStream> findDataStreams(String... concreteIndices) {
+    public Map<String, DataStream> findDataStreams(String... concreteIndices) {
         assert concreteIndices != null;
-        final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
+        final ImmutableOpenMap.Builder<String, DataStream> builder = ImmutableOpenMap.builder();
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
         for (String indexName : concreteIndices) {
             IndexAbstraction index = lookup.get(indexName);
@@ -1264,8 +1264,33 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
     }
 
-    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return this.custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY).getAllNodeMetadataMap();
+    public NodesShutdownMetadata nodeShutdowns() {
+        return custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
+    }
+
+    /**
+     * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
+     * data stream that's potentially managed by DLM and the value of the {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     */
+    public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
+            // no ILM policy configured so short circuit this to *not* managed by ILM
+            return false;
+        }
+
+        IndexAbstraction indexAbstraction = getIndicesLookup().get(indexMetadata.getIndex().getName());
+        if (indexAbstraction == null) {
+            // index doesn't exist anymore
+            return false;
+        }
+
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
+            // index has both ILM and DLM configured so let's check which is preferred
+            return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+        }
+
+        return true;
     }
 
     public Map<String, Custom> customs() {
@@ -1321,7 +1346,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return indices.values().iterator();
     }
 
-    @Override
+    public Stream<IndexMetadata> stream() {
+        return indices.values().stream();
+    }
+
     public int size() {
         return indices.size();
     }
@@ -2244,7 +2272,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final List<String> visibleClosedIndices = new ArrayList<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
 
-            int oldestIndexVersionId = Version.CURRENT.id;
+            int oldestIndexVersionId = IndexVersion.CURRENT.id();
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
 
@@ -2334,7 +2362,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 visibleClosedIndicesArray,
                 indicesLookup,
                 Collections.unmodifiableMap(mappingsByHash),
-                Version.fromId(oldestIndexVersionId),
+                IndexVersion.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
         }
@@ -2435,38 +2463,24 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             DataStreamMetadata dataStreamMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
+            if (indices.isEmpty()) {
+                return Collections.emptySortedMap();
+            }
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-            Map<String, IndexAbstraction.DataStream> indexToDataStreamLookup = new HashMap<>();
-            // If there are no indices, then skip data streams. This happens only when metadata is read from disk
-            if (indices.size() > 0) {
-                Map<String, List<String>> dataStreamToAliasLookup = new HashMap<>();
-                for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
-                    List<Index> allIndicesOfAllDataStreams = alias.getDataStreams().stream().map(name -> {
-                        List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
-                        aliases.add(alias.getName());
-                        return dataStreamMetadata.dataStreams().get(name);
-                    }).flatMap(ds -> ds.getIndices().stream()).toList();
-                    Index writeIndexOfWriteDataStream = null;
-                    if (alias.getWriteDataStream() != null) {
-                        DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
-                        writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
-                    }
-                    IndexAbstraction existing = indicesLookup.put(
-                        alias.getName(),
-                        new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream)
-                    );
-                    assert existing == null : "duplicate data stream alias for " + alias.getName();
-                }
-                for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
-                    assert dataStream.getIndices().isEmpty() == false;
+            Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
+            final var dataStreams = dataStreamMetadata.dataStreams();
+            for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
+                IndexAbstraction existing = indicesLookup.put(alias.getName(), makeDsAliasAbstraction(dataStreams, alias));
+                assert existing == null : "duplicate data stream alias for " + alias.getName();
+            }
+            for (DataStream dataStream : dataStreams.values()) {
+                assert dataStream.getIndices().isEmpty() == false;
 
-                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream);
-                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dsAbstraction);
-                    assert existing == null : "duplicate data stream for " + dataStream.getName();
+                IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dataStream);
+                assert existing == null : "duplicate data stream for " + dataStream.getName();
 
-                    for (Index i : dataStream.getIndices()) {
-                        indexToDataStreamLookup.put(i.getName(), dsAbstraction);
-                    }
+                for (Index i : dataStream.getIndices()) {
+                    indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
             }
 
@@ -2474,7 +2488,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             for (var entry : indices.entrySet()) {
                 final String name = entry.getKey();
                 final IndexMetadata indexMetadata = entry.getValue();
-                final IndexAbstraction.DataStream parent = indexToDataStreamLookup.get(name);
+                final DataStream parent = indexToDataStreamLookup.get(name);
                 assert parent == null || parent.getIndices().stream().anyMatch(index -> name.equals(index.getName()))
                     : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
                 IndexAbstraction existing = indicesLookup.put(name, new ConcreteIndex(indexMetadata, parent));
@@ -2493,6 +2507,19 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
 
             return Collections.unmodifiableSortedMap(indicesLookup);
+        }
+
+        private static IndexAbstraction.Alias makeDsAliasAbstraction(Map<String, DataStream> dataStreams, DataStreamAlias alias) {
+            Index writeIndexOfWriteDataStream = null;
+            if (alias.getWriteDataStream() != null) {
+                DataStream writeDataStream = dataStreams.get(alias.getWriteDataStream());
+                writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
+            }
+            return new IndexAbstraction.Alias(
+                alias,
+                alias.getDataStreams().stream().flatMap(name -> dataStreams.get(name).getIndices().stream()).toList(),
+                writeIndexOfWriteDataStream
+            );
         }
 
         private static boolean isNonEmpty(List<IndexMetadata> idxMetas) {

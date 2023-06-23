@@ -19,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -186,7 +187,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             ReindexPlugin.class,
             CommonAnalysisPlugin.class,
             InternalSettingsPlugin.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            MainRestPlugin.class
         );
     }
 

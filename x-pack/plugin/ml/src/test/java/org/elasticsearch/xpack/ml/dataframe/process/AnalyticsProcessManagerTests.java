@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -137,7 +138,8 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(task.isStopping()).thenReturn(true);
         when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, false));
 
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(stepResponse -> {
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory,
+            ActionTestUtils.assertNoFailureListener(stepResponse -> {
             assertThat(processManager.getProcessContextCount(), equalTo(0));
             assertThat(stepResponse.isTaskComplete(), is(true));
 
@@ -145,7 +147,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             inOrder.verify(task).isStopping();
             inOrder.verify(task).getParams();
             verifyNoMoreInteractions(task);
-        }, e -> fail(e.getMessage())));
+        }));
     }
 
     public void testRunJob_ProcessContextAlreadyExists() {
@@ -153,10 +155,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             task,
             dataFrameAnalyticsConfig,
             dataExtractorFactory,
-            ActionListener.wrap(
-                stepResponse -> {},
-                e -> fail(e.getMessage()) // First run should not error
-            )
+            ActionTestUtils.assertNoFailureListener(stepResponse -> {}) // First run should not error
         );
         assertThat(processManager.getProcessContextCount(), equalTo(1));
         processManager.runJob(
@@ -183,9 +182,9 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     public void testRunJob_EmptyDataFrame() {
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(0, NUM_COLS));
 
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(stepResponse -> {
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionTestUtils.assertNoFailureListener(response -> {
             assertThat(processManager.getProcessContextCount(), equalTo(0));  // Make sure the process context did not leak
-            assertThat(stepResponse.isTaskComplete(), is(true));
+            assertThat(response.isTaskComplete(), is(true));
 
             InOrder inOrder = inOrder(dataExtractor, executorServiceForProcess, process, task);
             inOrder.verify(task).isStopping();
@@ -195,13 +194,13 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
             inOrder.verify(task).getAllocationId();
             verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
-        }, e -> fail(e.getMessage())));
+        }));
     }
 
     public void testRunJob_Ok() {
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(stepResponse -> {
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionTestUtils.assertNoFailureListener(response -> {
             assertThat(processManager.getProcessContextCount(), equalTo(1));
-            assertThat(stepResponse.isTaskComplete(), is(true));
+            assertThat(response.isTaskComplete(), is(true));
 
             InOrder inOrder = inOrder(dataExtractor, executorServiceForProcess, process, task);
             inOrder.verify(task).isStopping();
@@ -215,7 +214,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             inOrder.verify(dataExtractor).getExtractedFields();
             inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
             verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
-        }, e -> fail(e.getMessage())));
+        }));
     }
 
     public void testRunJob_ProcessNotAliveAfterStart() {

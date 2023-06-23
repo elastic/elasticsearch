@@ -16,8 +16,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -26,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -53,12 +52,11 @@ import static org.elasticsearch.index.IndexSettings.same;
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
-    private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
-    private final ClusterStateTaskExecutor<UpdateSettingsTask> executor;
+    private final MasterServiceTaskQueue<UpdateSettingsTask> taskQueue;
 
     public MetadataUpdateSettingsService(
         ClusterService clusterService,
@@ -68,12 +66,11 @@ public class MetadataUpdateSettingsService {
         ShardLimitValidator shardLimitValidator,
         ThreadPool threadPool
     ) {
-        this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.executor = batchExecutionContext -> {
+        this.taskQueue = clusterService.createTaskQueue("update-settings", Priority.URGENT, batchExecutionContext -> {
             var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -97,7 +94,7 @@ public class MetadataUpdateSettingsService {
                 listener.noRerouteNeeded();
             }
             return state;
-        };
+        });
     }
 
     private final class UpdateSettingsTask implements ClusterStateTaskListener {
@@ -313,11 +310,10 @@ public class MetadataUpdateSettingsService {
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "update-settings " + Arrays.toString(request.indices()),
             new UpdateSettingsTask(request, listener),
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-            this.executor
+            request.masterNodeTimeout()
         );
     }
 

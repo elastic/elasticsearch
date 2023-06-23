@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
@@ -122,29 +123,36 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         final CancellableTask cancellableTask = (CancellableTask) task;
         final ClusterState state = clusterService.state();
         final Metadata metadata = state.metadata();
+        final ClusterSnapshotStats clusterSnapshotStats = ClusterSnapshotStats.of(
+            state,
+            clusterService.threadPool().absoluteTimeInMillis()
+        );
 
-        final StepListener<MappingStats> mappingStatsStep = new StepListener<>();
-        final StepListener<AnalysisStats> analysisStatsStep = new StepListener<>();
+        final ListenableFuture<MappingStats> mappingStatsStep = new ListenableFuture<>();
+        final ListenableFuture<AnalysisStats> analysisStatsStep = new ListenableFuture<>();
         mappingStatsCache.get(metadata, cancellableTask::isCancelled, mappingStatsStep);
         analysisStatsCache.get(metadata, cancellableTask::isCancelled, analysisStatsStep);
-        mappingStatsStep.whenComplete(
-            mappingStats -> analysisStatsStep.whenComplete(
-                analysisStats -> ActionListener.completeWith(
-                    listener,
-                    () -> new ClusterStatsResponse(
-                        System.currentTimeMillis(),
-                        metadata.clusterUUID(),
-                        clusterService.getClusterName(),
-                        responses,
-                        failures,
-                        mappingStats,
-                        analysisStats,
-                        VersionStats.of(metadata, responses)
+        mappingStatsStep.addListener(
+            listener.delegateFailureAndWrap(
+                (l, mappingStats) -> analysisStatsStep.addListener(
+                    l.delegateFailureAndWrap(
+                        (ll, analysisStats) -> ActionListener.completeWith(
+                            ll,
+                            () -> new ClusterStatsResponse(
+                                System.currentTimeMillis(),
+                                metadata.clusterUUID(),
+                                clusterService.getClusterName(),
+                                responses,
+                                failures,
+                                mappingStats,
+                                analysisStats,
+                                VersionStats.of(metadata, responses),
+                                clusterSnapshotStats
+                            )
+                        )
                     )
-                ),
-                listener::onFailure
-            ),
-            listener::onFailure
+                )
+            )
         );
     }
 
@@ -172,7 +180,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest, Task task) {
         assert task instanceof CancellableTask;
         final CancellableTask cancellableTask = (CancellableTask) task;
-        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false);
+        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, false, true, false, false, false);
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
             true,
@@ -186,6 +194,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             true,
+            false,
             false,
             false,
             false
@@ -216,7 +225,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                             CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
                             commitStats,
                             seqNoStats,
-                            retentionLeaseStats
+                            retentionLeaseStats,
+                            indexShard.isSearchIdle(),
+                            indexShard.searchIdleTime()
                         )
                     );
                 }

@@ -31,7 +31,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("test-blocks").setId("" + i).setSource("test", "init").execute().actionGet();
         }
-        client().admin().indices().prepareFlush("test-blocks").get();
+        indicesAdmin().prepareFlush("test-blocks").get();
 
         // Request is not blocked
         for (String blockSetting : Arrays.asList(
@@ -42,7 +42,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                IndicesSegmentResponse response = client().admin().indices().prepareSegments("test-blocks").execute().actionGet();
+                IndicesSegmentResponse response = indicesAdmin().prepareSegments("test-blocks").execute().actionGet();
                 assertNoFailures(response);
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);
@@ -52,7 +52,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
         // Request is blocked
         try {
             enableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().indices().prepareSegments("test-blocks"));
+            assertBlocked(indicesAdmin().prepareSegments("test-blocks"));
         } finally {
             disableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
         }

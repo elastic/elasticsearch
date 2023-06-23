@@ -10,7 +10,6 @@ package org.elasticsearch.reservedstate.action;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -47,7 +46,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
 
     @SuppressWarnings("unchecked")
     private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
 
         Map<String, Object> persistentSettings = new HashMap<>();
         Set<String> toDelete = new HashSet<>(previouslySet);

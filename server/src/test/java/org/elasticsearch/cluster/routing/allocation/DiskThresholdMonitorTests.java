@@ -38,6 +38,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -99,7 +101,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("frozen"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")).add(newFrozenOnlyNode("frozen")))
@@ -260,11 +262,11 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void doTestDoesNotSubmitRerouteTaskTooFrequently(boolean testMaxHeadroom) {
-        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")))
             .build();
         AtomicLong currentTime = new AtomicLong();
-        AtomicReference<ActionListener<ClusterState>> listenerReference = new AtomicReference<>();
+        AtomicReference<ActionListener<Void>> listenerReference = new AtomicReference<>();
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
             () -> clusterState,
@@ -314,7 +316,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         currentTime.addAndGet(randomLongBetween(0, 120000));
         monitor.onNewInfo(clusterInfo(allDisksOk));
         assertNotNull(listenerReference.get());
-        listenerReference.getAndSet(null).onResponse(clusterState);
+        listenerReference.getAndSet(null).onResponse(null);
 
         // should not reroute when all disks are ok and no new info received
         currentTime.addAndGet(randomLongBetween(0, 120000));
@@ -325,7 +327,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             currentTime.addAndGet(randomLongBetween(0, 120000));
             monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
-            Optional.ofNullable(listenerReference.getAndSet(null)).ifPresent(l -> l.onResponse(clusterState));
+            Optional.ofNullable(listenerReference.getAndSet(null)).ifPresent(l -> l.onResponse(null));
         }
 
         // however once the reroute interval has elapsed then we must reroute again
@@ -337,7 +339,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
         assertNotNull(listenerReference.get());
-        listenerReference.getAndSet(null).onResponse(clusterState);
+        listenerReference.getAndSet(null).onResponse(null);
 
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
@@ -360,7 +362,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
         assertNotNull(listenerReference.get());
-        final ActionListener<ClusterState> rerouteListener1 = listenerReference.getAndSet(null);
+        final ActionListener<Void> rerouteListener1 = listenerReference.getAndSet(null);
 
         // should not re-route again before reroute has completed
         currentTime.addAndGet(randomLongBetween(0, 120000));
@@ -368,7 +370,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(listenerReference.get());
 
         // complete reroute
-        rerouteListener1.onResponse(clusterState);
+        rerouteListener1.onResponse(null);
 
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
@@ -441,7 +443,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")))
@@ -473,7 +475,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(clusterState);
+                listener.onResponse(null);
             }
         ) {
             @Override
@@ -565,7 +567,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(clusterStateWithBlocks);
+                listener.onResponse(null);
             }
         ) {
             @Override
@@ -777,7 +779,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1", "my-node1")).add(newNormalNode("node2", "my-node2")))
@@ -811,7 +813,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(currentClusterState.get());
+                listener.onResponse(null);
             }
         ) {
             @Override
@@ -1029,7 +1031,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void doTestDiskMonitorLogging(boolean testHeadroom) throws IllegalAccessException {
-        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newFrozenOnlyNode("frozen")))
             .build();
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(clusterState);
@@ -1056,7 +1058,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             timeSupplier,
-            (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())
+            (reason, priority, listener) -> listener.onResponse(null)
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
@@ -1279,6 +1281,88 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor:INFO", reason = "testing INFO/WARN logging")
     public void testDiskMonitorLoggingWithMaxHeadrooms() throws IllegalAccessException {
         doTestDiskMonitorLogging(true);
+    }
+
+    public void testSkipDiskThresholdMonitorWhenStateNotRecovered() {
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
+        boolean shutdownMetadataInState = randomBoolean();
+        if (shutdownMetadataInState) {
+            metadataBuilder.putCustom(
+                NodesShutdownMetadata.TYPE,
+                new NodesShutdownMetadata(
+                    Collections.singletonMap(
+                        "node1",
+                        SingleNodeShutdownMetadata.builder()
+                            .setNodeId("node1")
+                            .setReason("testing")
+                            .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                            .setTargetNodeName("node3")
+                            .setStartedAtMillis(randomNonNegativeLong())
+                            .build()
+                    )
+                )
+            );
+        }
+        Metadata metadata = metadataBuilder.build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
+        DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder()
+            .add(newNormalNode("node1", "node1"))
+            .add(newNormalNode("node2", "node2"));
+        // node3 which is to replace node1 may or may not be in the cluster
+        if (shutdownMetadataInState && randomBoolean()) {
+            discoveryNodes.add(newNormalNode("node3", "node3"));
+        }
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(discoveryNodes).build(),
+            createAllocationService(Settings.EMPTY)
+        );
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
+        diskUsages.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
+        final ClusterInfo clusterInfo = clusterInfo(diskUsages);
+        var result = runDiskThresholdMonitor(clusterState, clusterInfo);
+        assertTrue(result.v1()); // reroute on new nodes
+        assertEquals(Set.of("test"), result.v2());
+
+        final ClusterState blockedClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .nodes(discoveryNodes)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
+            .build();
+        var result2 = runDiskThresholdMonitor(blockedClusterState, clusterInfo);
+        assertFalse(result2.v1());
+        assertNull(result2.v2());
+    }
+
+    // Runs a disk threshold monitor with a given cluster state and cluster info and returns whether a reroute should
+    // happen and any indices that should be marked as read-only.
+    private Tuple<Boolean, Set<String>> runDiskThresholdMonitor(ClusterState clusterState, ClusterInfo clusterInfo) {
+        AtomicBoolean reroute = new AtomicBoolean(false);
+        AtomicReference<Set<String>> indices = new AtomicReference<>();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            System::currentTimeMillis,
+            (reason, priority, listener) -> {
+                reroute.set(true);
+                listener.onResponse(null);
+            }
+        ) {
+
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+                assertTrue(readOnly);
+                indices.set(indicesToMarkReadOnly);
+                onCompletion.close();
+            }
+        };
+        monitor.onNewInfo(clusterInfo);
+        return Tuple.tuple(reroute.get(), indices.get());
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {

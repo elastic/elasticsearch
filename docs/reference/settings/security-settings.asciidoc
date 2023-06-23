@@ -1074,7 +1074,7 @@ the following settings.
 
 // tag::saml-idp-entity-id-tag[]
 `idp.entity_id` {ess-icon}::
-(<<static-cluster-setting,Static>>)
+ (<<static-cluster-setting,Static>>)
 The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a
 maximum length of 1024 characters. It can be a URL (https://idp.example.com/) or
 a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML
@@ -1089,20 +1089,61 @@ capabilities and configuration of the Identity Provider.
 If a path is provided, then it is resolved relative to the {es} config
 directory.
 If a URL is provided, then it must be either a `file` URL or a `https` URL.
++
 {es} automatically polls this metadata resource and reloads
 the IdP configuration when changes are detected.
 File based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
 HTTPS resources are polled at a frequency determined by the realm's
-`idp.metadata.http.refresh` setting.
+`idp.metadata.http.refresh` and `idp.metadata.http.minimum_refresh` settings.
++
+If the metadata resource is loaded from a file then the file must exist at node
+startup, if it does not exist then the node will fail to start.
+If the resource is loaded over HTTPS then (by default) the node will be tolerant
+of a failure to load the resource - the node will start and will continue to
+poll the URL for updates. The affected SAML realm will fail to authenticate
+users until the problem is resolved. To force the node to fail if the metadata is
+unavailable set `idp.metadata.http.fail_on_error` to `true`.
 // end::saml-idp-metadata-path-tag[]
+
+// tag::saml-idp-metadata-http-refresh-tag[]
+`idp.metadata.http.fail_on_error`::
+(<<static-cluster-setting,Static>>)
+If set to `true`, the realm will fail on startup (and prevent the node from starting)
+if it attempts to load metadata over HTTPS and that metadata is not available.
+If set to `false` (the default), the node will start but the affected SAML realm will
+not support user authentication until the metadata can be successfully loaded.
+This setting is ignored if metadata is loaded from a file.
+// end::saml-idp-metadata-http-refresh-tag[]
 
 // tag::saml-idp-metadata-http-refresh-tag[]
 `idp.metadata.http.refresh` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Controls the frequency with which `https` metadata is checked for changes.
 Defaults to `1h` (1 hour).
++
+Under some circumstances {es} may determine that the metadata needs to be checked
+more frequently. This may occur if previous attempts to load the metadata
+encountered an error, or if the metadata indicates that it is due to expire in
+less than the configured refresh interval. In these cases {es} will poll more
+often, but never more frequently than `idp.metadata.http.minimum_refresh`.
+If there is an attempt to authenticate against a realm that has not yet loaded
+metadata successfully, that realm may attempt to load metadata outside of the
+configured polling frequency.
 // end::saml-idp-metadata-http-refresh-tag[]
+
+// tag::saml-idp-metadata-http-minimum-refresh-tag[]
+`idp.metadata.http.minimum_refresh`::
+(<<static-cluster-setting,Static>>)
+Controls the minimum frequency with which `https` metadata is checked for
+changes. In regular operation {es} will use the value of
+`idp.metadata.http.refresh` as the polling interval. However, under some
+circumstances {es} may determine that it needs to poll more frequently.
+In these cases, the `minimum_refresh` will set the minimum frequency at which
+the metdata will be checked.
+Defaults to `5m` (5 minutes) and must not be set to a value greater than
+`idp.metadata.http.refresh`
+// end::saml-idp-metadata-http-minimum-refresh-tag[]
 
 // tag::saml-idp-use-single-logout-tag[]
 `idp.use_single_logout` {ess-icon}::
@@ -2301,7 +2342,7 @@ Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT
 realm uses to verify token signatures. This format supports multiple keys and
 optional attributes, and is preferred over the `hmac_key` setting. Cannot be
 used in conjunction with the `hmac_key` setting. Refer to
-<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+<<jwt-auth-realm,Configure {es} to use a JWT realm>>.
 // end::jwt-hmac-jwkset-tag[]
 
 // tag::jwt-hmac-key-tag[]
@@ -2313,7 +2354,7 @@ without attributes, and cannot be used with the `hmac_jwkset` setting. This
 format is compatible with OIDC. The HMAC key must be a UNICODE string, where
 the key bytes are the UTF-8 encoding of the UNICODE string.
 The `hmac_jwkset` setting is preferred. Refer to
-<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+<<jwt-auth-realm,Configure {es} to use a JWT realm>>.
 
 // end::jwt-hmac-key-tag[]
 

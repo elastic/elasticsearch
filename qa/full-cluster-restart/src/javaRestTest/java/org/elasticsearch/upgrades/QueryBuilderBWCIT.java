@@ -10,6 +10,8 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -242,13 +244,24 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                 var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
-                try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
-                    try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)) {
-                        input.setVersion(getOldClusterVersion());
-                        QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                        assert in.read() == -1;
-                        assertEquals(expectedQueryBuilder, queryBuilder);
+                try (
+                    InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length);
+                    StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
+                ) {
+                    Version clusterVersion = getOldClusterVersion();
+
+                    TransportVersion transportVersion;
+                    if (clusterVersion.before(Version.V_8_8_0)) {
+                        transportVersion = TransportVersion.fromId(clusterVersion.id);
+                    } else {
+                        transportVersion = TransportVersion.readVersion(input);
                     }
+
+                    input.setTransportVersion(transportVersion);
+                    QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                    assert in.read() == -1;
+                    assertEquals(expectedQueryBuilder, queryBuilder);
+
                 }
             }
         }

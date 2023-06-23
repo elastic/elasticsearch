@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,7 +74,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
             .build();
     }
 
-    public static BoostedTreeParams mutateForVersion(BoostedTreeParams instance, Version version) {
+    public static BoostedTreeParams mutateForVersion(BoostedTreeParams instance, TransportVersion version) {
         return instance;
     }
 
@@ -327,7 +327,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
     }
 
     @Override
-    protected BoostedTreeParams mutateInstanceForVersion(BoostedTreeParams instance, Version version) {
+    protected BoostedTreeParams mutateInstanceForVersion(BoostedTreeParams instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 }

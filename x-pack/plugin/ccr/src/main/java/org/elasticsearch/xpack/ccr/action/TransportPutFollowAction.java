@@ -289,15 +289,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
-            ActionListener.wrap(
-                r -> ActiveShardsObserver.waitForActiveShards(
+            listener.delegateFailureAndWrap(
+                (l, r) -> ActiveShardsObserver.waitForActiveShards(
                     clusterService,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
                     request.timeout(),
-                    listener.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
-                ),
-                listener::onFailure
+                    l.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
+                )
             )
         );
     }
@@ -326,7 +325,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 true,
                 remoteDataStream.isSystem(),
                 remoteDataStream.isAllowCustomRouting(),
-                remoteDataStream.getIndexMode()
+                remoteDataStream.getIndexMode(),
+                remoteDataStream.getLifecycle()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -376,7 +376,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.isReplicated(),
                 localDataStream.isSystem(),
                 localDataStream.isAllowCustomRouting(),
-                localDataStream.getIndexMode()
+                localDataStream.getIndexMode(),
+                localDataStream.getLifecycle()
             );
         }
     }

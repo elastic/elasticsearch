@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.common.settings.Setting.parseInt;
 import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
 import static org.elasticsearch.core.Strings.format;
@@ -44,8 +46,9 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
     public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
-    public static final Version SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_16_0;
-    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION = TransportVersion.V_7_16_0;
+    public static final TransportVersion SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION = TransportVersion.V_7_15_0;
+    public static final IndexVersion SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = IndexVersion.V_7_16_0;
+    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION = TransportVersion.V_7_16_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
@@ -392,6 +395,7 @@ public class RecoverySettings {
     private final boolean nodeBandwidthSettingsExist;
     private volatile int maxConcurrentSnapshotFileDownloads;
     private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
+    private volatile int maxConcurrentIncomingRecoveries;
 
     private final AdjustableSemaphore maxSnapshotFileDownloadsPerNodeSemaphore;
 
@@ -416,6 +420,7 @@ public class RecoverySettings {
         this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
         this.maxConcurrentSnapshotFileDownloads = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.get(settings);
         this.maxConcurrentSnapshotFileDownloadsPerNode = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.get(settings);
+        this.maxConcurrentIncomingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings);
         this.maxSnapshotFileDownloadsPerNodeSemaphore = new AdjustableSemaphore(this.maxConcurrentSnapshotFileDownloadsPerNode, true);
         this.availableNetworkBandwidth = NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.get(settings);
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
@@ -464,6 +469,10 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE,
             this::setMaxConcurrentSnapshotFileDownloadsPerNode
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            this::setMaxConcurrentIncomingRecoveries
         );
     }
 
@@ -651,6 +660,10 @@ public class RecoverySettings {
         this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
     }
 
+    private void setMaxConcurrentIncomingRecoveries(int maxConcurrentIncomingRecoveries) {
+        this.maxConcurrentIncomingRecoveries = maxConcurrentIncomingRecoveries;
+    }
+
     private void setMaxConcurrentSnapshotFileDownloadsPerNode(int maxConcurrentSnapshotFileDownloadsPerNode) {
         this.maxConcurrentSnapshotFileDownloadsPerNode = maxConcurrentSnapshotFileDownloadsPerNode;
         this.maxSnapshotFileDownloadsPerNodeSemaphore.setMaxPermits(maxConcurrentSnapshotFileDownloadsPerNode);
@@ -665,16 +678,39 @@ public class RecoverySettings {
         final int maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads();
         final boolean permitAcquired = maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads);
         if (permitAcquired == false) {
-            logger.warn(
-                String.format(
-                    Locale.ROOT,
-                    "Unable to acquire permit to use snapshot files during recovery, "
-                        + "this recovery will recover index files from the source node. "
-                        + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
-                    INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
-                    this.maxConcurrentSnapshotFileDownloadsPerNode
-                )
-            );
+            if (this.maxConcurrentIncomingRecoveries <= this.maxConcurrentSnapshotFileDownloadsPerNode) {
+                logger.warn(
+                    String.format(
+                        Locale.ROOT,
+                        """
+                            Unable to acquire permit to use snapshot files during recovery, so this recovery will recover index files from \
+                            the source node. Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]. \
+                            Current values of [%s] = [%d], [%s] = [%d]
+                            """,
+                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+                        this.maxConcurrentSnapshotFileDownloadsPerNode / Math.max(1, this.maxConcurrentIncomingRecoveries),
+                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.getKey(),
+                        this.maxConcurrentSnapshotFileDownloadsPerNode,
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        this.maxConcurrentIncomingRecoveries
+                    )
+                );
+            } else {
+                logger.warn(
+                    String.format(
+                        Locale.ROOT,
+                        """
+                            Unable to acquire permit to use snapshot files during recovery, so this recovery will recover index files from \
+                            the source node. Ensure snapshot files can be used during recovery by reducing [%s] from its current value of \
+                            [%d] to be no greater than [%d], or disable snapshot-based recovery by setting [%s] to [false]
+                            """,
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        this.maxConcurrentIncomingRecoveries,
+                        this.maxConcurrentSnapshotFileDownloadsPerNode,
+                        INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey()
+                    )
+                );
+            }
             return null;
         }
 
@@ -700,7 +736,7 @@ public class RecoverySettings {
     /**
      * Whether the node bandwidth recovery settings are set.
      */
-    public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
+    private static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
         return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();

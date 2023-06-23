@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -76,7 +76,7 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
     }
 
     @Override
-    protected SearchHitCursor copyInstance(SearchHitCursor instance, Version version) throws IOException {
+    protected SearchHitCursor copyInstance(SearchHitCursor instance, TransportVersion version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {

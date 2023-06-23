@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -167,9 +166,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
-            activeRealms.stream()
-                .filter(r -> licensedRealms.contains(r) == false)
-                .forEach(realm -> { handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot); });
+            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
+                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
+            });
         }
 
         activeRealms = licensedRealms;
@@ -316,10 +315,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                     assert ReservedRealm.TYPE.equals(type) == false;
                     realmMap.compute(type, (key, value) -> {
                         if (value == null) {
-                            return MapBuilder.<String, Object>newMapBuilder()
-                                .put("enabled", false)
-                                .put("available", isRealmTypeAvailable(licenseStateSnapshot, type))
-                                .map();
+                            return Map.of("enabled", false, "available", isRealmTypeAvailable(licenseStateSnapshot, type));
                         }
 
                         assert value instanceof Map;

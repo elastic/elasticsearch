@@ -80,7 +80,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Version maxNodeVersion,
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
-        IndexVersion minSupportedIndexVersion
+        IndexVersion minSupportedIndexVersion,
+        Set<String> availableRoles
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
@@ -98,11 +99,26 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.availableRoles = dataNodes.values()
-            .stream()
-            .flatMap(n -> n.getRoles().stream())
-            .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toUnmodifiableSet());
+        this.availableRoles = availableRoles;
+    }
+
+    public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
+        assert masterNodeId == null || nodes.containsKey(masterNodeId) : "unknown node [" + masterNodeId + "]";
+        return new DiscoveryNodes(
+            nodeLeftGeneration,
+            nodes,
+            dataNodes,
+            masterNodes,
+            ingestNodes,
+            masterNodeId,
+            localNodeId,
+            minNonClientNodeVersion,
+            maxNodeVersion,
+            minNodeVersion,
+            maxDataNodeCompatibleIndexVersion,
+            minSupportedIndexVersion,
+            availableRoles
+        );
     }
 
     @Override
@@ -836,10 +852,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 newNodeLeftGeneration = oldNodeLeftGeneration;
             }
 
+            var dataNodes = filteredNodes(nodes, DiscoveryNode::canContainData);
             return new DiscoveryNodes(
                 newNodeLeftGeneration,
                 Map.copyOf(nodes),
-                filteredNodes(nodes, DiscoveryNode::canContainData),
+                dataNodes,
                 filteredNodes(nodes, DiscoveryNode::isMasterNode),
                 filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
@@ -848,7 +865,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.CURRENT),
-                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE)
+                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
+                dataNodes.values()
+                    .stream()
+                    .flatMap(n -> n.getRoles().stream())
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toUnmodifiableSet())
             );
         }
 

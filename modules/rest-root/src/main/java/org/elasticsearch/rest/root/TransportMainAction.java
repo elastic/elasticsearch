@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,7 +43,14 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     protected void doExecute(Task task, MainRequest request, ActionListener<MainResponse> listener) {
         ClusterState clusterState = clusterService.state();
         listener.onResponse(
-            new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(), clusterState.metadata().clusterUUID(), Build.CURRENT)
+            new MainResponse(
+                nodeName,
+                Version.CURRENT,
+                TransportVersion.current(),
+                clusterState.getClusterName(),
+                clusterState.metadata().clusterUUID(),
+                Build.CURRENT
+            )
         );
     }
 }

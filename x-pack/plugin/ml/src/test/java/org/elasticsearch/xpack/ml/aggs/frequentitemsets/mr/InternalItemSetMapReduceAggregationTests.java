@@ -72,7 +72,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
             }
 
             WordCounts(StreamInput in) throws IOException {
-                this.frequencies = in.readMap(StreamInput::readString, StreamInput::readLong);
+                this.frequencies = in.readMap(StreamInput::readLong);
             }
 
             @Override

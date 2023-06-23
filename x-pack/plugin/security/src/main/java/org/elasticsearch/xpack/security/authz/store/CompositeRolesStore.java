@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -103,6 +104,8 @@ public class CompositeRolesStore {
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
+    private final WorkflowService workflowService;
+    private final ThreadContext threadContext;
 
     public CompositeRolesStore(
         Settings settings,
@@ -115,7 +118,8 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer,
+        WorkflowService workflowService
     ) {
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
@@ -175,6 +179,8 @@ public class CompositeRolesStore {
             effectiveRoleDescriptorsConsumer
         );
         this.anonymousUser = new AnonymousUser(settings);
+        this.workflowService = workflowService;
+        this.threadContext = threadContext;
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
@@ -203,7 +209,11 @@ public class CompositeRolesStore {
         assert false == subject.getUser() instanceof InternalUser : "Internal user [" + subject.getUser() + "] should not pass here";
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
-        roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
+        final String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+        roleReferenceIntersection.buildRole(
+            this::buildRoleFromRoleReference,
+            ActionListener.wrap(role -> roleActionListener.onResponse(role.forWorkflow(workflow)), roleActionListener::onFailure)
+        );
     }
 
     // Accessible by tests
@@ -374,6 +384,30 @@ public class CompositeRolesStore {
         }
     }
 
+    private static IllegalArgumentException validateRoleDescriptorRestrictions(Collection<RoleDescriptor> roleDescriptors) {
+        if (roleDescriptors.size() <= 1) {
+            return null;
+        }
+        long numberOfRoleDescriptorsWithRestriction = roleDescriptors.stream().filter(RoleDescriptor::hasRestriction).count();
+        if (numberOfRoleDescriptorsWithRestriction > 0L) {
+            // It's only allowed to define a single role descriptor with restriction.
+            if (numberOfRoleDescriptorsWithRestriction != 1L) {
+                return new IllegalArgumentException(
+                    "more than one role descriptor with restriction is not allowed: "
+                        + roleDescriptors.stream().map(RoleDescriptor::getName).toList()
+                );
+            }
+            // Combining roles with and without restriction is not allowed either.
+            if (numberOfRoleDescriptorsWithRestriction != roleDescriptors.size()) {
+                return new IllegalArgumentException(
+                    "combining role descriptors with and without restriction is not allowed: "
+                        + roleDescriptors.stream().map(RoleDescriptor::getName).toList()
+                );
+            }
+        }
+        return null;
+    }
+
     public static void buildRoleFromDescriptors(
         Collection<RoleDescriptor> roleDescriptors,
         FieldPermissionsCache fieldPermissionsCache,
@@ -383,6 +417,12 @@ public class CompositeRolesStore {
     ) {
         if (roleDescriptors.isEmpty()) {
             listener.onResponse(Role.EMPTY);
+            return;
+        }
+
+        final IllegalArgumentException validationException = validateRoleDescriptorRestrictions(roleDescriptors);
+        if (validationException != null) {
+            listener.onFailure(validationException);
             return;
         }
 
@@ -397,7 +437,7 @@ public class CompositeRolesStore {
 
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
-
+        final Set<String> workflows = new HashSet<>();
         final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
@@ -428,6 +468,10 @@ public class CompositeRolesStore {
                         return v;
                     }
                 });
+            }
+
+            if (descriptor.hasWorkflowsRestriction()) {
+                workflows.addAll(List.of(descriptor.getRestriction().getWorkflows()));
             }
         }
 
@@ -468,6 +512,9 @@ public class CompositeRolesStore {
                 )
             );
         });
+        if (false == workflows.isEmpty()) {
+            builder.workflows(workflows);
+        }
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {

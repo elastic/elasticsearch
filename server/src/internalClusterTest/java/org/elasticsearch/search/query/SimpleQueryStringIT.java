@@ -339,7 +339,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("location", "Köln"));
         refresh();
@@ -386,7 +386,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("body", "Some Text"));
         refresh();

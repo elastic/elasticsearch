@@ -318,21 +318,24 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         ClusterState state = clusterApplierService.state();
         DiscoveryNodes nodes = state.nodes();
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(nodes.withMasterNodeId(nodes.getLocalNodeId()))
+            .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(true));
 
         nodes = state.nodes();
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
         state = ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
-            .nodes(nodesBuilder)
+            .nodes(nodes.withMasterNodeId(null))
             .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(false));
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(nodes.withMasterNodeId(nodes.getLocalNodeId()))
+            .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(true));
 

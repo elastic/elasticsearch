@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
@@ -87,9 +88,8 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         List<MlDataRemover> removers = Stream.generate(DummyDataRemover::new).limit(numRemovers).collect(Collectors.toList());
 
         AtomicBoolean succeeded = new AtomicBoolean();
-        ActionListener<DeleteExpiredDataAction.Response> finalListener = ActionListener.wrap(
-            response -> succeeded.set(response.isDeleted()),
-            e -> fail(e.getMessage())
+        ActionListener<DeleteExpiredDataAction.Response> finalListener = ActionTestUtils.assertNoFailureListener(
+            response -> succeeded.set(response.isDeleted())
         );
 
         BooleanSupplier isTimedOutSupplier = () -> false;
@@ -108,9 +108,8 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         List<MlDataRemover> removers = Stream.generate(DummyDataRemover::new).limit(numRemovers).collect(Collectors.toList());
 
         AtomicBoolean succeeded = new AtomicBoolean();
-        ActionListener<DeleteExpiredDataAction.Response> finalListener = ActionListener.wrap(
-            response -> succeeded.set(response.isDeleted()),
-            e -> fail(e.getMessage())
+        ActionListener<DeleteExpiredDataAction.Response> finalListener = ActionTestUtils.assertNoFailureListener(
+            response -> succeeded.set(response.isDeleted())
         );
 
         BooleanSupplier isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
@@ -137,9 +136,8 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         List<MlDataRemover> removers = Stream.generate(DummyDataRemover::new).limit(numRemovers).collect(Collectors.toList());
 
         AtomicBoolean succeeded = new AtomicBoolean();
-        ActionListener<DeleteExpiredDataAction.Response> finalListener = ActionListener.wrap(
-            response -> succeeded.set(response.isDeleted()),
-            e -> fail(e.getMessage())
+        ActionListener<DeleteExpiredDataAction.Response> finalListener = ActionTestUtils.assertNoFailureListener(
+            response -> succeeded.set(response.isDeleted())
         );
 
         BooleanSupplier isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);

@@ -197,7 +197,6 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         final int size = randomIntBetween(100, 1000);
-        final List<Long> sample = new ArrayList<>(size);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, i + 1)));
@@ -215,6 +214,9 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad").field(FIELD_NAME)
             .compression(randomDoubleBetween(20, 1000, true));
+        if (randomBoolean()) {
+            builder.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
@@ -282,11 +284,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
         public static double calculateMAD(double[] sample) {
             final double median = calculateMedian(sample);
-
             final double[] deviations = Arrays.stream(sample).map(point -> Math.abs(median - point)).toArray();
-
-            final double mad = calculateMedian(deviations);
-            return mad;
+            return calculateMedian(deviations);
         }
 
         private static double calculateMedian(double[] sample) {

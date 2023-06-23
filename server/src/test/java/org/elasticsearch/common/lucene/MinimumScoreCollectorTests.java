@@ -16,6 +16,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
@@ -42,7 +43,7 @@ public class MinimumScoreCollectorTests extends ESTestCase {
         super.setUp();
         directory = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), directory, newIndexWriterConfig());
-        numDocs = randomIntBetween(10, 100);
+        numDocs = randomIntBetween(900, 1000);
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("field1", "value", Field.Store.NO));
@@ -71,7 +72,7 @@ public class MinimumScoreCollectorTests extends ESTestCase {
             .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
             .build();
         {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(2, 100);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(2, 1000);
             searcher.search(booleanQuery, topScoreDocCollector);
             TopDocs topDocs = topScoreDocCollector.topDocs();
             assertEquals(numDocs, topDocs.totalHits.value);
@@ -79,17 +80,17 @@ public class MinimumScoreCollectorTests extends ESTestCase {
             thresholdScore = topDocs.scoreDocs[1].score;
         }
         {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 100);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
             searcher.search(booleanQuery, new MinimumScoreCollector(topScoreDocCollector, maxScore));
             assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
         }
         {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 100);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
             searcher.search(booleanQuery, new MinimumScoreCollector(topScoreDocCollector, thresholdScore));
             assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
         }
         {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 100);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
             searcher.search(booleanQuery, new MinimumScoreCollector(topScoreDocCollector, maxScore + 100f));
             assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
         }
@@ -105,6 +106,36 @@ public class MinimumScoreCollectorTests extends ESTestCase {
             TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
             searcher.search(new MatchAllDocsQuery(), new MinimumScoreCollector(totalHitCountCollector, 100f));
             assertEquals(0, totalHitCountCollector.getTotalHits());
+        }
+    }
+
+    public void testManager() throws IOException {
+        float maxScore;
+        float thresholdScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        {
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(2, null, 1000);
+            TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+            thresholdScore = topDocs.scoreDocs[1].score;
+        }
+        {
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            TopDocs topDocs = searcher.search(booleanQuery, MinimumScoreCollector.createManager(topDocsManager, maxScore));
+            assertEquals(1, topDocs.totalHits.value);
+        }
+        {
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            TopDocs topDocs = searcher.search(booleanQuery, MinimumScoreCollector.createManager(topDocsManager, thresholdScore));
+            assertEquals(numDocs, topDocs.totalHits.value);
+        }
+        {
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            TopDocs topDocs = searcher.search(booleanQuery, MinimumScoreCollector.createManager(topDocsManager, maxScore + 100f));
+            assertEquals(0, topDocs.totalHits.value);
         }
     }
 }

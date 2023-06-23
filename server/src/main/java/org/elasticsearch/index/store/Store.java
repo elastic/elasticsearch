@@ -46,7 +46,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -504,7 +503,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         boolean success = false;
         try {
             assert metadata.writtenBy() != null;
-            output = new LuceneVerifyingIndexOutput(metadata, output);
+            output = new VerifyingIndexOutput(metadata, output);
             success = true;
         } finally {
             if (success == false) {
@@ -515,8 +514,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void verify(IndexOutput output) throws IOException {
-        if (output instanceof VerifyingIndexOutput) {
-            ((VerifyingIndexOutput) output).verify();
+        if (output instanceof VerifyingIndexOutput verifyingIndexOutput) {
+            verifyingIndexOutput.verify();
         }
     }
 
@@ -860,7 +859,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
             final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
-            final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
+            final var commitUserData = in.readMap(StreamInput::readString);
             final var numDocs = in.readLong();
 
             if (metadata.size() == 0 && commitUserData.size() == 0 && numDocs == 0) {
@@ -1176,98 +1175,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static String digestToString(long digest) {
         return Long.toString(digest, Character.MAX_RADIX);
-    }
-
-    static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
-
-        private final StoreFileMetadata metadata;
-        private long writtenBytes;
-        private final long checksumPosition;
-        private String actualChecksum;
-        private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
-
-        LuceneVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
-            super(out);
-            this.metadata = metadata;
-            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
-        }
-
-        @Override
-        public void verify() throws IOException {
-            String footerDigest = null;
-            if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
-                ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
-                footerDigest = digestToString(CodecUtil.readBELong(indexInput));
-                if (metadata.checksum().equals(footerDigest)) {
-                    return;
-                }
-            }
-            throw new CorruptIndexException(
-                "verification failed (hardware problem?) : expected="
-                    + metadata.checksum()
-                    + " actual="
-                    + actualChecksum
-                    + " footer="
-                    + footerDigest
-                    + " writtenLength="
-                    + writtenBytes
-                    + " expectedLength="
-                    + metadata.length()
-                    + " (resource="
-                    + metadata.toString()
-                    + ")",
-                "VerifyingIndexOutput(" + metadata.name() + ")"
-            );
-        }
-
-        @Override
-        public void writeByte(byte b) throws IOException {
-            final long writtenBytes = this.writtenBytes++;
-            if (writtenBytes >= checksumPosition) { // we are writing parts of the checksum....
-                if (writtenBytes == checksumPosition) {
-                    readAndCompareChecksum();
-                }
-                final int index = Math.toIntExact(writtenBytes - checksumPosition);
-                if (index < footerChecksum.length) {
-                    footerChecksum[index] = b;
-                    if (index == footerChecksum.length - 1) {
-                        verify(); // we have recorded the entire checksum
-                    }
-                } else {
-                    verify(); // fail if we write more than expected
-                    throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
-                }
-            }
-            out.writeByte(b);
-        }
-
-        private void readAndCompareChecksum() throws IOException {
-            actualChecksum = digestToString(getChecksum());
-            if (metadata.checksum().equals(actualChecksum) == false) {
-                throw new CorruptIndexException(
-                    "checksum failed (hardware problem?) : expected="
-                        + metadata.checksum()
-                        + " actual="
-                        + actualChecksum
-                        + " (resource="
-                        + metadata.toString()
-                        + ")",
-                    "VerifyingIndexOutput(" + metadata.name() + ")"
-                );
-            }
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            if (writtenBytes + length > checksumPosition) {
-                for (int i = 0; i < length; i++) { // don't optimize writing the last block of bytes
-                    writeByte(b[offset + i]);
-                }
-            } else {
-                out.writeBytes(b, offset, length);
-                writtenBytes += length;
-            }
-        }
     }
 
     /**

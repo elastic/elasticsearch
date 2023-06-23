@@ -105,8 +105,8 @@ final class QueryPhaseCollector implements Collector {
     private boolean shouldCollectTopDocs(int doc, Scorable scorer, Bits postFilterBits) throws IOException {
         if (minScore == null || scorer.score() >= minScore) {
             if (postFilterBits == null || postFilterBits.get(doc)) {
-                //TODO terminate_after is purposely applied after post_filter, yet it is weird as it terminates aggs collection
-                //based on number of filtered top hits that have been collected. This may be something that we want to address.
+                // TODO terminate_after is purposely applied after post_filter, yet it is weird as it terminates aggs collection
+                // based on number of filtered top hits that have been collected. This may be something that we want to address.
                 if (terminateAfter > 0 && ++numCollected > terminateAfter) {
                     terminatedAfter = true;
                     throw new CollectionTerminatedException();

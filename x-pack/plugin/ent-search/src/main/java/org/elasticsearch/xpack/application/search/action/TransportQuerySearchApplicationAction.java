@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -64,11 +65,16 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
 
                 systemIndexService.checkAliasConsistency(searchApplication, new ActionListener<>() {
                     @Override
-                    public void onResponse(Map<String, String> stringStringMap) {
+                    public void onResponse(Map<String, String> inconsistentIndices) {
+
+                        for (String key : inconsistentIndices.keySet()) {
+                            HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
+                        }
+
                         client.execute(
                             SearchAction.INSTANCE,
                             searchRequest,
-                            listener.delegateFailure((l2, searchResponse) -> l2.onResponse(new SearchApplicationSearchResponse(searchResponse, stringStringMap)))
+                            listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
                         );
                     }
 

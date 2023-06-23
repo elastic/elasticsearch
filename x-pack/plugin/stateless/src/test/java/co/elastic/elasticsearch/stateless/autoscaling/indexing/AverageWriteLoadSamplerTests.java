@@ -1,0 +1,58 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+
+public class AverageWriteLoadSamplerTests extends ESTestCase {
+
+    // TODO: could we make AverageWriteLoadSampler work with a DeterministicTaskQueue to be able to write more elaborate tests?
+    public void testAverageWriteLoadInitialValue() throws Exception {
+        var threadpool = new TestThreadPool("test");
+        try {
+            var writeLoadSampler = new AverageWriteLoadSampler(threadpool, TimeValue.timeValueSeconds(1));
+            writeLoadSampler.start();
+            assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.WRITE), equalTo(0.0));
+            assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_WRITE), equalTo(0.0));
+            assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), equalTo(0.0));
+            var randomThreadPool = randomValueOtherThanMany(
+                AverageWriteLoadSampler.WRITE_EXECUTORS::contains,
+                () -> randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet())
+            );
+            expectThrows(IllegalArgumentException.class, () -> writeLoadSampler.getAverageWriteLoad(randomThreadPool));
+
+            var writeExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.WRITE);
+            writeExecutor.execute(() -> safeSleep(randomLongBetween(50, 200)));
+            assertBusy(() -> assertThat(writeExecutor.getCompletedTaskCount(), equalTo(1L)));
+            assertBusy(() -> {
+                assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.WRITE), greaterThan(0.0));
+                assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_WRITE), equalTo(0.0));
+                assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), equalTo(0.0));
+            });
+        } finally {
+            terminate(threadpool);
+        }
+    }
+}

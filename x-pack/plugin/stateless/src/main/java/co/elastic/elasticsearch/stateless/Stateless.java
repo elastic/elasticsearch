@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.RestGetStatelessAutoscalin
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction;
 import co.elastic.elasticsearch.stateless.autoscaling.action.TransportGetStatelessAutoscalingMetricsAction;
 import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadSampler;
@@ -289,9 +290,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         );
 
         var ingestLoadPublisher = new IngestLoadPublisher(client, clusterService, threadPool);
-        var ingestLoadProbe = new IngestLoadProbe(threadPool);
+        var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings);
+        var ingestLoadProbe = new IngestLoadProbe(threadPool, writeLoadSampler);
         var ingestLoadSampler = IngestLoadSampler.create(
             threadPool,
+            writeLoadSampler,
             ingestLoadPublisher,
             ingestLoadProbe::getIngestionLoad,
             hasIndexRole,

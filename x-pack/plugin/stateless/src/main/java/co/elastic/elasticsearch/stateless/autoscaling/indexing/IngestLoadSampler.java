@@ -60,6 +60,7 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     private final Logger logger = LogManager.getLogger(IngestLoadSampler.class);
     private final ThreadPool threadPool;
+    private final AverageWriteLoadSampler writeLoadSampler;
     private final IngestLoadPublisher ingestionLoadPublisher;
     private final DoubleSupplier currentIndexLoadSupplier;
     private final double minSensitivityRatio;
@@ -76,6 +77,7 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     public IngestLoadSampler(
         ThreadPool threadPool,
+        AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestionLoadPublisher,
         DoubleSupplier currentIndexLoadSupplier,
         boolean isIndexNode,
@@ -83,6 +85,7 @@ public class IngestLoadSampler implements ClusterStateListener {
     ) {
         this(
             threadPool,
+            writeLoadSampler,
             ingestionLoadPublisher,
             currentIndexLoadSupplier,
             isIndexNode,
@@ -95,6 +98,7 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     IngestLoadSampler(
         ThreadPool threadPool,
+        AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestionLoadPublisher,
         DoubleSupplier currentIndexLoadSupplier,
         boolean isIndexNode,
@@ -114,6 +118,7 @@ public class IngestLoadSampler implements ClusterStateListener {
         this.isIndexNode = isIndexNode;
 
         this.threadPool = threadPool;
+        this.writeLoadSampler = writeLoadSampler;
         this.ingestionLoadPublisher = ingestionLoadPublisher;
         this.currentIndexLoadSupplier = currentIndexLoadSupplier;
         // To ensure that the first sample is published right away
@@ -122,13 +127,21 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     public static IngestLoadSampler create(
         ThreadPool threadPool,
+        AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestLoadPublisher,
         DoubleSupplier getIngestionLoad,
         boolean hasIndexRole,
         Settings settings,
         ClusterService clusterService
     ) {
-        var loadSampler = new IngestLoadSampler(threadPool, ingestLoadPublisher, getIngestionLoad, hasIndexRole, settings);
+        var loadSampler = new IngestLoadSampler(
+            threadPool,
+            writeLoadSampler,
+            ingestLoadPublisher,
+            getIngestionLoad,
+            hasIndexRole,
+            settings
+        );
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -146,6 +159,7 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     void start() {
         if (isIndexNode) {
+            writeLoadSampler.start();
             var newSamplingTask = new SamplingTask();
             samplingTask = newSamplingTask;
             newSamplingTask.run();
@@ -153,7 +167,10 @@ public class IngestLoadSampler implements ClusterStateListener {
     }
 
     void stop() {
-        samplingTask = null;
+        if (isIndexNode) {
+            samplingTask = null;
+            writeLoadSampler.stop();
+        }
     }
 
     @Override

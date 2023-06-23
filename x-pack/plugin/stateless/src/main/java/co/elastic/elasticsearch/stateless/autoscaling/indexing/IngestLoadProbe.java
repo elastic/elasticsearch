@@ -24,9 +24,11 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public class IngestLoadProbe {
     private final ThreadPool threadPool;
+    private final AverageWriteLoadSampler writeLoadSampler;
 
-    public IngestLoadProbe(ThreadPool threadPool) {
+    public IngestLoadProbe(ThreadPool threadPool, AverageWriteLoadSampler writeLoadSampler) {
         this.threadPool = threadPool;
+        this.writeLoadSampler = writeLoadSampler;
     }
 
     /**

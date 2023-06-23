@@ -491,20 +491,7 @@ Defaults to `true`.
 
 `ignore_unavailable`::
 (Optional, Boolean) If false, the request returns an error if it targets a missing or closed index. Defaults to false.
-NOTE:: Should be set to `true` to perform reindexing from remote when index name is prefixed with remote cluster alias.
-
-[source,console]
---------------------------------------------------
-POST _reindex?ignore_unavailable=true
-{
-  "source": {
-    "index": "remote_cluster_alias:source"
-  },
-  "dest": {
-    "index": "dest",
-  }
-}
---------------------------------------------------
+NOTE:: Should be set to `true` to perform reindexing from remote when index name is prefixed with remote cluster alias e.g. `cluster_name:index_name`
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 

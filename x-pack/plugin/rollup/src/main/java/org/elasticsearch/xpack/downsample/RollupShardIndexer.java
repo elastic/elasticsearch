@@ -377,7 +377,9 @@ class RollupShardIndexer {
                         rollupFieldProducer.collect(docValues, docId);
                     }
                     docsProcessed++;
-                    task.setDocsProcessedPercentage(100.0F * docsProcessed / task.getTotalShardDocCount());
+                    task.setDocsProcessedPercentage(
+                        task.getTotalShardDocCount() <= 0 ? 0.0F : 100.0F * docsProcessed / task.getTotalShardDocCount()
+                    );
                 }
             };
         }

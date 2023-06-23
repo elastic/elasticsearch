@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -200,9 +199,10 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         Exception ex = response.getFailure();
         assertThat(ex.getMessage(), containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version"));
         assertThat(ex.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals(
-            "This query isn't serializable with transport versions before " + TransportVersion.current(),
-            ex.getCause().getMessage()
-        );
+
+        String expectedCause = "[fail_before_current_version] was released first in version XXXXXXX, failed compatibility check trying to"
+            + " send it to node with version XXXXXXX";
+        String actualCause = ex.getCause().getMessage().replaceAll("\\d{7,}", "XXXXXXX");
+        assertEquals(expectedCause, actualCause);
     }
 }

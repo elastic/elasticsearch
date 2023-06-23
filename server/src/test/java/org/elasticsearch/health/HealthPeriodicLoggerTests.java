@@ -46,7 +46,6 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 public class HealthPeriodicLoggerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -145,11 +144,11 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         testHealthPeriodicLogger.init();
 
         // test that it knows that it's not initially the health node
-        assertFalse(testHealthPeriodicLogger.getIsHealthNode());
+        assertFalse(testHealthPeriodicLogger.isHealthNode);
 
         // trigger a cluster change and recheck
         testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
-        assertTrue(testHealthPeriodicLogger.getIsHealthNode());
+        assertTrue(testHealthPeriodicLogger.isHealthNode);
     }
 
     public void testJobScheduling() {
@@ -167,14 +166,14 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         testHealthPeriodicLogger.init();
 
         testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
-        assertTrue(testHealthPeriodicLogger.getIsHealthNode());
+        assertTrue(testHealthPeriodicLogger.isHealthNode);
 
         SchedulerEngine scheduler = testHealthPeriodicLogger.getScheduler();
         assertTrue(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
 
         ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
         testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, current));
-        assertFalse(testHealthPeriodicLogger.getIsHealthNode());
+        assertFalse(testHealthPeriodicLogger.isHealthNode);
         assertFalse(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
     }
 
@@ -198,7 +197,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         testHealthPeriodicLogger.init();
 
         HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        when(spyHealthPeriodicLogger.getIsHealthNode()).thenReturn(true);
+        spyHealthPeriodicLogger.isHealthNode = true;
         doAnswer(invocation -> {
             testListener.onResponse(getTestIndicatorResults());
             return null;
@@ -255,7 +254,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         testHealthPeriodicLogger.init();
 
         HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        when(spyHealthPeriodicLogger.getIsHealthNode()).thenReturn(true);
+        spyHealthPeriodicLogger.isHealthNode = true;
         doAnswer(invocation -> {
             spyHealthPeriodicLogger.resultsListener.onResponse(getTestIndicatorResults());
             return null;

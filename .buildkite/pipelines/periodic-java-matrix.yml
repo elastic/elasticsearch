@@ -2,8 +2,7 @@ steps:
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-          $$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
         matrix:
           setup:
             ES_RUNTIME_JAVA:

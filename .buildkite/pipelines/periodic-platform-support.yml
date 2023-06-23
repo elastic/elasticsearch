@@ -2,7 +2,7 @@ steps:
   - group: platform-support-unix
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
         matrix:
           setup:
             image:
@@ -32,8 +32,7 @@ steps:
   - group: platform-support-arm
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-          $$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
         matrix:
           setup:
             image: []

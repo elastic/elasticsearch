@@ -1,8 +1,6 @@
 steps:
   - label: sanity-check
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-      -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
-      -Dscan.capture-task-input-files precommit
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files precommit
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -11,9 +9,7 @@ steps:
       machineType: custom-32-98304
   - wait: null
   - label: part1
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-      -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
-      -Dscan.capture-task-input-files checkPart1
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart1
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -21,9 +17,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part2
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-      -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
-      -Dscan.capture-task-input-files checkPart2
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart2
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -31,9 +25,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part3
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-      -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
-      -Dscan.capture-task-input-files checkPart3
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart3
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -43,9 +35,7 @@ steps:
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-          -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
-          -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest
         matrix:
           setup:
             BWC_VERSION:
@@ -62,9 +52,7 @@ steps:
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: rest-compat
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-      -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
-      -Dscan.capture-task-input-files checkRestCompat
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkRestCompat
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -73,29 +61,20 @@ steps:
       machineType: custom-32-98304
   - wait: null
   - label: dra-snapshot
-    command: >-
+    command: |-
       WORKFLOW="snapshot"
-
       RM_BRANCH="%BRANCH%" && [[ "%BRANCH%" == "main" ]] && RM_BRANCH=master
-
       ES_VERSION=$$(cat build-tools-internal/version.properties \
             | grep elasticsearch \
             | sed "s/elasticsearch *= *//g")
       VERSION_SUFFIX="" && [[ "$$WORKFLOW" == "snapshot" ]] && VERSION_SUFFIX="-SNAPSHOT"
-
       BEATS_BUILD_ID="$$(./.ci/scripts/resolve-dra-manifest.sh beats $$RM_BRANCH $$ES_VERSION $$WORKFLOW)"
-
       ML_CPP_BUILD_ID="$$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp $$RM_BRANCH $$ES_VERSION $$WORKFLOW)"
-
       set -euo pipefail
-
       set +x
-
       #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
-
       export VAULT_TOKEN
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh -Ddra.artifacts=true \
+      .ci/scripts/run-gradle.sh -Ddra.artifacts=true \
           -Ddra.artifacts.dependency.beats=$${BEATS_BUILD_ID} \
           -Ddra.artifacts.dependency.ml-cpp=$${ML_CPP_BUILD_ID} \
           -Ddra.workflow=$$WORKFLOW \
@@ -105,31 +84,20 @@ steps:
           :distribution:generateDependenciesReport
 
       #unset VAULT_TOKEN
-
       set -x
-
       $$WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$$VERSION_SUFFIX"
 
-
       # we regenerate this file as part of the release manager invocation
-
       rm $$WORKSPACE/build/distributions/elasticsearch-jdbc-$${ES_VERSION}$${VERSION_SUFFIX}.taco.sha512
 
-
       # Allow other users access to read the artifacts so they are readable in the
-
       # container
-
       find $$WORKSPACE -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 
-
       # Allow other users write access to create checksum files
-
       find $$WORKSPACE -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
-
       # Artifacts should be generated
-
       docker run --rm \
              --name release-manager \
              -e VAULT_ADDR \

@@ -1,15 +1,10 @@
 steps:
   - label: build-benchmark-part1
-    command: >-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh
-      :build-tools-internal:bootstrapPerformanceTests
-
-      $$WORKSPACE/.ci/scripts/install-gradle-profiler.sh
-
-      $$WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part1.scenarios --project-dir . --output-dir profile-out
-
+    command: |-
+      .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
+      .ci/scripts/install-gradle-profiler.sh
+      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part1.scenarios --project-dir . --output-dir profile-out
       mkdir $$WORKSPACE/build
-
       tar -czf $$WORKSPACE/build/$${BUILD_NUMBER}.tar.bz2 profile-out
     agents:
       provider: gcp
@@ -18,16 +13,11 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: build-benchmark-part2
-    command: >-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh
-      :build-tools-internal:bootstrapPerformanceTests
-
-      $$WORKSPACE/.ci/scripts/install-gradle-profiler.sh
-
-      $$WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part2.scenarios --project-dir . --output-dir profile-out
-
+    command: |-
+      .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
+      .ci/scripts/install-gradle-profiler.sh
+      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part2.scenarios --project-dir . --output-dir profile-out
       mkdir $$WORKSPACE/build
-
       tar -czf $$WORKSPACE/build/$${BUILD_NUMBER}.tar.bz2 profile-out
     agents:
       provider: gcp
@@ -38,8 +28,7 @@ steps:
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         matrix:
           setup:
             BWC_VERSION:
@@ -56,34 +45,21 @@ steps:
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: cloud-deploy
-    command: >-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh buildCloudDockerImage
-
+    command: |-
+      .ci/scripts/run-gradle.sh buildCloudDockerImage
 
       #!/bin/bash
-
       set +x
-
       #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
-
       export VAULT_TOKEN
-
       export DOCKER_REGISTRY_USERNAME="$$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
-
       export DOCKER_REGISTRY_PASSWORD="$$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
-
       export ES_VERSION=$$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $$3}')
-
       export DOCKER_TAG=docker.elastic.co/elasticsearch-ci/elasticsearch-cloud:$${ES_VERSION}-$${ghprbActualCommit:0:7}
-
       docker tag elasticsearch-cloud:test $$DOCKER_TAG
-
       echo $$DOCKER_REGISTRY_PASSWORD | docker login -u $$DOCKER_REGISTRY_USERNAME --password-stdin docker.elastic.co
-
       unset DOCKER_REGISTRY_USERNAME DOCKER_REGISTRY_PASSWORD
-
       set -x
-
       docker push $$DOCKER_TAG
     agents:
       provider: gcp
@@ -92,8 +68,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: docs-check
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
-      :docs:check
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -101,23 +76,16 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: eql-correctness
-    command: >-
+    command: |-
       set +x
-
       #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
-
       export VAULT_TOKEN
-
       export eql_test_credentials_file="$$(pwd)/x-pack/plugin/eql/qa/correctness/credentials.gcs.json"
-
       vault read -field=credentials.gcs.json secret/ci/elastic-elasticsearch/migrated/eql_test_credentials > $${eql_test_credentials_file}
-
       #unset VAULT_TOKEN
-
       set -x
 
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:plugin:eql:qa:correctness:check
+      .ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:plugin:eql:qa:correctness:check
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -125,10 +93,9 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: example-plugins
-    command: >-
+    command: |-
       cd plugins/examples
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
+      .ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -138,8 +105,7 @@ steps:
   - group: full-bwc
     steps:
       - label: 7.0.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -149,8 +115,7 @@ steps:
         env:
           BWC_VERSION: 7.0.0
       - label: 7.0.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -160,8 +125,7 @@ steps:
         env:
           BWC_VERSION: 7.0.1
       - label: 7.1.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -171,8 +135,7 @@ steps:
         env:
           BWC_VERSION: 7.1.0
       - label: 7.1.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -182,8 +145,7 @@ steps:
         env:
           BWC_VERSION: 7.1.1
       - label: 7.2.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -193,8 +155,7 @@ steps:
         env:
           BWC_VERSION: 7.2.0
       - label: 7.2.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -204,8 +165,7 @@ steps:
         env:
           BWC_VERSION: 7.2.1
       - label: 7.3.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -215,8 +175,7 @@ steps:
         env:
           BWC_VERSION: 7.3.0
       - label: 7.3.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -226,8 +185,7 @@ steps:
         env:
           BWC_VERSION: 7.3.1
       - label: 7.3.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -237,8 +195,7 @@ steps:
         env:
           BWC_VERSION: 7.3.2
       - label: 7.4.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -248,8 +205,7 @@ steps:
         env:
           BWC_VERSION: 7.4.0
       - label: 7.4.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -259,8 +215,7 @@ steps:
         env:
           BWC_VERSION: 7.4.1
       - label: 7.4.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -270,8 +225,7 @@ steps:
         env:
           BWC_VERSION: 7.4.2
       - label: 7.5.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -281,8 +235,7 @@ steps:
         env:
           BWC_VERSION: 7.5.0
       - label: 7.5.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -292,8 +245,7 @@ steps:
         env:
           BWC_VERSION: 7.5.1
       - label: 7.5.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -303,8 +255,7 @@ steps:
         env:
           BWC_VERSION: 7.5.2
       - label: 7.6.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -314,8 +265,7 @@ steps:
         env:
           BWC_VERSION: 7.6.0
       - label: 7.6.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -325,8 +275,7 @@ steps:
         env:
           BWC_VERSION: 7.6.1
       - label: 7.6.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -336,8 +285,7 @@ steps:
         env:
           BWC_VERSION: 7.6.2
       - label: 7.7.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -347,8 +295,7 @@ steps:
         env:
           BWC_VERSION: 7.7.0
       - label: 7.7.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -358,8 +305,7 @@ steps:
         env:
           BWC_VERSION: 7.7.1
       - label: 7.8.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -369,8 +315,7 @@ steps:
         env:
           BWC_VERSION: 7.8.0
       - label: 7.8.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -380,8 +325,7 @@ steps:
         env:
           BWC_VERSION: 7.8.1
       - label: 7.9.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -391,8 +335,7 @@ steps:
         env:
           BWC_VERSION: 7.9.0
       - label: 7.9.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -402,8 +345,7 @@ steps:
         env:
           BWC_VERSION: 7.9.1
       - label: 7.9.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -413,8 +355,7 @@ steps:
         env:
           BWC_VERSION: 7.9.2
       - label: 7.9.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -424,8 +365,7 @@ steps:
         env:
           BWC_VERSION: 7.9.3
       - label: 7.10.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -435,8 +375,7 @@ steps:
         env:
           BWC_VERSION: 7.10.0
       - label: 7.10.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -446,8 +385,7 @@ steps:
         env:
           BWC_VERSION: 7.10.1
       - label: 7.10.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -457,8 +395,7 @@ steps:
         env:
           BWC_VERSION: 7.10.2
       - label: 7.11.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -468,8 +405,7 @@ steps:
         env:
           BWC_VERSION: 7.11.0
       - label: 7.11.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -479,8 +415,7 @@ steps:
         env:
           BWC_VERSION: 7.11.1
       - label: 7.11.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -490,8 +425,7 @@ steps:
         env:
           BWC_VERSION: 7.11.2
       - label: 7.12.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -501,8 +435,7 @@ steps:
         env:
           BWC_VERSION: 7.12.0
       - label: 7.12.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -512,8 +445,7 @@ steps:
         env:
           BWC_VERSION: 7.12.1
       - label: 7.13.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -523,8 +455,7 @@ steps:
         env:
           BWC_VERSION: 7.13.0
       - label: 7.13.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -534,8 +465,7 @@ steps:
         env:
           BWC_VERSION: 7.13.1
       - label: 7.13.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -545,8 +475,7 @@ steps:
         env:
           BWC_VERSION: 7.13.2
       - label: 7.13.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -556,8 +485,7 @@ steps:
         env:
           BWC_VERSION: 7.13.3
       - label: 7.13.4 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -567,8 +495,7 @@ steps:
         env:
           BWC_VERSION: 7.13.4
       - label: 7.14.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -578,8 +505,7 @@ steps:
         env:
           BWC_VERSION: 7.14.0
       - label: 7.14.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -589,8 +515,7 @@ steps:
         env:
           BWC_VERSION: 7.14.1
       - label: 7.14.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -600,8 +525,7 @@ steps:
         env:
           BWC_VERSION: 7.14.2
       - label: 7.15.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -611,8 +535,7 @@ steps:
         env:
           BWC_VERSION: 7.15.0
       - label: 7.15.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -622,8 +545,7 @@ steps:
         env:
           BWC_VERSION: 7.15.1
       - label: 7.15.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -633,8 +555,7 @@ steps:
         env:
           BWC_VERSION: 7.15.2
       - label: 7.16.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -644,8 +565,7 @@ steps:
         env:
           BWC_VERSION: 7.16.0
       - label: 7.16.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -655,8 +575,7 @@ steps:
         env:
           BWC_VERSION: 7.16.1
       - label: 7.16.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -666,8 +585,7 @@ steps:
         env:
           BWC_VERSION: 7.16.2
       - label: 7.16.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -677,8 +595,7 @@ steps:
         env:
           BWC_VERSION: 7.16.3
       - label: 7.17.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -688,8 +605,7 @@ steps:
         env:
           BWC_VERSION: 7.17.0
       - label: 7.17.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -699,8 +615,7 @@ steps:
         env:
           BWC_VERSION: 7.17.1
       - label: 7.17.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -710,8 +625,7 @@ steps:
         env:
           BWC_VERSION: 7.17.2
       - label: 7.17.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -721,8 +635,7 @@ steps:
         env:
           BWC_VERSION: 7.17.3
       - label: 7.17.4 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -732,8 +645,7 @@ steps:
         env:
           BWC_VERSION: 7.17.4
       - label: 7.17.5 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -743,8 +655,7 @@ steps:
         env:
           BWC_VERSION: 7.17.5
       - label: 7.17.6 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -754,8 +665,7 @@ steps:
         env:
           BWC_VERSION: 7.17.6
       - label: 7.17.7 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -765,8 +675,7 @@ steps:
         env:
           BWC_VERSION: 7.17.7
       - label: 7.17.8 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -776,8 +685,7 @@ steps:
         env:
           BWC_VERSION: 7.17.8
       - label: 7.17.9 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -787,8 +695,7 @@ steps:
         env:
           BWC_VERSION: 7.17.9
       - label: 7.17.10 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -798,8 +705,7 @@ steps:
         env:
           BWC_VERSION: 7.17.10
       - label: 7.17.11 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -809,8 +715,7 @@ steps:
         env:
           BWC_VERSION: 7.17.11
       - label: 8.0.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -820,8 +725,7 @@ steps:
         env:
           BWC_VERSION: 8.0.0
       - label: 8.0.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -831,8 +735,7 @@ steps:
         env:
           BWC_VERSION: 8.0.1
       - label: 8.1.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -842,8 +745,7 @@ steps:
         env:
           BWC_VERSION: 8.1.0
       - label: 8.1.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -853,8 +755,7 @@ steps:
         env:
           BWC_VERSION: 8.1.1
       - label: 8.1.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -864,8 +765,7 @@ steps:
         env:
           BWC_VERSION: 8.1.2
       - label: 8.1.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -875,8 +775,7 @@ steps:
         env:
           BWC_VERSION: 8.1.3
       - label: 8.2.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -886,8 +785,7 @@ steps:
         env:
           BWC_VERSION: 8.2.0
       - label: 8.2.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -897,8 +795,7 @@ steps:
         env:
           BWC_VERSION: 8.2.1
       - label: 8.2.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -908,8 +805,7 @@ steps:
         env:
           BWC_VERSION: 8.2.2
       - label: 8.2.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -919,8 +815,7 @@ steps:
         env:
           BWC_VERSION: 8.2.3
       - label: 8.3.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -930,8 +825,7 @@ steps:
         env:
           BWC_VERSION: 8.3.0
       - label: 8.3.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -941,8 +835,7 @@ steps:
         env:
           BWC_VERSION: 8.3.1
       - label: 8.3.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -952,8 +845,7 @@ steps:
         env:
           BWC_VERSION: 8.3.2
       - label: 8.3.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -963,8 +855,7 @@ steps:
         env:
           BWC_VERSION: 8.3.3
       - label: 8.4.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -974,8 +865,7 @@ steps:
         env:
           BWC_VERSION: 8.4.0
       - label: 8.4.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -985,8 +875,7 @@ steps:
         env:
           BWC_VERSION: 8.4.1
       - label: 8.4.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -996,8 +885,7 @@ steps:
         env:
           BWC_VERSION: 8.4.2
       - label: 8.4.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1007,8 +895,7 @@ steps:
         env:
           BWC_VERSION: 8.4.3
       - label: 8.5.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1018,8 +905,7 @@ steps:
         env:
           BWC_VERSION: 8.5.0
       - label: 8.5.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1029,8 +915,7 @@ steps:
         env:
           BWC_VERSION: 8.5.1
       - label: 8.5.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1040,8 +925,7 @@ steps:
         env:
           BWC_VERSION: 8.5.2
       - label: 8.5.3 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1051,8 +935,7 @@ steps:
         env:
           BWC_VERSION: 8.5.3
       - label: 8.6.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1062,8 +945,7 @@ steps:
         env:
           BWC_VERSION: 8.6.0
       - label: 8.6.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1073,8 +955,7 @@ steps:
         env:
           BWC_VERSION: 8.6.1
       - label: 8.6.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1084,8 +965,7 @@ steps:
         env:
           BWC_VERSION: 8.6.2
       - label: 8.7.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1095,8 +975,7 @@ steps:
         env:
           BWC_VERSION: 8.7.0
       - label: 8.7.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1106,8 +985,7 @@ steps:
         env:
           BWC_VERSION: 8.7.1
       - label: 8.8.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1117,8 +995,7 @@ steps:
         env:
           BWC_VERSION: 8.8.0
       - label: 8.8.1 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1128,8 +1005,7 @@ steps:
         env:
           BWC_VERSION: 8.8.1
       - label: 8.8.2 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1139,8 +1015,7 @@ steps:
         env:
           BWC_VERSION: 8.8.2
       - label: 8.9.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1150,8 +1025,7 @@ steps:
         env:
           BWC_VERSION: 8.9.0
       - label: 8.10.0 / full-bwc
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-          v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
           image: family/brian-elasticsearch-ubuntu-2004
@@ -1162,11 +1036,8 @@ steps:
           BWC_VERSION: 8.10.0
   - group: packaging-tests-unix-sample
     steps:
-      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
-          packaging-tests-unix-sample"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          $$PACKAGING_TASK
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-sample"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $$PACKAGING_TASK
         matrix:
           setup:
             image:
@@ -1186,9 +1057,7 @@ steps:
   - group: packaging-tests-unix
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          $$PACKAGING_TASK
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $$PACKAGING_TASK
         matrix:
           setup:
             image:
@@ -1222,9 +1091,7 @@ steps:
   - group: packaging-upgrade-tests
     steps:
       - label: "{{matrix.image}} / 7.0.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1239,9 +1106,7 @@ steps:
         env:
           BWC_VERSION: 7.0.0
       - label: "{{matrix.image}} / 7.0.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1256,9 +1121,7 @@ steps:
         env:
           BWC_VERSION: 7.0.1
       - label: "{{matrix.image}} / 7.1.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1273,9 +1136,7 @@ steps:
         env:
           BWC_VERSION: 7.1.0
       - label: "{{matrix.image}} / 7.1.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1290,9 +1151,7 @@ steps:
         env:
           BWC_VERSION: 7.1.1
       - label: "{{matrix.image}} / 7.2.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1307,9 +1166,7 @@ steps:
         env:
           BWC_VERSION: 7.2.0
       - label: "{{matrix.image}} / 7.2.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1324,9 +1181,7 @@ steps:
         env:
           BWC_VERSION: 7.2.1
       - label: "{{matrix.image}} / 7.3.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1341,9 +1196,7 @@ steps:
         env:
           BWC_VERSION: 7.3.0
       - label: "{{matrix.image}} / 7.3.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1358,9 +1211,7 @@ steps:
         env:
           BWC_VERSION: 7.3.1
       - label: "{{matrix.image}} / 7.3.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1375,9 +1226,7 @@ steps:
         env:
           BWC_VERSION: 7.3.2
       - label: "{{matrix.image}} / 7.4.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1392,9 +1241,7 @@ steps:
         env:
           BWC_VERSION: 7.4.0
       - label: "{{matrix.image}} / 7.4.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1409,9 +1256,7 @@ steps:
         env:
           BWC_VERSION: 7.4.1
       - label: "{{matrix.image}} / 7.4.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1426,9 +1271,7 @@ steps:
         env:
           BWC_VERSION: 7.4.2
       - label: "{{matrix.image}} / 7.5.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1443,9 +1286,7 @@ steps:
         env:
           BWC_VERSION: 7.5.0
       - label: "{{matrix.image}} / 7.5.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1460,9 +1301,7 @@ steps:
         env:
           BWC_VERSION: 7.5.1
       - label: "{{matrix.image}} / 7.5.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1477,9 +1316,7 @@ steps:
         env:
           BWC_VERSION: 7.5.2
       - label: "{{matrix.image}} / 7.6.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1494,9 +1331,7 @@ steps:
         env:
           BWC_VERSION: 7.6.0
       - label: "{{matrix.image}} / 7.6.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1511,9 +1346,7 @@ steps:
         env:
           BWC_VERSION: 7.6.1
       - label: "{{matrix.image}} / 7.6.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1528,9 +1361,7 @@ steps:
         env:
           BWC_VERSION: 7.6.2
       - label: "{{matrix.image}} / 7.7.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1545,9 +1376,7 @@ steps:
         env:
           BWC_VERSION: 7.7.0
       - label: "{{matrix.image}} / 7.7.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1562,9 +1391,7 @@ steps:
         env:
           BWC_VERSION: 7.7.1
       - label: "{{matrix.image}} / 7.8.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1579,9 +1406,7 @@ steps:
         env:
           BWC_VERSION: 7.8.0
       - label: "{{matrix.image}} / 7.8.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1596,9 +1421,7 @@ steps:
         env:
           BWC_VERSION: 7.8.1
       - label: "{{matrix.image}} / 7.9.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1613,9 +1436,7 @@ steps:
         env:
           BWC_VERSION: 7.9.0
       - label: "{{matrix.image}} / 7.9.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1630,9 +1451,7 @@ steps:
         env:
           BWC_VERSION: 7.9.1
       - label: "{{matrix.image}} / 7.9.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1647,9 +1466,7 @@ steps:
         env:
           BWC_VERSION: 7.9.2
       - label: "{{matrix.image}} / 7.9.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1664,9 +1481,7 @@ steps:
         env:
           BWC_VERSION: 7.9.3
       - label: "{{matrix.image}} / 7.10.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1681,9 +1496,7 @@ steps:
         env:
           BWC_VERSION: 7.10.0
       - label: "{{matrix.image}} / 7.10.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1698,9 +1511,7 @@ steps:
         env:
           BWC_VERSION: 7.10.1
       - label: "{{matrix.image}} / 7.10.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1715,9 +1526,7 @@ steps:
         env:
           BWC_VERSION: 7.10.2
       - label: "{{matrix.image}} / 7.11.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1732,9 +1541,7 @@ steps:
         env:
           BWC_VERSION: 7.11.0
       - label: "{{matrix.image}} / 7.11.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1749,9 +1556,7 @@ steps:
         env:
           BWC_VERSION: 7.11.1
       - label: "{{matrix.image}} / 7.11.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1766,9 +1571,7 @@ steps:
         env:
           BWC_VERSION: 7.11.2
       - label: "{{matrix.image}} / 7.12.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1783,9 +1586,7 @@ steps:
         env:
           BWC_VERSION: 7.12.0
       - label: "{{matrix.image}} / 7.12.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1800,9 +1601,7 @@ steps:
         env:
           BWC_VERSION: 7.12.1
       - label: "{{matrix.image}} / 7.13.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1817,9 +1616,7 @@ steps:
         env:
           BWC_VERSION: 7.13.0
       - label: "{{matrix.image}} / 7.13.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1834,9 +1631,7 @@ steps:
         env:
           BWC_VERSION: 7.13.1
       - label: "{{matrix.image}} / 7.13.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1851,9 +1646,7 @@ steps:
         env:
           BWC_VERSION: 7.13.2
       - label: "{{matrix.image}} / 7.13.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1868,9 +1661,7 @@ steps:
         env:
           BWC_VERSION: 7.13.3
       - label: "{{matrix.image}} / 7.13.4 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1885,9 +1676,7 @@ steps:
         env:
           BWC_VERSION: 7.13.4
       - label: "{{matrix.image}} / 7.14.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1902,9 +1691,7 @@ steps:
         env:
           BWC_VERSION: 7.14.0
       - label: "{{matrix.image}} / 7.14.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1919,9 +1706,7 @@ steps:
         env:
           BWC_VERSION: 7.14.1
       - label: "{{matrix.image}} / 7.14.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1936,9 +1721,7 @@ steps:
         env:
           BWC_VERSION: 7.14.2
       - label: "{{matrix.image}} / 7.15.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1953,9 +1736,7 @@ steps:
         env:
           BWC_VERSION: 7.15.0
       - label: "{{matrix.image}} / 7.15.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1970,9 +1751,7 @@ steps:
         env:
           BWC_VERSION: 7.15.1
       - label: "{{matrix.image}} / 7.15.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -1987,9 +1766,7 @@ steps:
         env:
           BWC_VERSION: 7.15.2
       - label: "{{matrix.image}} / 7.16.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2004,9 +1781,7 @@ steps:
         env:
           BWC_VERSION: 7.16.0
       - label: "{{matrix.image}} / 7.16.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2021,9 +1796,7 @@ steps:
         env:
           BWC_VERSION: 7.16.1
       - label: "{{matrix.image}} / 7.16.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2038,9 +1811,7 @@ steps:
         env:
           BWC_VERSION: 7.16.2
       - label: "{{matrix.image}} / 7.16.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2055,9 +1826,7 @@ steps:
         env:
           BWC_VERSION: 7.16.3
       - label: "{{matrix.image}} / 7.17.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2072,9 +1841,7 @@ steps:
         env:
           BWC_VERSION: 7.17.0
       - label: "{{matrix.image}} / 7.17.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2089,9 +1856,7 @@ steps:
         env:
           BWC_VERSION: 7.17.1
       - label: "{{matrix.image}} / 7.17.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2106,9 +1871,7 @@ steps:
         env:
           BWC_VERSION: 7.17.2
       - label: "{{matrix.image}} / 7.17.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2123,9 +1886,7 @@ steps:
         env:
           BWC_VERSION: 7.17.3
       - label: "{{matrix.image}} / 7.17.4 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2140,9 +1901,7 @@ steps:
         env:
           BWC_VERSION: 7.17.4
       - label: "{{matrix.image}} / 7.17.5 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2157,9 +1916,7 @@ steps:
         env:
           BWC_VERSION: 7.17.5
       - label: "{{matrix.image}} / 7.17.6 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2174,9 +1931,7 @@ steps:
         env:
           BWC_VERSION: 7.17.6
       - label: "{{matrix.image}} / 7.17.7 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2191,9 +1946,7 @@ steps:
         env:
           BWC_VERSION: 7.17.7
       - label: "{{matrix.image}} / 7.17.8 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2208,9 +1961,7 @@ steps:
         env:
           BWC_VERSION: 7.17.8
       - label: "{{matrix.image}} / 7.17.9 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2225,9 +1976,7 @@ steps:
         env:
           BWC_VERSION: 7.17.9
       - label: "{{matrix.image}} / 7.17.10 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2242,9 +1991,7 @@ steps:
         env:
           BWC_VERSION: 7.17.10
       - label: "{{matrix.image}} / 7.17.11 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2259,9 +2006,7 @@ steps:
         env:
           BWC_VERSION: 7.17.11
       - label: "{{matrix.image}} / 8.0.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2276,9 +2021,7 @@ steps:
         env:
           BWC_VERSION: 8.0.0
       - label: "{{matrix.image}} / 8.0.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2293,9 +2036,7 @@ steps:
         env:
           BWC_VERSION: 8.0.1
       - label: "{{matrix.image}} / 8.1.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2310,9 +2051,7 @@ steps:
         env:
           BWC_VERSION: 8.1.0
       - label: "{{matrix.image}} / 8.1.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2327,9 +2066,7 @@ steps:
         env:
           BWC_VERSION: 8.1.1
       - label: "{{matrix.image}} / 8.1.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2344,9 +2081,7 @@ steps:
         env:
           BWC_VERSION: 8.1.2
       - label: "{{matrix.image}} / 8.1.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2361,9 +2096,7 @@ steps:
         env:
           BWC_VERSION: 8.1.3
       - label: "{{matrix.image}} / 8.2.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2378,9 +2111,7 @@ steps:
         env:
           BWC_VERSION: 8.2.0
       - label: "{{matrix.image}} / 8.2.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2395,9 +2126,7 @@ steps:
         env:
           BWC_VERSION: 8.2.1
       - label: "{{matrix.image}} / 8.2.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2412,9 +2141,7 @@ steps:
         env:
           BWC_VERSION: 8.2.2
       - label: "{{matrix.image}} / 8.2.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2429,9 +2156,7 @@ steps:
         env:
           BWC_VERSION: 8.2.3
       - label: "{{matrix.image}} / 8.3.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2446,9 +2171,7 @@ steps:
         env:
           BWC_VERSION: 8.3.0
       - label: "{{matrix.image}} / 8.3.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2463,9 +2186,7 @@ steps:
         env:
           BWC_VERSION: 8.3.1
       - label: "{{matrix.image}} / 8.3.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2480,9 +2201,7 @@ steps:
         env:
           BWC_VERSION: 8.3.2
       - label: "{{matrix.image}} / 8.3.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2497,9 +2216,7 @@ steps:
         env:
           BWC_VERSION: 8.3.3
       - label: "{{matrix.image}} / 8.4.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2514,9 +2231,7 @@ steps:
         env:
           BWC_VERSION: 8.4.0
       - label: "{{matrix.image}} / 8.4.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2531,9 +2246,7 @@ steps:
         env:
           BWC_VERSION: 8.4.1
       - label: "{{matrix.image}} / 8.4.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2548,9 +2261,7 @@ steps:
         env:
           BWC_VERSION: 8.4.2
       - label: "{{matrix.image}} / 8.4.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2565,9 +2276,7 @@ steps:
         env:
           BWC_VERSION: 8.4.3
       - label: "{{matrix.image}} / 8.5.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2582,9 +2291,7 @@ steps:
         env:
           BWC_VERSION: 8.5.0
       - label: "{{matrix.image}} / 8.5.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2599,9 +2306,7 @@ steps:
         env:
           BWC_VERSION: 8.5.1
       - label: "{{matrix.image}} / 8.5.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2616,9 +2321,7 @@ steps:
         env:
           BWC_VERSION: 8.5.2
       - label: "{{matrix.image}} / 8.5.3 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2633,9 +2336,7 @@ steps:
         env:
           BWC_VERSION: 8.5.3
       - label: "{{matrix.image}} / 8.6.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2650,9 +2351,7 @@ steps:
         env:
           BWC_VERSION: 8.6.0
       - label: "{{matrix.image}} / 8.6.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2667,9 +2366,7 @@ steps:
         env:
           BWC_VERSION: 8.6.1
       - label: "{{matrix.image}} / 8.6.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2684,9 +2381,7 @@ steps:
         env:
           BWC_VERSION: 8.6.2
       - label: "{{matrix.image}} / 8.7.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2701,9 +2396,7 @@ steps:
         env:
           BWC_VERSION: 8.7.0
       - label: "{{matrix.image}} / 8.7.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2718,9 +2411,7 @@ steps:
         env:
           BWC_VERSION: 8.7.1
       - label: "{{matrix.image}} / 8.8.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2735,9 +2426,7 @@ steps:
         env:
           BWC_VERSION: 8.8.0
       - label: "{{matrix.image}} / 8.8.1 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2752,9 +2441,7 @@ steps:
         env:
           BWC_VERSION: 8.8.1
       - label: "{{matrix.image}} / 8.8.2 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2769,9 +2456,7 @@ steps:
         env:
           BWC_VERSION: 8.8.2
       - label: "{{matrix.image}} / 8.9.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2786,9 +2471,7 @@ steps:
         env:
           BWC_VERSION: 8.9.0
       - label: "{{matrix.image}} / 8.10.0 / packaging-upgrade-tests"
-        command: ./.ci/scripts/packaging-test.sh --build-cache
-          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
           setup:
             image:
@@ -2803,8 +2486,7 @@ steps:
         env:
           BWC_VERSION: 8.10.0
   - label: part-1-fips
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-      -Dtests.fips.enabled=true checkPart1
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart1
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -2812,7 +2494,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-1
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -2820,8 +2502,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-2-fips
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-      -Dtests.fips.enabled=true checkPart2
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart2
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -2829,7 +2510,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-2
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -2837,8 +2518,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-3-fips
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
-      -Dtests.fips.enabled=true checkPart3
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart3
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -2846,7 +2526,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-3
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -2854,7 +2534,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: precommit
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004
@@ -2862,39 +2542,25 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: release-tests
-    command: >-
+    command: |-
       # Fetch beats artifacts
-
       export ES_VERSION=$$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $$3}')
-
       export BEATS_DIR=$$(pwd)/distribution/docker/build/artifacts/beats
 
-
       mkdir -p $${BEATS_DIR}
-
       curl --fail -o "$${BEATS_DIR}/metricbeat-$${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
-
       curl --fail -o "$${BEATS_DIR}/metricbeat-$${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
-
       curl --fail -o "$${BEATS_DIR}/filebeat-$${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
-
       curl --fail -o "$${BEATS_DIR}/filebeat-$${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-$${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
 
-
       # Fetch ML artifacts
-
       export ML_IVY_REPO=$$(mktemp -d)
-
       mkdir -p $${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}
-
       curl --fail -o "$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}/ml-cpp-$${ES_VERSION}-deps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$${ES_VERSION}-SNAPSHOT-deps.zip
-
       curl --fail -o "$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}/ml-cpp-$${ES_VERSION}-nodeps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$${ES_VERSION}-SNAPSHOT-nodeps.zip
-
       curl --fail -o "$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}/ml-cpp-$${ES_VERSION}.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$${ES_VERSION}-SNAPSHOT.zip
 
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
+      .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
         -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
     agents:
       provider: gcp
@@ -2903,7 +2569,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: rest-compatibility
-    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004

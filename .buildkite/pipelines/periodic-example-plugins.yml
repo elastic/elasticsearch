@@ -3,7 +3,7 @@ steps:
     command: |-
       cd $$WORKSPACE/plugins/examples
 
-      $$WORKSPACE/.ci/scripts/run-gradle.sh build
+      .ci/scripts/run-gradle.sh build
     agents:
       provider: gcp
       image: family/brian-elasticsearch-ubuntu-2004

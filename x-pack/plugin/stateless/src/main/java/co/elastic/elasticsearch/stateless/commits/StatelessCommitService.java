@@ -130,16 +130,12 @@ public class StatelessCommitService {
             @Override
             public void onResponse(StatelessCompoundCommit commit) {
                 NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRouting.apply(commit.shardId()), commit);
-                client.execute(
-                    TransportNewCommitNotificationAction.TYPE,
-                    request,
-                    ActionListener.wrap(
-                        r -> commitNotificationSuccessListeners.get(shardId).accept(generation),
-                        e -> logger.warn(
-                            () -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, generation),
-                            e
-                        )
-                    )
+                client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(r -> {
+                    var consumer = commitNotificationSuccessListeners.get(shardId);
+                    if (consumer != null) {
+                        consumer.accept(generation);
+                    }
+                }, e -> logger.warn(() -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, generation), e))
                 );
             }
 

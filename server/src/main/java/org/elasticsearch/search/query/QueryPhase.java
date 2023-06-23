@@ -48,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -222,12 +223,21 @@ public class QueryPhase {
             if (searchContext.getProfilers() == null) {
                 collectorManager = new SingleThreadCollectorManager(compositeCollector);
             } else {
-                InternalProfileCollector profileCollector = new InternalProfileCollector(
-                    compositeCollector,
-                    REASON_SEARCH_COMPOSITE,
-                    (InternalProfileCollector) topDocsCollector,
-                    (InternalProfileCollector) aggsCollector
-                );
+                InternalProfileCollector profileCollector;
+                if (aggsCollector == null) {
+                    profileCollector = new InternalProfileCollector(
+                        compositeCollector,
+                        REASON_SEARCH_COMPOSITE,
+                        (InternalProfileCollector) topDocsCollector
+                    );
+                } else {
+                    profileCollector = new InternalProfileCollector(
+                        compositeCollector,
+                        REASON_SEARCH_COMPOSITE,
+                        (InternalProfileCollector) topDocsCollector,
+                        (InternalProfileCollector) aggsCollector
+                    );
+                }
                 collectorManager = new InternalProfileCollectorManager(profileCollector);
             }
 

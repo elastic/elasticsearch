@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -47,6 +49,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -79,6 +82,24 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final ByteSizeValue ONE_HUNDRED_MB = ByteSizeValue.ofMb(100);
+
+    public static final int TARGET_MERGE_FACTOR_VALUE = 16;
+
+    public static final Setting<Integer> DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING = Setting.intSetting(
+        "data_streams.lifecycle.target.merge.policy.merge_factor",
+        TARGET_MERGE_FACTOR_VALUE,
+        2,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING = Setting.byteSizeSetting(
+        "data_streams.lifecycle.target.merge.policy.floor_segment",
+        ONE_HUNDRED_MB,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(DataLifecycleService.class);
     /**
@@ -90,7 +111,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      */
     static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
-
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
@@ -105,6 +125,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
+    private volatile ByteSizeValue targetMergePolicyFloorSegment;
+    private volatile int targetMergePolicyFactor;
 
     private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
@@ -139,6 +161,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.errorStore = errorStore;
         this.scheduledJob = null;
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
+        this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
+        this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "dlm-forcemerge-state-update",
@@ -156,6 +180,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             .addSettingsUpdateConsumer(DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING, this::updateMergePolicyFactor);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING, this::updateMergePolicyFloorSegment);
     }
 
     @Override
@@ -353,13 +381,35 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     logger.trace("Already force merged {}", indexName);
                     continue;
                 }
-                ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
-                // time to force merge the index
-                transportActionsDeduplicator.executeOnce(
-                    new ForceMergeRequestWrapper(forceMergeRequest),
-                    new ErrorRecordingActionListener(indexName, errorStore),
-                    (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
+
+                ByteSizeValue configuredFloorSegmentMerge = MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.get(
+                    backingIndex.getSettings()
                 );
+                Integer configuredMergeFactor = MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.get(backingIndex.getSettings());
+                if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
+                    || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
+                    UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
+                    updateMergePolicySettingsRequest.indices(indexName);
+                    updateMergePolicySettingsRequest.settings(
+                        Settings.builder()
+                            .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), targetMergePolicyFloorSegment)
+                            .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), targetMergePolicyFactor)
+                    );
+                    updateMergePolicySettingsRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
+                    transportActionsDeduplicator.executeOnce(
+                        updateMergePolicySettingsRequest,
+                        new ErrorRecordingActionListener(indexName, errorStore),
+                        (req, reqListener) -> updateIndexSetting(updateMergePolicySettingsRequest, reqListener)
+                    );
+                } else {
+                    ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
+                    // time to force merge the index
+                    transportActionsDeduplicator.executeOnce(
+                        new ForceMergeRequestWrapper(forceMergeRequest),
+                        new ErrorRecordingActionListener(indexName, errorStore),
+                        (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
+                    );
+                }
             }
         }
     }
@@ -405,6 +455,41 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     // error against the data stream's write index.
                     listener.onFailure(e);
                 }
+            }
+        });
+    }
+
+    private void updateIndexSetting(UpdateSettingsRequest updateSettingsRequest, ActionListener<Void> listener) {
+        assert updateSettingsRequest.indices() != null && updateSettingsRequest.indices().length == 1
+            : "Data stream lifecycle service updates the settings for one index at a time";
+        // "saving" the index name here so we don't capture the entire request
+        String targetIndex = updateSettingsRequest.indices()[0];
+        logger.trace(
+            "Data stream lifecycle service issues request to update settings [{}] for index [{}]",
+            updateSettingsRequest.settings().keySet(),
+            targetIndex
+        );
+        client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                logger.info(
+                    "Data stream lifecycle service successfully updated settings [{}] for index index [{}]",
+                    updateSettingsRequest.settings().keySet(),
+                    targetIndex
+                );
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    // index was already deleted, treat this as a success
+                    errorStore.clearRecordedError(targetIndex);
+                    listener.onResponse(null);
+                    return;
+                }
+
+                listener.onFailure(e);
             }
         });
     }
@@ -574,6 +659,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     private void updateRolloverConfiguration(RolloverConfiguration newRolloverConfiguration) {
         this.rolloverConfiguration = newRolloverConfiguration;
+    }
+
+    private void updateMergePolicyFloorSegment(ByteSizeValue newFloorSegment) {
+        this.targetMergePolicyFloorSegment = newFloorSegment;
+    }
+
+    private void updateMergePolicyFactor(int newFactor) {
+        this.targetMergePolicyFactor = newFactor;
     }
 
     private void cancelJob() {

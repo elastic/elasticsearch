@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -25,6 +26,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -33,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataLifecycleTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
 
-    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(DataLifecycle.Retention.NULL);
+    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(DataLifecycle.Retention.NULL, null);
     public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle((TimeValue) null);
 
     @Override
@@ -43,28 +46,86 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
+        return new DataLifecycle(randomRetention(), randomDownsampling());
+    }
+
+    @Nullable
+    private DataLifecycle.Retention randomRetention() {
         return switch (randomInt(2)) {
-            case 0 -> IMPLICIT_INFINITE_RETENTION;
-            case 1 -> EXPLICIT_INFINITE_RETENTION;
-            default -> new DataLifecycle(randomMillisUpToYear9999());
+            case 0 -> null;
+            case 1 -> DataLifecycle.Retention.NULL;
+            default -> new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
         };
+    }
+
+    @Nullable
+    private DataLifecycle.Downsampling randomDownsampling() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Downsampling.NULL;
+            default -> {
+                var count = randomIntBetween(0, 10);
+                List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
+                var previous = new DataLifecycle.Downsampling.Round(
+                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
+                    TimeValue.timeValueHours(randomIntBetween(1, 24))
+                );
+                rounds.add(previous);
+                for (int i = 0; i < count; i++) {
+                    DataLifecycle.Downsampling.Round round = nextRound(previous);
+                    rounds.add(round);
+                    previous = round;
+                }
+                yield new DataLifecycle.Downsampling(rounds);
+            }
+        };
+    }
+
+    private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
+        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
+        var fixedInterval = TimeValue.timeValueHours(previous.after().hours() + randomIntBetween(1, 10));
+        return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }
 
     @Override
     protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
-        if (IMPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? EXPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+        var retention = instance.getDataRetention();
+        var downsampling = instance.getDownsampling();
+        if (randomBoolean()) {
+            if (retention == null || retention == DataLifecycle.Retention.NULL) {
+                retention = randomValueOtherThan(retention, this::randomRetention);
+            } else {
+                retention = switch (randomInt(2)) {
+                    case 0 -> null;
+                    case 1 -> DataLifecycle.Retention.NULL;
+                    default -> new DataLifecycle.Retention(
+                        TimeValue.timeValueMillis(randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999))
+                    );
+                };
+            }
+        } else {
+            if (downsampling == null || retention == DataLifecycle.Retention.NULL) {
+                downsampling = randomValueOtherThan(downsampling, this::randomDownsampling);
+            } else {
+                downsampling = switch (randomInt(2)) {
+                    case 0 -> null;
+                    case 1 -> DataLifecycle.Downsampling.NULL;
+                    default -> {
+                        if (downsampling.rounds().size() == 1) {
+                            yield new DataLifecycle.Downsampling(
+                                List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
+                            );
+
+                        } else {
+                            var updatedRounds = new ArrayList<>(downsampling.rounds());
+                            updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
+                            yield new DataLifecycle.Downsampling(updatedRounds);
+                        }
+                    }
+                };
+            }
         }
-        if (EXPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? IMPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
-        }
-        return switch (randomInt(2)) {
-            case 0 -> IMPLICIT_INFINITE_RETENTION;
-            case 1 -> EXPLICIT_INFINITE_RETENTION;
-            default -> new DataLifecycle(
-                randomValueOtherThan(instance.getEffectiveDataRetention().millis(), ESTestCase::randomMillisUpToYear9999)
-            );
-        };
+        return new DataLifecycle(retention, downsampling);
     }
 
     @Override
@@ -118,6 +179,39 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 )
             );
             assertThat(exception.getMessage(), equalTo("The rollover conditions cannot be null or blank"));
+        }
+    }
+
+    public void testInvalidDownsamplingConfiguration() {
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(
+                    List.of(
+                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(10), TimeValue.timeValueHours(2)),
+                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(3), TimeValue.timeValueHours(2))
+                    )
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("A downsampling round must have a later 'after' value than the proceeding, 3d is not after 10d.")
+            );
+        }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(
+                    List.of(
+                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(10), TimeValue.timeValueHours(2)),
+                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(2))
+                    )
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("A downsampling round must have a larger 'fixed_interval' value than the proceeding, 2m is not larger than 2h.")
+            );
         }
     }
 }

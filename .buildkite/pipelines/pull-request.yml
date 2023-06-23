@@ -1052,6 +1052,7 @@ steps:
           image: "{{matrix.image}}"
           imageProject: elastic-images-qa
           machineType: custom-16-32768
+          diskSizeGb: 350
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-tests-unix
@@ -1086,6 +1087,7 @@ steps:
           image: "{{matrix.image}}"
           imageProject: elastic-images-qa
           machineType: custom-16-32768
+          diskSizeGb: 350
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-upgrade-tests

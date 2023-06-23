@@ -27,6 +27,7 @@ steps:
           image: "{{matrix.image}}"
           imageProject: elastic-images-qa
           machineType: custom-16-32768
+          diskSizeGb: 350
         env: {}
   - group: packaging-tests-upgrade
     steps:

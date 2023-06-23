@@ -27,6 +27,7 @@ steps:
           image: "{{matrix.image}}"
           imageProject: elastic-images-qa
           machineType: custom-32-98304
+          diskSizeGb: 350
         env: {}
   - group: platform-support-arm
     steps:

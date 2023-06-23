@@ -71,6 +71,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
+import static org.elasticsearch.dlm.DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
+import static org.elasticsearch.dlm.DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
 import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.elasticsearch.dlm.DataLifecycleService.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.dlm.DataLifecycleService.ONE_HUNDRED_MB;
@@ -99,6 +101,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.add(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
+        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
+        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
         clusterService = createClusterService(threadPool, clusterSettings);
 

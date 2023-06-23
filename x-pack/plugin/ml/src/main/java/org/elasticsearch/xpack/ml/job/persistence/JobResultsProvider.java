@@ -458,9 +458,7 @@ public class JobResultsProvider {
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 request,
-                listener.<AcknowledgedResponse>delegateFailure(
-                    (l, putMappingResponse) -> l.onResponse(putMappingResponse.isAcknowledged())
-                ),
+                listener.map(AcknowledgedResponse::isAcknowledged),
                 client.admin().indices()::putMapping
             );
         } catch (IOException e) {

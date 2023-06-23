@@ -73,8 +73,8 @@ multi-valued fields unsupported:
 ---
 "avg aggregation on position field unsupported":
   - skip:
-      version: " - 8.7.99"
-      reason: position metric introduced in 8.8.0
+      version: " - 8.9.99"
+      reason: position metric introduced in 8.8.0, but exception message changed in 8.10.0
   - do:
       catch: /Field \[location\] of type \[geo_point\]\[position\] is not supported for aggregation \[avg\]/
       search:

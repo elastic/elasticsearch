@@ -445,25 +445,21 @@ public class ValuesSourceConfig {
      * Returns a human readable description of this values source, for use in error messages and similar.
      */
     public String getDescription() {
-        String valuesSourceType = this.valuesSourceType.typeName();
         if (script != null) {
-            return "Script yielding ["
-                + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type")
-                + "]["
-                + valuesSourceType
-                + "]";
+            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]";
         }
 
         MappedFieldType fieldType = fieldType();
         if (fieldType != null) {
             String typeName = fieldType.typeName();
-            if (typeName.equals(valuesSourceType)) {
-                // If value source type name and type name are equal be less verbose:
-                return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+            String valuesSourceTypeName = valuesSourceType.typeName();
+            if (valuesSourceType instanceof TimeSeriesValuesSourceType) {
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "][" + valuesSourceTypeName + "]";
             } else {
-                return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "][" + valuesSourceType + "]";
+                // Avoid repeated names. Currently only TimeSeriesValuesSourceType have a different name compared to the field type name.
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "]";
             }
         }
-        return "unmapped field with value source type [" + valuesSourceType + "]";
+        return "unmapped field with value source type [" + valuesSourceType.typeName() + "]";
     }
 }

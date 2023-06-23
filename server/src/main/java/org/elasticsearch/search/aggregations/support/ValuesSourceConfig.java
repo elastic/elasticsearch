@@ -445,15 +445,25 @@ public class ValuesSourceConfig {
      * Returns a human readable description of this values source, for use in error messages and similar.
      */
     public String getDescription() {
-        String suffix = " and value source type [" + valuesSourceType + "]";
+        String valuesSourceType = this.valuesSourceType.typeName();
         if (script != null) {
-            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]" + suffix;
+            return "Script yielding ["
+                + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type")
+                + "]["
+                + valuesSourceType
+                + "]";
         }
 
         MappedFieldType fieldType = fieldType();
         if (fieldType != null) {
-            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]" + suffix;
+            String typeName = fieldType.typeName();
+            if (typeName.equals(valuesSourceType)) {
+                // If value source type name and type name are equal be less verbose:
+                return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+            } else {
+                return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "][" + valuesSourceType + "]";
+            }
         }
-        return "unmapped field" + suffix;
+        return "unmapped field with value source type [" + valuesSourceType + "]";
     }
 }

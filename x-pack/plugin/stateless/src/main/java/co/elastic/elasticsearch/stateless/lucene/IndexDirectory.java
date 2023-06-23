@@ -92,10 +92,20 @@ public class IndexDirectory extends FilterDirectory {
 
     @Override
     public long fileLength(String name) throws IOException {
-        if (cacheDirectory.containsFile(name)) {
-            return cacheDirectory.fileLength(name);
+        if (cacheDirectory.containsFile(name) == false) {
+            LocalFileRef localFile;
+            synchronized (this) {
+                localFile = localFiles.get(name);
+            }
+            if (localFile != null && localFile.tryIncRef()) {
+                try {
+                    return super.fileLength(name);
+                } finally {
+                    localFile.decRef();
+                }
+            }
         }
-        return super.fileLength(name);
+        return cacheDirectory.fileLength(name);
     }
 
     @Override

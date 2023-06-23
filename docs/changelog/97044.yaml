@@ -1,6 +1,0 @@
-pr: 97044
-summary: Reuse already initialized `HealthMetadata`
-area: Health
-type: bug
-issues:
- - 96919

@@ -166,6 +166,7 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
     public static final IndexVersion V_8_8_1 = registerIndexVersion(8_08_01_99, Version.LUCENE_9_6_0, "a613499e-ec1a-4b0b-81d3-a766aff3c27c");
     public static final IndexVersion V_8_8_2 = registerIndexVersion(8_08_02_99, Version.LUCENE_9_6_0, "9db9d888-6be8-4a58-825c-f423fd8c6b00");
     public static final IndexVersion V_8_9_0 = registerIndexVersion(8_09_00_99, Version.LUCENE_9_7_0, "32f6dbab-cc24-4f5b-87b5-015a848480d9");
+    public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
@@ -175,7 +176,7 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
      * Reference to the most recent index version.
      * This should be the index version with the highest id.
      */
-    public static final IndexVersion CURRENT = V_8_9_0;
+    public static final IndexVersion CURRENT = V_8_10_0;
 
     /**
      * Reference to the earliest compatible index version to this version of the codebase.

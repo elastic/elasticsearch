@@ -1377,7 +1377,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private static <T> void continueOrDie(ListenableFuture<T> listener, CheckedConsumer<T, Exception> onResponse) {
-        listener.addListener(ActionListener.wrap(onResponse, e -> { throw new AssertionError(e); }));
+        listener.addListener(ActionTestUtils.assertNoFailureListener(onResponse));
     }
 
     public NodeClient client() {

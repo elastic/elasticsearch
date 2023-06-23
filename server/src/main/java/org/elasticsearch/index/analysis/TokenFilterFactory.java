@@ -76,6 +76,18 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * Get the name of the resource that this filter is based on.
+     * Used to reload analyzers on this resource changes.
+     *
+     * For an example, see @SynonymGraphTokenFilterFactory#getResourceName()
+     *
+     * @return the name of the resource that this filter was loaded from if any
+     */
+    default String getResourceName() {
+        return null;
+    }
+
+    /**
      * A TokenFilterFactory that does no filtering to its TokenStream
      */
     TokenFilterFactory IDENTITY_FILTER = new TokenFilterFactory() {

@@ -433,7 +433,7 @@ setup:
 ---
 "Test frequent item sets unsupported types":
   - do:
-      catch: /Field \[geo_point\] of type \[geo_point\]\[geopoint\] is not supported for aggregation \[frequent_item_sets\]/
+      catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_item_sets\]/
       search:
         index: store
         body: >

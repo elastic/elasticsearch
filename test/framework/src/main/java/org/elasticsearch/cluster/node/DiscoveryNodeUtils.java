@@ -51,8 +51,8 @@ public class DiscoveryNodeUtils {
         return builder(nodeId).name(nodeName).address(address).attributes(attributes).roles(roles).build();
     }
 
-    public static DiscoveryNode.VersionInformation versionInfo(Version releaseVersion) {
-        return new DiscoveryNode.VersionInformation(releaseVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+    public static NodeVersions versionInfo(Version releaseVersion) {
+        return new NodeVersions(releaseVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
     }
 
     public static Builder builder(String id) {
@@ -120,6 +120,13 @@ public class DiscoveryNodeUtils {
             return this;
         }
 
+        public Builder version(NodeVersions versions) {
+            this.version = versions.nodeVersion();
+            this.minIndexVersion = versions.minIndexVersion();
+            this.maxIndexVersion = versions.maxIndexVersion();
+            return this;
+        }
+
         public Builder externalId(String externalId) {
             this.externalId = externalId;
             return this;
@@ -136,11 +143,11 @@ public class DiscoveryNodeUtils {
                 hostAddress = address.getAddress();
             }
 
-            DiscoveryNode.VersionInformation versionInfo;
+            NodeVersions versionInfo;
             if (minIndexVersion == null || maxIndexVersion == null) {
                 versionInfo = DiscoveryNode.expandNodeVersion(version);
             } else {
-                versionInfo = new DiscoveryNode.VersionInformation(version, minIndexVersion, maxIndexVersion);
+                versionInfo = new NodeVersions(version, minIndexVersion, maxIndexVersion);
             }
 
             return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);

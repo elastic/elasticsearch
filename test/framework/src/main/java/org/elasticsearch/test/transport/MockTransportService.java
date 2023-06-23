@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.NodeVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -62,6 +63,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -99,8 +101,8 @@ public class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(
         Settings settings,
-        Version version,
-        TransportVersion transportVersion,
+        @Nullable NodeVersions version,
+        @Nullable TransportVersion transportVersion,
         ThreadPool threadPool
     ) {
         return createNewService(settings, version, transportVersion, threadPool, null);
@@ -108,8 +110,8 @@ public class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(
         Settings settings,
-        Version version,
-        TransportVersion transportVersion,
+        @Nullable NodeVersions version,
+        @Nullable TransportVersion transportVersion,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings
     ) {
@@ -123,14 +125,14 @@ public class MockTransportService extends TransportService {
         );
     }
 
-    public static TcpTransport newMockTransport(Settings settings, TransportVersion version, ThreadPool threadPool) {
+    public static TcpTransport newMockTransport(Settings settings, @Nullable TransportVersion version, ThreadPool threadPool) {
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
         var namedWriteables = CollectionUtils.concatLists(searchModule.getNamedWriteables(), ClusterModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         return new Netty4Transport(
             settings,
-            version,
+            Objects.requireNonNullElse(version, TransportVersion.current()),
             threadPool,
             new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings),
@@ -143,7 +145,7 @@ public class MockTransportService extends TransportService {
     public static MockTransportService createNewService(
         Settings settings,
         Transport transport,
-        Version version,
+        @Nullable NodeVersions version,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
@@ -154,7 +156,7 @@ public class MockTransportService extends TransportService {
     public static MockTransportService createNewService(
         Settings settings,
         Transport transport,
-        Version version,
+        @Nullable NodeVersions version,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,

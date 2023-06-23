@@ -141,14 +141,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private static final StringLiteralDeduplicator nodeStringDeduplicator = new StringLiteralDeduplicator();
 
-    public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
-        public VersionInformation {
-            Objects.requireNonNull(nodeVersion);
-            Objects.requireNonNull(minIndexVersion);
-            Objects.requireNonNull(maxIndexVersion);
-        }
-    }
-
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
@@ -156,7 +148,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final String hostAddress;
     private final TransportAddress address;
     private final Map<String, String> attributes;
-    private final VersionInformation version;
+    private final NodeVersions version;
     private final SortedSet<DiscoveryNodeRole> roles;
     private final Set<String> roleNames;
     private final String externalId;
@@ -220,7 +212,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        @Nullable VersionInformation version
+        @Nullable NodeVersions version
     ) {
         this(
             nodeName,
@@ -262,17 +254,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        @Nullable VersionInformation version
+        @Nullable NodeVersions version
     ) {
         this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
     }
 
-    static VersionInformation expandNodeVersion(Version version) {
+    static NodeVersions expandNodeVersion(Version version) {
         if (version == null) return null;
-        if (version.after(Version.V_8_8_0)) throw new IllegalArgumentException(
-            "IndexVersion can only be calculated from Version for <=8.8.0"
+        if (version.onOrAfter(Version.V_8_10_0)) throw new IllegalArgumentException(
+            "IndexVersion can only be calculated from Version for <8.10.0"
         );
-        return new VersionInformation(
+        return new NodeVersions(
             version,
             IndexVersion.fromId(version.minimumIndexCompatibilityVersion().id),
             IndexVersion.fromId(version.id)
@@ -307,7 +299,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        @Nullable VersionInformation version,
+        @Nullable NodeVersions version,
         @Nullable String externalId
     ) {
         if (nodeName != null) {
@@ -321,10 +313,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         assert Strings.hasText(hostAddress);
         this.hostAddress = nodeStringDeduplicator.deduplicate(hostAddress);
         this.address = address;
-        this.version = Objects.requireNonNullElse(
-            version,
-            new VersionInformation(Version.CURRENT, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT)
-        );
+        this.version = Objects.requireNonNullElse(version, NodeVersions.CURRENT);
         this.attributes = Map.copyOf(attributes);
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
             : "Node roles must not be provided as attributes but saw attributes " + attributes;
@@ -363,15 +352,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return Set.copyOf(NODE_ROLES_SETTING.get(settings));
     }
 
-    private static VersionInformation inferVersionInformation(Version version) {
-        if (version.onOrBefore(Version.V_8_8_0)) {
-            return new VersionInformation(
+    private static NodeVersions inferVersionInformation(Version version) {
+        if (version.before(Version.V_8_10_0)) {
+            return new NodeVersions(
                 version,
                 IndexVersion.fromId(version.minimumIndexCompatibilityVersion().id),
                 IndexVersion.fromId(version.id)
             );
         } else {
-            return new VersionInformation(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+            return new NodeVersions(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
         }
     }
 
@@ -411,8 +400,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            version = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_022)) {
+            version = new NodeVersions(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
         } else {
             version = inferVersionInformation(Version.readVersion(in));
         }
@@ -448,10 +437,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            Version.writeVersion(version.nodeVersion, out);
-            IndexVersion.writeVersion(version.minIndexVersion, out);
-            IndexVersion.writeVersion(version.maxIndexVersion, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_022)) {
+            Version.writeVersion(version.nodeVersion(), out);
+            IndexVersion.writeVersion(version.minIndexVersion(), out);
+            IndexVersion.writeVersion(version.maxIndexVersion(), out);
         } else {
             Version.writeVersion(version.nodeVersion(), out);
         }
@@ -555,7 +544,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return roles;
     }
 
-    public VersionInformation getVersionInformation() {
+    public NodeVersions getVersionInformation() {
         return this.version;
     }
 
@@ -564,11 +553,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     public IndexVersion getMinIndexVersion() {
-        return version.minIndexVersion;
+        return version.minIndexVersion();
     }
 
     public IndexVersion getMaxIndexVersion() {
-        return version.maxIndexVersion;
+        return version.maxIndexVersion();
     }
 
     public String getHostName() {
@@ -627,8 +616,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
             stringBuilder.append('}');
         }
-        stringBuilder.append('{').append(version.nodeVersion).append('}');
-        stringBuilder.append('{').append(version.minIndexVersion).append('-').append(version.maxIndexVersion).append('}');
+        stringBuilder.append('{').append(version.nodeVersion()).append('}');
+        stringBuilder.append('{').append(version.minIndexVersion()).append('-').append(version.maxIndexVersion()).append('}');
     }
 
     public String descriptionWithoutAttributes() {
@@ -650,9 +639,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             builder.value(role.roleName());
         }
         builder.endArray();
-        builder.field("version", version.nodeVersion);
-        builder.field("minIndexVersion", version.minIndexVersion);
-        builder.field("maxIndexVersion", version.maxIndexVersion);
+        builder.field("version", version.nodeVersion());
+        builder.field("minIndexVersion", version.minIndexVersion());
+        builder.field("maxIndexVersion", version.maxIndexVersion());
         builder.endObject();
         return builder;
     }

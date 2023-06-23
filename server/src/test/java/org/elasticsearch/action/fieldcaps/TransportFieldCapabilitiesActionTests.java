@@ -9,7 +9,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -53,7 +52,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                null,
                 TransportVersion.current(),
                 threadPool
             );

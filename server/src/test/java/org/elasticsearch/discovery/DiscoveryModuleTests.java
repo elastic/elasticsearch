@@ -8,7 +8,6 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.NodeVersions;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
@@ -75,7 +75,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     public void setupDummyServices() {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
-            Version.CURRENT,
+            NodeVersions.CURRENT,
             TransportVersion.current(),
             mock(ThreadPool.class),
             null

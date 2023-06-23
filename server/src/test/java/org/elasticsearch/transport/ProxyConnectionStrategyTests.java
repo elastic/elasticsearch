@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.NodeVersions;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -60,11 +61,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    private MockTransportService startTransport(String id, Version version, TransportVersion transportVersion) {
+    private MockTransportService startTransport(String id, NodeVersions version, TransportVersion transportVersion) {
         return startTransport(id, version, transportVersion, Settings.EMPTY);
     }
 
-    public MockTransportService startTransport(String id, Version version, TransportVersion transportVersion, Settings settings) {
+    public MockTransportService startTransport(String id, NodeVersions version, TransportVersion transportVersion, Settings settings) {
         boolean success = false;
         final Settings s = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterAlias)
@@ -85,12 +86,12 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     }
 
     public void testProxyStrategyWillOpenExpectedNumberOfConnectionsToAddress() {
-        try (MockTransportService transport1 = startTransport("node1", Version.CURRENT, TransportVersion.current())) {
+        try (MockTransportService transport1 = startTransport("node1", NodeVersions.CURRENT, TransportVersion.current())) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
             try (
                 MockTransportService localService = spy(
-                    MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.current(), threadPool)
+                    MockTransportService.createNewService(Settings.EMPTY, NodeVersions.CURRENT, TransportVersion.current(), threadPool)
                 )
             ) {
                 localService.start();
@@ -145,8 +146,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     )
     public void testProxyStrategyWillOpenNewConnectionsOnDisconnect() throws Exception {
         try (
-            MockTransportService transport1 = startTransport("node1", Version.CURRENT, TransportVersion.current());
-            MockTransportService transport2 = startTransport("node2", Version.CURRENT, TransportVersion.current())
+            MockTransportService transport1 = startTransport("node1", NodeVersions.CURRENT, TransportVersion.current());
+            MockTransportService transport2 = startTransport("node2", NodeVersions.CURRENT, TransportVersion.current())
         ) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
@@ -154,7 +155,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    NodeVersions.CURRENT,
                     TransportVersion.current(),
                     threadPool
                 )
@@ -222,13 +223,19 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     public void testConnectFailsWithIncompatibleNodes() {
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
         TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
-        try (MockTransportService transport1 = startTransport("incompatible-node", incompatibleVersion, incompatibleTransportVersion)) {
+        try (
+            MockTransportService transport1 = startTransport(
+                "incompatible-node",
+                new NodeVersions(incompatibleVersion),
+                incompatibleTransportVersion
+            )
+        ) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    NodeVersions.CURRENT,
                     TransportVersion.current(),
                     threadPool
                 )
@@ -276,13 +283,13 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     }
 
     public void testConnectFailsWithNonRetryableException() {
-        try (MockTransportService transport1 = startTransport("remote", Version.CURRENT, TransportVersion.current())) {
+        try (MockTransportService transport1 = startTransport("remote", NodeVersions.CURRENT, TransportVersion.current())) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    NodeVersions.CURRENT,
                     TransportVersion.current(),
                     threadPool
                 )
@@ -336,8 +343,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         Settings otherSettings = Settings.builder().put("cluster.name", "otherCluster").build();
 
         try (
-            MockTransportService transport1 = startTransport("cluster1", Version.CURRENT, TransportVersion.current());
-            MockTransportService transport2 = startTransport("cluster2", Version.CURRENT, TransportVersion.current(), otherSettings)
+            MockTransportService transport1 = startTransport("cluster1", NodeVersions.CURRENT, TransportVersion.current());
+            MockTransportService transport2 = startTransport("cluster2", NodeVersions.CURRENT, TransportVersion.current(), otherSettings)
         ) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
@@ -345,7 +352,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    NodeVersions.CURRENT,
                     TransportVersion.current(),
                     threadPool
                 )
@@ -407,7 +414,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     }
 
     public void testProxyStrategyWillResolveAddressesEachConnect() throws Exception {
-        try (MockTransportService transport1 = startTransport("seed_node", Version.CURRENT, TransportVersion.current())) {
+        try (MockTransportService transport1 = startTransport("seed_node", NodeVersions.CURRENT, TransportVersion.current())) {
             TransportAddress address = transport1.boundAddress().publishAddress();
 
             CountDownLatch multipleResolveLatch = new CountDownLatch(2);
@@ -419,7 +426,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    NodeVersions.CURRENT,
                     TransportVersion.current(),
                     threadPool
                 )
@@ -459,13 +466,13 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     }
 
     public void testProxyStrategyWillNeedToBeRebuiltIfNumOfSocketsOrAddressesOrServerNameChange() {
-        try (MockTransportService remoteTransport = startTransport("node1", Version.CURRENT, TransportVersion.current())) {
+        try (MockTransportService remoteTransport = startTransport("node1", NodeVersions.CURRENT, TransportVersion.current())) {
             TransportAddress remoteAddress = remoteTransport.boundAddress().publishAddress();
 
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    NodeVersions.CURRENT,
                     TransportVersion.current(),
                     threadPool
                 )
@@ -573,13 +580,13 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
     public void testServerNameAttributes() {
         Settings bindSettings = Settings.builder().put(TransportSettings.BIND_HOST.getKey(), "localhost").build();
-        try (MockTransportService transport1 = startTransport("node1", Version.CURRENT, TransportVersion.current(), bindSettings)) {
+        try (MockTransportService transport1 = startTransport("node1", NodeVersions.CURRENT, TransportVersion.current(), bindSettings)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    NodeVersions.CURRENT,
                     TransportVersion.current(),
                     threadPool
                 )

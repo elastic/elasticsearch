@@ -3747,28 +3747,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
      */
     public void scheduledRefresh(ActionListener<Boolean> listener) {
-        verifyNotClosed();
-        boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
-        final Engine engine = getEngine();
-        if (isReadAllowed() && (listenerNeedsRefresh || engine.refreshNeeded())) {
-            if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
-                && engine.allowSearchIdleOptimization()
-                && isSearchIdle()
-                && indexSettings.isExplicitRefresh() == false
-                && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
-                // lets skip this refresh since we are search idle and
-                // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
-                // cause the next schedule to refresh.
-                engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-                setRefreshPending(engine);
-                ActionListener.completeWith(listener, () -> false);
-            } else {
-                logger.trace("refresh with source [schedule]");
-                engine.maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
+        ActionListener.run(listener, l -> {
+            verifyNotClosed();
+            boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
+            final Engine engine = getEngine();
+            if (isReadAllowed() && (listenerNeedsRefresh || engine.refreshNeeded())) {
+                if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
+                    && engine.allowSearchIdleOptimization()
+                    && isSearchIdle()
+                    && indexSettings.isExplicitRefresh() == false
+                    && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
+                    // lets skip this refresh since we are search idle and
+                    // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
+                    // cause the next schedule to refresh.
+                    engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+                    setRefreshPending(engine);
+                    l.onResponse(false);
+                    return;
+                } else {
+                    logger.trace("refresh with source [schedule]");
+                    engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
+                    return;
+                }
             }
-        }
-        engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-        ActionListener.completeWith(listener, () -> false);
+            engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+            l.onResponse(false);
+        });
     }
 
     /**

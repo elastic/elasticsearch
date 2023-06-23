@@ -62,7 +62,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startMasterOnlyNode();
         final String pipelineId = "foo";
-        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray(Strings.format("""
+        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(Strings.format("""
             {
               "processors": [
                 {
@@ -95,7 +95,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         );
         assertTrue(e.getMessage().contains("this script always fails"));
 
-        NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames()).setIngest(true).get();
+        NodesStatsResponse r = clusterAdmin().prepareNodesStats(internalCluster().getNodeNames()).setIngest(true).get();
         int nodeCount = r.getNodes().size();
         for (int k = 0; k < nodeCount; k++) {
             List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().processorStats().get(pipelineId);
@@ -120,12 +120,12 @@ public class IngestRestartIT extends ESIntegTestCase {
             }""");
 
         Consumer<String> checkPipelineExists = (id) -> assertThat(
-            client().admin().cluster().prepareGetPipeline(id).get().pipelines().get(0).getId(),
+            clusterAdmin().prepareGetPipeline(id).get().pipelines().get(0).getId(),
             equalTo(id)
         );
 
-        client().admin().cluster().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
-        client().admin().cluster().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
+        clusterAdmin().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
+        clusterAdmin().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
 
         checkPipelineExists.accept(pipelineIdWithScript);
         checkPipelineExists.accept(pipelineIdWithoutScript);
@@ -180,7 +180,7 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray(Strings.format("""
+        clusterAdmin().preparePutStoredScript().setId("1").setContent(new BytesArray(Strings.format("""
             {"script": {"lang": "%s", "source": "my_script"} }
             """, MockScriptEngine.NAME)), XContentType.JSON).get();
         BytesReference pipeline = new BytesArray("""
@@ -190,7 +190,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                   {"script" : {"id": "1"}}
               ]
             }""");
-        client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
+        clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         client().prepareIndex("index")
             .setId("1")
@@ -234,7 +234,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                   {"set" : {"field": "y", "value": 0}}
               ]
             }""");
-        client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
+        clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         client().prepareIndex("index")
             .setId("1")

@@ -211,7 +211,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertThat(successfulSnapshotInfo.state(), is(SnapshotState.SUCCESS));
 
         logger.info("--> making sure snapshot delete works out cleanly");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "snapshot-2").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, "snapshot-2").get());
     }
 
     public void testMasterFailOverDuringShardSnapshots() throws Exception {

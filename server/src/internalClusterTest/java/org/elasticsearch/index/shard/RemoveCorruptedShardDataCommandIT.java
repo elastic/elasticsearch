@@ -201,7 +201,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         waitNoPendingTasksOnAll();
 
         String nodeId = null;
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             final String name = cursor.getValue().getName();
@@ -234,7 +234,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
         });
 
-        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
+        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
 
         assertBusy(() -> {
             final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
@@ -376,7 +376,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         });
 
         String primaryNodeId = null;
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             final String name = cursor.getValue().getName();
@@ -407,7 +407,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
         });
 
-        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
+        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
 
         assertBusy(() -> {
             final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
@@ -611,7 +611,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     private Path getPathToShardData(String indexName, String dirSuffix) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { indexName }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);

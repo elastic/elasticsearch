@@ -499,9 +499,16 @@ Looking at the previous example:
 --------------------------------------------------
 "collector": [
   {
-    "name": "SimpleTopScoreDocCollector",
-    "reason": "search_top_hits",
-    "time_in_nanos": 775274
+    "name": "QueryPhaseCollector",
+    "reason": "search_query_phase",
+    "time_in_nanos": 775274,
+    "children" : [
+      {
+        "name": "SimpleTopScoreDocCollector",
+        "reason": "search_top_hits",
+        "time_in_nanos": 775274
+      }
+    ]
   }
 ]
 --------------------------------------------------
@@ -511,7 +518,7 @@ Looking at the previous example:
 
 
 We see a top-level collector named `QueryPhaseCollector` which holds a child
-`SimpleTopScoreDocCollector`. `SimpleTopScoreDocCollector` is the  default 
+`SimpleTopScoreDocCollector`. `SimpleTopScoreDocCollector` is the  default
 "scoring and sorting" `Collector` used by {es}. The `reason` field attempts
 to give a plain English description of the class name. The `time_in_nanos`
 is similar to the time in the Query tree: a wall-clock time inclusive of all

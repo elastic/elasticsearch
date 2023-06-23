@@ -23,8 +23,9 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class CompositeCollector implements Collector {
+public class QueryPhaseCollector implements Collector {
     private final Collector aggsCollector;
     private final Collector topDocsCollector;
     private final int terminateAfter;
@@ -35,14 +36,14 @@ public class CompositeCollector implements Collector {
     private int numCollected;
     private boolean terminatedAfter = false;
 
-    public CompositeCollector(
+    public QueryPhaseCollector(
         Collector topDocsCollector,
         Weight postFilterWeight,
         int terminateAfter,
         Collector aggsCollector,
         Float minScore
     ) {
-        this.topDocsCollector = topDocsCollector;
+        this.topDocsCollector = Objects.requireNonNull(topDocsCollector);
         this.postFilterWeight = postFilterWeight;
         this.terminateAfter = terminateAfter;
         this.aggsCollector = aggsCollector;
@@ -168,6 +169,9 @@ public class CompositeCollector implements Collector {
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {
+            if (cacheScores) {
+                scorer = ScoreCachingWrappingScorer.wrap(scorer);
+            }
             scorer = new FilterScorable(scorer) {
                 @Override
                 public void setMinCompetitiveScore(float minScore) throws IOException {
@@ -268,6 +272,8 @@ public class CompositeCollector implements Collector {
                     } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
                         // aggs collector does not need this segment, but the top docs collector may.
                         if (topDocsLeafCollector == null) {
+                            // TODO we may need to check terminate_after here, because we are not setting the early_terminated flag in
+                            // in the response otherwise. It is likely we don't have test coverage for this scenario.
                             throw e;
                         }
                         aggsLeafCollector = null;

@@ -39,7 +39,7 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
     // TODO remove search_multi as we no longer use multi collector?
     public static final String REASON_SEARCH_MULTI = "search_multi";
-    public static final String REASON_SEARCH_COMPOSITE = "search_composite";
+    public static final String REASON_SEARCH_QUERY_PHASE = "search_query_phase";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 

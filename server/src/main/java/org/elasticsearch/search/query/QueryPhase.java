@@ -20,7 +20,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -48,12 +47,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_COMPOSITE;
+import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_QUERY_PHASE;
 import static org.elasticsearch.search.query.TopDocsCollectorManagerFactory.createTopDocsCollectorFactory;
 
 /**
@@ -211,7 +209,7 @@ public class QueryPhase {
                     1f
                 );
             }
-            CompositeCollector compositeCollector = new CompositeCollector(
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
                 topDocsCollector,
                 postFilterWeight,
                 searchContext.terminateAfter(),
@@ -221,19 +219,19 @@ public class QueryPhase {
 
             SingleThreadCollectorManager collectorManager;
             if (searchContext.getProfilers() == null) {
-                collectorManager = new SingleThreadCollectorManager(compositeCollector);
+                collectorManager = new SingleThreadCollectorManager(queryPhaseCollector);
             } else {
                 InternalProfileCollector profileCollector;
                 if (aggsCollector == null) {
                     profileCollector = new InternalProfileCollector(
-                        compositeCollector,
-                        REASON_SEARCH_COMPOSITE,
+                        queryPhaseCollector,
+                        REASON_SEARCH_QUERY_PHASE,
                         (InternalProfileCollector) topDocsCollector
                     );
                 } else {
                     profileCollector = new InternalProfileCollector(
-                        compositeCollector,
-                        REASON_SEARCH_COMPOSITE,
+                        queryPhaseCollector,
+                        REASON_SEARCH_QUERY_PHASE,
                         (InternalProfileCollector) topDocsCollector,
                         (InternalProfileCollector) aggsCollector
                     );
@@ -248,7 +246,7 @@ public class QueryPhase {
 
             try {
                 searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutRunnable != null);
-                if (compositeCollector.isTerminatedAfter()) {
+                if (queryPhaseCollector.isTerminatedAfter()) {
                     queryResult.terminatedEarly(true);
                 }
                 queryResult.topDocs(topDocsFactory.topDocsAndMaxScore(), topDocsFactory.sortValueFormats);
@@ -346,14 +344,4 @@ public class QueryPhase {
             return this;
         }
     }
-
-    private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
-        @Override
-        public void collect(int doc) {}
-
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
-        }
-    };
 }

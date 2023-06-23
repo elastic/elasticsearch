@@ -750,9 +750,9 @@ major portions of the query are represented:
 2. The second `TermQuery` (message:search) represents the `post_filter` query.
 
 The Collector tree is fairly straightforward, showing how a single
-CancellableCollector wraps a CompositeCollector which holds the normal scoring
-SimpleCollector used to collect top hits, as well as BucketCollector to run
-all scoped aggregations.
+QueryPhaseCollector that holds the normal scoring SimpleTopScoreDocCollector
+used to collect top hits, as well as BucketCollectorWrapper to run all scoped
+aggregations.
 
 ===== Understanding MultiTermQuery output
 

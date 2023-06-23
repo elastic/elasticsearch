@@ -1,10 +1,26 @@
 [role="xpack"]
 [[role-restriction]]
-=== Role Restriction
+=== Role restriction
 
+Role restriction can be used to specify conditions under which a role should be effective.
+Not specifying restriction means a role is not restricted and thus always effective.
+This is the default behaviour.
+
+--
+NOTE: Currently, the role restriction is only supported for <<security-api-create-api-key, API keys>>,
+with limitation that it's allowed to specify only a single role descriptor with restriction.
+--
 
 [[workflows-restriction]]
 ==== Workflows
 
-`search_application_query`:::
+Workflows allow to restrict the role to be effective exclusively when calling certain REST APIs.
+Calling a REST API that is not allowed by a workflow, will result in the role being disabled (i.e. _empty_) and thus access being denied.
+The below section lists workflows that you can restrict the role to:
+
+`search_application_query`::: This workflow restricts the role to the <<search-application-search, Search Application Search API>> only.
+
+--
+NOTE: Workflows are case-sensitive.
+--
 

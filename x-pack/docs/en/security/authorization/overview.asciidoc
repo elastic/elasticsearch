@@ -78,13 +78,13 @@ include::built-in-roles.asciidoc[]
 
 include::managing-roles.asciidoc[]
 
+include::role-restriction.asciidoc[]
+
 include::privileges.asciidoc[]
 
 include::document-level-security.asciidoc[]
 
 include::field-level-security.asciidoc[]
-
-include::role-restriction.asciidoc[]
 
 include::alias-privileges.asciidoc[]
 

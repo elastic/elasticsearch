@@ -43,6 +43,10 @@ public class Percentile extends NumericAggregate {
         return new Percentile(source(), newChildren.get(0), newChildren.get(1));
     }
 
+    public Expression percentile() {
+        return percentile;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {

@@ -7,24 +7,37 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+
 @Experimental
-public class Median extends NumericAggregate {
+public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
     public Median(Source source, Expression field) {
         super(source, field);
+    }
+
+    @Override
+    protected Expression.TypeResolution resolveType() {
+        return isNumeric(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.DOUBLE;
     }
 
     @Override
@@ -38,17 +51,7 @@ public class Median extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, QuantileStates.MEDIAN);
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, QuantileStates.MEDIAN);
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, QuantileStates.MEDIAN);
+    public Expression surrogate() {
+        return new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataTypes.INTEGER));
     }
 }

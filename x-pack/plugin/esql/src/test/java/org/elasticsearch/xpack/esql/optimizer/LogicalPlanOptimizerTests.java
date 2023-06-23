@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -1181,6 +1183,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         a = as(aggs.get(2), Alias.class);
         assertThat(a.name(), is("s"));
+    }
+
+    /**
+     * Expected
+     * Limit[10000[INTEGER]]
+     * \_Aggregate[[last_name{f}#9],[PERCENTILE(salary{f}#10,50[INTEGER]) AS m, last_name{f}#9]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, !g..]
+     */
+    public void testMedianReplacement() {
+        var plan = plan("""
+              from test
+            | stats m = median(salary) by last_name
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("m", "last_name"));
+        var aggs = agg.aggregates();
+        var a = as(aggs.get(0), Alias.class);
+        var per = as(a.child(), Percentile.class);
+        var literal = as(per.percentile(), Literal.class);
+        assertThat((int) QuantileStates.MEDIAN, is(literal.fold()));
+
+        assertThat(Expressions.names(agg.groupings()), contains("last_name"));
     }
 
     private LogicalPlan optimizedPlan(String query) {

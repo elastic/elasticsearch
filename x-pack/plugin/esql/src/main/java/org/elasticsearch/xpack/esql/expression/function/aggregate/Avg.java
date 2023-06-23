@@ -7,23 +7,36 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+
 @Experimental
-public class Avg extends NumericAggregate implements SurrogateExpression {
+public class Avg extends AggregateFunction implements SurrogateExpression {
 
     public Avg(Source source, Expression field) {
         super(source, field);
+    }
+
+    @Override
+    protected Expression.TypeResolution resolveType() {
+        return isNumeric(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.DOUBLE;
     }
 
     @Override
@@ -36,24 +49,10 @@ public class Avg extends NumericAggregate implements SurrogateExpression {
         return new Avg(source(), newChildren.get(0));
     }
 
+    @Override
     public Expression surrogate() {
         var s = source();
         var field = field();
         return new Div(s, new Sum(s, field), new Count(s, field), dataType());
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        throw new EsqlIllegalArgumentException("unsupported operation");
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        throw new EsqlIllegalArgumentException("unsupported operation");
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        throw new EsqlIllegalArgumentException("unsupported operation");
     }
 }

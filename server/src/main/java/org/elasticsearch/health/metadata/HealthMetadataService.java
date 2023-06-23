@@ -299,20 +299,23 @@ public class HealthMetadataService {
 
         @Override
         HealthMetadata doExecute(HealthMetadata initialHealthMetadata) {
-            return Objects.requireNonNullElseGet(initialHealthMetadata, () -> new HealthMetadata(
-                new HealthMetadata.Disk(
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
-                ),
-                new HealthMetadata.ShardLimits(
-                    SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
-                    SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
+            return Objects.requireNonNullElseGet(
+                initialHealthMetadata,
+                () -> new HealthMetadata(
+                    new HealthMetadata.Disk(
+                        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
+                    ),
+                    new HealthMetadata.ShardLimits(
+                        SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
+                        SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
+                    )
                 )
-            ));
+            );
         }
     }
 }

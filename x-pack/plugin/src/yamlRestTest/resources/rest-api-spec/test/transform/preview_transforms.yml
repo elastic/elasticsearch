@@ -685,7 +685,7 @@ setup:
 ---
 "Test preview transform latest with unique key field of aggregate_metric_double type":
   - do:
-      catch: /Field \[agg_metric\] of type \[aggregate_metric_double\] is not supported for aggregation \[terms\]/
+      catch: /Field \[agg_metric\] of type \[aggregate_metric_double\]\[aggregate_metric\] is not supported for aggregation \[terms\]/
       transform.preview_transform:
         body:  >
           {

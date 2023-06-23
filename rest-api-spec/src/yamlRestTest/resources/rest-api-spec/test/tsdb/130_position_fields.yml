@@ -76,7 +76,7 @@ multi-valued fields unsupported:
       version: " - 8.7.99"
       reason: position metric introduced in 8.8.0
   - do:
-      catch: /Field \[location\] of type \[geo_point\] is not supported for aggregation \[avg\]/
+      catch: /Field \[location\] of type \[geo_point\]\[position\] is not supported for aggregation \[avg\]/
       search:
         index: locations
         body:

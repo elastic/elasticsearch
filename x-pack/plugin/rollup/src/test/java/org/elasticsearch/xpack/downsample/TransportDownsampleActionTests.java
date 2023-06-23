@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.UUID;
 
-public class TransportDownsampleActionTest extends ESTestCase {
+public class TransportDownsampleActionTests extends ESTestCase {
     public void testCopyIndexMetadata() {
         // GIVEN
         final List<String> tiers = List.of(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD, DataTier.DATA_CONTENT);

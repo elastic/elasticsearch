@@ -207,6 +207,8 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
      */
     record ShardProfileId(String nodeId, String indexName, int shardId, @Nullable String clusterName) {}
 
+    private static Pattern SHARD_ID_DECOMPOSITION = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
+
     /**
      * Parse the composite "shard id" from the profiles output, which comes from the
      * {@code SearchShardTarget.toString()} method, into its separate components.
@@ -225,8 +227,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     static ShardProfileId parseCompositeProfileShardId(String compositeId) {
         assert Strings.isNullOrEmpty(compositeId) == false : "An empty id should not be passed to parseCompositeProfileShardId";
 
-        Pattern r = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
-        Matcher m = r.matcher(compositeId);
+        Matcher m = SHARD_ID_DECOMPOSITION.matcher(compositeId);
         if (m.find()) {
             String nodeId = m.group(1);
             String indexName = m.group(2);

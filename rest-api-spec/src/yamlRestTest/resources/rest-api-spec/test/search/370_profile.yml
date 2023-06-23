@@ -404,8 +404,8 @@ dfs profile for search with dfs_query_then_fetch:
 ---
 composite_id_parsed:
   - skip:
-      version: " - 8.8.99"
-      reason: node_id, shard_id, index and cluster fields added in 8.9.0
+      version: " - 8.9.99"
+      reason: node_id, shard_id, index and cluster fields added in 8.10.0
       features: "contains"
 
   - do:

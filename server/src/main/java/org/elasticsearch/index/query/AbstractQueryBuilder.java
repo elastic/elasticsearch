@@ -419,7 +419,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(
                 parser.getTokenLocation(),
-                "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]"
+                "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentName() + "] field outside JSON object"
             );
         }
         return result;

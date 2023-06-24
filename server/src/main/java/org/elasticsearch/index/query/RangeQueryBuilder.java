@@ -403,7 +403,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     }
                 }
             } else if (token.isValue()) {
-                throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[range] query for [" + currentFieldName + "] malformed, missing start_object/end_object");
             }
         }
 

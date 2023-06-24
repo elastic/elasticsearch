@@ -27,7 +27,7 @@ public class ResolveAllDependencies extends DefaultTask {
 
     private final ObjectFactory objectFactory;
 
-    Collection<Configuration> configs;
+    private Collection<Configuration> configs;
 
     @Inject
     public ResolveAllDependencies(ObjectFactory objectFactory) {
@@ -43,6 +43,14 @@ public class ResolveAllDependencies extends DefaultTask {
     @TaskAction
     void resolveAll() {
         // do nothing, dependencies are resolved when snapshotting task inputs
+    }
+
+    public Collection<Configuration> getConfigs() {
+        return configs;
+    }
+
+    public void setConfigs(Collection<Configuration> configs) {
+        this.configs = configs;
     }
 
     private static boolean canBeResolved(Configuration configuration) {

@@ -108,7 +108,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (randomBoolean()) {
             result.fuzzyTranspositions(randomBoolean());
         }
-        // result.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
+        // TODO extend checks in doAssertLuceneQuery for the three failing cases
+        result.type(
+            randomFrom(
+                List.of(
+                    MultiMatchQueryBuilder.Type.BEST_FIELDS,
+                    MultiMatchQueryBuilder.Type.MOST_FIELDS,
+                    MultiMatchQueryBuilder.Type.PHRASE
+                )
+            )
+        );
         return result;
     }
 

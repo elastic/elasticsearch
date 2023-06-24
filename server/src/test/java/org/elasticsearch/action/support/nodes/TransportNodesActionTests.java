@@ -158,7 +158,10 @@ public class TransportNodesActionTests extends ESTestCase {
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        action.execute(cancellableTask, new TestNodesRequest(), listener);
+        action.execute(cancellableTask, new TestNodesRequest(), listener.delegateResponse((l, e) -> {
+            assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.GENERIC + "]");
+            l.onFailure(e);
+        }));
 
         final List<CapturingTransport.CapturedRequest> capturedRequests = new ArrayList<>(
             Arrays.asList(transport.getCapturedRequestsAndClear())
@@ -266,7 +269,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.GENERIC
         );
     }
 
@@ -278,7 +281,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.GENERIC
         );
     }
 

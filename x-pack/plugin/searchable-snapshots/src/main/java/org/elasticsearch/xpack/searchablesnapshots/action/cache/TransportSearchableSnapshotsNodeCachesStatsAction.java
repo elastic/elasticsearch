@@ -74,7 +74,6 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             NodesRequest::new,
             NodeRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.SAME,
             NodeCachesStatsResponse.class
         );
         this.frozenCacheService = frozenCacheService;

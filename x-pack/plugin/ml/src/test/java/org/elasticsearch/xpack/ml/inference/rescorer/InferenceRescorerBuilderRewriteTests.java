@@ -73,14 +73,17 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
     public void testRewriteAndFetchOnDataNode() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
         InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder("modelId", () -> testModelLoader);
-        if (randomBoolean()) {
+        boolean setWindowSize = randomBoolean();
+        if (setWindowSize) {
             inferenceRescorerBuilder.windowSize(42);
         }
         DataRewriteContext rewriteContext = dataRewriteContext();
         InferenceRescorerBuilder rewritten = (InferenceRescorerBuilder) inferenceRescorerBuilder.rewrite(rewriteContext);
         assertNotSame(inferenceRescorerBuilder, rewritten);
         assertTrue(rewriteContext.hasAsyncActions());
-        assertEquals(rewritten.windowSize(), equalTo(42));
+        if (setWindowSize) {
+            assertEquals(rewritten.windowSize(), equalTo(42));
+        }
     }
 
     public void testBuildContext() {

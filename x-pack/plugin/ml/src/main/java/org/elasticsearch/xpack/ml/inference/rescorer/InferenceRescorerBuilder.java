@@ -110,7 +110,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             return builder;
         }
         // We don't want to rewrite on the coordinator as that doesn't make sense for this rescorer
-        // TODO Do we rewrite rescorers in can_match & term_stats????
         if (ctx.convertToDataRewriteContext() != null) {
             if (modelLoadingServiceSupplier == null || modelLoadingServiceSupplier.get() == null) {
                 throw new IllegalStateException("Model loading service must be available");
@@ -155,9 +154,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     @Override
     protected RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) {
-        if (inferenceDefinition == null) {
-            throw new IllegalStateException("local model reference is null, missing rewriteAndFetch?");
-        }
         rescoreOccurred = true;
         return new InferenceRescorerContext(windowSize, InferenceRescorer.INSTANCE, inferenceDefinition, context);
     }

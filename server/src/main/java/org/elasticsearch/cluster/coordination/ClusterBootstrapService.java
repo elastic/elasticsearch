@@ -78,7 +78,7 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
         singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
-        if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
+        if (singleNodeDiscovery) {
             if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
                 throw new IllegalArgumentException(
                     "setting ["
@@ -126,10 +126,8 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
     void logBootstrapState(Metadata metadata) {
         if (metadata.clusterUUIDCommitted()) {
             final var clusterUUID = metadata.clusterUUID();
-            if (bootstrapRequirements.isEmpty()) {
+            if (singleNodeDiscovery || bootstrapRequirements.isEmpty()) {
                 logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
-            } else if (singleNodeDiscovery) {
-                logger.info("this node is locked into single-node cluster UUID [{}]", clusterUUID);
             } else {
                 transportService.getThreadPool()
                     .scheduleWithFixedDelay(() -> logRemovalWarning(clusterUUID), TimeValue.timeValueHours(12), Names.SAME);

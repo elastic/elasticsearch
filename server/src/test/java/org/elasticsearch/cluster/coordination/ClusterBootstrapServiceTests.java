@@ -677,12 +677,13 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
 
+            final String infoMessagePattern = """
+                this node is locked into cluster UUID [test-uuid] and will not attempt further cluster bootstrapping""";
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "bootstrapped node message",
                     ClusterBootstrapService.class.getCanonicalName(),
-                    Level.INFO,
-                    "this node is locked into cluster UUID [test-uuid] and will not attempt further cluster bootstrapping"
+                    Level.INFO, infoMessagePattern
                 )
             );
 
@@ -741,7 +742,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                     "bootstrapped node message if discovery type is single node ",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
-                    "this node is locked into single-node cluster UUID [test-uuid]"
+                    infoMessagePattern
                 )
             );
 
@@ -757,5 +758,19 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testNoRepeatedLoggingWithSingleNodeDiscoveryType() {
+        new ClusterBootstrapService(
+            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build(),
+            transportService,
+            Collections::emptyList,
+            () -> false,
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
+        ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+        assertFalse((deterministicTaskQueue.hasDeferredTasks() || deterministicTaskQueue.hasRunnableTasks()));
     }
 }

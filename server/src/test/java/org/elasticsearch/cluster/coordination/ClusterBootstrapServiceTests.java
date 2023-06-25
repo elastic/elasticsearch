@@ -683,7 +683,8 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 new MockLogAppender.SeenEventExpectation(
                     "bootstrapped node message",
                     ClusterBootstrapService.class.getCanonicalName(),
-                    Level.INFO, infoMessagePattern
+                    Level.INFO,
+                    infoMessagePattern
                 )
             );
 

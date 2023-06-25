@@ -1,17 +1,17 @@
-manage_dlm:
+manage_data_stream_lifecycle:
   cluster:
     - monitor
   indices:
-    - names: [ 'dlm-*' ]
+    - names: [ 'data-stream-lifecycle-*' ]
       privileges:
         - read
         - write
-        - manage_dlm
+        - manage_data_stream_lifecycle
 not_privileged:
   cluster:
     - monitor
   indices:
-    - names: [ 'dlm-*' ]
+    - names: [ 'data-stream-lifecycle-*' ]
       privileges:
         - read
         - write

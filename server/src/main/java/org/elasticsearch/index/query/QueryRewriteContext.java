@@ -142,6 +142,13 @@ public class QueryRewriteContext {
     }
 
     /**
+     * @return an {@link QueryRewriteContext} instance that is aware of the mapping and other index metadata or <code>null</code> otherwise.
+     */
+    public QueryRewriteContext convertToIndexMetadataContext() {
+        return mapperService != null ? this : null;
+    }
+
+    /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
      * In case unmapped fields are allowed, null is returned when the field is not mapped.
@@ -257,5 +264,22 @@ public class QueryRewriteContext {
      */
     public Index getFullyQualifiedIndex() {
         return fullyQualifiedIndex;
+    }
+
+    /**
+     * Returns the index settings for this context. This might return null if the
+     * context has not index scope.
+     */
+    public IndexSettings getIndexSettings() {
+        return indexSettings;
+    }
+
+    /**
+     *  Given an index pattern, checks whether it matches against the current shard. The pattern
+     *  may represent a fully qualified index name if the search targets remote shards.
+     */
+    public boolean indexMatches(String pattern) {
+        assert indexNameMatcher != null;
+        return indexNameMatcher.test(pattern);
     }
 }

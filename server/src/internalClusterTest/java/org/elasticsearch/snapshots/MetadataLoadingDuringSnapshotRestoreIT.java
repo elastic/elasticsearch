@@ -91,7 +91,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "docs", 1);
         assertIndexMetadataLoads("snap", "others", 1);
 
-        assertAcked(client().admin().indices().prepareDelete("docs", "others"));
+        assertAcked(indicesAdmin().prepareDelete("docs", "others"));
 
         // Restoring a snapshot loads indices metadata but not the global state
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repository", "snap")
@@ -102,7 +102,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "docs", 2);
         assertIndexMetadataLoads("snap", "others", 2);
 
-        assertAcked(client().admin().indices().prepareDelete("docs"));
+        assertAcked(indicesAdmin().prepareDelete("docs"));
 
         // Restoring a snapshot with selective indices loads only required index metadata
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repository", "snap")
@@ -114,7 +114,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "docs", 3);
         assertIndexMetadataLoads("snap", "others", 2);
 
-        assertAcked(client().admin().indices().prepareDelete("docs", "others"));
+        assertAcked(indicesAdmin().prepareDelete("docs", "others"));
 
         // Restoring a snapshot including the global state loads it with the index metadata
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repository", "snap")

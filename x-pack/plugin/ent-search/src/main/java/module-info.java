@@ -30,5 +30,6 @@ module org.elasticsearch.application {
 
     exports org.elasticsearch.xpack.application.search;
     exports org.elasticsearch.xpack.application.search.action;
+    exports org.elasticsearch.xpack.application.rules;
     exports org.elasticsearch.xpack.application.rules.action;
 }

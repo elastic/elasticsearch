@@ -1,8 +1,10 @@
----
-"Create and Update synonyms set":
+setup:
   - skip:
       version: " - 8.8.99"
       reason: Introduced in 8.9.0
+
+---
+"Create and Update synonyms set":
   - do:
       synonyms.put:
         synonyms_set: test-update-synonyms
@@ -13,6 +15,8 @@
               id: "test-id"
 
   - match: { result: "created" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
 
   - do:
       synonyms.put:
@@ -22,12 +26,11 @@
             - synonyms: "other, another"
 
   - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
 
 ---
 "Validation fails tests":
-  - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
   - do:
       catch: /\[synonyms\] field can't be empty/
       synonyms.put:

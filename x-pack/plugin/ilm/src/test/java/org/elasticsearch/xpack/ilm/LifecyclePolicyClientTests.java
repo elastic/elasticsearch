@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -41,10 +42,10 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
@@ -77,10 +78,10 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
@@ -116,10 +117,10 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertThat(threadContext.getHeaders().size(), equalTo(2));

@@ -313,7 +313,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
 
         KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) });
         KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) });
-        assertEquals(List.of(bm25, ksdqb0, ksdqb1), ssr.rankQueryBuilders());
+        assertEquals(
+            List.of(bm25, ksdqb0, ksdqb1),
+            List.of(
+                ssr.source().subSearches().get(0).getQueryBuilder(),
+                ssr.source().subSearches().get(1).getQueryBuilder(),
+                ssr.source().subSearches().get(2).getQueryBuilder()
+            )
+        );
     }
 
     private SearchPhaseController searchPhaseController() {

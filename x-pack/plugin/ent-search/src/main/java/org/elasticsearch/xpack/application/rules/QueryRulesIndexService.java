@@ -31,6 +31,7 @@ import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
@@ -248,16 +249,13 @@ public class QueryRulesIndexService {
      * @param from From index to start the search from.
      * @param size The maximum number of {@link QueryRuleset}s to return.
      * @param listener The action listener to invoke on response/failure.
-     *
-     * TODO add total number of rules per ruleset - We can add this when implementing the List command.
      */
     public void listQueryRulesets(int from, int size, ActionListener<QueryRulesetResult> listener) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(new MatchAllQueryBuilder())
-                .docValueField(QueryRuleset.ID_FIELD.getPreferredName())
-                .storedFields(Collections.singletonList("_none_"))
+                .fetchSource(new String[] { QueryRuleset.ID_FIELD.getPreferredName(), QueryRuleset.RULES_FIELD.getPreferredName() }, null)
                 .sort(QueryRuleset.ID_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(QUERY_RULES_ALIAS_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
@@ -281,10 +279,19 @@ public class QueryRulesIndexService {
     }
 
     private static QueryRulesetResult mapSearchResponseToQueryRulesetList(SearchResponse response) {
-        final List<String> rulesetIds = Arrays.stream(response.getHits().getHits())
-            .map(hit -> (String) hit.getDocumentFields().get(QueryRuleset.ID_FIELD.getPreferredName()).getValue())
+        final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
+            .map(QueryRulesIndexService::hitToQueryRulesetListItem)
             .toList();
-        return new QueryRulesetResult(rulesetIds, (int) response.getHits().getTotalHits().value);
+        return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value);
+    }
+
+    private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {
+        final Map<String, Object> sourceMap = searchHit.getSourceAsMap();
+        final String rulesetId = (String) sourceMap.get(QueryRuleset.ID_FIELD.getPreferredName());
+        @SuppressWarnings("unchecked")
+        final int numRules = ((List<QueryRule>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName())).size();
+
+        return new QueryRulesetListItem(rulesetId, numRules);
     }
 
     static class DelegatingIndexNotFoundActionListener<T, R> extends DelegatingActionListener<T, R> {
@@ -312,5 +319,5 @@ public class QueryRulesIndexService {
         }
     }
 
-    public record QueryRulesetResult(List<String> rulesetIds, long totalResults) {}
+    public record QueryRulesetResult(List<QueryRulesetListItem> rulesets, long totalResults) {}
 }

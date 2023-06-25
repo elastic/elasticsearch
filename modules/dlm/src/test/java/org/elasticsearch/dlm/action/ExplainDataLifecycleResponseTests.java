@@ -81,7 +81,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             Map<String, Object> indices = (Map<String, Object>) xContentMap.get("indices");
             assertThat(indices.size(), is(1));
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndex.getIndex());
-            assertThat(explainIndexMap.get("managed_by_dlm"), is(explainIndex.isManagedByDLM()));
+            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByDLM()));
             if (explainIndex.isManagedByDLM()) {
                 assertThat(explainIndexMap.get("index_creation_date_millis"), is(explainIndex.getIndexCreationDate()));
                 assertThat(
@@ -134,7 +134,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             assertThat(indices.size(), is(1));
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndex.getIndex());
             assertThat(explainIndexMap.get("index"), is(explainIndex.getIndex()));
-            assertThat(explainIndexMap.get("managed_by_dlm"), is(explainIndex.isManagedByDLM()));
+            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByDLM()));
             if (explainIndex.isManagedByDLM()) {
                 assertThat(explainIndexMap.get("index_creation_date_millis"), is(explainIndex.getIndexCreationDate()));
                 assertThat(
@@ -191,7 +191,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             Map<String, Object> indices = (Map<String, Object>) xContentMap.get("indices");
             assertThat(indices.size(), is(1));
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndexWithNullGenerationDate.getIndex());
-            assertThat(explainIndexMap.get("managed_by_dlm"), is(true));
+            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(true));
             assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
         }
     }

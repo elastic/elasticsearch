@@ -15,6 +15,9 @@ import java.util.function.LongSupplier;
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version on the datanode where the request is going to be
  * executed.
+ *
+ * Note: the way search requests are executed and rewritten currently on each node is that it is done by shard. So, `DataRewriteContext`
+ * will be used in `rewrite` per shard but before the query phase.
  */
 public class DataRewriteContext extends QueryRewriteContext {
     public DataRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {

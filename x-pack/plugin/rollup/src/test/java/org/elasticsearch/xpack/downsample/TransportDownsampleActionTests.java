@@ -35,7 +35,6 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom(tiers))
                 .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, randomAlphaOfLength(20))
                 .put(IndexMetadata.SETTING_CREATION_DATE, System.currentTimeMillis())
-                .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(9))
         ).build();
         final IndexMetadata target = new IndexMetadata.Builder(randomAlphaOfLength(10)).settings(
             Settings.builder()

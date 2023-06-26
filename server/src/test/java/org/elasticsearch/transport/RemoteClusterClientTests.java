@@ -8,13 +8,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.NodeVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +52,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                NodeVersions.CURRENT,
+                Version.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 remoteSettings
@@ -68,7 +68,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     localSettings,
-                    NodeVersions.CURRENT,
+                    Version.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -105,7 +105,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                NodeVersions.CURRENT,
+                Version.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 remoteSettings
@@ -119,7 +119,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     localSettings,
-                    NodeVersions.CURRENT,
+                    Version.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -156,7 +156,7 @@ public class RemoteClusterClientTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                NodeVersions.CURRENT,
+                Version.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -179,7 +179,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                NodeVersions.CURRENT,
+                Version.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 remoteSettings
@@ -196,7 +196,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     localSettings,
-                    NodeVersions.CURRENT,
+                    Version.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null

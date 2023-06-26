@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.NodeVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -145,7 +144,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     public void testInstallIndexTemplateIfRequired_GivenLegacyTemplateExistsAndModernCluster() throws UnknownHostException {
         ClusterState clusterState = createClusterState(
-            NodeVersions.CURRENT,
+            Version.CURRENT,
             Collections.emptyMap(),
             Collections.singletonMap(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
@@ -184,7 +183,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     public void testInstallIndexTemplateIfRequired_GivenComposableTemplateExists() throws UnknownHostException {
         ClusterState clusterState = createClusterState(
-            NodeVersions.CURRENT,
+            Version.CURRENT,
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.singletonMap(
@@ -393,11 +392,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     private static ClusterState createClusterState(Map<String, IndexMetadata> indices) throws UnknownHostException {
-        return createClusterState(NodeVersions.CURRENT, indices, Collections.emptyMap(), Collections.emptyMap());
+        return createClusterState(Version.CURRENT, indices, Collections.emptyMap(), Collections.emptyMap());
     }
 
     private static ClusterState createClusterState(
-        NodeVersions minNodeVersion,
+        Version minNodeVersion,
         Map<String, IndexMetadata> indices,
         Map<String, IndexTemplateMetadata> legacyTemplates,
         Map<String, ComposableIndexTemplate> composableTemplates
@@ -408,9 +407,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(DiscoveryNodeUtils.create("foo", new TransportAddress(inetAddress1, 9201)))
-                    .add(
-                        DiscoveryNodeUtils.builder("bar").address(new TransportAddress(inetAddress2, 9202)).version(minNodeVersion).build()
-                    )
+                    .add(DiscoveryNodeUtils.create("bar", new TransportAddress(inetAddress2, 9202), minNodeVersion))
                     .build()
             )
             .metadata(Metadata.builder().indices(indices).templates(legacyTemplates).indexTemplates(composableTemplates).build())

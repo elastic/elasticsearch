@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -436,7 +437,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
         final MockTransportService service = MockTransportService.createNewService(
             builder.build(),
-            null,
+            Version.CURRENT,
             TransportVersion.current(),
             threadPool,
             null

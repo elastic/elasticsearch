@@ -103,7 +103,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(
         Settings.EMPTY,
-        null,
+        Version.CURRENT,
         TransportVersion.current(),
         threadPool
     );

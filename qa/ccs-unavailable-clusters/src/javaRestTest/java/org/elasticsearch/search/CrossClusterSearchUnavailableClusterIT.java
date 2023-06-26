@@ -14,6 +14,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -36,7 +37,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.NodeVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -92,7 +92,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     private static MockTransportService startTransport(
         final String id,
         final List<DiscoveryNode> knownNodes,
-        final NodeVersions version,
+        final Version version,
         final TransportVersion transportVersion,
         final ThreadPool threadPool
     ) {
@@ -160,7 +160,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             MockTransportService remoteTransport = startTransport(
                 "node0",
                 new CopyOnWriteArrayList<>(),
-                NodeVersions.CURRENT,
+                Version.CURRENT,
                 TransportVersion.current(),
                 threadPool
             )
@@ -266,7 +266,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             MockTransportService remoteTransport = startTransport(
                 "node0",
                 new CopyOnWriteArrayList<>(),
-                NodeVersions.CURRENT,
+                Version.CURRENT,
                 TransportVersion.current(),
                 threadPool
             )

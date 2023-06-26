@@ -18,11 +18,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.fetch.FetchContext;
 
-import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 /**

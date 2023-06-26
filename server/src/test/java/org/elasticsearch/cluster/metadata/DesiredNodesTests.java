@@ -187,7 +187,7 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
     private DesiredNode desiredNodeWithDifferentSpecsAndSameExternalId(DesiredNode desiredNode) {
         return new DesiredNode(
             desiredNode.settings(),
-            desiredNode.minProcessors() + randomIntBetween(1, 10),
+            desiredNode.minProcessors().count() + randomIntBetween(1, 10),
             ByteSizeValue.ofGb(desiredNode.memory().getGb() + randomIntBetween(15, 20)),
             ByteSizeValue.ofGb(desiredNode.storage().getGb() + randomIntBetween(1, 100)),
             Version.CURRENT

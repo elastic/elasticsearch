@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class ReplicationResponse extends ActionResponse {
 
-    public static final ReplicationResponse.ShardInfo.Failure[] EMPTY = new ReplicationResponse.ShardInfo.Failure[0];
+    public static final ReplicationResponse.ShardInfo.Failure[] NO_FAILURES = new ReplicationResponse.ShardInfo.Failure[0];
 
     private ShardInfo shardInfo;
 
@@ -68,7 +68,7 @@ public class ReplicationResponse extends ActionResponse {
 
         private int total;
         private int successful;
-        private Failure[] failures = EMPTY;
+        private Failure[] failures = ReplicationResponse.NO_FAILURES;
 
         public ShardInfo() {}
 
@@ -186,7 +186,7 @@ public class ReplicationResponse extends ActionResponse {
                     parser.skipChildren(); // skip potential inner arrays for forward compatibility
                 }
             }
-            Failure[] failures = EMPTY;
+            Failure[] failures = ReplicationResponse.NO_FAILURES;
             if (failuresList != null) {
                 failures = failuresList.toArray(new Failure[failuresList.size()]);
             }

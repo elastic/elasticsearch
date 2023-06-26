@@ -8,7 +8,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -152,8 +154,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 request,
                 nodeRequest,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                ThreadPool.Names.GENERIC
             );
         }
 
@@ -174,7 +175,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
-                discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
             TaskManager taskManager;
@@ -187,7 +188,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 settings,
                 new Netty4Transport(
                     settings,
-                    Version.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -199,7 +200,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
-                taskManager
+                taskManager,
+                Tracer.NOOP
             );
             taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();

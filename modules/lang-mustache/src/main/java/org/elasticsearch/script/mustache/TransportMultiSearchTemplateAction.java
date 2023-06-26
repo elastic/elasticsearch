@@ -19,6 +19,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
@@ -31,6 +33,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
     private final NodeClient client;
+    private final SearchUsageHolder searchUsageHolder;
 
     @Inject
     public TransportMultiSearchTemplateAction(
@@ -38,12 +41,14 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
-        NodeClient client
+        NodeClient client,
+        UsageService usageService
     ) {
         super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
+        this.searchUsageHolder = usageService.getSearchUsageHolder();
     }
 
     @Override
@@ -61,7 +66,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchRequest searchRequest;
             try {
-                searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry);
+                searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry, searchUsageHolder);
             } catch (Exception e) {
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
                 continue;
@@ -73,7 +78,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             }
         }
 
-        client.multiSearch(multiSearchRequest, ActionListener.wrap(r -> {
+        client.multiSearch(multiSearchRequest, listener.delegateFailureAndWrap((l, r) -> {
             for (int i = 0; i < r.getResponses().length; i++) {
                 MultiSearchResponse.Item item = r.getResponses()[i];
                 int originalSlot = originalSlots.get(i);
@@ -83,7 +88,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                     items[originalSlot].getResponse().setResponse(item.getResponse());
                 }
             }
-            listener.onResponse(new MultiSearchTemplateResponse(items, r.getTook().millis()));
-        }, listener::onFailure));
+            l.onResponse(new MultiSearchTemplateResponse(items, r.getTook().millis()));
+        }));
     }
 }

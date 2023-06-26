@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -15,12 +16,15 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -56,9 +60,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithFewDocuments() throws Exception {
         String sourceIndex = "test-outlier-detection-with-few-docs";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
@@ -153,9 +155,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testPreview() throws Exception {
         String sourceIndex = "test-outlier-detection-preview";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
@@ -195,9 +195,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-outlier-detection-with-enough-docs-to-scroll";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -355,9 +353,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -425,15 +421,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String destIndex = "test-outlier-detection-with-multiple-source-indices-results";
         String[] sourceIndex = new String[] { sourceIndex1, sourceIndex2 };
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex1)
+        indicesAdmin().prepareCreate(sourceIndex1)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex2)
+        indicesAdmin().prepareCreate(sourceIndex2)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -499,15 +491,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String sourceIndex = "test-outlier-detection-with-pre-existing-dest-index";
         String destIndex = "test-outlier-detection-with-pre-existing-dest-index-results";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin()
-            .indices()
-            .prepareCreate(destIndex)
+        indicesAdmin().prepareCreate(destIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -566,11 +554,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() throws Exception {
         String sourceIndex = "test-model-memory-limit";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
-            .setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
-            .get();
+        indicesAdmin().prepareCreate(sourceIndex).setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword").get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10000; i++) {  // This number of rows should make memory usage estimate greater than 1MB
@@ -603,11 +587,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testLazyAssignmentWithModelMemoryLimitTooHighForAssignment() throws Exception {
         String sourceIndex = "test-lazy-assign-model-memory-limit-too-high";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
-            .setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
-            .get();
+        indicesAdmin().prepareCreate(sourceIndex).setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword").get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_1").source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
@@ -658,9 +638,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -729,9 +707,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithCustomParams() throws Exception {
         String sourceIndex = "test-outlier-detection-with-custom-params";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -1041,6 +1017,45 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started writing results",
             "Finished analysis"
         );
+    }
+
+    public void testStart_GivenTimeout_Returns408() throws Exception {
+        String sourceIndex = "test-timeout-returns-408-data";
+
+        client().admin().indices().prepareCreate(sourceIndex).setMapping("numeric_1", "type=integer", "numeric_2", "type=integer").get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.id(String.valueOf(i));
+            indexRequest.source("numeric_1", randomInt(), "numeric_2", randomInt());
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test-timeout-returns-408";
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
+        putAnalytics(config);
+
+        StartDataFrameAnalyticsAction.Request request = new StartDataFrameAnalyticsAction.Request(id);
+        request.setTimeout(TimeValue.timeValueNanos(1L));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> client().execute(StartDataFrameAnalyticsAction.INSTANCE, request).actionGet()
+        );
+
+        assertThat(e.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
     }
 
     @Override

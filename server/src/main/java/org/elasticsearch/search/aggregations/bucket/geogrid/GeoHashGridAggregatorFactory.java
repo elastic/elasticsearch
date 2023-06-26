@@ -91,20 +91,28 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
         builder.register(
             GeoHashGridAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
-            (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize, context, parent, cardinality, metadata) -> {
-                GeoHashCellIdSource cellIdSource = new GeoHashCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox);
-                return new GeoHashGridAggregator(
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                context,
+                parent,
+                cardinality,
+                metadata) -> new GeoHashGridAggregator(
                     name,
                     factories,
-                    cellIdSource,
+                    cb -> new GeoHashCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox, cb),
                     requiredSize,
                     shardSize,
                     context,
                     parent,
                     cardinality,
                     metadata
-                );
-            },
+                ),
             true
         );
     }

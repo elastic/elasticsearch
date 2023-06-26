@@ -52,11 +52,16 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
         "org.elasticsearch.geo",
+        "org.elasticsearch.grok",
         "org.elasticsearch.logging",
         "org.elasticsearch.lz4",
+        "org.elasticsearch.plugin",
+        "org.elasticsearch.plugin.analysis",
         "org.elasticsearch.pluginclassloader",
+        "org.elasticsearch.preallocate",
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
+        "org.elasticsearch.tdigest",
         "org.elasticsearch.xcontent"
     );
 
@@ -71,7 +76,7 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     private static final Function<ModuleReference, String> toName = mref -> mref.descriptor().name();
 
-    private InternalDistributionModuleCheckTaskProvider() {};
+    private InternalDistributionModuleCheckTaskProvider() {}
 
     /** Registers the checkModules tasks, which contains all checks relevant to ES Java Modules. */
     static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction) {

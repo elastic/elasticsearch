@@ -29,7 +29,10 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
 
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
+     * @deprecated Transient settings are in the process of being removed. Use
+     * persistent settings to update your cluster settings instead.
      */
+    @Deprecated
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(Settings settings) {
         request.transientSettings(settings);
         return this;
@@ -37,17 +40,12 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
 
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
+     * @deprecated Transient settings are in the process of being removed. Use
+     * persistent settings to update your cluster settings instead.
      */
+    @Deprecated
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(Settings.Builder settings) {
         request.transientSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
-     */
-    public ClusterUpdateSettingsRequestBuilder setTransientSettings(String settings, XContentType xContentType) {
-        request.transientSettings(settings, xContentType);
         return this;
     }
 

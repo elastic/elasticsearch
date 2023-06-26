@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -32,12 +32,14 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -68,7 +70,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -106,6 +107,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     private DatabaseNodeService databaseNodeService;
     private ResourceWatcherService resourceWatcherService;
     private IngestService ingestService;
+    private ClusterService clusterService;
 
     @Before
     public void setup() throws IOException {
@@ -121,8 +123,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         client = mock(Client.class);
         ingestService = mock(IngestService.class);
+        clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
-        databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run);
+        databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
         databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService);
     }
 
@@ -148,7 +151,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         // Nothing should be downloaded, since the database is no longer valid (older than 30 days)
         databaseNodeService.checkDatabases(state);
-        DatabaseReaderLazyLoader database = databaseNodeService.getDatabase("GeoIP2-City.mmdb");
+        DatabaseReaderLazyLoader database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
         verify(ingestService, times(0)).reloadPipeline(anyString());
@@ -166,7 +169,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         // Database should be downloaded
         databaseNodeService.checkDatabases(state);
-        database = databaseNodeService.getDatabase("GeoIP2-City.mmdb");
+        database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, notNullValue());
         verify(client, times(10)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
@@ -188,14 +191,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
-                    new DiscoveryNode(
-                        "_name1",
-                        "_id1",
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                        Version.CURRENT
-                    )
+                    DiscoveryNodeUtils.builder("_id1").name("_name1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
                 ).localNodeId("_id1")
             )
             .build();
@@ -217,10 +213,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(
-                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .localNodeId("_id1")
-            )
+            .nodes(new DiscoveryNodes.Builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .build();
 
         databaseNodeService.checkDatabases(state);
@@ -295,14 +288,17 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
 
         // Updating the first time may trigger a reload.
-        verify(ingestService, times(1)).addIngestClusterStateListener(any());
+        verify(clusterService, times(1)).addListener(any());
         verify(ingestService, times(1)).getPipelineWithProcessorType(any(), any());
         verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
+        verifyNoMoreInteractions(clusterService);
         verifyNoMoreInteractions(ingestService);
+        reset(clusterService);
         reset(ingestService);
 
         // Subsequent updates shouldn't trigger a reload.
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
+        verifyNoMoreInteractions(clusterService);
         verifyNoMoreInteractions(ingestService);
     }
 
@@ -363,13 +359,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             : GeoIpDownloader.DATABASES_INDEX;
         Index index = new Index(indexName, UUID.randomUUID().toString());
         IndexMetadata.Builder idxMeta = IndexMetadata.builder(index.getName())
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
-                    .put("index.uuid", index.getUUID())
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            );
+            .settings(indexSettings(Version.CURRENT, 1, 0).put("index.uuid", index.getUUID()));
         if (aliasGeoipDatabase) {
             idxMeta.putAlias(AliasMetadata.builder(GeoIpDownloader.DATABASES_INDEX));
         }
@@ -377,18 +367,17 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             new ShardId(index, 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         shardRouting = shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize());
         if (noStartedShards == false) {
-            shardRouting = shardRouting.moveToStarted();
+            shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
-            .nodes(
-                DiscoveryNodes.builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT)).localNodeId("_id1")
-            )
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .routingTable(
                 RoutingTable.builder()
                     .add(
@@ -405,7 +394,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         byte[] header = new byte[512];
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] sizeBytes = String.format(Locale.ROOT, "%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
+        byte[] sizeBytes = Strings.format("%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
         System.arraycopy(nameBytes, 0, header, 0, nameBytes.length);
         System.arraycopy(sizeBytes, 0, header, 124, 12);
         gzipOutputStream.write(header);

@@ -74,4 +74,9 @@ public class TransformDestIndexSettingsTests extends AbstractSerializingTransfor
     protected TransformDestIndexSettings createTestInstance() {
         return randomDestIndexSettings();
     }
+
+    @Override
+    protected TransformDestIndexSettings mutateInstance(TransformDestIndexSettings instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

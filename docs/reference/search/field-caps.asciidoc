@@ -74,7 +74,7 @@ Defaults to `open`.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `include_unmapped`::
-  (Optional, Boolean) If `true`, unmapped fields are included in the response.
+  (Optional, Boolean) If `true`, unmapped fields that are mapped in one index but not in another are included in the response. Fields that don't have any mapping are never included.
   Defaults to `false`.
 
 `filters`::
@@ -136,12 +136,12 @@ field types are all described as the `keyword` type family.
   Whether this field can be aggregated on all indices.
 
 `time_series_dimension`::
-  preview:[]
-  Whether this field is used as a time series dimension.
+  Whether this field is used as a time series dimension on all indices.
+  For non-time-series indices this field is not present.
 
 `time_series_metric`::
-  preview:[]
-  Contains metric type if this fields is used as a time series metrics, absent if the field is not used as metric.
+  Contains the metric type if the field is used as a time series metric on all indices, absent if the field is
+  not used as a metric. For non-time-series indices this field is not included.
 
 `indices`::
   The list of indices where this field has the same type family, or null if all indices
@@ -157,12 +157,12 @@ field types are all described as the `keyword` type family.
 
 `non_dimension_indices`::
   experimental:[]
-  If this list is present in response then some indices have the field marked as a dimension and other indices, the
+  If this list is present in the response, some indices have the field marked as a dimension and other indices, the
   ones in this list, do not.
 
 `metric_conflicts_indices`::
   experimental:[]
-  The list of indices where this field is present if these indices don't have the same `time_series_metric` value for
+  The list of indices where this field is present, if these indices don't have the same `time_series_metric` value for
   this field.
 
 `meta`::

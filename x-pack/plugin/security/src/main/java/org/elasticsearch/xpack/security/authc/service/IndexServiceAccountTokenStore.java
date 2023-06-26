@@ -16,7 +16,7 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
@@ -154,7 +155,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     SECURITY_ORIGIN,
                     BulkAction.INSTANCE,
                     bulkRequest,
-                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(response -> {
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
                         assert DocWriteResponse.Result.CREATED == response.getResult()
                             : "an successful response of an OpType.CREATE request must have result of CREATED";
                         listener.onResponse(CreateServiceAccountTokenResponse.created(token.getTokenName(), token.asBearerString()));
@@ -233,19 +234,16 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                             SECURITY_ORIGIN,
                             ClearSecurityCacheAction.INSTANCE,
                             clearSecurityCacheRequest,
-                            ActionListener.wrap(
-                                clearSecurityCacheResponse -> {
-                                    listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                                },
-                                e -> {
-                                    final String message = org.elasticsearch.core.Strings.format(
-                                        "clearing the cache for service token [%s] failed. please clear the cache manually",
-                                        qualifiedTokenName
-                                    );
-                                    logger.error(message, e);
-                                    listener.onFailure(new ElasticsearchException(message, e));
-                                }
-                            )
+                            ActionListener.wrap(clearSecurityCacheResponse -> {
+                                listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                            }, e -> {
+                                final String message = org.elasticsearch.core.Strings.format(
+                                    "clearing the cache for service token [%s] failed. please clear the cache manually",
+                                    qualifiedTokenName
+                                );
+                                logger.error(message, e);
+                                listener.onFailure(new ElasticsearchException(message, e));
+                            })
                         );
                     }, listener::onFailure)
                 );
@@ -269,15 +267,16 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             .field("creation_time", clock.instant().toEpochMilli())
             .field("enabled", true);
         {
+            final Subject effectiveSubject = authentication.getEffectiveSubject();
             builder.startObject("creator")
-                .field("principal", authentication.getUser().principal())
-                .field("full_name", authentication.getUser().fullName())
-                .field("email", authentication.getUser().email())
-                .field("metadata", authentication.getUser().metadata())
-                .field("realm", authentication.getSourceRealm().getName())
-                .field("realm_type", authentication.getSourceRealm().getType());
-            if (authentication.getSourceRealm().getDomain() != null) {
-                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
+                .field("principal", effectiveSubject.getUser().principal())
+                .field("full_name", effectiveSubject.getUser().fullName())
+                .field("email", effectiveSubject.getUser().email())
+                .field("metadata", effectiveSubject.getUser().metadata())
+                .field("realm", effectiveSubject.getRealm().getName())
+                .field("realm_type", effectiveSubject.getRealm().getType());
+            if (effectiveSubject.getRealm().getDomain() != null) {
+                builder.field("realm_domain", effectiveSubject.getRealm().getDomain());
             }
             builder.endObject();
         }

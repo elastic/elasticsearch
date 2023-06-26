@@ -25,4 +25,9 @@ public class GetAutoFollowPatternRequestTests extends AbstractWireSerializingTes
         }
         return request;
     }
+
+    @Override
+    protected GetAutoFollowPatternAction.Request mutateInstance(GetAutoFollowPatternAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

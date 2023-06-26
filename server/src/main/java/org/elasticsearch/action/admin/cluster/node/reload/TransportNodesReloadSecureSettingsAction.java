@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -18,16 +20,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -37,8 +36,10 @@ import java.util.List;
 public class TransportNodesReloadSecureSettingsAction extends TransportNodesAction<
     NodesReloadSecureSettingsRequest,
     NodesReloadSecureSettingsResponse,
-    TransportNodesReloadSecureSettingsAction.NodeRequest,
+    NodesReloadSecureSettingsRequest.NodeRequest,
     NodesReloadSecureSettingsResponse.NodeResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportNodesReloadSecureSettingsAction.class);
 
     private final Environment environment;
     private final PluginsService pluginsService;
@@ -59,9 +60,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             transportService,
             actionFilters,
             NodesReloadSecureSettingsRequest::new,
-            NodeRequest::new,
-            ThreadPool.Names.GENERIC,
-            NodesReloadSecureSettingsResponse.NodeResponse.class
+            NodesReloadSecureSettingsRequest.NodeRequest::new,
+            ThreadPool.Names.GENERIC
         );
         this.environment = environment;
         this.pluginsService = pluginService;
@@ -77,8 +77,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
-    protected NodeRequest newNodeRequest(NodesReloadSecureSettingsRequest request) {
-        return new NodeRequest(request);
+    protected NodesReloadSecureSettingsRequest.NodeRequest newNodeRequest(NodesReloadSecureSettingsRequest request) {
+        return request.newNodeRequest();
     }
 
     @Override
@@ -93,7 +93,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         ActionListener<NodesReloadSecureSettingsResponse> listener
     ) {
         if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
-            request.closePassword();
+            request.close();
             listener.onFailure(
                 new ElasticsearchException(
                     "Secure settings cannot be updated cluster wide when TLS for the transport layer"
@@ -101,23 +101,17 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 )
             );
         } else {
-            super.doExecute(task, request, ActionListener.wrap(response -> {
-                request.closePassword();
-                listener.onResponse(response);
-            }, e -> {
-                request.closePassword();
-                listener.onFailure(e);
-            }));
+            super.doExecute(task, request, ActionListener.runBefore(listener, request::close));
         }
     }
 
     @Override
-    protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest, Task task) {
+    protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(
+        NodesReloadSecureSettingsRequest.NodeRequest nodeReloadRequest,
+        Task task
+    ) {
         final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
         // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
-        final SecureString secureSettingsPassword = request.hasPassword()
-            ? request.getSecureSettingsPassword()
-            : new SecureString(new char[0]);
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
             if (keystore == null) {
@@ -127,7 +121,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 );
             }
             // decrypt the keystore using the password from the request
-            keystore.decrypt(secureSettingsPassword.getChars());
+            keystore.decrypt(request.hasPassword() ? request.getSecureSettingsPassword().getChars() : new char[0]);
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
             final List<Exception> exceptions = new ArrayList<>();
@@ -145,27 +139,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
         } finally {
-            secureSettingsPassword.close();
-        }
-    }
-
-    public static class NodeRequest extends TransportRequest {
-
-        NodesReloadSecureSettingsRequest request;
-
-        public NodeRequest(StreamInput in) throws IOException {
-            super(in);
-            request = new NodesReloadSecureSettingsRequest(in);
-        }
-
-        NodeRequest(NodesReloadSecureSettingsRequest request) {
-            this.request = request;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
+            request.close();
         }
     }
 

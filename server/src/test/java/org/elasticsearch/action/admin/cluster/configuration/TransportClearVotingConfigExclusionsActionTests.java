@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,7 +40,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -62,10 +61,10 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
-        localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        otherNode1 = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        localNode = DiscoveryNodeUtils.create("local");
+        otherNode1 = DiscoveryNodeUtils.builder("other1").name("other1").roles(emptySet()).build();
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        otherNode2 = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherNode2 = DiscoveryNodeUtils.builder("other2").name("other2").roles(emptySet()).build();
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }

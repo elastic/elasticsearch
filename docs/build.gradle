@@ -63,9 +63,14 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    // TODO: remove this once the disk usage indicator feature is finished #84811
-    requiresFeature 'es.health_node_feature_flag_enabled', Version.fromString("8.4.0")
   }
+
+  // debug ccr test failures:
+  // https://github.com/elastic/elasticsearch/issues/95678
+  // https://github.com/elastic/elasticsearch/issues/94359
+  // https://github.com/elastic/elasticsearch/issues/96561
+  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
+  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
@@ -95,6 +100,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
 
   // build the cluster with all plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
@@ -115,6 +121,18 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 tasks.named("yamlRestTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
+  }
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+}
+
+// TODO: Remove the following when RCS feature is released
+// The get-builtin-privileges doc test does not include the new cluster privilege for RCS
+// So we disable the test if the build is a snapshot where unreleased feature is enabled by default
+tasks.named("yamlRestTest").configure {
+  if (BuildParams.isSnapshotBuild()) {
+    systemProperty 'tests.rest.blacklist', 'reference/rest-api/usage/*'
   }
 }
 

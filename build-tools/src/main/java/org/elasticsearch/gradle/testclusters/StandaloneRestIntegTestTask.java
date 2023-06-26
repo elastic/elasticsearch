@@ -8,9 +8,11 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.Task;
+import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
+import org.gradle.api.specs.NotSpec;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -40,6 +42,11 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     private boolean debugServer = false;
 
     public StandaloneRestIntegTestTask() {
+        Spec<Task> taskSpec = t -> getProject().getTasks()
+            .withType(StandaloneRestIntegTestTask.class)
+            .stream()
+            .filter(task -> task != this)
+            .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false);
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",
@@ -49,13 +56,9 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
                  * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
                  * multiple tasks.
                  */
-                t -> getProject().getTasks()
-                    .withType(StandaloneRestIntegTestTask.class)
-                    .stream()
-                    .filter(task -> task != this)
-                    .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
+                taskSpec
             );
-
+        this.getOutputs().upToDateWhen(new NotSpec(taskSpec));
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it is configured to preserve data directory",
@@ -67,11 +70,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebugServer(boolean enabled) {
         this.debugServer = enabled;
-    }
-
-    @Override
-    public int getMaxParallelForks() {
-        return 1;
+        systemProperty("tests.cluster.debug.enabled", Boolean.toString(enabled));
     }
 
     @Nested
@@ -85,9 +84,8 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     public List<ResourceLock> getSharedResources() {
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
-        Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
-
+        BuildServiceProvider<?, ?> serviceProvider = serviceRegistry.consume(THROTTLE_SERVICE_NAME, TestClustersThrottle.class);
+        SharedResource resource = serviceRegistry.forService(serviceProvider);
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
             for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {

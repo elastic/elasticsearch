@@ -1,0 +1,8 @@
+[[fix-master-node-out-of-disk]]
+== Fix master nodes out of disk
+
+{es} is using master nodes to coordinate the cluster. If the master or any master eligible nodes are running
+out of space, you need to ensure that they have enough disk space to function. If the <<health-api, health API>>
+reports that your master node is out of space you need to increase the disk capacity of your master nodes.
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/disk/increase-master-node-capacity-widget.asciidoc[]

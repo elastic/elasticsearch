@@ -11,13 +11,14 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class InboundMessage implements Releasable {
+public class InboundMessage extends AbstractRefCounted {
 
     private final Header header;
     private final ReleasableBytesReference content;
@@ -82,25 +83,26 @@ public class InboundMessage implements Releasable {
 
     public StreamInput openOrGetStreamInput() throws IOException {
         assert isPing == false && content != null;
+        assert hasReferences();
         if (streamInput == null) {
             streamInput = content.streamInput();
-            streamInput.setVersion(header.getVersion());
+            streamInput.setTransportVersion(header.getVersion());
         }
         return streamInput;
     }
 
     @Override
-    public void close() {
+    public String toString() {
+        return "InboundMessage{" + header + "}";
+    }
+
+    @Override
+    protected void closeInternal() {
         try {
             IOUtils.close(streamInput, content, breakerRelease);
         } catch (Exception e) {
             assert false : e;
             throw new ElasticsearchException(e);
         }
-    }
-
-    @Override
-    public String toString() {
-        return "InboundMessage{" + header + "}";
     }
 }

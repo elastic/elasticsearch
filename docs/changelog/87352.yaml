@@ -1,6 +1,0 @@
-pr: 87352
-summary: Only perform `ensureNoSelfReferences` check during ingest when needed
-area: Ingest
-type: enhancement
-issues:
- - 87335

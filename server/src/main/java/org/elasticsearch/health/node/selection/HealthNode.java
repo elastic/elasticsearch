@@ -9,6 +9,7 @@
 package org.elasticsearch.health.node.selection;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -20,12 +21,6 @@ import java.util.Map;
  * Main component used for selecting the health node of the cluster
  */
 public class HealthNode extends AllocatedPersistentTask {
-
-    public static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.health_node_feature_flag_enabled"));
-
-    public static boolean isEnabled() {
-        return FEATURE_FLAG_ENABLED;
-    }
 
     public static final String TASK_NAME = "health-node";
 
@@ -42,5 +37,14 @@ public class HealthNode extends AllocatedPersistentTask {
     public static PersistentTasksCustomMetadata.PersistentTask<?> findTask(ClusterState clusterState) {
         PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return taskMetadata == null ? null : taskMetadata.getTask(TASK_NAME);
+    }
+
+    @Nullable
+    public static DiscoveryNode findHealthNode(ClusterState clusterState) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = findTask(clusterState);
+        if (task == null || task.isAssigned() == false) {
+            return null;
+        }
+        return clusterState.nodes().get(task.getAssignment().getExecutorNode());
     }
 }

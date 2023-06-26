@@ -12,7 +12,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -74,8 +73,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     @After
     public void deleteTemplateAndIndex() {
-        client().admin().indices().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
-        client().admin().indices().deleteTemplate(new DeleteIndexTemplateRequest(SamlServiceProviderIndex.TEMPLATE_NAME)).actionGet();
+        indicesAdmin().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
+        indicesAdmin().prepareDeleteTemplate(SamlServiceProviderIndex.TEMPLATE_NAME).get();
         serviceProviderIndex.close();
     }
 
@@ -133,7 +132,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
         // Create an index that will trigger the template, but isn't the standard index name
         final String customIndexName = SamlServiceProviderIndex.INDEX_NAME + "-test";
-        client().admin().indices().create(new CreateIndexRequest(customIndexName)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(customIndexName)).actionGet();
 
         final IndexMetadata indexMetadata = clusterService.state().metadata().index(customIndexName);
         assertThat(indexMetadata, notNullValue());
@@ -159,7 +158,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     public void testInstallTemplateAutomaticallyOnClusterChange() throws Exception {
         // Create an index that will trigger a cluster state change
         final String indexName = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
-        client().admin().indices().create(new CreateIndexRequest(indexName)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(indexName)).actionGet();
 
         ensureGreen(indexName);
 
@@ -192,9 +191,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
         serviceProviderIndex.findAll(
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, set) -> f.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet()))
                 )
             )
         );
@@ -224,9 +222,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         serviceProviderIndex.readDocument(
             doc.docId,
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, info) -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, f)
                 )
             )
         );
@@ -244,9 +241,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         serviceProviderIndex.findByEntityId(
             entityId,
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, set) -> f.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet()))
                 )
             )
         );

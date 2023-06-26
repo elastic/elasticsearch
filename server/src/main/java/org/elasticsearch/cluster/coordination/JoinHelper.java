@@ -10,9 +10,11 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -20,12 +22,17 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,6 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.ObjLongConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -60,13 +68,14 @@ public class JoinHelper {
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
     public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
-    private final MasterService masterService;
     private final ClusterApplier clusterApplier;
     private final TransportService transportService;
-    private final JoinTaskExecutor joinTaskExecutor;
+    private final MasterServiceTaskQueue<JoinTask> joinTaskQueue;
     private final LongSupplier currentTermSupplier;
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
+    private final CircuitBreakerService circuitBreakerService;
+    private final ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -82,15 +91,23 @@ public class JoinHelper {
         Function<StartJoinRequest, Join> joinLeaderInTerm,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        JoinReasonService joinReasonService
+        JoinReasonService joinReasonService,
+        CircuitBreakerService circuitBreakerService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
+        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier
     ) {
-        this.masterService = masterService;
+        this.joinTaskQueue = masterService.createTaskQueue(
+            "node-join",
+            Priority.URGENT,
+            new NodeJoinExecutor(allocationService, rerouteService, maybeReconfigureAfterMasterElection)
+        );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+        this.circuitBreakerService = circuitBreakerService;
         this.currentTermSupplier = currentTermSupplier;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
+        this.latestStoredStateSupplier = latestStoredStateSupplier;
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -100,7 +117,7 @@ public class JoinHelper {
             JoinRequest::new,
             (request, channel, task) -> joinHandler.accept(
                 request,
-                new ChannelActionListener<Empty, JoinRequest>(channel, JOIN_ACTION_NAME, request).map(ignored -> Empty.INSTANCE)
+                new ChannelActionListener<Empty>(channel).map(ignored -> Empty.INSTANCE)
             )
         );
 
@@ -166,10 +183,10 @@ public class JoinHelper {
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
-        private final TransportException exception;
+        private final ElasticsearchException exception;
         private final long timestamp;
 
-        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, TransportException exception) {
+        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
             this.destination = destination;
             this.joinRequest = joinRequest;
             this.exception = exception;
@@ -180,9 +197,10 @@ public class JoinHelper {
             logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
-        static Level getLogLevel(TransportException e) {
+        static Level getLogLevel(ElasticsearchException e) {
             Throwable cause = e.unwrapCause();
             if (cause instanceof CoordinationStateRejectedException
+                || cause instanceof CircuitBreakingException
                 || (cause instanceof Exception causeException && MasterService.isPublishFailureException(causeException))) {
                 return Level.DEBUG;
             }
@@ -217,10 +235,33 @@ public class JoinHelper {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
             return;
         }
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), TransportVersion.current(), term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
         if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {
+
+            // If this node is under excessive heap pressure then the state it receives for join validation will trip a circuit breaker and
+            // fail the join attempt, resulting in retrying in a loop which makes the master just send a constant stream of cluster states
+            // to this node. We try and keep the problem local to this node by checking that we can at least allocate one byte:
+            final var breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(1L, "pre-flight join request");
+            } catch (Exception e) {
+                pendingJoinInfo.message = PENDING_JOIN_FAILED;
+                pendingOutgoingJoins.remove(dedupKey);
+                if (e instanceof ElasticsearchException elasticsearchException) {
+                    final var attempt = new FailedJoinAttempt(destination, joinRequest, elasticsearchException);
+                    attempt.logNow();
+                    lastFailedJoinAttempt.set(attempt);
+                    assert elasticsearchException instanceof CircuitBreakingException : e; // others shouldn't happen, handle them anyway
+                } else {
+                    logger.error("join failed during pre-flight circuit breaker check", e);
+                    assert false : e; // shouldn't happen, handle it anyway
+                }
+                return;
+            }
+            breaker.addWithoutBreaking(-1L);
+
             logger.debug("attempting to join {} with {}", destination, joinRequest);
             pendingJoinInfo.message = PENDING_JOIN_CONNECTING;
             // Typically we're already connected to the destination at this point, the PeerFinder holds a reference to this connection to
@@ -279,7 +320,7 @@ public class JoinHelper {
                             private void cleanUpOnFailure(TransportException exp) {
                                 pendingJoinInfo.message = PENDING_JOIN_FAILED;
                                 pendingOutgoingJoins.remove(dedupKey);
-                                FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                                final var attempt = new FailedJoinAttempt(destination, joinRequest, exp);
                                 attempt.logNow();
                                 lastFailedJoinAttempt.set(attempt);
                                 unregisterAndReleaseConnection(destination, connectionReference);
@@ -292,7 +333,7 @@ public class JoinHelper {
                 public void onFailure(Exception e) {
                     pendingJoinInfo.message = PENDING_JOIN_CONNECT_FAILED;
                     pendingOutgoingJoins.remove(dedupKey);
-                    FailedJoinAttempt attempt = new FailedJoinAttempt(
+                    final var attempt = new FailedJoinAttempt(
                         destination,
                         joinRequest,
                         new ConnectTransportException(destination, "failed to acquire connection", e)
@@ -350,21 +391,22 @@ public class JoinHelper {
     }
 
     interface JoinAccumulator {
-        void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener);
+        void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener);
 
         default void close(Mode newMode) {}
     }
 
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             final JoinTask task = JoinTask.singleNode(
                 sender,
+                transportVersion,
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong()
             );
-            masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            joinTaskQueue.submitTask("node-join", task, null);
         }
 
         @Override
@@ -375,7 +417,7 @@ public class JoinHelper {
 
     static class InitialJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             assert false : "unexpected join from " + sender + " during initialisation";
             joinListener.onFailure(new CoordinationStateRejectedException("join target is not initialised yet"));
         }
@@ -388,7 +430,7 @@ public class JoinHelper {
 
     static class FollowerJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             joinListener.onFailure(new CoordinationStateRejectedException("join target is a follower"));
         }
 
@@ -400,15 +442,15 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
-        private final Map<DiscoveryNode, ActionListener<Void>> joinRequestAccumulator = new HashMap<>();
+        private final Map<DiscoveryNode, Tuple<TransportVersion, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
         boolean closed;
 
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             assert closed == false : "CandidateJoinAccumulator closed";
-            ActionListener<Void> prev = joinRequestAccumulator.put(sender, joinListener);
+            var prev = joinRequestAccumulator.put(sender, Tuple.tuple(transportVersion, joinListener));
             if (prev != null) {
-                prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
+                prev.v2().onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
             }
         }
 
@@ -417,26 +459,40 @@ public class JoinHelper {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
+                final var joiningTerm = currentTermSupplier.getAsLong();
                 final JoinTask joinTask = JoinTask.completingElection(joinRequestAccumulator.entrySet().stream().map(entry -> {
                     final DiscoveryNode discoveryNode = entry.getKey();
-                    final ActionListener<Void> listener = entry.getValue();
+                    final var data = entry.getValue();
                     return new JoinTask.NodeJoinTask(
                         discoveryNode,
+                        data.v1(),
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
-                        listener
+                        data.v2()
                     );
-                }), currentTermSupplier.getAsLong());
-                masterService.submitStateUpdateTask(
-                    "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
-                    joinTask,
-                    ClusterStateTaskConfig.build(Priority.URGENT),
-                    joinTaskExecutor
+                }), joiningTerm);
+                latestStoredStateSupplier.accept(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState latestStoredClusterState) {
+                        joinTaskQueue.submitTask(
+                            "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined in term " + joiningTerm + ")",
+                            joinTask.alsoRefreshState(latestStoredClusterState),
+                            null
+                        );
+                    }
 
-                );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(
+                            Strings.format("failed to retrieve latest stored state after winning election in term [%d]", joiningTerm),
+                            e
+                        );
+                        joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.v2().onFailure(e));
+                    }
+                }, joiningTerm);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
                 joinRequestAccumulator.values()
-                    .forEach(joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException("became follower")));
+                    .forEach(joinCallback -> joinCallback.v2().onFailure(new CoordinationStateRejectedException("became follower")));
             }
 
             // CandidateJoinAccumulator is only closed when becoming leader or follower, otherwise it accumulates all joins received

@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
@@ -68,7 +68,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         // Disable native ML autodetect_process as the c++ controller won't be available
         newSettings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         newSettings.put(MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey(), ByteSizeValue.ofBytes(1024));
-        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        newSettings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Disable security otherwise delete-by-query action fails to get authorized
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -116,7 +116,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         });
     }
@@ -200,7 +200,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = (vars, metadata, ctx) -> new IngestScript(vars, metadata, ctx) {
+                IngestScript.Factory factory = (vars, ctx) -> new IngestScript(vars, ctx) {
                     @Override
                     public void execute() {}
                 };

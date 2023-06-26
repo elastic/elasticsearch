@@ -76,9 +76,15 @@ teardown:
 ---
 "Monitoring Bulk API":
   - skip:
-      features: catch_unauthorized
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
+      features: ["catch_unauthorized", "allowed_warnings"]
+
+  - do:
+      allowed_warnings:
+        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.monitoring.collection.enabled: true
 
   - do:
       headers:
@@ -86,7 +92,7 @@ teardown:
         Authorization: "Basic bG9nc3Rhc2hfYWdlbnQ6czNrcml0LXBhc3N3b3Jk"
       monitoring.bulk:
         system_id:          "logstash"
-        system_api_version: "6"
+        system_api_version: "7"
         interval:           "10s"
         body:
           - index:
@@ -132,7 +138,7 @@ teardown:
           - metric:
               queue:  10
   - match: { "error.type": "security_exception" }
-  - match: { "error.reason": "action [cluster:admin/xpack/monitoring/bulk] is unauthorized for user [unknown_agent]" }
+  - match: { "error.reason": "action [cluster:admin/xpack/monitoring/bulk] is unauthorized for user [unknown_agent] with effective roles [unknown_agent_role], this action is granted by the cluster privileges [manage,all]" }
 
   - do:
       indices.refresh: {}

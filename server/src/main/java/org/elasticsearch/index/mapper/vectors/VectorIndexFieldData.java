@@ -10,12 +10,13 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -27,14 +28,23 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    private final Version indexVersion;
+    private final IndexVersion indexVersion;
+    private final ElementType elementType;
     private final int dims;
     private final boolean indexed;
 
-    public VectorIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, Version indexVersion, int dims, boolean indexed) {
+    public VectorIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        IndexVersion indexVersion,
+        ElementType elementType,
+        int dims,
+        boolean indexed
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.indexVersion = indexVersion;
+        this.elementType = elementType;
         this.dims = dims;
         this.indexed = indexed;
     }
@@ -72,7 +82,7 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
 
     @Override
     public VectorDVLeafFieldData load(LeafReaderContext context) {
-        return new VectorDVLeafFieldData(context.reader(), fieldName, indexVersion, dims, indexed);
+        return new VectorDVLeafFieldData(context.reader(), fieldName, indexVersion, elementType, dims, indexed);
     }
 
     @Override
@@ -83,21 +93,30 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;
-        private final Version indexVersion;
+        private final IndexVersion indexVersion;
+        private final ElementType elementType;
         private final int dims;
         private final boolean indexed;
 
-        public Builder(String name, ValuesSourceType valuesSourceType, Version indexVersion, int dims, boolean indexed) {
+        public Builder(
+            String name,
+            ValuesSourceType valuesSourceType,
+            IndexVersion indexVersion,
+            ElementType elementType,
+            int dims,
+            boolean indexed
+        ) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.indexVersion = indexVersion;
+            this.elementType = elementType;
             this.dims = dims;
             this.indexed = indexed;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new VectorIndexFieldData(name, valuesSourceType, indexVersion, dims, indexed);
+            return new VectorIndexFieldData(name, valuesSourceType, indexVersion, elementType, dims, indexed);
         }
     }
 }

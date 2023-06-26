@@ -179,7 +179,7 @@ final class H3Index {
      *         a Class II grid.
      */
     public static boolean isResolutionClassIII(int res) {
-        return res % 2 != 0;
+        return (res & 1) == 1;
     }
 
     /**
@@ -206,8 +206,9 @@ final class H3Index {
         }
         // if we're here we have the potential for an "overage"; i.e., it is
         // possible that c lies on an adjacent face
-
-        CoordIJK origIJK = new CoordIJK(fijk.coord.i, fijk.coord.j, fijk.coord.k);
+        int origI = fijk.coord.i;
+        int origJ = fijk.coord.j;
+        int origK = fijk.coord.k;
 
         // if we're in Class III, drop into the next finer Class II grid
         int res = H3Index.H3_get_resolution(h3);
@@ -234,7 +235,7 @@ final class H3Index {
                 fijk.coord.upAp7r();
             }
         } else if (res != H3Index.H3_get_resolution(h3)) {
-            fijk.coord = origIJK;
+            fijk.coord.reset(origI, origJ, origK);
         }
         return fijk;
     }
@@ -267,7 +268,7 @@ final class H3Index {
         final int res = H3Index.H3_get_resolution(h);
 
         // center base cell hierarchy is entirely on this face
-        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h)) != false
+        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h))
             || (res != 0 && (fijk.coord.i != 0 || fijk.coord.j != 0 || fijk.coord.k != 0));
 
         for (int r = 1; r <= res; r++) {

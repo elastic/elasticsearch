@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Script value class.
+ * Version value class, also exposed to scripting consumers.
  */
 public class Version implements ToXContentFragment, BytesRefProducer, Comparable<Version> {
     protected String version;
@@ -26,8 +26,8 @@ public class Version implements ToXContentFragment, BytesRefProducer, Comparable
         this.bytes = VersionEncoder.encodeVersion(version).bytesRef;
     }
 
-    protected Version(BytesRef bytes) {
-        this.version = VersionEncoder.decodeVersion(bytes);
+    public Version(BytesRef bytes) {
+        this.version = VersionEncoder.decodeVersion(bytes).utf8ToString();
         this.bytes = bytes;
     }
 

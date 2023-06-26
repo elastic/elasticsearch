@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.junit.Before;
 
-import java.io.IOException;
-
 public class PutTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
     private String transformId;
 
@@ -36,7 +34,7 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         TransformConfig config = instance.getConfig();
         boolean deferValidation = instance.isDeferValidation();
         TimeValue timeout = instance.timeout();

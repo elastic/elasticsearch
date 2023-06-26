@@ -12,34 +12,36 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
     private Set<String> hasPrivilegeUids;
-    private Set<String> errorUids;
+    private final Map<String, Exception> errors;
 
     public ProfileHasPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
         this.hasPrivilegeUids = in.readSet(StreamInput::readString);
-        this.errorUids = in.readSet(StreamInput::readString);
+        this.errors = in.readMap(StreamInput::readException);
     }
 
-    public ProfileHasPrivilegesResponse(Set<String> hasPrivilegeUids, Set<String> errorUids) {
+    public ProfileHasPrivilegesResponse(Set<String> hasPrivilegeUids, Map<String, Exception> errors) {
         super();
         this.hasPrivilegeUids = Objects.requireNonNull(hasPrivilegeUids);
-        this.errorUids = Objects.requireNonNull(errorUids);
+        this.errors = Objects.requireNonNull(errors);
     }
 
     public Set<String> hasPrivilegeUids() {
         return hasPrivilegeUids;
     }
 
-    public Set<String> errorUids() {
-        return errorUids;
+    public Map<String, Exception> errors() {
+        return errors;
     }
 
     @Override
@@ -47,31 +49,31 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ProfileHasPrivilegesResponse that = (ProfileHasPrivilegesResponse) o;
-        return hasPrivilegeUids.equals(that.hasPrivilegeUids) && errorUids.equals(that.errorUids);
+        // Only compare the keys (profile uids) of the errors, actual error types do not matter
+        return hasPrivilegeUids.equals(that.hasPrivilegeUids) && errors.keySet().equals(that.errors.keySet());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hasPrivilegeUids, errorUids);
+        // Only include the keys (profile uids) of the errors, actual error types do not matter
+        return Objects.hash(hasPrivilegeUids, errors.keySet());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         XContentBuilder xContentBuilder = builder.startObject().stringListField("has_privilege_uids", hasPrivilegeUids);
-        if (false == errorUids.isEmpty()) {
-            xContentBuilder.stringListField("error_uids", errorUids);
-        }
+        XContentUtils.maybeAddErrorDetails(builder, errors);
         return xContentBuilder.endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(hasPrivilegeUids);
-        out.writeStringCollection(errorUids);
+        out.writeMap(errors, StreamOutput::writeString, StreamOutput::writeException);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" + "has_privilege_uids=" + hasPrivilegeUids + ", error_uids=" + errorUids + "}";
+        return getClass().getSimpleName() + "{" + "has_privilege_uids=" + hasPrivilegeUids + ", errors=" + errors + "}";
     }
 }

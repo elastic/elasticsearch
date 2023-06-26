@@ -20,14 +20,11 @@
           cancel-builds-on-update: true
           white-list-labels:
             - '>test-mute'
-          black-list-target-branches:
-            - feature/desired-balance-allocator
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA8_HOME=$HOME/.java/java8
             JAVA11_HOME=$HOME/.java/java11
       - shell: |

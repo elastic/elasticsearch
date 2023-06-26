@@ -16,14 +16,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Request for a reload secure settings action
  */
-public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> {
+public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> implements Releasable {
 
     /**
      * The password is used to re-read and decrypt the contents
@@ -70,12 +74,6 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
         this.secureSettingsPassword = secureStorePassword;
     }
 
-    public void closePassword() {
-        if (this.secureSettingsPassword != null) {
-            this.secureSettingsPassword.close();
-        }
-    }
-
     boolean hasPassword() {
         return this.secureSettingsPassword != null && this.secureSettingsPassword.length() > 0;
     }
@@ -92,6 +90,52 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
             } finally {
                 Arrays.fill(passwordBytes, (byte) 0);
             }
+        }
+    }
+
+    // This field is intentionally not part of serialization
+    private final Set<NodeRequest> nodeRequests = ConcurrentHashMap.newKeySet();
+
+    NodeRequest newNodeRequest() {
+        final NodesReloadSecureSettingsRequest clone = new NodesReloadSecureSettingsRequest(nodesIds());
+        if (hasPassword()) {
+            clone.setSecureStorePassword(getSecureSettingsPassword().clone());
+        }
+        final NodeRequest nodeRequest = new NodeRequest(clone);
+        nodeRequests.add(nodeRequest);
+        return nodeRequest;
+    }
+
+    @Override
+    public void close() {
+        if (this.secureSettingsPassword != null) {
+            this.secureSettingsPassword.close();
+        }
+        nodeRequests.forEach(NodeRequest::close);
+    }
+
+    public static class NodeRequest extends TransportRequest implements Releasable {
+        NodesReloadSecureSettingsRequest request;
+
+        NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesReloadSecureSettingsRequest(in);
+        }
+
+        NodeRequest(NodesReloadSecureSettingsRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            request.writeTo(out);
+        }
+
+        @Override
+        public void close() {
+            assert request.nodeRequests.isEmpty() : "potential circular reference";
+            request.close();
         }
     }
 }

@@ -57,7 +57,7 @@ public class MockTransformAuditor extends TransformAuditor {
     private final List<AuditExpectation> expectations;
 
     public MockTransformAuditor(ClusterService clusterService) {
-        super(mock(Client.class), MOCK_NODE_NAME, clusterService);
+        super(mock(Client.class), MOCK_NODE_NAME, clusterService, true);
         expectations = new CopyOnWriteArrayList<>();
     }
 
@@ -74,19 +74,23 @@ public class MockTransformAuditor extends TransformAuditor {
         expectations.clear();
     }
 
+    public void audit(Level level, String resourceId, String message) {
+        doAudit(level, resourceId, message);
+    }
+
     @Override
     public void info(String resourceId, String message) {
-        audit(Level.INFO, resourceId, message);
+        doAudit(Level.INFO, resourceId, message);
     }
 
     @Override
     public void warning(String resourceId, String message) {
-        audit(Level.WARNING, resourceId, message);
+        doAudit(Level.WARNING, resourceId, message);
     }
 
     @Override
     public void error(String resourceId, String message) {
-        audit(Level.ERROR, resourceId, message);
+        doAudit(Level.ERROR, resourceId, message);
     }
 
     public void assertAllExpectationsMatched() {
@@ -205,7 +209,7 @@ public class MockTransformAuditor extends TransformAuditor {
         }
     }
 
-    private void audit(Level level, String resourceId, String message) {
+    private void doAudit(Level level, String resourceId, String message) {
         logger.info("AUDIT: {}", new TransformAuditMessage(resourceId, message, level, new Date(), MOCK_NODE_NAME));
 
         for (AuditExpectation expectation : expectations) {

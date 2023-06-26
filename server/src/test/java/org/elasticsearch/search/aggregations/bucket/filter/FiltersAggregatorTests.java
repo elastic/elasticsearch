@@ -11,9 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -37,6 +35,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -63,10 +62,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
@@ -74,8 +71,6 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.internal.ContextIndexSearcherTests.DocumentSubsetDirectoryReader;
 import org.elasticsearch.test.ListMatcher;
@@ -110,8 +105,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         int numFilters = randomIntBetween(1, 10);
         QueryBuilder[] filters = new QueryBuilder[numFilters];
         for (int i = 0; i < filters.length; i++) {
@@ -119,12 +114,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
-        InternalFilters response = searchAndReduce(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
-        );
+        InternalFilters response = searchAndReduce(indexSearcher, new AggTestConfig(builder, new KeywordFieldType("field")));
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
@@ -159,21 +149,22 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoFilters() throws IOException {
+        FiltersAggregationBuilder aggregationBuilder = new FiltersAggregationBuilder("test", new KeyedFilter[0]);
         testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter[0]),
-            new MatchAllDocsQuery(),
             iw -> { iw.addDocument(List.of()); },
-            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); }
+            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+            new AggTestConfig(aggregationBuilder)
         );
     }
 
     public void testNoFiltersWithSubAggs() throws IOException {
-        testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
-            new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
-            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
-            new NumberFieldMapper.NumberFieldType("m", NumberFieldMapper.NumberType.INTEGER)
+        testCase(iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); }, (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(0));
+        },
+            new AggTestConfig(
+                new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
+                new NumberFieldMapper.NumberFieldType("m", NumberType.INTEGER)
+            )
         );
     }
 
@@ -181,33 +172,33 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         Document document = new Document();
-        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("foo"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "else", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("else"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         // make sure we have more than one segment to test the merge
         indexWriter.commit();
-        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("foo"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
-        indexWriter.addDocument(document);
-        indexWriter.commit();
-        document.clear();
-        document.add(new Field("field", "something", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("foobar"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         indexWriter.commit();
         document.clear();
-        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("something"), KeywordFieldMapper.Defaults.FIELD_TYPE));
+        indexWriter.addDocument(document);
+        indexWriter.commit();
+        document.clear();
+        document.add(new Field("field", new BytesRef("foobar"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         FiltersAggregator.KeyedFilter[] keys = new FiltersAggregator.KeyedFilter[6];
         keys[0] = new FiltersAggregator.KeyedFilter("foobar", QueryBuilders.termQuery("field", "foobar"));
@@ -220,12 +211,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", keys);
         builder.otherBucket(true);
         builder.otherBucketKey("other");
-        final InternalFilters filters = searchAndReduce(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
-        );
+        final InternalFilters filters = searchAndReduce(indexSearcher, new AggTestConfig(builder, new KeywordFieldType("field")));
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
         assertEquals(filters.getBucketByKey("foo").getDocCount(), 2);
@@ -253,14 +239,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             }
             int value = randomInt(maxTerm - 1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new Field("field", new BytesRef(Integer.toString(value)), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);
             document.clear();
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         try {
             int numFilters = randomIntBetween(1, 10);
             QueryBuilder[] filters = new QueryBuilder[numFilters];
@@ -280,12 +266,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucket(true);
             builder.otherBucketKey("other");
 
-            final InternalFilters response = searchAndReduce(
-                indexSearcher,
-                new MatchAllDocsQuery(),
-                builder,
-                new KeywordFieldMapper.KeywordFieldType("field")
-            );
+            final InternalFilters response = searchAndReduce(indexSearcher, new AggTestConfig(builder, new KeywordFieldType("field")));
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);
 
@@ -357,14 +338,35 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01"),
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01")
         );
-        testCase(builder, query, iw -> {
+        testCase(iw -> {
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
         }, result -> {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(1));
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-        }, ft);
+        }, new AggTestConfig(builder, ft).withQuery(query));
+    }
+
+    public void testWithEmptyMergedPointRangeQueries() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test", Resolution.MILLISECONDS);
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from("2020-01-01").to("2020-02-01").includeUpper(false))
+        );
+        Query query = LongPoint.newRangeQuery(
+            "test",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-01"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2015-02-01")
+        );
+        testCase(iw -> {
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
+        }, result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(1));
+            assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(0L));
+        }, new AggTestConfig(builder, ft).withQuery(query));
     }
 
     public void testRangeFilter() throws IOException {
@@ -427,7 +429,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * Tests a filter that needs the cache to be fast.
      */
     public void testPhraseFilter() throws IOException {
-        MappedFieldType ft = new TextFieldMapper.TextFieldType("test");
+        MappedFieldType ft = new TextFieldMapper.TextFieldType("test", randomBoolean());
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
             new KeyedFilter("q1", new MatchPhraseQueryBuilder("test", "will find me").slop(0))
@@ -492,27 +494,22 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocuments(
             NestedAggregatorTests.generateBook("test", new String[] { "foo", "bar" }, new int[] { 5, 10, 15, 20 })
         );
-        testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))),
-            Queries.newNonNestedFilter(),
-            buildIndex,
-            result -> {
-                InternalFilters filters = (InternalFilters) result;
-                assertThat(filters.getBuckets(), hasSize(1));
-                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-            },
-            ft
+        testCase(buildIndex, result1 -> {
+            InternalFilters filters1 = (InternalFilters) result1;
+            assertThat(filters1.getBuckets(), hasSize(1));
+            assertThat(filters1.getBucketByKey("q1").getDocCount(), equalTo(1L));
+        },
+            new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))), ft)
+                .withQuery(Queries.newNonNestedFilter(IndexVersion.CURRENT))
         );
-        testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())),
-            Queries.newNonNestedFilter(),
-            buildIndex,
-            result -> {
-                InternalFilters filters = (InternalFilters) result;
-                assertThat(filters.getBuckets(), hasSize(1));
-                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-            },
-            ft
+        testCase(buildIndex, result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(1));
+            assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+        },
+            new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())), ft).withQuery(
+                Queries.newNonNestedFilter(IndexVersion.CURRENT)
+            )
         );
     }
 
@@ -601,7 +598,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(
                     List.of(
-                        new Field("a", Integer.toString(i % 2), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new Field("a", new BytesRef(Integer.toString(i % 2)), KeywordFieldMapper.Defaults.FIELD_TYPE),
                         DocCountFieldMapper.field(i + 1)
                     )
                 );
@@ -660,49 +657,43 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     @Override
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
-                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
                 IndexSearcher searcher = newIndexSearcher(limitedReader);
-                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery());
-                FilterByFilterAggregator aggregator = createAggregator(builder, context);
-                aggregator.preCollection();
-                searcher.search(context.query(), aggregator.asCollector());
-                aggregator.postCollection();
-
-                InternalAggregation result = aggregator.buildTopLevel();
-                result = result.reduce(
-                    List.of(result),
-                    new AggregationReduceContext.ForFinal(
-                        context.bigArrays(),
-                        getMockScriptService(),
-                        () -> false,
-                        builder,
-                        b -> {},
-                        PipelineTree.EMPTY
-                    )
-                );
-                InternalFilters filters = (InternalFilters) result;
-                assertThat(filters.getBuckets(), hasSize(1));
-                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
-
-                Map<String, Object> debug = new HashMap<>();
-                aggregator.collectDebugInfo(debug::put);
-                assertMap(
-                    debug,
-                    matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
-                        .entry("segments_collected", 0)
-                        .entry("segments_with_doc_count_field", 0)
-                        .entry("segments_with_deleted_docs", 0)
-                        .entry(
-                            "filters",
-                            matchesList().item(
-                                matchesMap().entry("query", "*:*")
-                                    .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                int segmentsWithLiveDocs = (int) searcher.getIndexReader()
+                    .leaves()
+                    .stream()
+                    .map(LeafReaderContext::reader)
+                    .filter(leafReader -> leafReader.getLiveDocs() != null)
+                    .count();
+                debugTestCase(
+                    builder,
+                    new MatchAllDocsQuery(),
+                    searcher,
+                    (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                        assertThat(filters.getBuckets(), hasSize(1));
+                        assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
+                        assertMap(
+                            debug,
+                            matchesMap().entry(
+                                "test",
+                                matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
+                                    .entry("segments_collected", 0)
+                                    .entry("segments_with_doc_count_field", 0)
+                                    .entry("segments_with_deleted_docs", segmentsWithLiveDocs)
+                                    .entry(
+                                        "filters",
+                                        matchesList().item(
+                                            matchesMap().entry("query", "*:*")
+                                                .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                                        )
+                                    )
                             )
-                        )
+                        );
+                    }
                 );
             }
         }
@@ -724,7 +715,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             for (int i = 0; i < 10; i++) {
-                indexWriter.addDocument(List.of(new Field("foo", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i)));
+                indexWriter.addDocument(
+                    List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i))
+                );
             }
             indexWriter.close();
 
@@ -737,42 +730,44 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     @Override
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
-                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
                 IndexSearcher searcher = newIndexSearcher(limitedReader);
-                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
-                FilterByFilterAggregator aggregator = createAggregator(builder, context);
-                aggregator.preCollection();
-                searcher.search(context.query(), aggregator.asCollector());
-                aggregator.postCollection();
-
-                InternalAggregation result = aggregator.buildTopLevel();
-                result = result.reduce(
-                    List.of(result),
-                    new AggregationReduceContext.ForFinal(context.bigArrays(), getMockScriptService(), () -> false, null, b -> {})
-                );
-                InternalFilters filters = (InternalFilters) result;
-                assertThat(filters.getBuckets(), hasSize(1));
-                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
-
-                Map<String, Object> debug = new HashMap<>();
-                aggregator.collectDebugInfo(debug::put);
-                assertMap(
-                    debug,
-                    matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
-                        .entry("segments_collected", 0)
-                        .entry("segments_with_doc_count_field", 0)
-                        .entry("segments_with_deleted_docs", 0)
-                        .entry(
-                            "filters",
-                            matchesList().item(
-                                matchesMap().entry("query", "foo:bar")
-                                    .entry("segments_counted_in_constant_time", lessThan(searcher.getLeafContexts().size()))
+                int segmentsWithLiveDocs = (int) searcher.getIndexReader()
+                    .leaves()
+                    .stream()
+                    .map(LeafReaderContext::reader)
+                    .filter(leafReader -> leafReader.getLiveDocs() != null)
+                    .count();
+                debugTestCase(
+                    builder,
+                    new MatchAllDocsQuery(),
+                    searcher,
+                    (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                        assertThat(filters.getBuckets(), hasSize(1));
+                        assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
+                        assertMap(
+                            debug,
+                            matchesMap().entry(
+                                "test",
+                                matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
+                                    .entry("segments_collected", 0)
+                                    .entry("segments_with_doc_count_field", 0)
+                                    .entry("segments_with_deleted_docs", segmentsWithLiveDocs)
+                                    .entry(
+                                        "filters",
+                                        matchesList().item(
+                                            matchesMap().entry("query", "foo:bar")
+                                                .entry("segments_counted_in_constant_time", lessThan(searcher.getLeafContexts().size()))
+                                        )
+                                    )
                             )
-                        )
+                        );
+                    },
+                    ft
                 );
             }
         }
@@ -790,7 +785,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             for (int i = 0; i < 10; i++) {
-                indexWriter.addDocument(List.of(new Field("foo", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i)));
+                indexWriter.addDocument(
+                    List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i))
+                );
             }
             indexWriter.close();
 
@@ -803,43 +800,47 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     @Override
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
-                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)
                 );
                 IndexSearcher searcher = newIndexSearcher(limitedReader);
-                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
-                FilterByFilterAggregator aggregator = createAggregator(builder, context);
-                aggregator.preCollection();
-                searcher.search(context.query(), aggregator.asCollector());
-                aggregator.postCollection();
+                int segmentsWithLiveDocs = (int) searcher.getIndexReader()
+                    .leaves()
+                    .stream()
+                    .map(LeafReaderContext::reader)
+                    .filter(leafReader -> leafReader.getLiveDocs() != null)
+                    .count();
 
-                InternalAggregation result = aggregator.buildTopLevel();
-                result = result.reduce(
-                    List.of(result),
-                    new AggregationReduceContext.ForFinal(context.bigArrays(), getMockScriptService(), () -> false, null, b -> {})
-                );
-                InternalFilters filters = (InternalFilters) result;
-                assertThat(filters.getBuckets(), hasSize(1));
-                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(10L));
-
-                Map<String, Object> debug = new HashMap<>();
-                aggregator.collectDebugInfo(debug::put);
-                assertMap(
-                    debug,
-                    matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
-                        .entry("segments_collected", 0)
-                        .entry("segments_with_doc_count_field", 0)
-                        .entry("segments_with_deleted_docs", 0)
-                        .entry(
-                            "filters",
-                            matchesList().item(
-                                matchesMap().entry("query", "foo:bar")
-                                    .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                debugTestCase(
+                    builder,
+                    new MatchAllDocsQuery(),
+                    searcher,
+                    (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                        assertThat(filters.getBuckets(), hasSize(1));
+                        assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(10L));
+                        assertMap(
+                            debug,
+                            matchesMap().entry(
+                                "test",
+                                matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
+                                    .entry("segments_collected", 0)
+                                    .entry("segments_with_doc_count_field", 0)
+                                    .entry("segments_with_deleted_docs", segmentsWithLiveDocs)
+                                    .entry(
+                                        "filters",
+                                        matchesList().item(
+                                            matchesMap().entry("query", "foo:bar")
+                                                .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                                        )
+                                    )
                             )
-                        )
+                        );
+                    },
+                    ft
                 );
+
             }
         }
     }
@@ -865,15 +866,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 List.of(
                     new LongPoint("date", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02")),
-                    new Field("kwd", "a", KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedDocValuesField("kwd", new BytesRef("a"))
+                    new Field("kwd", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 )
             );
             iw.addDocument(
                 List.of(
                     new LongPoint("date", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02")),
-                    new Field("kwd", "a", KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedDocValuesField("kwd", new BytesRef("a"))
+                    new Field("kwd", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 )
             );
         }, (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
@@ -1513,6 +1512,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             Map.of(),
             null,
             false,
+            null,
             null
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
@@ -1535,6 +1535,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 Map.of(),
                 null,
                 false,
+                null,
                 null
             )
         );
@@ -1544,7 +1545,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, true, Map.of());
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             BytesRef text = new BytesRef(randomAlphaOfLength(5));
-            return List.of(new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("f", text));
+            return List.of(new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE));
         });
     }
 
@@ -1598,10 +1599,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
             assertMap(debug, matchesMap().extraOk().entry("segments_counted_in_constant_time", greaterThan(0)));
         }, fieldType, fnft);
-        testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
+        testCase(buildIndex, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(1));
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(0L));
-        }, fieldType, fnft);
+        }, new AggTestConfig(builder, fieldType, fnft));
     }
 
     @Override
@@ -1612,7 +1613,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     private Map<String, Object> collectAndGetFilterDebugInfo(IndexSearcher searcher, Aggregator aggregator) throws IOException {
         aggregator.preCollection();
         for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-            LeafBucketCollector leafCollector = aggregator.getLeafCollector(new AggregationExecutionContext(ctx, null, null));
+            LeafBucketCollector leafCollector = aggregator.getLeafCollector(new AggregationExecutionContext(ctx, null, null, null));
             assertTrue(leafCollector.isNoop());
         }
         Map<String, Object> debug = new HashMap<>();

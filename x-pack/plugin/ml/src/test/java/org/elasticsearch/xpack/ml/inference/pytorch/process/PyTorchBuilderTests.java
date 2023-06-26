@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.junit.Before;
@@ -44,7 +47,12 @@ public class PyTorchBuilderTests extends ESTestCase {
     }
 
     public void testBuild() throws IOException, InterruptedException {
-        new PyTorchBuilder(nativeController, processPipes, 2, 4, 12).build();
+
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL)
+        ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
 
@@ -62,7 +70,11 @@ public class PyTorchBuilderTests extends ESTestCase {
     }
 
     public void testBuildWithNoCache() throws IOException, InterruptedException {
-        new PyTorchBuilder(nativeController, processPipes, 2, 4, 0).build();
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ZERO, Priority.NORMAL)
+        ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
 
@@ -73,6 +85,29 @@ public class PyTorchBuilderTests extends ESTestCase {
                 "--validElasticLicenseKeyConfirmed=true",
                 "--numThreadsPerAllocation=2",
                 "--numAllocations=4",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithLowPriority() throws IOException, InterruptedException {
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 1, 1, 1024, ByteSizeValue.ofBytes(42), Priority.LOW)
+        ).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=1",
+                "--numAllocations=1",
+                "--cacheMemorylimitBytes=42",
+                "--lowPriority",
                 PROCESS_PIPES_ARG
             )
         );

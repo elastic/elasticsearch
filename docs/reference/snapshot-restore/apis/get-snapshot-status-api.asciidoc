@@ -169,7 +169,7 @@ Indicates the current snapshot state.
 `FAILED`::
   The snapshot finished with an error and failed to store any data.
 
-`IN_PROGRESS`::
+`STARTED`::
   The snapshot is currently running.
 
 `PARTIAL`::
@@ -200,7 +200,7 @@ Number of shards that are still initializing.
 
 `started`::
 (integer)
-Number of shards that have started but not are not finalized.
+Number of shards that have started but are not finalized.
 
 `finalizing`::
 (integer)

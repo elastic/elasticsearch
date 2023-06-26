@@ -82,7 +82,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
+        this.preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;

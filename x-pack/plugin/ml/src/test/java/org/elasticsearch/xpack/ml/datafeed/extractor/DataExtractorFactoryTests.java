@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -136,9 +137,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo").build();
 
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(
@@ -159,9 +159,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
 
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(
@@ -182,9 +181,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
 
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class)),
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(
@@ -209,9 +207,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 .addAggregator(AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time"))
         );
 
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(
@@ -237,9 +234,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 .addAggregator(AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time"))
         );
 
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class)),
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(
@@ -265,9 +261,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
 
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(
@@ -344,9 +339,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
                         .field("time")
                 )
         );
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class)); },
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class))
         );
         DataExtractorFactory.create(
             client,
@@ -382,9 +376,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
 
         // Test with remote index, aggregation, and no chunking
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class)); },
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class))
         );
         DataExtractorFactory.create(
             client,
@@ -397,9 +390,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         // Test with remote index, aggregation, and chunking
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
-        listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
-            e -> fail()
+        listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
         DataExtractorFactory.create(
             client,
@@ -415,9 +407,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         datafeedConfig.setIndices(Collections.singletonList("cluster_two:my_index"));
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
 
-        listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class)),
-            e -> fail()
+        listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(
@@ -431,9 +422,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         // Test with remote index, no aggregation, and chunking
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
-        listener = ActionListener.wrap(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
-            e -> fail()
+        listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
         DataExtractorFactory.create(
             client,
@@ -466,9 +456,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
                         .field("time")
                 )
         );
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)); },
-            e -> fail()
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
         DataExtractorFactory.create(
             client,

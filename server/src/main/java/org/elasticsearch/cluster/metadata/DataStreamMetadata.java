@@ -9,18 +9,20 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -114,7 +117,12 @@ public class DataStreamMetadata implements Metadata.Custom {
         DataStreamAlias alias = dataStreamAliases.get(aliasName);
         if (alias == null) {
             String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
-            alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
+            alias = new DataStreamAlias(
+                aliasName,
+                List.of(dataStream),
+                writeDataStream,
+                filterAsMap == null ? null : Map.of(dataStream, filterAsMap)
+            );
         } else {
             DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
             if (copy == alias) {
@@ -207,8 +215,8 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_7_0;
     }
 
     @Override
@@ -222,14 +230,13 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams);
-        builder.startObject(DATA_STREAM_ALIASES.getPreferredName());
-        for (Map.Entry<String, DataStreamAlias> dataStream : dataStreamAliases.entrySet()) {
-            dataStream.getValue().toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams),
+            ChunkedToXContentHelper.startObject(DATA_STREAM_ALIASES.getPreferredName()),
+            dataStreamAliases.values().iterator(),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     @Override
@@ -305,8 +312,8 @@ public class DataStreamMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_7_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.V_7_7_0;
         }
     }
 }

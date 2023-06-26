@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
 
     public IndicesSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readBoolean();   // old 'verbose' option, since removed
         }
     }
@@ -40,7 +40,7 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeBoolean(false);
         }
     }

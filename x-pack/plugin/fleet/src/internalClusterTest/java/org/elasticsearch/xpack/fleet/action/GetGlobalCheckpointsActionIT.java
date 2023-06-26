@@ -23,7 +23,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.fleet.Fleet;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,6 +33,7 @@ import java.util.Comparator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -42,22 +45,18 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.of(Fleet.class).collect(Collectors.toList());
+        return Stream.of(Fleet.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class).collect(Collectors.toList());
     }
 
     public void testGetGlobalCheckpoints() throws Exception {
         int shards = between(1, 5);
         String indexName = "test_index";
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(
-                Settings.builder()
+                indexSettings(shards, 1)
                     // ESIntegTestCase randomizes durability settings. The global checkpoint only advances after a fsync, hence we
                     // must run with REQUEST durability
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", shards)
-                    .put("index.number_of_replicas", 1)
             )
             .get();
 
@@ -70,9 +69,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
         final GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).get();
         long[] expected = new long[shards];
-        for (int i = 0; i < shards; ++i) {
-            expected[i] = -1;
-        }
+        Arrays.fill(expected, -1);
         assertArrayEquals(expected, response.globalCheckpoints());
 
         final int totalDocuments = shards * 3;
@@ -91,9 +88,9 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         assertEquals(totalDocuments, Arrays.stream(response2.globalCheckpoints()).map(s -> s + 1).sum());
 
-        client().admin().indices().prepareRefresh(indexName).get();
+        indicesAdmin().prepareRefresh(indexName).get();
 
-        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).get();
+        final IndicesStatsResponse statsResponse = indicesAdmin().prepareStats(indexName).get();
         long[] fromStats = Arrays.stream(statsResponse.getShards())
             .filter(i -> i.getShardRouting().primary())
             .sorted(Comparator.comparingInt(value -> value.getShardRouting().id()))
@@ -104,15 +101,8 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
     public void testPollGlobalCheckpointAdvancement() throws Exception {
         String indexName = "test_index";
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 1)
-            )
+        indicesAdmin().prepareCreate(indexName)
+            .setSettings(indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
@@ -149,17 +139,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
     }
 
-    public void testPollGlobalCheckpointAdvancementTimeout() throws Exception {
+    public void testPollGlobalCheckpointAdvancementTimeout() {
         String indexName = "test_index";
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+        indicesAdmin().prepareCreate(indexName)
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final int totalDocuments = 30;
@@ -182,17 +165,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertEquals(29L, response.globalCheckpoints()[0]);
     }
 
-    public void testMustProvideCorrectNumberOfShards() throws Exception {
+    public void testMustProvideCorrectNumberOfShards() {
         String indexName = "test_index";
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+        indicesAdmin().prepareCreate(indexName)
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final long[] incorrectArrayLength = new long[2];
@@ -214,17 +190,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
     }
 
-    public void testWaitForAdvanceOnlySupportsOneShard() throws Exception {
+    public void testWaitForAdvanceOnlySupportsOneShard() {
         String indexName = "test_index";
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 3)
-                    .put("index.number_of_replicas", 0)
-            )
+        indicesAdmin().prepareCreate(indexName)
+            .setSettings(indexSettings(3, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
@@ -286,15 +255,8 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         long start = System.nanoTime();
         ActionFuture<GetGlobalCheckpointsAction.Response> future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
         Thread.sleep(randomIntBetween(10, 100));
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+        indicesAdmin().prepareCreate(indexName)
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
         client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
@@ -305,7 +267,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertFalse(response.timedOut());
     }
 
-    public void testPrimaryShardsNotReadyNoWait() throws Exception {
+    public void testPrimaryShardsNotReadyNoWait() {
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
             "not-assigned",
             false,
@@ -313,15 +275,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             EMPTY_ARRAY,
             TEN_SECONDS
         );
-        client().admin()
-            .indices()
-            .prepareCreate("not-assigned")
+        indicesAdmin().prepareCreate("not-assigned")
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", "none")
             )
             .get();
@@ -333,7 +290,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertEquals("Primary shards were not active [shards=1, active=0]", exception.getMessage());
     }
 
-    public void testWaitOnPrimaryShardsReadyTimeout() throws Exception {
+    public void testWaitOnPrimaryShardsReadyTimeout() {
         TimeValue timeout = TimeValue.timeValueMillis(between(1, 100));
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
             "not-assigned",
@@ -342,15 +299,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             EMPTY_ARRAY,
             timeout
         );
-        client().admin()
-            .indices()
-            .prepareCreate("not-assigned")
+        indicesAdmin().prepareCreate("not-assigned")
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", "none")
             )
             .get();
@@ -371,15 +323,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             EMPTY_ARRAY,
             TEN_SECONDS
         );
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", "none")
             )
             .get();
@@ -387,14 +334,36 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         long start = System.nanoTime();
         ActionFuture<GetGlobalCheckpointsAction.Response> future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
         Thread.sleep(randomIntBetween(10, 100));
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", ""))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", ""), indexName);
         client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
+        long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
+        assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
+        assertThat(response.globalCheckpoints()[0], equalTo(0L));
+        assertFalse(response.timedOut());
+    }
+
+    public void testWaitOnPrimaryShardThrottled() throws Exception {
+        updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 0));
+
+        String indexName = "throttled";
+        indicesAdmin().prepareCreate(indexName)
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
+            .get();
+
+        long start = System.nanoTime();
+        var future = client().execute(
+            GetGlobalCheckpointsAction.INSTANCE,
+            new GetGlobalCheckpointsAction.Request(indexName, true, true, EMPTY_ARRAY, TEN_SECONDS)
+        );
+        Thread.sleep(randomIntBetween(10, 100));
+
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey()));
+        client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+
+        var response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
         assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
         assertThat(response.globalCheckpoints()[0], equalTo(0L));

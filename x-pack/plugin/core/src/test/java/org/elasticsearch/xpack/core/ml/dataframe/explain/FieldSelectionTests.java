@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.core.ml.dataframe.explain;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class FieldSelectionTests extends AbstractSerializingTestCase<FieldSelection> {
+public class FieldSelectionTests extends AbstractXContentSerializingTestCase<FieldSelection> {
 
     public static FieldSelection createRandom() {
         Set<String> mappingTypes = randomSubsetOf(randomIntBetween(1, 3), "int", "float", "double", "text", "keyword", "ip").stream()
@@ -27,6 +27,11 @@ public class FieldSelectionTests extends AbstractSerializingTestCase<FieldSelect
     @Override
     protected FieldSelection createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected FieldSelection mutateInstance(FieldSelection instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -1,0 +1,150 @@
+---
+setup:
+  - skip:
+      version: " - 8.5.99"
+      reason: "API added in in 8.6.0"
+
+---
+"Test get desired balance for multiple shards and replicas":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computation_submitted: 0 }
+  - gte: { stats.computation_executed: 0 }
+  - gte: { stats.computation_converged: 0 }
+  - gte: { stats.computation_iterations: 0 }
+  - gte: { stats.computation_converged_index: 0 }
+  - gte: { stats.computation_time_in_millis: 0 }
+  - gte: { stats.reconciliation_time_in_millis: 0 }
+
+  # Can't match node ids and desired node status for replicas since we don't know
+  # whether the test is run on a single or multi-node cluster. Also can't match the status
+  # because we can't control the ordering of replicas and primaries in the output
+
+  - match: { routing_table.test.0.current.0.state: STARTED }
+  - match: { routing_table.test.0.current.0.shard_id: 0 }
+  - match: { routing_table.test.0.current.0.index: test }
+  - is_false: 'routing_table.test.0.current.0.relocating_node'
+  - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
+  - match: { routing_table.test.0.current.1.state: STARTED }
+  - match: { routing_table.test.0.current.1.shard_id: 0 }
+  - match: { routing_table.test.0.current.1.index: test }
+  - is_false: 'routing_table.test.0.current.1.relocating_node'
+  - is_false: 'routing_table.test.0.current.1.relocating_node_is_desired'
+  - match: { routing_table.test.0.desired.total: 2 }
+  - gte: { routing_table.test.0.desired.unassigned: 0 }
+  - gte: { routing_table.test.0.desired.ignored: 0 }
+  - is_true: 'routing_table.test.0.desired.node_ids'
+
+  - match: { routing_table.test.1.current.0.state: STARTED }
+  - match: { routing_table.test.1.current.0.shard_id: 1 }
+  - match: { routing_table.test.1.current.0.index: test }
+  - is_false: 'routing_table.test.1.current.0.relocating_node'
+  - is_false: 'routing_table.test.1.current.0.relocating_node_is_desired'
+  - match: { routing_table.test.1.current.1.state: STARTED }
+  - match: { routing_table.test.1.current.1.shard_id: 1 }
+  - match: { routing_table.test.1.current.1.index: test }
+  - is_false: 'routing_table.test.1.current.1.relocating_node'
+  - is_false: 'routing_table.test.1.current.1.relocating_node_is_desired'
+  - match: { routing_table.test.1.desired.total: 2 }
+  - gte: { routing_table.test.1.desired.unassigned: 0 }
+  - gte: { routing_table.test.1.desired.ignored: 0 }
+  - is_true: 'routing_table.test.1.desired.node_ids'
+
+---
+"Test cluster_balance_stats":
+
+  - skip:
+      version: " - 8.6.99"
+      reason: "cluster_balance_stats added in in 8.7.0"
+
+  - do:
+      cluster.state: {}
+  - set: { nodes._arbitrary_key_ : node_id }
+  - set: { nodes.$node_id.name : node_name }
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_balance_stats'
+  - is_true: 'cluster_balance_stats.tiers'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.total'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.min'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.max'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.average'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.std_dev'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.total'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.min'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.max'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.average'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.std_dev'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.total'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.min'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.max'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.average'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.std_dev'
+  - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage'
+  - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.total'
+  - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.min'
+  - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.max'
+  - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.average'
+  - is_true: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.std_dev'
+  - is_true: 'cluster_balance_stats.nodes'
+  - is_true: 'cluster_balance_stats.nodes.$node_name'
+  - gte: { 'cluster_balance_stats.nodes.$node_name.shard_count' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_write_load': 0.0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_disk_usage_bytes' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes' : 0 }
+
+---
+"Test tier_preference":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "tier_preference added in in 8.8.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'routing_table.test.0.current.0.tier_preference'
+
+---
+"Test cluster_info":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "cluster_info added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_info'

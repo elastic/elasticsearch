@@ -84,11 +84,9 @@ public class EnableAllocationDecider extends AllocationDecider {
     private volatile Rebalance enableRebalance;
     private volatile Allocation enableAllocation;
 
-    public EnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.enableAllocation = CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);
-        this.enableRebalance = CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, this::setEnableRebalance);
+    public EnableAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, this::setEnableRebalance);
     }
 
     private void setEnableRebalance(Rebalance enableRebalance) {
@@ -112,6 +110,10 @@ public class EnableAllocationDecider extends AllocationDecider {
                 NAME,
                 "explicitly ignoring any disabling of allocation due to manual allocation commands via the reroute API"
             );
+        }
+
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }
 
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
@@ -147,6 +149,10 @@ public class EnableAllocationDecider extends AllocationDecider {
     public Decision canRebalance(RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
+        }
+
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }
 
         if (enableRebalance == Rebalance.NONE) {

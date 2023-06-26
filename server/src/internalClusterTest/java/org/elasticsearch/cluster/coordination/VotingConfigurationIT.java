@@ -44,7 +44,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
 
         logger.info("--> excluding master node {}", originalMaster);
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
     }
 
@@ -100,7 +100,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
                 senderTransportService.addSendBehavior(
                     internalCluster().getInstance(TransportService.class, receiver),
                     (connection, requestId, action, request, options) -> {
-                        if (action.equals(PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
+                        if (action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
                             throw new ElasticsearchException("rejected");
                         }
                         connection.sendRequest(requestId, action, request, options);

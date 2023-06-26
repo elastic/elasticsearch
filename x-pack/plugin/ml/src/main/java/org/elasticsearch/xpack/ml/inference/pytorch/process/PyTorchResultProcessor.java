@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.AckResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ErrorResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
@@ -30,10 +31,11 @@ import static org.elasticsearch.core.Strings.format;
 
 public class PyTorchResultProcessor {
 
-    public record RecentStats(long requestsProcessed, Double avgInferenceTime) {}
+    public record RecentStats(long requestsProcessed, Double avgInferenceTime, long cacheHitCount) {}
 
     public record ResultStats(
         LongSummaryStatistics timingStats,
+        LongSummaryStatistics timingStatsExcludingCacheHits,
         int errorCount,
         long cacheHitCount,
         int numberOfPendingResults,
@@ -46,29 +48,32 @@ public class PyTorchResultProcessor {
     static long REPORTING_PERIOD_MS = TimeValue.timeValueMinutes(1).millis();
 
     private final ConcurrentMap<String, PendingResult> pendingResults = new ConcurrentHashMap<>();
-    private final String deploymentId;
+    private final String modelId;
     private final Consumer<ThreadSettings> threadSettingsConsumer;
     private volatile boolean isStopping;
     private final LongSummaryStatistics timingStats;
+    private final LongSummaryStatistics timingStatsExcludingCacheHits;
     private int errorCount;
     private long cacheHitCount;
     private long peakThroughput;
 
     private LongSummaryStatistics lastPeriodSummaryStats;
+    private long lastPeriodCacheHitCount;
     private RecentStats lastPeriodStats;
     private long currentPeriodEndTimeMs;
     private long lastResultTimeMs;
     private final long startTime;
     private final LongSupplier currentTimeMsSupplier;
 
-    public PyTorchResultProcessor(String deploymentId, Consumer<ThreadSettings> threadSettingsConsumer) {
-        this(deploymentId, threadSettingsConsumer, System::currentTimeMillis);
+    public PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer) {
+        this(modelId, threadSettingsConsumer, System::currentTimeMillis);
     }
 
     // for testing
-    PyTorchResultProcessor(String deploymentId, Consumer<ThreadSettings> threadSettingsConsumer, LongSupplier currentTimeSupplier) {
-        this.deploymentId = Objects.requireNonNull(deploymentId);
+    PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer, LongSupplier currentTimeSupplier) {
+        this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
+        this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
         this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
         this.currentTimeMsSupplier = currentTimeSupplier;
@@ -104,51 +109,51 @@ public class PyTorchResultProcessor {
                     threadSettingsConsumer.accept(threadSettings);
                     processThreadSettings(result);
                 }
+                if (result.ackResult() != null) {
+                    processAcknowledgement(result);
+                }
                 if (result.errorResult() != null) {
                     processErrorResult(result);
                 }
-
             }
         } catch (Exception e) {
             // No need to report error as we're stopping
             if (isStopping == false) {
-                logger.error(() -> "[" + deploymentId + "] Error processing results", e);
+                logger.error(() -> "[" + modelId + "] Error processing results", e);
             }
-            pendingResults.forEach(
-                (id, pendingResult) -> pendingResult.listener.onResponse(
-                    new PyTorchResult(
-                        null,
-                        null,
-                        new ErrorResult(
-                            id,
-                            isStopping
-                                ? "inference canceled as process is stopping"
-                                : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
-                        )
-                    )
-                )
+            var errorResult = new ErrorResult(
+                isStopping
+                    ? "inference canceled as process is stopping"
+                    : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
             );
-            pendingResults.clear();
+            notifyAndClearPendingResults(errorResult);
         } finally {
-            pendingResults.forEach(
-                (id, pendingResult) -> pendingResult.listener.onResponse(
-                    new PyTorchResult(null, null, new ErrorResult(id, "inference canceled as process is stopping"))
-                )
-            );
-            pendingResults.clear();
+            notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping"));
         }
-        logger.debug(() -> "[" + deploymentId + "] Results processing finished");
+        logger.debug(() -> "[" + modelId + "] Results processing finished");
+    }
+
+    private void notifyAndClearPendingResults(ErrorResult errorResult) {
+        pendingResults.forEach(
+            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
+        );
+        pendingResults.clear();
     }
 
     void processInferenceResult(PyTorchResult result) {
         PyTorchInferenceResult inferenceResult = result.inferenceResult();
         assert inferenceResult != null;
+        Long timeMs = result.timeMs();
+        if (timeMs == null) {
+            assert false : "time_ms should be set for an inference result";
+            timeMs = 0L;
+        }
 
-        logger.trace(() -> format("[%s] Parsed result with id [%s]", deploymentId, inferenceResult.getRequestId()));
-        processResult(inferenceResult);
-        PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
+        logger.trace(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
+        updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
+        PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> format("[%s] no pending result for [%s]", deploymentId, inferenceResult.getRequestId()));
+            logger.debug(() -> format("[%s] no pending result for inference [%s]", modelId, result.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -158,10 +163,23 @@ public class PyTorchResultProcessor {
         ThreadSettings threadSettings = result.threadSettings();
         assert threadSettings != null;
 
-        logger.trace(() -> format("[%s] Parsed result with id [%s]", deploymentId, threadSettings.requestId()));
-        PendingResult pendingResult = pendingResults.remove(threadSettings.requestId());
+        logger.trace(() -> format("[%s] Parsed thread settings result with id [%s]", modelId, result.requestId()));
+        PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> format("[%s] no pending result for [%s]", deploymentId, threadSettings.requestId()));
+            logger.debug(() -> format("[%s] no pending result for thread settings [%s]", modelId, result.requestId()));
+        } else {
+            pendingResult.listener.onResponse(result);
+        }
+    }
+
+    void processAcknowledgement(PyTorchResult result) {
+        AckResult ack = result.ackResult();
+        assert ack != null;
+
+        logger.trace(() -> format("[%s] Parsed ack result with id [%s]", modelId, result.requestId()));
+        PendingResult pendingResult = pendingResults.remove(result.requestId());
+        if (pendingResult == null) {
+            logger.debug(() -> format("[%s] no pending result for ack [%s]", modelId, result.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -171,12 +189,15 @@ public class PyTorchResultProcessor {
         ErrorResult errorResult = result.errorResult();
         assert errorResult != null;
 
-        errorCount++;
+        // Only one result is processed at any time, but we need to stop this happening part way through another thread getting stats
+        synchronized (this) {
+            errorCount++;
+        }
 
-        logger.trace(() -> format("[%s] Parsed error with id [%s]", deploymentId, errorResult.requestId()));
-        PendingResult pendingResult = pendingResults.remove(errorResult.requestId());
+        logger.trace(() -> format("[%s] Parsed error with id [%s]", modelId, result.requestId()));
+        PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> format("[%s] no pending result for [%s]", deploymentId, errorResult.requestId()));
+            logger.debug(() -> format("[%s] no pending result for error [%s]", modelId, result.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -197,17 +218,18 @@ public class PyTorchResultProcessor {
             // there was a result in the last period but not one
             // in this period to close off the last period stats.
             // The stats are valid return them here
-            rs = new RecentStats(lastPeriodSummaryStats.getCount(), lastPeriodSummaryStats.getAverage());
+            rs = new RecentStats(lastPeriodSummaryStats.getCount(), lastPeriodSummaryStats.getAverage(), lastPeriodCacheHitCount);
             peakThroughput = Math.max(peakThroughput, lastPeriodSummaryStats.getCount());
         }
 
         if (rs == null) {
             // no results processed in the previous period
-            rs = new RecentStats(0L, null);
+            rs = new RecentStats(0L, null, 0L);
         }
 
         return new ResultStats(
-            new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum()),
+            cloneSummaryStats(timingStats),
+            cloneSummaryStats(timingStatsExcludingCacheHits),
             errorCount,
             cacheHitCount,
             pendingResults.size(),
@@ -217,11 +239,12 @@ public class PyTorchResultProcessor {
         );
     }
 
-    private synchronized void processResult(PyTorchInferenceResult result) {
-        timingStats.accept(result.getTimeMs());
-        if (result.isCacheHit()) {
-            cacheHitCount++;
-        }
+    private LongSummaryStatistics cloneSummaryStats(LongSummaryStatistics stats) {
+        return new LongSummaryStatistics(stats.getCount(), stats.getMin(), stats.getMax(), stats.getSum());
+    }
+
+    private synchronized void updateStats(long timeMs, boolean isCacheHit) {
+        timingStats.accept(timeMs);
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
         if (lastResultTimeMs > currentPeriodEndTimeMs) {
@@ -233,16 +256,29 @@ public class PyTorchResultProcessor {
                 // there is no data for the last period
                 lastPeriodStats = null;
             } else {
-                lastPeriodStats = new RecentStats(lastPeriodSummaryStats.getCount(), lastPeriodSummaryStats.getAverage());
+                lastPeriodStats = new RecentStats(
+                    lastPeriodSummaryStats.getCount(),
+                    lastPeriodSummaryStats.getAverage(),
+                    lastPeriodCacheHitCount
+                );
             }
 
+            lastPeriodCacheHitCount = 0;
             lastPeriodSummaryStats = new LongSummaryStatistics();
-            lastPeriodSummaryStats.accept(result.getTimeMs());
+            lastPeriodSummaryStats.accept(timeMs);
 
             // set to the end of the current bucket
             currentPeriodEndTimeMs = startTime + Intervals.alignToCeil(lastResultTimeMs - startTime, REPORTING_PERIOD_MS);
         } else {
-            lastPeriodSummaryStats.accept(result.getTimeMs());
+            lastPeriodSummaryStats.accept(timeMs);
+        }
+
+        if (isCacheHit) {
+            cacheHitCount++;
+            lastPeriodCacheHitCount++;
+        } else {
+            // don't include cache hits when recording inference time
+            timingStatsExcludingCacheHits.accept(timeMs);
         }
     }
 

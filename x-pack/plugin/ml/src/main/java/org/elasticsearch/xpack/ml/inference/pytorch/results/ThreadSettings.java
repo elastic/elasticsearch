@@ -14,20 +14,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record ThreadSettings(int numThreadsPerAllocation, int numAllocations, String requestId) implements ToXContentObject {
+public record ThreadSettings(int numThreadsPerAllocation, int numAllocations) implements ToXContentObject {
 
     private static final ParseField NUM_ALLOCATIONS = new ParseField("num_allocations");
     private static final ParseField NUM_THREADS_PER_ALLOCATION = new ParseField("num_threads_per_allocation");
 
     public static ConstructingObjectParser<ThreadSettings, Void> PARSER = new ConstructingObjectParser<>(
         "thread_settings",
-        a -> new ThreadSettings((int) a[0], (int) a[1], (String) a[2])
+        a -> new ThreadSettings((int) a[0], (int) a[1])
     );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_THREADS_PER_ALLOCATION);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_ALLOCATIONS);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PyTorchResult.REQUEST_ID);
     }
 
     @Override
@@ -35,9 +34,6 @@ public record ThreadSettings(int numThreadsPerAllocation, int numAllocations, St
         builder.startObject();
         builder.field(NUM_THREADS_PER_ALLOCATION.getPreferredName(), numThreadsPerAllocation);
         builder.field(NUM_ALLOCATIONS.getPreferredName(), numAllocations);
-        if (requestId != null) {
-            builder.field(PyTorchResult.REQUEST_ID.getPreferredName(), requestId);
-        }
         builder.endObject();
         return builder;
     }

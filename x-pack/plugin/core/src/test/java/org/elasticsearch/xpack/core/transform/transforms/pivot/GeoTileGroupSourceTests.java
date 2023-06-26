@@ -14,12 +14,12 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class GeoTileGroupSourceTests extends AbstractSerializingTestCase<GeoTileGroupSource> {
+public class GeoTileGroupSourceTests extends AbstractXContentSerializingTestCase<GeoTileGroupSource> {
 
     public static GeoTileGroupSource randomGeoTileGroupSource() {
         return randomGeoTileGroupSource(Version.CURRENT);
@@ -49,6 +49,11 @@ public class GeoTileGroupSourceTests extends AbstractSerializingTestCase<GeoTile
     @Override
     protected GeoTileGroupSource createTestInstance() {
         return randomGeoTileGroupSource();
+    }
+
+    @Override
+    protected GeoTileGroupSource mutateInstance(GeoTileGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

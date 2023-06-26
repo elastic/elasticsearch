@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -27,7 +28,7 @@ public class ForceMergeResponse extends BroadcastResponse {
         "force_merge",
         true,
         arg -> {
-            BroadcastResponse response = (BroadcastResponse) arg[0];
+            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
             return new ForceMergeResponse(
                 response.getTotalShards(),
                 response.getSuccessfulShards(),
@@ -45,7 +46,12 @@ public class ForceMergeResponse extends BroadcastResponse {
         super(in);
     }
 
-    ForceMergeResponse(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
+    public ForceMergeResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 

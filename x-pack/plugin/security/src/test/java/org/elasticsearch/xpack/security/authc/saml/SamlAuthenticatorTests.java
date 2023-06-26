@@ -345,6 +345,45 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.session(), equalTo(session));
     }
 
+    public void testSuccessfullyParseContentFromRawXmlWithSignedAssertion() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionindex = randomId();
+        final String xml = getSimpleResponseFromXmlTemplate(now, nameId, sessionindex);
+
+        SamlToken token = token(signAssertions(xml));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(2));
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
+        assertThat(attributes.name().value, equalTo(nameId));
+    }
+
+    public void testSuccessfullyParseContentFromRawXmlWithSignedUnicodeAssertion() throws Exception {
+        Instant now = clock.instant();
+        // Picking a completely random, but valid XML, unicode char is hard. We just insert some well known chars.
+        final String nameId = randomAlphaOfLengthBetween(2, 4) + "セキュリティ" + randomAlphaOfLengthBetween(2, 4);
+        final String nameIdFormat = "urn:fake:nameid-format:soluções";
+        final String sessionindex = randomId();
+        // Randomly skip the header because the XML parser is supposed to infer UTF-8 if there is no header
+        final String xml = getSimpleResponseFromXmlTemplate(randomBoolean(), now, nameIdFormat, nameId, sessionindex);
+
+        SamlToken token = token(signAssertions(xml));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(2));
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(nameIdFormat));
+        assertThat(attributes.name().value, equalTo(nameId));
+    }
+
     public void testSuccessfullyParseContentFromEncryptedAssertion() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponseAsString(now);
@@ -1540,9 +1579,18 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private String getSimpleResponseFromXmlTemplate(Instant now, String nameId, String sessionindex) {
+        return getSimpleResponseFromXmlTemplate(true, now, TRANSIENT, nameId, sessionindex);
+    }
+
+    private String getSimpleResponseFromXmlTemplate(
+        boolean includeXmlHeader,
+        Instant now,
+        String nameIdFormat,
+        String nameId,
+        String sessionindex
+    ) {
         Instant validUntil = now.plusSeconds(30);
-        String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
-            + "<proto:Response"
+        String xml = "<proto:Response"
             + "    Destination='%(SP_ACS_URL)'"
             + "    ID='%(randomId)'"
             + "    InResponseTo='%(requestId)'"
@@ -1558,7 +1606,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
             + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
             + "    <assert:Subject>"
-            + "      <assert:NameID  Format='%(TRANSIENT)'"
+            + "      <assert:NameID  Format='%(nameIdFormat)'"
             + "        NameQualifier='%(IDP_ENTITY_ID)'"
             + "        SPNameQualifier='%(SP_ENTITY_ID)'>%(nameId)</assert:NameID>"
             + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
@@ -1586,6 +1634,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "  </assert:Assertion>"
             + "</proto:Response>";
 
+        if (includeXmlHeader) {
+            xml = "<?xml version='1.0' encoding='UTF-8'?>\n" + xml;
+        }
+
         final Map<String, Object> replacements = new HashMap<>();
         replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
         replacements.put("METHOD_BEARER", METHOD_BEARER);
@@ -1597,7 +1649,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         replacements.put("sessionindex", sessionindex);
         replacements.put("SP_ACS_URL", SP_ACS_URL);
         replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
-        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("nameIdFormat", nameIdFormat);
         replacements.put("validUntil", validUntil);
 
         return NamedFormatter.format(xml, replacements);

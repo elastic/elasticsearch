@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -27,8 +26,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,23 +42,15 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
     public void testSimpleStats() throws Exception {
         // clear all stats first
-        client().admin().indices().prepareStats().clear().execute().actionGet();
+        indicesAdmin().prepareStats().clear().execute().actionGet();
         final int numNodes = cluster().numDataNodes();
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
         final int totalShards = shardsIdx1 + shardsIdx2;
         assertThat(numNodes, lessThanOrEqualTo(totalShards));
-        assertAcked(
-            prepareCreate("test1").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("f", "type=text")
-        );
-        assertAcked(
-            prepareCreate("test2").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx2).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("f", "type=text")
-        );
+        assertAcked(prepareCreate("test1").setSettings(indexSettings(shardsIdx1, 0)).setMapping("f", "type=text"));
+        assertAcked(prepareCreate("test2").setSettings(indexSettings(shardsIdx2, 0)).setMapping("f", "type=text"));
         assertThat(shardsIdx1 + shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         ensureGreen();
@@ -90,7 +79,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
         }
         long endTime = System.currentTimeMillis();
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().execute().actionGet();
         final SearchStats.Stats suggest = indicesStats.getTotal().getSearch().getTotal();
 
         // check current
@@ -116,7 +105,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
         // the upperbound is num shards * total time since we do searches in parallel
         assertThat(suggest.getSuggestTimeInMillis(), lessThanOrEqualTo(totalShards * (endTime - startTime)));
 
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().execute().actionGet();
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
         for (NodeStats stat : nodeStats.getNodes()) {
@@ -149,7 +138,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = clusterAdmin().prepareState().execute().actionGet().getState();
         GroupShardsIterator<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         Set<String> nodes = new HashSet<>();
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
@@ -164,7 +153,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
     }
 
     protected int numAssignedShards(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = clusterAdmin().prepareState().execute().actionGet().getState();
         GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }

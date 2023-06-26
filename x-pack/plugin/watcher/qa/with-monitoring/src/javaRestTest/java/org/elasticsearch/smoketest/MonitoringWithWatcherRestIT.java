@@ -44,28 +44,6 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         deleteAllWatcherData();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59132")
-    public void testThatLocalExporterAddsWatches() throws Exception {
-        String watchId = createMonitoringWatch();
-
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
-            Strings.toString(
-                jsonBuilder().startObject()
-                    .startObject("persistent")
-                    .field("xpack.monitoring.exporters.my_local_exporter.type", "local")
-                    .field("xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled", true)
-                    .endObject()
-                    .endObject()
-            )
-        );
-        adminClient().performRequest(request);
-
-        assertTotalWatchCount(WATCH_IDS.length);
-
-        assertMonitoringWatchHasBeenOverWritten(watchId);
-    }
-
     private void assertMonitoringWatchHasBeenOverWritten(String watchId) throws Exception {
         assertBusy(() -> {
             ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_watcher/watch/" + watchId)));

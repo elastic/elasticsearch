@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -105,5 +108,18 @@ public class RobertaTokenization extends Tokenization {
     @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    public void validateVocabulary(PutTrainedModelVocabularyAction.Request request) {
+        if (request.getMerges().isEmpty()) {
+            throw new ElasticsearchStatusException(
+                "cannot put vocabulary for model [{}] as tokenizer type [{}] requires [{}] to be provided and non-empty",
+                RestStatus.BAD_REQUEST,
+                request.getModelId(),
+                getName(),
+                PutTrainedModelVocabularyAction.Request.MERGES.getPreferredName()
+            );
+        }
     }
 }

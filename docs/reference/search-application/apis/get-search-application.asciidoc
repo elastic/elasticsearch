@@ -1,0 +1,74 @@
+[role="xpack"]
+[[get-search-application]]
+=== Get Search Application
+
+beta::[]
+
+++++
+<titleabbrev>Get Search Application</titleabbrev>
+++++
+
+Retrieves information about a Search Application.
+
+[[get-search-application-request]]
+==== {api-request-title}
+
+`GET _application/search_application/<name>`
+
+[[get-search-application-prereq]]
+==== {api-prereq-title}
+
+Requires the `manage_search_application` cluster privilege.
+
+[[get-search-application-path-params]]
+==== {api-path-parms-title}
+
+`<name>`::
+(Required, string)
+
+[[get-search-application-response-codes]]
+==== {api-response-codes-title}
+
+`400`::
+The `name` was not provided.
+
+`404` (Missing resources)::
+No Search Application matching `name` could be found.
+
+[[get-search-application-example]]
+==== {api-examples-title}
+
+The following example gets the Search Application named `my-app`:
+
+[source,console]
+----
+GET _application/search_application/my-app/
+----
+// TEST[skip:TBD]
+
+A sample response:
+
+[source,console-result]
+----
+{
+    "name": "my-app",
+    "indices": [ "index1", "index2" ],
+    "updated_at_millis": 1682105622204,
+    "template": {
+      "script": {
+        "source": {
+          "query": {
+            "query_string": {
+              "query": "{{query_string}}",
+              "default_field": "{{default_field}}"
+            }
+          }
+        },
+        "params": {
+          "query_string": "*",
+          "default_field": "*"
+        }
+      }
+  }
+}
+----

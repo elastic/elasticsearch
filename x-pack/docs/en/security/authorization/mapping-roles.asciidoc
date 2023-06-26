@@ -86,7 +86,7 @@ this is a common setting in Elasticsearch, changing its value might effect other
 schedules in the system.
 
 While the _role mapping APIs_ is the preferred way to manage role mappings, using
-the `role_mappings.yml` file becomes useful in a couple of use cases:
+the `role_mapping.yml` file becomes useful in a couple of use cases:
 
 . If you want to define fixed role mappings that no one (besides an administrator
 with physical access to the {es} nodes) would be able to change.
@@ -96,7 +96,7 @@ need to have their roles mapped to them even when the cluster is RED. For instan
 an administrator that authenticates via LDAP or PKI and gets assigned an
 administrator role so that they can perform corrective actions.
 
-Please note however, that the role_mappings.yml file is provided
+Please note however, that the `role_mapping.yml` file is provided
 as a minimal administrative function and is not intended to cover and be used to
 define roles for all use cases.
 

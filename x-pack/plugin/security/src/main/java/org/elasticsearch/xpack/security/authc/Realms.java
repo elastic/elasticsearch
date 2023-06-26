@@ -9,21 +9,22 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -72,6 +73,8 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     private final List<Realm> allConfiguredRealms;
 
     private final Map<String, DomainConfig> domainNameToConfig;
+    // The realmRefs include all realms explicitly or implicitly configured regardless whether they are disabled or not
+    private final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs;
 
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
@@ -100,8 +103,11 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             .distinct()
             .collect(Collectors.toMap(DomainConfig::name, Function.identity()));
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
+
+        // initRealms will add default file and native realm config if they are not explicitly configured
         final List<Realm> initialRealms = initRealms(realmConfigs);
-        configureRealmRef(initialRealms, realmConfigs, realmToDomainConfig);
+        realmRefs = calculateRealmRefs(realmConfigs, realmToDomainConfig);
+        initialRealms.forEach(realm -> realm.initRealmRef(realmRefs));
 
         this.allConfiguredRealms = initialRealms;
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
@@ -111,27 +117,42 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         licenseState.addListener(this::recomputeActiveRealms);
     }
 
-    static void configureRealmRef(
-        Collection<Realm> realms,
+    private Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> calculateRealmRefs(
         Collection<RealmConfig> realmConfigs,
         Map<String, DomainConfig> domainForRealm
     ) {
-        for (Realm realm : realms) {
-            final DomainConfig domainConfig = domainForRealm.get(realm.name());
+        final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+        final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs = new HashMap<>();
+        assert realmConfigs.stream().noneMatch(rc -> rc.name().equals(reservedRealm.name()) && rc.type().equals(reservedRealm.type()))
+            : "reserved realm cannot be configured";
+        realmRefs.put(
+            new RealmConfig.RealmIdentifier(reservedRealm.type(), reservedRealm.name()),
+            new Authentication.RealmRef(reservedRealm.name(), reservedRealm.type(), nodeName, null)
+        );
+
+        for (RealmConfig realmConfig : realmConfigs) {
+            final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(realmConfig.type(), realmConfig.name());
+            final DomainConfig domainConfig = domainForRealm.get(realmConfig.name());
+            final RealmDomain realmDomain;
             if (domainConfig != null) {
                 final String domainName = domainConfig.name();
                 Set<RealmConfig.RealmIdentifier> domainIdentifiers = new HashSet<>();
-                for (RealmConfig realmConfig : realmConfigs) {
-                    final DomainConfig otherDomainConfig = domainForRealm.get(realmConfig.name());
+                for (RealmConfig otherRealmConfig : realmConfigs) {
+                    final DomainConfig otherDomainConfig = domainForRealm.get(otherRealmConfig.name());
                     if (otherDomainConfig != null && domainName.equals(otherDomainConfig.name())) {
-                        domainIdentifiers.add(realmConfig.identifier());
+                        domainIdentifiers.add(otherRealmConfig.identifier());
                     }
                 }
-                realm.initRealmRef(new RealmDomain(domainName, domainIdentifiers));
+                realmDomain = new RealmDomain(domainName, domainIdentifiers);
             } else {
-                realm.initRealmRef(null);
+                realmDomain = null;
             }
+            realmRefs.put(
+                realmIdentifier,
+                new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), nodeName, realmDomain)
+            );
         }
+        return Map.copyOf(realmRefs);
     }
 
     protected void recomputeActiveRealms() {
@@ -145,9 +166,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
-            activeRealms.stream()
-                .filter(r -> licensedRealms.contains(r) == false)
-                .forEach(realm -> { handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot); });
+            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
+                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
+            });
         }
 
         activeRealms = licensedRealms;
@@ -287,18 +308,14 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
         final List<Realm> realmList = getActiveRealms().stream().filter(r -> ReservedRealm.TYPE.equals(r.type()) == false).toList();
-        final CountDown countDown = new CountDown(realmList.size());
-        final Runnable doCountDown = () -> {
-            if ((realmList.isEmpty() || countDown.countDown()) && failed.get() == false) {
+        try (var refs = new RefCountingRunnable(() -> {
+            if (failed.get() == false) {
                 // iterate over the factories so we can add enabled & available info
                 for (String type : factories.keySet()) {
                     assert ReservedRealm.TYPE.equals(type) == false;
                     realmMap.compute(type, (key, value) -> {
                         if (value == null) {
-                            return MapBuilder.<String, Object>newMapBuilder()
-                                .put("enabled", false)
-                                .put("available", isRealmTypeAvailable(licenseStateSnapshot, type))
-                                .map();
+                            return Map.of("enabled", false, "available", isRealmTypeAvailable(licenseStateSnapshot, type));
                         }
 
                         assert value instanceof Map;
@@ -311,12 +328,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 }
                 listener.onResponse(realmMap);
             }
-        };
-
-        if (realmList.isEmpty()) {
-            doCountDown.run();
-        } else {
+        })) {
             for (Realm realm : realmList) {
+                final var ref = refs.acquire();
                 realm.usageStats(ActionListener.wrap(stats -> {
                     if (failed.get() == false) {
                         synchronized (realmMap) {
@@ -330,7 +344,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                                 return value;
                             });
                         }
-                        doCountDown.run();
+                        ref.close();
                     }
                 }, e -> {
                     if (failed.compareAndSet(false, true)) {
@@ -349,6 +363,10 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> Map.of("realms", entry.getValue().memberRealmNames())));
         }
+    }
+
+    public Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> getRealmRefs() {
+        return realmRefs;
     }
 
     @Override

@@ -8,14 +8,17 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
@@ -40,7 +43,7 @@ public class ClusterStateObserverTests extends ESTestCase {
         when(clusterApplierService.state()).thenReturn(clusterState);
 
         final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
-            clusterState,
+            clusterState.version(),
             clusterApplierService,
             null,
             logger,
@@ -63,6 +66,30 @@ public class ClusterStateObserverTests extends ESTestCase {
         });
 
         assertTrue(listenerAdded.get());
+    }
+
+    public void testWaitForState() throws Exception {
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(DiscoveryNodes.builder()).build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        final PlainActionFuture<ClusterState> future = PlainActionFuture.newFuture();
+        ClusterStateObserver.waitForState(clusterService, new ThreadContext(Settings.EMPTY), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                future.onResponse(state);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                fail("should not be called");
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                fail("should not be called");
+            }
+        }, cs -> cs == clusterState, null, logger);
+        assertSame(clusterState, future.get(0L, TimeUnit.NANOSECONDS));
     }
 
 }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.regression;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,7 +33,7 @@ public class RegressionStatsTests extends AbstractBWCSerializationTestCase<Regre
     }
 
     @Override
-    protected RegressionStats mutateInstanceForVersion(RegressionStats instance, Version version) {
+    protected RegressionStats mutateInstanceForVersion(RegressionStats instance, TransportVersion version) {
         return instance;
     }
 
@@ -55,6 +55,11 @@ public class RegressionStatsTests extends AbstractBWCSerializationTestCase<Regre
     @Override
     protected RegressionStats createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected RegressionStats mutateInstance(RegressionStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static RegressionStats createRandom() {

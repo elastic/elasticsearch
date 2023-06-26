@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -43,6 +44,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -91,7 +93,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         FleetTemplateRegistry registry = new FleetTemplateRegistry(
             environment.settings(),
@@ -110,6 +114,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetActionsSystemIndexDescriptor(),
             fleetAgentsSystemIndexDescriptor(),
             fleetEnrollmentApiKeysSystemIndexDescriptor(),
+            fleetSecretsSystemIndexDescriptor(),
             fleetPoliciesSystemIndexDescriptor(),
             fleetPoliciesLeaderSystemIndexDescriptor(),
             fleetServersSystemIndexDescriptors(),
@@ -183,6 +188,23 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setIndexPattern(".fleet-enrollment-api-keys*")
             .setAliasName(".fleet-enrollment-api-keys")
             .setDescription("Fleet API Keys for enrollment")
+            .build();
+    }
+
+    private SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(loadTemplateSource("/fleet-secrets.json"), XContentType.JSON);
+        return SystemIndexDescriptor.builder()
+            .setType(Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setOrigin(FLEET_ORIGIN)
+            .setVersionMetaKey(VERSION_KEY)
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setPrimaryIndex(".fleet-secrets-" + CURRENT_INDEX_VERSION)
+            .setIndexPattern(".fleet-secrets*")
+            .setAliasName(".fleet-secrets")
+            .setDescription("Secret values managed by Fleet")
             .build();
     }
 
@@ -339,6 +361,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Arrays.asList(new RestGetGlobalCheckpointsAction(), new RestFleetSearchAction(), new RestFleetMultiSearchAction(settings));
+        return Arrays.asList(
+            new RestGetGlobalCheckpointsAction(),
+            new RestFleetSearchAction(restController.getSearchUsageHolder()),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder())
+        );
     }
 }

@@ -27,7 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -68,28 +67,26 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         String node1Name = internalCluster().startNode(settings);
 
         logger.info("--> should be blocked, no master...");
-        ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        ClusterState state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> start second node, cluster should be formed");
         String node2Name = internalCluster().startNode(settings);
 
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
             .execute()
             .actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
 
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.metadata().indices().containsKey("test"), equalTo(false));
 
@@ -101,13 +98,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
         // make sure that all shards recovered before trying to flush
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth("test")
-                .setWaitForActiveShards(numShards.totalNumShards)
-                .execute()
-                .actionGet()
-                .getActiveShards(),
+            clusterAdmin().prepareHealth("test").setWaitForActiveShards(numShards.totalNumShards).execute().actionGet().getActiveShards(),
             equalTo(numShards.totalNumShards)
         );
         // flush for simpler debugging
@@ -133,14 +124,14 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
         logger.info("--> stop master node, no master block should appear");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
+        internalCluster().stopNode(masterNode);
 
         assertBusy(() -> {
-            ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
             assertTrue(clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         // verify that both nodes are still in the cluster state but there is no master
         assertThat(state.nodes().getSize(), equalTo(2));
@@ -149,9 +140,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> starting the previous master node again...");
         node2Name = internalCluster().startNode(Settings.builder().put(settings).put(masterDataPathSettings).build());
 
-        clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
+        clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForYellowStatus()
             .setWaitForNodes("2")
@@ -159,12 +148,12 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             .actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
 
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.metadata().indices().containsKey("test"), equalTo(true));
 
@@ -186,10 +175,10 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNode)).get();
         logger.info("--> stop non-master node, no master block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));
+        internalCluster().stopNode(otherNode);
 
         assertBusy(() -> {
-            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state1 = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state1.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         });
 
@@ -197,9 +186,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(settings).put(otherNodeDataPathSettings).build());
 
         ensureGreen();
-        clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
+        clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
             .setWaitForGreenStatus()
@@ -207,12 +194,12 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             .actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        state = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
 
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.metadata().indices().containsKey("test"), equalTo(true));
 
@@ -246,16 +233,14 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(settings);
 
         ensureGreen();
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("3")
             .execute()
             .actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(3));
 
         createIndex("test");
@@ -267,17 +252,11 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         ensureGreen();
         // make sure that all shards recovered before trying to flush
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth("test")
-                .setWaitForActiveShards(numShards.totalNumShards)
-                .execute()
-                .actionGet()
-                .isTimedOut(),
+            clusterAdmin().prepareHealth("test").setWaitForActiveShards(numShards.totalNumShards).execute().actionGet().isTimedOut(),
             equalTo(false)
         );
         // flush for simpler debugging
-        client().admin().indices().prepareFlush().execute().actionGet();
+        indicesAdmin().prepareFlush().execute().actionGet();
 
         refresh();
         logger.info("--> verify we get the data back");
@@ -296,7 +275,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> verify that there is no master anymore on remaining node");
         // spin here to wait till the state is set
         assertBusy(() -> {
-            ClusterState st = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState st = clusterAdmin().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(st.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         });
 
@@ -306,7 +285,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         internalCluster().validateClusterFormed();
         ensureGreen();
 
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(3));
 
         logger.info("--> verify we the data back");
@@ -385,7 +364,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         partition.stopDisrupting();
 
         logger.debug("--> waiting for cluster to heal");
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForEvents(Priority.LANGUID));
+        assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes("3").setWaitForEvents(Priority.LANGUID));
 
         for (String node : internalCluster().getNodeNames()) {
             Settings nodeSetting = internalCluster().clusterService(node).state().metadata().settings();

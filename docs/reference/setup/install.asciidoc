@@ -20,6 +20,8 @@ If you want to install and manage {es} yourself, you can:
 * Run {es} in a <<docker, Docker container>>. 
 * Set up and manage {es}, {kib}, {agent}, and the rest of the Elastic Stack on Kubernetes with {eck-ref}[{eck}].
 
+TIP: To try out Elasticsearch on your own machine, we recommend using Docker and running both Elasticsearch and Kibana. For more information, see <<run-elasticsearch-locally,Run Elasticsearch locally>>.
+
 [discrete]
 [[elasticsearch-install-packages]]
 === Elasticsearch install packages
@@ -61,6 +63,32 @@ Images are available for running Elasticsearch as Docker containers. They may be
 downloaded from the Elastic Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]
+
+[discrete]
+[[jvm-version]]
+=== Java (JVM) Version
+
+{es} is built using Java, and includes a bundled version of
+https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE) within
+each distribution. The bundled JVM is the recommended JVM.
+
+To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
+If you must use a version of Java that is different from the bundled JVM, it is
+best to use the latest release of a link:/support/matrix[supported]
+https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+{es} is closely coupled to certain OpenJDK-specific features, so it may not
+work correctly with other JVMs. {es} will refuse to start if a known-bad
+version of Java is used.
+
+If you use a JVM other than the bundled one, you are responsible for reacting
+to announcements related to its security issues and bug fixes, and must
+yourself determine whether each update is necessary or not. In contrast, the
+bundled JVM is treated as an integral part of {es}, which means that Elastic
+takes responsibility for keeping it up to date. Security issues and bugs within
+the bundled JVM are treated as if they were within {es} itself.
+
+The bundled JVM is located within the `jdk` subdirectory of the {es} home
+directory. You may remove this directory if using your own JVM.
 
 include::install/targz.asciidoc[]
 

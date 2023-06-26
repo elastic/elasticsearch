@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -507,8 +506,9 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         );
                     } else {
                         listener.onFailure(
-                            new ElasticsearchException(
+                            new ElasticsearchStatusException(
                                 "Starting data frame analytics [{}] timed out after [{}]",
+                                RestStatus.REQUEST_TIMEOUT,
                                 task.getParams().getId(),
                                 timeout
                             )

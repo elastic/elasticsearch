@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -200,6 +200,9 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         Exception ex = response.getFailure();
         assertThat(ex.getMessage(), containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version"));
         assertThat(ex.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+        assertEquals(
+            "This query isn't serializable with transport versions before " + TransportVersion.current(),
+            ex.getCause().getMessage()
+        );
     }
 }

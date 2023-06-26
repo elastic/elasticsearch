@@ -1,0 +1,8 @@
+---
+MovingFunctions are available in the default context:
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "MovingFunctions.max(new double[] {1.0, 2.0, -1234})"
+  - match: { result: "2.0" }

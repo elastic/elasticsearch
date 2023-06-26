@@ -14,9 +14,11 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
+import org.elasticsearch.xpack.eql.plan.logical.AbstractJoin;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
@@ -76,8 +78,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch(
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        var substitutions = new Batch<>(
             "Substitution",
             Limiter.ONCE,
             new ReplaceWildcards(),
@@ -87,7 +89,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new AddMandatoryJoinKeyFilter()
         );
 
-        Batch operators = new Batch(
+        var operators = new Batch<>(
             "Operator Optimization",
             new ConstantFolding(),
             // boolean
@@ -105,13 +107,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters()
         );
 
-        Batch constraints = new Batch("Infer constraints", Limiter.ONCE, new PropagateJoinKeyConstraints());
+        var constraints = new Batch<>("Infer constraints", Limiter.ONCE, new PropagateJoinKeyConstraints());
 
-        Batch ordering = new Batch("Implicit Order", new SortByLimit(), new PushDownOrderBy());
+        var ordering = new Batch<>("Implicit Order", new SortByLimit(), new PushDownOrderBy());
 
-        Batch local = new Batch("Skip Elasticsearch", new SkipEmptyFilter(), new SkipEmptyJoin(), new SkipQueryOnLimitZero());
+        var local = new Batch<>("Skip Elasticsearch", new SkipEmptyFilter(), new SkipEmptyJoin(), new SkipQueryOnLimitZero());
 
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
+        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
         return asList(substitutions, operators, constraints, operators, ordering, local, label);
     }
@@ -198,9 +200,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      * Add the constraint manually to each query - this helps simplifying as well
      * as propagating the constraint.
      */
-    static class AddMandatoryJoinKeyFilter extends OptimizerRule<Join> {
+    static class AddMandatoryJoinKeyFilter extends OptimizerRule<AbstractJoin> {
         @Override
-        protected LogicalPlan rule(Join join) {
+        protected LogicalPlan rule(AbstractJoin join) {
             // collect all mandatory keys and add them as a filter
             boolean changed = false;
             List<KeyedFilter> filters = new ArrayList<>(join.queries());
@@ -220,11 +222,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         mandatoryKeys.stream().map(m -> new IsNotNull(m.source(), m)).collect(toList())
                     );
                     Filter joinKeyNotNull = new Filter(join.source(), k.child(), constraint);
-                    filters.set(i, new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.timestamp()));
+                    filters.set(
+                        i,
+                        new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker(), k.isMissingEventFilter())
+                    );
                 }
             }
             if (changed) {
-                join = join.with(filters, join.until(), join.direction());
+                if (join instanceof Join j) {
+                    join = j.with(filters, j.until(), j.direction());
+                } else if (join instanceof Sample sample) {
+                    join = sample.with(filters);
+                }
             }
             return join;
         }
@@ -341,9 +350,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     /**
-     * Any condition applied on a join/sequence key, gets propagated to all rules.
+     * Any condition applied on a join/sequence/sample key, gets propagated to all rules.
      */
-    static class PropagateJoinKeyConstraints extends OptimizerRule<Join> {
+    static class PropagateJoinKeyConstraints extends OptimizerRule<AbstractJoin> {
 
         static class Constraint {
             private final Expression condition;
@@ -375,7 +384,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(Join join) {
+        protected LogicalPlan rule(AbstractJoin join) {
             List<Constraint> constraints = new ArrayList<>();
 
             // collect constraints for each filter
@@ -384,7 +393,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (constraints.isEmpty() == false) {
                 List<KeyedFilter> queries = join.queries().stream().map(k -> addConstraint(k, constraints)).collect(toList());
 
-                join = join.with(queries, join.until(), join.direction());
+                if (join instanceof Join j) {
+                    join = j.with(queries, j.until(), j.direction());
+                } else if (join instanceof Sample sample) {
+                    join = sample.with(queries);
+                }
             }
 
             return join;
@@ -423,7 +436,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             );
 
             return constraint != null
-                ? new KeyedFilter(k.source(), new Filter(k.source(), k.child(), constraint), k.keys(), k.timestamp(), k.tiebreaker())
+                ? new KeyedFilter(
+                    k.source(),
+                    new Filter(k.source(), k.child(), constraint),
+                    k.keys(),
+                    k.timestamp(),
+                    k.tiebreaker(),
+                    k.isMissingEventFilter()
+                )
                 : k;
         }
     }
@@ -479,10 +499,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     boolean baseFilter = true;
                     for (KeyedFilter filter : queries) {
                         // preserve the order for the base query, everything else needs to be ascending
-                        List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
+                        List<Order> pushedOrder = baseFilter && filter.isMissingEventFilter() == false ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
                         orderedQueries.add(filter.replaceChild(order));
-                        baseFilter = false;
+                        if (filter.isMissingEventFilter() == false) {
+                            baseFilter = false;
+                        }
                     }
 
                     KeyedFilter until = join.until();
@@ -522,14 +544,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SkipEmptyJoin extends OptimizerRule<Join> {
+    static class SkipEmptyJoin extends OptimizerRule<AbstractJoin> {
 
         @Override
-        protected LogicalPlan rule(Join plan) {
+        protected LogicalPlan rule(AbstractJoin plan) {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
                 if (filter.anyMatch(LocalRelation.class::isInstance)) {
-                    return new LocalRelation(plan.source(), plan.output(), Type.SEQUENCE);
+                    return new LocalRelation(plan.source(), plan.output(), plan instanceof Sample ? Type.SAMPLE : Type.SEQUENCE);
                 }
             }
             return plan;

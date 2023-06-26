@@ -335,7 +335,7 @@ public class RollupJobIdentifierUtils {
      * caps for metrics, it is either supported or not.
      */
     private static void checkVSLeaf(
-        ValuesSourceAggregationBuilder.LeafOnly<?, ?> source,
+        ValuesSourceAggregationBuilder.LeafOnly<?> source,
         List<RollupJobCaps> jobCaps,
         Set<RollupJobCaps> bestCaps
     ) {

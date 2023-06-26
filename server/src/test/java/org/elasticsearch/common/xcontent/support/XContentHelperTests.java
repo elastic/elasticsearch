@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.util.Maps;
@@ -19,13 +20,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class XContentHelperTests extends ESTestCase {
 
@@ -59,7 +63,7 @@ public class XContentHelperTests extends ESTestCase {
 
         XContentHelper.mergeDefaults(content, defaults);
 
-        assertThat(content, Matchers.equalTo(expected));
+        assertThat(content, equalTo(expected));
     }
 
     public void testToXContent() throws IOException {
@@ -224,5 +228,29 @@ public class XContentHelperTests extends ESTestCase {
 
         }
 
+    }
+
+    public void testParseToType() throws IOException {
+        String json = """
+            { "a": "b", "c": "d"}
+            """;
+        Set<String> names = XContentHelper.parseToType(parser -> {
+            Set<String> fields = new HashSet<>();
+            XContentParser.Token token = parser.currentToken();
+            if (token == null) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.START_OBJECT) {
+                fields.add(parser.nextFieldName());
+            }
+            for (token = parser.nextToken(); token != null; token = parser.nextToken()) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    fields.add(parser.currentName());
+                }
+            }
+            return fields;
+        }, new BytesArray(json), XContentType.JSON, null).v2();
+
+        assertThat(names, equalTo(Set.of("a", "c")));
     }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -58,13 +59,14 @@ public class MapperTestUtils {
         IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
         return new MapperService(
+            () -> TransportVersion.current(),
             indexSettings,
             indexAnalyzers,
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
             () -> null,
-            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE
         );
     }

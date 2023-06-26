@@ -65,6 +65,8 @@ public final class XPackField {
     public static final String SEARCHABLE_SNAPSHOTS = "searchable_snapshots";
     /** Name constant for the data streams feature. */
     public static final String DATA_STREAMS = "data_streams";
+    /** Name constant for the data lifecycle feature. */
+    public static final String DATA_LIFECYCLE = "data_lifecycle";
     /** Name constant for the data tiers feature. */
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */
@@ -73,6 +75,14 @@ public final class XPackField {
     public static final String OPERATOR_PRIVILEGES = "operator_privileges";
     /** Name constant for the archive feature. */
     public static final String ARCHIVE = "archive";
+    /** Name constant for the health api feature. */
+    public static final String HEALTH_API = "health_api";
+    /** Name for Enterprise Search. */
+    public static final String ENTERPRISE_SEARCH = "enterprise_search";
+    public static final String REMOTE_CLUSTERS = "remote_clusters";
+
+    /** Name constant for the redact processor feature. */
+    public static final String REDACT_PROCESSOR = "redact_processor";
 
     private XPackField() {}
 

@@ -1,10 +1,5 @@
 import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.PropertyNormalization
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-
-import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -15,7 +10,6 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -23,21 +17,22 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.16.0',
-  'azureCommon': '12.15.1',
-  'azureCore': '1.27.0',
-  'azureCoreHttpNetty': '1.11.9',
-  'azureJackson': '2.13.2',
-  'azureJacksonDatabind': '2.13.2.2',
+  'azure': '12.20.1',
+  'azureCommon': '12.19.1',
+  'azureCore': '1.34.0',
+  'azureCoreHttpNetty': '1.12.7',
+  'azureJackson': '2.13.4',
+  'azureJacksonDatabind': '2.13.4.2',
+  'azureAvro': '12.5.3',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
   'stax2API': '4.2.1',
-  'woodstox': '6.2.7',
+  'woodstox': '6.4.0',
 
-  'reactorNetty': '1.0.15',
-  'reactorCore': '3.4.14',
-  'reactiveStreams': '1.0.3',
+  'reactorNetty': '1.0.24',
+  'reactorCore': '3.4.23',
+  'reactiveStreams': '1.0.4',
 ]
 
 dependencies {
@@ -45,7 +40,6 @@ dependencies {
   api "com.azure:azure-storage-common:${versions.azureCommon}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
-
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
@@ -62,19 +56,11 @@ dependencies {
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 
   // netty
-  api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec-dns:${versions.netty}"
-  api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
-  api "io.netty:netty-codec:${versions.netty}"
-  api "io.netty:netty-common:${versions.netty}"
   api "io.netty:netty-handler-proxy:${versions.netty}"
-  api "io.netty:netty-handler:${versions.netty}"
-  api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-resolver-dns:${versions.netty}"
-  api "io.netty:netty-transport:${versions.netty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 
   // reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.reactorNetty}"
@@ -82,20 +68,16 @@ dependencies {
   api "io.projectreactor:reactor-core:${versions.reactorCore}"
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
-  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
-  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+  implementation project(":modules:transport-netty4")
+  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+//  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
 
+
+  runtimeOnly "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
 
   testImplementation project(':test:fixtures:azure-fixture')
-}
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
-}
-
-tasks.named("internalClusterTestJar").configure {
-  // for the plugin-security.policy resource
-  from sourceSets.test.output
+  yamlRestTestImplementation project(':test:fixtures:azure-fixture')
 }
 
 restResources {
@@ -116,18 +98,6 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    'com.aayushatharva.brotli4j.Brotli4jLoader',
-    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
-    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoders',
-    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
-    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
-
-    'com.azure.storage.internal.avro.implementation.AvroObject',
-    'com.azure.storage.internal.avro.implementation.AvroReader',
-    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
-    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
-
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
     'io.micrometer.core.instrument.Counter',
@@ -161,97 +131,6 @@ tasks.named("thirdPartyAudit").configure {
     'kotlin.reflect.KDeclarationContainer',
     'kotlin.sequences.Sequence',
 
-    // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
-    'com.google.protobuf.ExtensionRegistry',
-    'com.google.protobuf.MessageLite$Builder',
-    'com.google.protobuf.MessageLite',
-    'com.google.protobuf.Parser',
-    'com.google.protobuf.ExtensionRegistryLite',
-    'com.google.protobuf.MessageLiteOrBuilder',
-    'com.google.protobuf.nano.CodedOutputByteBufferNano',
-    'com.google.protobuf.nano.MessageNano',
-
-    // from io.netty.logging.CommonsLoggerFactory (netty)
-    'org.apache.commons.logging.Log',
-    'org.apache.commons.logging.LogFactory',
-
-    // from Log4j (deliberate, Netty will fallback to Log4j 2)
-    'org.apache.log4j.Level',
-    'org.apache.log4j.Logger',
-
-    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-    'org.bouncycastle.cert.X509v3CertificateBuilder',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-
-    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
-    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
-    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
-    'org.eclipse.jetty.npn.NextProtoNego',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-    'org.jboss.marshalling.ByteInput',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-    'org.jboss.marshalling.ByteOutput',
-
-    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-    'org.jboss.marshalling.Marshaller',
-
-    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-    'org.jboss.marshalling.MarshallerFactory',
-    'org.jboss.marshalling.MarshallingConfiguration',
-    'org.jboss.marshalling.Unmarshaller',
-
-    // from io.netty.handler.codec.spdy.SpdyHeaderBlockJZlibEncoder (netty-codec-http)
-    'com.jcraft.jzlib.Deflater',
-    'com.jcraft.jzlib.Inflater',
-    'com.jcraft.jzlib.JZlib$WrapperType',
-    'com.jcraft.jzlib.JZlib',
-
-    'com.github.luben.zstd.Zstd',
-
-    // from io.netty.handler.codec.compression.LzfDecoder
-    // from io.netty.handler.codec.compression.LzfEncoder (netty-codec)
-    'com.ning.compress.BufferRecycler',
-    'com.ning.compress.lzf.ChunkDecoder',
-    'com.ning.compress.lzf.ChunkEncoder',
-    'com.ning.compress.lzf.LZFChunk',
-    'com.ning.compress.lzf.LZFEncoder',
-    'com.ning.compress.lzf.util.ChunkDecoderFactory',
-    'com.ning.compress.lzf.util.ChunkEncoderFactory',
-
-    // from io.netty.handler.codec.compression.LzmaFrameEncoder (netty-codec)
-    'lzma.sdk.lzma.Encoder',
-
-    // from io.netty.handler.ssl.JettyAlpnSslEngin (netty-handler optional dependency)
-    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
-    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
-    'org.eclipse.jetty.alpn.ALPN',
-
-    // from io.netty.handler.ssl.ConscryptAlpnSslEngine (netty-handler optional dependency)
-    'org.conscrypt.AllocatedBuffer',
-    'org.conscrypt.BufferAllocator',
-    'org.conscrypt.Conscrypt',
-    'org.conscrypt.HandshakeListener',
-
-    // from io.netty.handler.ssl.OpenSslEngine (netty)
-    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
-    'io.netty.internal.tcnative.AsyncTask',
-    'io.netty.internal.tcnative.Buffer',
-    'io.netty.internal.tcnative.Library',
-    'io.netty.internal.tcnative.SSL',
-    'io.netty.internal.tcnative.SSLContext',
-    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
-    'io.netty.internal.tcnative.CertificateCallback',
-    'io.netty.internal.tcnative.CertificateCompressionAlgo',
-    'io.netty.internal.tcnative.CertificateVerifier',
-    'io.netty.internal.tcnative.ResultCallback',
-    'io.netty.internal.tcnative.SessionTicketKey',
-    'io.netty.internal.tcnative.SniHostNameMatcher',
-    'io.netty.internal.tcnative.SSLSession',
-    'io.netty.internal.tcnative.SSLSessionCache',
-
     // from io.netty.util.internal.Hidden (netty-common optional dependency)
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
@@ -283,44 +162,17 @@ tasks.named("thirdPartyAudit").configure {
     // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
     'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
     // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
-    'org.slf4j.ext.EventData'
+    //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
   )
 
   ignoreViolations(
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-
-    'io.netty.util.internal.PlatformDependent0',
-    'io.netty.util.internal.PlatformDependent0$1',
-    'io.netty.util.internal.PlatformDependent0$2',
-    'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$4',
-    'io.netty.util.internal.PlatformDependent0$6',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
   )
 }
+
 boolean useFixture = false
-
-def azureAddress = {
-  assert useFixture: 'closure should not be used without a fixture'
-  int ephemeralPort = project(':test:fixtures:azure-fixture').postProcessFixture.ext."test.fixtures.azure-fixture.tcp.8091"
-  assert ephemeralPort > 0
-  return 'ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:' + ephemeralPort + '/azure_integration_test_account'
-}
-
 String azureAccount = System.getenv("azure_storage_account")
 String azureKey = System.getenv("azure_storage_key")
 String azureContainer = System.getenv("azure_storage_container")
@@ -334,9 +186,6 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   azureBasePath = ''
   azureSasToken = ''
   useFixture = true
-
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
 }
 
 Map<String, String> expansions = [
@@ -344,47 +193,42 @@ Map<String, String> expansions = [
   'base_path': azureBasePath + "_integration_tests"
 ]
 
-tasks.named("processYamlRestTestResources").configure {
+tasks.named("processYamlRestTestResources") {
   inputs.properties(expansions)
   filter("tokens" : expansions, ReplaceTokens.class)
 }
 
-tasks.named("internalClusterTest").configure {
+tasks.named("internalClusterTest") {
   // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-    keystore 'azure.client.integration_test.account', azureAccount
-    if (azureKey != null && azureKey.isEmpty() == false) {
-      keystore 'azure.client.integration_test.key', azureKey
-    }
-    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-      keystore 'azure.client.integration_test.sas_token', azureSasToken
-    }
-    if (useFixture) {
-      setting 'azure.client.integration_test.endpoint_suffix', azureAddress
-      String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
-
-      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
-      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
-    }
+tasks.named("yamlRestTest") {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.key', azureKey
+  systemProperty 'test.azure.sas_token', azureSasToken
 }
 
-tasks.register("azureThirdPartyTest", Test) {
+tasks.register("azureThirdPartyUnitTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  dependsOn "internalClusterTest"
   include '**/AzureStorageCleanupThirdPartyTests.class'
-  systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
-  systemProperty 'test.azure.key', azureKey ? azureKey : ""
-  systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
-  systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
-  systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + BuildParams.testSeed
-  if (useFixture) {
-    nonInputProperties.systemProperty 'test.azure.endpoint_suffix', "${-> azureAddress.call() }"
-  }
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount ?: ""
+  systemProperty 'test.azure.key', azureKey ?: ""
+  systemProperty 'test.azure.sas_token', azureSasToken ?: ""
+  systemProperty 'test.azure.container', azureContainer ?: ""
+  systemProperty 'test.azure.base', (azureBasePath ?: "") + "_third_party_tests_"
 }
-tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
+
+tasks.register('azureThirdPartyTest') {
+  dependsOn 'azureThirdPartyUnitTest', 'yamlRestTest'
+}
+
+tasks.named("check") {
+  dependsOn("azureThirdPartyUnitTest")
+}

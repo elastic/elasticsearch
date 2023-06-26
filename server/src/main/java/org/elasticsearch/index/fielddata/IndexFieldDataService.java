@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
@@ -36,8 +35,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         FIELDDATA_CACHE_KEY,
         FIELDDATA_CACHE_VALUE_NODE,
         (s) -> switch (s) {
-        case "node", "none" -> s;
-        default -> throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
+            case "node", "none" -> s;
+            default -> throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
         },
         Property.IndexScope
     );
@@ -98,14 +97,9 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      * a {@link SearchLookup} supplier available that is required for runtime fields.
      */
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(
-        MappedFieldType fieldType,
-        String fullyQualifiedIndexName,
-        Supplier<SearchLookup> searchLookup
-    ) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
         final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
-
+        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldDataContext);
         IndexFieldDataCache cache;
         synchronized (this) {
             cache = fieldDataCaches.get(fieldName);

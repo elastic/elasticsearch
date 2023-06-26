@@ -279,7 +279,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = Collections.unmodifiableList(in.readStringList());
+            this.indices = in.readImmutableList(StreamInput::readString);
         } else {
             this.indices = null;
         }
@@ -289,13 +289,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
         if (in.readBoolean()) {
-            this.scriptFields = Collections.unmodifiableList(in.readList(SearchSourceBuilder.ScriptField::new));
+            this.scriptFields = in.readImmutableList(SearchSourceBuilder.ScriptField::new);
         } else {
             this.scriptFields = null;
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        this.headers = in.readImmutableMap(StreamInput::readString);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -792,7 +792,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.queryDelay = in.readOptionalTimeValue();
             this.frequency = in.readOptionalTimeValue();
             if (in.readBoolean()) {
-                this.indices = Collections.unmodifiableList(in.readStringList());
+                this.indices = in.readImmutableList(StreamInput::readString);
             } else {
                 this.indices = null;
             }
@@ -802,13 +802,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
             if (in.readBoolean()) {
-                this.scriptFields = Collections.unmodifiableList(in.readList(SearchSourceBuilder.ScriptField::new));
+                this.scriptFields = in.readImmutableList(SearchSourceBuilder.ScriptField::new);
             } else {
                 this.scriptFields = null;
             }
             this.scrollSize = in.readOptionalVInt();
             this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-            this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+            this.headers = in.readImmutableMap(StreamInput::readString);
             delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
             maxEmptySearches = in.readOptionalVInt();
             if (in.readBoolean()) {

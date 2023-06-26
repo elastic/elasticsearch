@@ -1,11 +1,18 @@
-[[disk-usage-exceeded]]
-=== Error: disk usage exceeded flood-stage watermark, index has read-only-allow-delete block
+[[fix-watermark-errors]]
+=== Fix watermark errors
 
-This error indicates a data node is critically low on disk space and has reached
-the <<cluster-routing-flood-stage,flood-stage disk usage watermark>>. To prevent
-a full disk, when a node reaches this watermark, {es} blocks writes to any index
-with a shard on the node. If the block affects related system indices, {kib} and
-other {stack} features may become unavailable.
+++++
+<titleabbrev>Watermark errors</titleabbrev>
+++++
+:keywords: {es}, high watermark, low watermark, full disk
+
+When a data node is critically low on disk space and has reached the
+<<cluster-routing-flood-stage,flood-stage disk usage watermark>>, the following
+error is logged: `Error: disk usage exceeded flood-stage watermark, index has read-only-allow-delete block`. 
+
+To prevent a full disk, when a node reaches this watermark, {es} blocks writes
+to any index with a shard on the node. If the block affects related system
+indices, {kib} and other {stack} features may become unavailable.
 
 {es} will automatically remove the write block when the affected node's disk
 usage goes below the <<cluster-routing-watermark-high,high disk watermark>>. To
@@ -46,8 +53,13 @@ PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.disk.watermark.low": "90%",
+    "cluster.routing.allocation.disk.watermark.low.max_headroom": "100GB",
     "cluster.routing.allocation.disk.watermark.high": "95%",
-    "cluster.routing.allocation.disk.watermark.flood_stage": "97%"
+    "cluster.routing.allocation.disk.watermark.high.max_headroom": "20GB",
+    "cluster.routing.allocation.disk.watermark.flood_stage": "97%",
+    "cluster.routing.allocation.disk.watermark.flood_stage.max_headroom": "5GB",
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen": "97%",
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom": "5GB"
   }
 }
 
@@ -77,8 +89,13 @@ PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.disk.watermark.low": null,
+    "cluster.routing.allocation.disk.watermark.low.max_headroom": null,
     "cluster.routing.allocation.disk.watermark.high": null,
-    "cluster.routing.allocation.disk.watermark.flood_stage": null
+    "cluster.routing.allocation.disk.watermark.high.max_headroom": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage.max_headroom": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom": null
   }
 }
 ----

@@ -6,9 +6,9 @@ filtering, and sorting.
 
 When defining a runtime field, you can include a Painless script that is
 evaluated at query time. This script has access to the entire context of a
-document, including the original `_source` and any mapped fields plus their
-values. At query time, the script runs and generates values for each scripted
-field that is included in the query.
+document, including the original document {ref}/modules-scripting-fields.html[`_source` field]
+and any mapped fields plus their values. At query time, the script runs and
+generates values for each scripted field that is included in the query.
 
 You can map a runtime field in the `runtime` section under the mapping
 definition, or define runtime fields that exist only as part of a search

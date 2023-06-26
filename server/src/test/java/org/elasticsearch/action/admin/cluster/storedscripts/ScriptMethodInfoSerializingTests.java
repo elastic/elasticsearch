@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCase<ScriptMethodInfo> {
+public class ScriptMethodInfoSerializingTests extends AbstractXContentSerializingTestCase<ScriptMethodInfo> {
     private static final String EXECUTE = "execute";
     private static final String GET_PREFIX = "get";
     private static final int MIN_LENGTH = 1;
@@ -57,7 +57,7 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
     }
 
     @Override
-    protected ScriptMethodInfo mutateInstance(ScriptMethodInfo instance) throws IOException {
+    protected ScriptMethodInfo mutateInstance(ScriptMethodInfo instance) {
         return mutate(instance);
     }
 

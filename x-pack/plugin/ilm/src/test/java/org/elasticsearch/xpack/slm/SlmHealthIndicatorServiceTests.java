@@ -11,46 +11,59 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.NAME;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.SLM_NOT_RUNNING;
+import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.checkRecentlyFailedSnapshots;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SlmHealthIndicatorServiceTests extends ESTestCase {
+
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
 
     public void testIsGreenWhenRunningAndPoliciesConfigured() {
         var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(createSlmPolicy(), RUNNING, null));
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     "Snapshot Lifecycle Management is running",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -65,17 +78,17 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     YELLOW,
                     "Snapshot Lifecycle Management is not running",
-                    SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            SlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
                             3,
                             "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                             List.of(ImpactArea.BACKUP)
@@ -93,14 +106,12 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     "No Snapshot Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -114,20 +125,238 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     "No Snapshot Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
         );
+    }
+
+    public void testIsGreenWhenPoliciesHaveFailedForLessThanWarningThreshold() {
+        long execTime = System.currentTimeMillis();
+        long window = TimeUnit.HOURS.toMillis(24) - 5000L; // Just under 24 hours.
+        var clusterState = createClusterStateWith(
+            new SnapshotLifecycleMetadata(
+                createSlmPolicyWithInvocations(
+                    snapshotInvocation(randomBoolean() ? null : execTime, execTime + 1000L),
+                    snapshotInvocation(null, execTime + window + 1000L),
+                    randomLongBetween(0, 4)
+                ),
+                RUNNING,
+                null
+            )
+        );
+        var service = createSlmHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    GREEN,
+                    "Snapshot Lifecycle Management is running",
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
+                )
+            )
+        );
+    }
+
+    public void testIsYellowWhenPoliciesHaveFailedForMoreThanWarningThreshold() {
+        long execTime = System.currentTimeMillis();
+        long window = TimeUnit.HOURS.toMillis(24) + 5000L; // 24 hours and some extra room.
+        long failedInvocations1 = randomLongBetween(5L, Long.MAX_VALUE);
+        long failedInvocations2 = randomLongBetween(5L, Long.MAX_VALUE);
+        long failedInvocations3 = randomLongBetween(5L, Long.MAX_VALUE);
+        var clusterState = createClusterStateWith(
+            new SnapshotLifecycleMetadata(
+                Map.of(
+                    "test-policy",
+                    SnapshotLifecyclePolicyMetadata.builder()
+                        .setPolicy(new SnapshotLifecyclePolicy("policy-id-1", "test-policy", "", "test-repository", null, null))
+                        .setVersion(1L)
+                        .setModifiedDate(System.currentTimeMillis())
+                        .setLastSuccess(snapshotInvocation(execTime, execTime + 1000L))
+                        .setLastFailure(snapshotInvocation(null, execTime + window + 1000L))
+                        .setInvocationsSinceLastSuccess(failedInvocations1)
+                        .build(),
+                    "test-policy-without-any-success",
+                    SnapshotLifecyclePolicyMetadata.builder()
+                        .setPolicy(
+                            new SnapshotLifecyclePolicy("policy-id-2", "test-policy-without-any-success", "", "test-repository", null, null)
+                        )
+                        .setVersion(1L)
+                        .setModifiedDate(System.currentTimeMillis())
+                        .setLastSuccess(null)
+                        .setLastFailure(snapshotInvocation(null, execTime + window + 1000L))
+                        .setInvocationsSinceLastSuccess(failedInvocations2)
+                        .build(),
+                    "test-policy-without-success-start-time",
+                    SnapshotLifecyclePolicyMetadata.builder()
+                        .setPolicy(
+                            new SnapshotLifecyclePolicy(
+                                "policy-id-3",
+                                "test-policy-without-success-start-time",
+                                "",
+                                "test-repository",
+                                null,
+                                null
+                            )
+                        )
+                        .setVersion(1L)
+                        .setModifiedDate(System.currentTimeMillis())
+                        .setLastSuccess(snapshotInvocation(null, execTime))
+                        .setLastFailure(snapshotInvocation(null, execTime + window + 1000L))
+                        .setInvocationsSinceLastSuccess(failedInvocations3)
+                        .build()
+                ),
+                RUNNING,
+                null
+            )
+        );
+        var service = createSlmHealthIndicatorService(clusterState);
+
+        HealthIndicatorResult calculate = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        assertThat(
+            calculate,
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Encountered [3] unhealthy snapshot lifecycle management policies.",
+                    new SimpleHealthIndicatorDetails(
+                        Map.of(
+                            "slm_status",
+                            RUNNING,
+                            "policies",
+                            3,
+                            "unhealthy_policies",
+                            Map.of(
+                                "count",
+                                3,
+                                "invocations_since_last_success",
+                                Map.of(
+                                    "test-policy",
+                                    failedInvocations1,
+                                    "test-policy-without-any-success",
+                                    failedInvocations2,
+                                    "test-policy-without-success-start-time",
+                                    failedInvocations3
+                                )
+                            )
+                        )
+                    ),
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            SlmHealthIndicatorService.STALE_SNAPSHOTS_IMPACT_ID,
+                            2,
+                            "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
+                                + "snapshots may not contain recent changes.",
+                            List.of(ImpactArea.BACKUP)
+                        )
+                    ),
+                    List.of(
+                        new Diagnosis(
+                            SlmHealthIndicatorService.checkRecentlyFailedSnapshots(
+                                "Several automated snapshot policies are unhealthy:\n"
+                                    + "- [test-policy] had ["
+                                    + failedInvocations1
+                                    + "] repeated failures without successful execution since ["
+                                    + FORMATTER.formatMillis(execTime)
+                                    + "]\n"
+                                    + "- [test-policy-without-any-success] had ["
+                                    + failedInvocations2
+                                    + "] repeated failures without successful execution\n"
+                                    + "- [test-policy-without-success-start-time] had ["
+                                    + failedInvocations3
+                                    + "] repeated failures without successful execution",
+                                "Check the snapshot lifecycle policies for detailed failure info:\n"
+                                    + "- GET /_slm/policy/policy-id-1?human\n"
+                                    + "- GET /_slm/policy/policy-id-2?human\n"
+                                    + "- GET /_slm/policy/policy-id-3?human"
+
+                            ),
+                            List.of(
+                                new Diagnosis.Resource(
+                                    Type.SLM_POLICY,
+                                    List.of("test-policy", "test-policy-without-any-success", "test-policy-without-success-start-time")
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testSnapshotPolicyExceedsWarningThresholdPredicate() {
+        SnapshotLifecyclePolicyMetadata slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setVersion(1L)
+            .setModifiedDate(System.currentTimeMillis())
+            .build();
+
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(15L, slmPolicyMetadata), is(false));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(5L, slmPolicyMetadata), is(false));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
+
+        slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setVersion(1L)
+            .setModifiedDate(System.currentTimeMillis())
+            .setLastSuccess(snapshotInvocation(1000L, 2000L))
+            .setInvocationsSinceLastSuccess(0L)
+            .build();
+
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(15L, slmPolicyMetadata), is(false));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(5L, slmPolicyMetadata), is(false));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
+
+        slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setVersion(1L)
+            .setModifiedDate(System.currentTimeMillis())
+            .setLastSuccess(snapshotInvocation(1000L, 2000L))
+            .setLastFailure(snapshotInvocation(null, 9000L))
+            .setInvocationsSinceLastSuccess(randomLongBetween(5L, 10L))
+            .build();
+
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(15L, slmPolicyMetadata), is(false));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(5L, slmPolicyMetadata), is(true));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(true));
+
+        slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setVersion(1L)
+            .setModifiedDate(System.currentTimeMillis())
+            .setLastSuccess(snapshotInvocation(8000L, 9000L))
+            .setLastFailure(snapshotInvocation(null, 2000L))
+            .setInvocationsSinceLastSuccess(0L)
+            .build();
+
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(15L, slmPolicyMetadata), is(false));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(5L, slmPolicyMetadata), is(false));
+        assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
+    }
+
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(SlmHealthIndicatorService.NAME, equalTo("slm"));
+        assertThat(
+            checkRecentlyFailedSnapshots("cause", "action").getUniqueId(),
+            equalTo("elasticsearch:health:slm:diagnosis:check_recent_snapshot_failures")
+        );
+        assertThat(SLM_NOT_RUNNING.definition().getUniqueId(), equalTo("elasticsearch:health:slm:diagnosis:slm_disabled"));
     }
 
     private static ClusterState createClusterStateWith(SnapshotLifecycleMetadata metadata) {
@@ -139,19 +368,39 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private static Map<String, SnapshotLifecyclePolicyMetadata> createSlmPolicy() {
+        return createSlmPolicyWithInvocations(null, null, 0L);
+    }
+
+    private static Map<String, SnapshotLifecyclePolicyMetadata> createSlmPolicyWithInvocations(
+        SnapshotInvocationRecord lastSuccess,
+        SnapshotInvocationRecord lastFailure,
+        long invocationsSinceLastSuccess
+    ) {
         return Map.of(
             "test-policy",
             SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+                .setPolicy(new SnapshotLifecyclePolicy("policy-id", "test-policy", "", "test-repository", null, null))
                 .setVersion(1L)
                 .setModifiedDate(System.currentTimeMillis())
+                .setLastSuccess(lastSuccess)
+                .setLastFailure(lastFailure)
+                .setInvocationsSinceLastSuccess(invocationsSinceLastSuccess)
                 .build()
         );
+    }
+
+    private static SnapshotInvocationRecord snapshotInvocation(@Nullable Long startTime, long stopTime) {
+        return new SnapshotInvocationRecord("test-policy-snapshot", startTime, stopTime, null);
     }
 
     private static SlmHealthIndicatorService createSlmHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING)
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new SlmHealthIndicatorService(clusterService);
     }
 }

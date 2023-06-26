@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -40,6 +39,11 @@ public class MultiTests extends PreProcessingTests<Multi> {
     @Override
     protected Multi createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Multi mutateInstance(Multi instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static Multi createRandom() {
@@ -84,19 +88,11 @@ public class MultiTests extends PreProcessingTests<Multi> {
     public void testReverseLookup() {
         String field = "text";
         NGram nGram = new NGram(field, Collections.singletonList(1), 0, 2, null, "f");
-        OneHotEncoding oneHotEncoding = new OneHotEncoding(
-            "f.10",
-            MapBuilder.<String, String>newMapBuilder().put("a", "has_a").put("b", "has_b").map(),
-            true
-        );
+        OneHotEncoding oneHotEncoding = new OneHotEncoding("f.10", Map.of("a", "has_a", "b", "has_b"), true);
         Multi multi = new Multi(new PreProcessor[] { nGram, oneHotEncoding }, true);
         assertThat(multi.reverseLookup(), allOf(hasEntry("has_a", field), hasEntry("has_b", field), hasEntry("f.11", field)));
 
-        OneHotEncoding oneHotEncodingOutside = new OneHotEncoding(
-            "some_other",
-            MapBuilder.<String, String>newMapBuilder().put("a", "has_3_a").put("b", "has_3_b").map(),
-            true
-        );
+        OneHotEncoding oneHotEncodingOutside = new OneHotEncoding("some_other", Map.of("a", "has_3_a", "b", "has_3_b"), true);
         multi = new Multi(new PreProcessor[] { nGram, oneHotEncoding, oneHotEncodingOutside }, true);
         expectThrows(IllegalArgumentException.class, multi::reverseLookup);
     }
@@ -104,16 +100,8 @@ public class MultiTests extends PreProcessingTests<Multi> {
     public void testProcessWithFieldPresent() {
         String field = "text";
         NGram nGram = new NGram(field, Collections.singletonList(1), 0, 2, null, "f");
-        OneHotEncoding oneHotEncoding1 = new OneHotEncoding(
-            "f.10",
-            MapBuilder.<String, String>newMapBuilder().put("a", "has_a").put("b", "has_b").map(),
-            true
-        );
-        OneHotEncoding oneHotEncoding2 = new OneHotEncoding(
-            "f.11",
-            MapBuilder.<String, String>newMapBuilder().put("a", "has_2_a").put("b", "has_2_b").map(),
-            true
-        );
+        OneHotEncoding oneHotEncoding1 = new OneHotEncoding("f.10", Map.of("a", "has_a", "b", "has_b"), true);
+        OneHotEncoding oneHotEncoding2 = new OneHotEncoding("f.11", Map.of("a", "has_2_a", "b", "has_2_b"), true);
         Multi multi = new Multi(new PreProcessor[] { nGram, oneHotEncoding1, oneHotEncoding2 }, true);
         Map<String, Object> fields = randomFieldValues("text", "cat");
         multi.process(fields);
@@ -126,21 +114,9 @@ public class MultiTests extends PreProcessingTests<Multi> {
     public void testInputOutputFields() {
         String field = "text";
         NGram nGram = new NGram(field, Collections.singletonList(1), 0, 3, null, "f");
-        OneHotEncoding oneHotEncoding1 = new OneHotEncoding(
-            "f.10",
-            MapBuilder.<String, String>newMapBuilder().put("a", "has_a").put("b", "has_b").map(),
-            true
-        );
-        OneHotEncoding oneHotEncoding2 = new OneHotEncoding(
-            "f.11",
-            MapBuilder.<String, String>newMapBuilder().put("a", "has_2_a").put("b", "has_2_b").map(),
-            true
-        );
-        OneHotEncoding oneHotEncoding3 = new OneHotEncoding(
-            "some_other",
-            MapBuilder.<String, String>newMapBuilder().put("a", "has_3_a").put("b", "has_3_b").map(),
-            true
-        );
+        OneHotEncoding oneHotEncoding1 = new OneHotEncoding("f.10", Map.of("a", "has_a", "b", "has_b"), true);
+        OneHotEncoding oneHotEncoding2 = new OneHotEncoding("f.11", Map.of("a", "has_2_a", "b", "has_2_b"), true);
+        OneHotEncoding oneHotEncoding3 = new OneHotEncoding("some_other", Map.of("a", "has_3_a", "b", "has_3_b"), true);
         Multi multi = new Multi(new PreProcessor[] { nGram, oneHotEncoding1, oneHotEncoding2, oneHotEncoding3 }, true);
         assertThat(multi.inputFields(), contains(field, "some_other"));
         assertThat(multi.outputFields(), contains("f.12", "has_a", "has_b", "has_2_a", "has_2_b", "has_3_a", "has_3_b"));

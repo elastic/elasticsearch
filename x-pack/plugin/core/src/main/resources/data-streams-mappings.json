@@ -33,7 +33,8 @@
       "date_detection": false,
       "properties": {
         "@timestamp": {
-          "type": "date"
+          "type": "date",
+          "ignore_malformed": false
         },
         "data_stream": {
           "properties": {

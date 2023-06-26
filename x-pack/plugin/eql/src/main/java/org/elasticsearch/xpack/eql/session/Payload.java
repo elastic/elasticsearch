@@ -18,7 +18,8 @@ public interface Payload {
 
     enum Type {
         EVENT,
-        SEQUENCE;
+        SEQUENCE,
+        SAMPLE;
     }
 
     Type resultType();

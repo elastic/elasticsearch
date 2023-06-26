@@ -1,0 +1,505 @@
+[[downsampling-manual]]
+=== Run downsampling manually
+++++
+<titleabbrev>Run downsampling manually</titleabbrev>
+++++
+
+This is a simplified example that allows you to see quickly how
+<<downsampling,downsampling>> works to reduce the storage size of a time series
+index. The example uses typical Kubernetes cluster monitoring data. To test out
+downsampling, follow these steps:
+
+. Check the <<downsampling-manual-prereqs,prerequisites>>.
+. <<downsampling-manual-create-index>>.
+. <<downsampling-manual-ingest-data>>.
+. <<downsampling-manual-run>>.
+. <<downsampling-manual-view-results>>.
+
+[discrete]
+[[downsampling-manual-prereqs]]
+==== Prerequisites
+
+Refer to <<tsds-prereqs,time series data stream prerequisites>>.
+
+For the example you need a sample data file. Download the file from link:
+https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/bltf2fe7a300c3c59f7/631b4bc5cc56115de2f58e8c/sample-k8s-metrics.json[here]
+and save it in the local directory where you're running {es}.
+
+[discrete]
+[[downsampling-manual-create-index]]
+==== Create a time series index
+
+This creates an index for a basic data stream. The available parameters for an
+index are described in detail in <<set-up-a-data-stream,Set up a time series
+data stream>>.
+
+The time series boundaries are set so that sampling data for the index begins at
+`2022-06-10T00:00:00Z` and ends at `2022-06-30T23:59:59Z`.
+
+For simplicity, in the time series mapping all `time_series_metric` parameters
+are set to type `gauge`, but <<time-series-metric,other values>> such as
+`counter` and `histogram` may also be used. The `time_series_metric` values
+determine the kind of statistical representations that are used during
+downsampling.
+
+The index template includes a set of static 
+<<time-series-dimension,time series dimensions>>: `host`, `namespace`, 
+`node`, and `pod`. The time series dimensions are not changed by the
+downsampling process.
+
+[source,console]
+----
+PUT /sample-01
+{
+    "settings": {
+        "index": {
+            "mode": "time_series",
+            "time_series": {
+                "start_time": "2022-06-10T00:00:00Z",
+                "end_time": "2022-06-30T23:59:59Z"
+            },
+            "routing_path": [
+                "kubernetes.namespace",
+                "kubernetes.host",
+                "kubernetes.node",
+                "kubernetes.pod"
+            ],
+            "number_of_replicas": 0,
+            "number_of_shards": 2
+        }
+    },
+    "mappings": {
+        "properties": {
+            "@timestamp": {
+                "type": "date"
+            },
+            "kubernetes": {
+                "properties": {
+                    "container": {
+                        "properties": {
+                            "cpu": {
+                                "properties": {
+                                    "usage": {
+                                        "properties": {
+                                            "core": {
+                                                "properties": {
+                                                    "ns": {
+                                                        "type": "long"
+                                                    }
+                                                }
+                                            },
+                                            "limit": {
+                                                "properties": {
+                                                    "pct": {
+                                                        "type": "float"
+                                                    }
+                                                }
+                                            },
+                                            "nanocores": {
+                                                "type": "long",
+                                                "time_series_metric": "gauge"
+                                            },
+                                            "node": {
+                                                "properties": {
+                                                    "pct": {
+                                                        "type": "float"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "memory": {
+                                "properties": {
+                                    "available": {
+                                        "properties": {
+                                            "bytes": {
+                                                "type": "long",
+                                                "time_series_metric": "gauge"
+                                            }
+                                        }
+                                    },
+                                    "majorpagefaults": {
+                                        "type": "long"
+                                    },
+                                    "pagefaults": {
+                                        "type": "long",
+                                        "time_series_metric": "gauge"
+                                    },
+                                    "rss": {
+                                        "properties": {
+                                            "bytes": {
+                                                "type": "long",
+                                                "time_series_metric": "gauge"
+                                            }
+                                        }
+                                    },
+                                    "usage": {
+                                        "properties": {
+                                            "bytes": {
+                                                "type": "long",
+                                                "time_series_metric": "gauge"
+                                            },
+                                            "limit": {
+                                                "properties": {
+                                                    "pct": {
+                                                        "type": "float"
+                                                    }
+                                                }
+                                            },
+                                            "node": {
+                                                "properties": {
+                                                    "pct": {
+                                                        "type": "float"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "workingset": {
+                                        "properties": {
+                                            "bytes": {
+                                                "type": "long",
+                                                "time_series_metric": "gauge"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "name": {
+                                "type": "keyword"
+                            },
+                            "start_time": {
+                                "type": "date"
+                            }
+                        }
+                    },
+                    "host": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "namespace": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "node": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "pod": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    }
+                }
+            }
+        }
+    }
+}
+
+----
+
+[discrete]
+[[downsampling-manual-ingest-data]]
+==== Ingest time series data
+
+In a terminal window with {es} running, run the following curl command to load
+the documents from the downloaded sample data file:
+
+[source,sh]
+----
+curl -s -H "Content-Type: application/json" \
+   -XPOST http://<elasticsearch-node>/sample-01/_bulk?pretty \
+   --data-binary @sample-k8s-metrics.json
+----
+// NOTCONSOLE
+
+Approximately 18,000 documents are added. Check the search results for the newly
+ingested data:
+
+[source,console]
+----
+GET /sample-01*/_search
+----
+// TEST[continued]
+
+The query has at least 10,000 hits and returns the first 10. In each document
+you can see the time series dimensions (`host`, `node`, `pod` and `container`)
+as well as the various CPU and memory time series metrics.
+
+[source,console-result]
+----
+  "hits": {
+    "total": {
+      "value": 10000,
+      "relation": "gte"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "sample-01",
+        "_id": "WyHN6N6AwdaJByQWAAABgYOOweA",
+        "_score": 1,
+        "_source": {
+          "@timestamp": "2022-06-20T23:59:40Z",
+          "kubernetes": {
+            "host": "gke-apps-0",
+            "node": "gke-apps-0-1",
+            "pod": "gke-apps-0-1-0",
+            "container": {
+              "cpu": {
+                "usage": {
+                  "nanocores": 80037,
+                  "core": {
+                    "ns": 12828317850
+                  },
+                  "node": {
+                    "pct": 0.0000277905
+                  },
+                  "limit": {
+                    "pct": 0.0000277905
+                  }
+                }
+              },
+              "memory": {
+                "available": {
+                  "bytes": 790830121
+                },
+                "usage": {
+                  "bytes": 139548672,
+                  "node": {
+                    "pct": 0.01770037710617187
+                  },
+                  "limit": {
+                    "pct": 0.00009923134671484496
+                  }
+                },
+                "workingset": {
+                  "bytes": 2248540
+                },
+                "rss": {
+                  "bytes": 289260
+                },
+                "pagefaults": 74843,
+                "majorpagefaults": 0
+              },
+              "start_time": "2021-03-30T07:59:06Z",
+              "name": "container-name-44"
+            },
+            "namespace": "namespace26"
+          }
+        }
+      }
+...
+----
+// TEST[skip:todo]
+// TEST[continued]
+
+Next, you can run a terms aggregation on the set of time series dimensions (`_tsid`) to
+view a date histogram on a fixed interval of one day.
+
+[source,console]
+----
+GET /sample-01*/_search
+{
+    "size": 0,
+    "aggs": {
+        "tsid": {
+            "terms": {
+                "field": "_tsid"
+            },
+            "aggs": {
+                "over_time": {
+                    "date_histogram": {
+                        "field": "@timestamp",
+                        "fixed_interval": "1d"
+                    },
+                    "aggs": {
+                        "min": {
+                            "min": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        },
+                        "max": {
+                            "max": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        },
+                        "avg": {
+                            "avg": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+[discrete]
+[[downsampling-manual-run]]
+==== Run downsampling for the index
+
+Before running downsampling, the index needs to be set to read only mode:
+
+[source,console]
+----
+PUT /sample-01/_block/write
+----
+// TEST[continued]
+
+And now, you can use the <<indices-downsample-data-stream,downsample API>> to
+downsample the index, setting the time series interval to one hour:
+
+[source,console]
+----
+POST /sample-01/_downsample/sample-01-downsample
+{
+  "fixed_interval": "1h"
+}
+----
+// TEST[continued]
+
+Finally, delete the original index:
+
+[source,console]
+----
+DELETE /sample-01
+----
+// TEST[continued]
+
+[discrete]
+[[downsampling-manual-view-results]]
+==== View the results
+
+
+Re-run your search query (note that when querying downsampled indices there are <<querying-downsampled-indices-notes,a few nuances to be aware of>>):
+
+[source,console]
+----
+GET /sample-01*/_search
+----
+// TEST[continued]
+
+In the query results, notice that the number of hits has been reduced to only 288
+documents. As well, for each time series metric statistical representations have
+been calculated: `min`, `max`, `sum`, and `value_count`.
+
+[source,console-result]
+----
+  "hits": {
+    "total": {
+      "value": 288,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "sample-01-downsample",
+        "_id": "WyHN6N6AwdaJByQWAAABgYNYIYA",
+        "_score": 1,
+        "_source": {
+          "@timestamp": "2022-06-20T23:00:00.000Z",
+          "_doc_count": 81,
+          "kubernetes.host": "gke-apps-0",
+          "kubernetes.namespace": "namespace26",
+          "kubernetes.node": "gke-apps-0-1",
+          "kubernetes.pod": "gke-apps-0-1-0",
+          "kubernetes.container.cpu.usage.nanocores": {
+            "min": 23344,
+            "max": 163408,
+            "sum": 7488985,
+            "value_count": 81
+          },
+          "kubernetes.container.memory.available.bytes": {
+            "min": 167751844,
+            "max": 1182251090,
+            "sum": 58169948901,
+            "value_count": 81
+          },
+          "kubernetes.container.memory.rss.bytes": {
+            "min": 54067,
+            "max": 391987,
+            "sum": 17550215,
+            "value_count": 81
+          },
+          "kubernetes.container.memory.pagefaults": {
+            "min": 69086,
+            "max": 428910,
+            "sum": 20239365,
+            "value_count": 81
+          },
+          "kubernetes.container.memory.workingset.bytes": {
+            "min": 323420,
+            "max": 2279342,
+            "sum": 104233700,
+            "value_count": 81
+          },
+          "kubernetes.container.memory.usage.bytes": {
+            "min": 61401416,
+            "max": 413064069,
+            "sum": 18557182404,
+            "value_count": 81
+          }
+        }
+      },
+...
+----
+// TEST[skip:todo]
+
+You can now re-run the earlier aggregation. Even though the aggregation runs on
+the downsampled data stream that only contains 288 documents, it returns the
+same results as the earlier aggregation on the original data stream.
+
+[source,console]
+----
+GET /sample-01*/_search
+{
+    "size": 0,
+    "aggs": {
+        "tsid": {
+            "terms": {
+                "field": "_tsid"
+            },
+            "aggs": {
+                "over_time": {
+                    "date_histogram": {
+                        "field": "@timestamp",
+                        "fixed_interval": "1d"
+                    },
+                    "aggs": {
+                        "min": {
+                            "min": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        },
+                        "max": {
+                            "max": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        },
+                        "avg": {
+                            "avg": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+This example demonstrates how downsampling can dramatically reduce the number of
+records stored for time series data, within whatever time boundaries you choose.
+It's also possible to perform downsampling on already downsampled data, to
+further reduce storage and associated costs, as the time series data ages and
+the data resolution becomes less critical.
+
+Downsampling is very easily integrated within an ILM policy. To learn more, try
+the <<downsampling-ilm,Run downsampling with ILM>> example.

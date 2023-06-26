@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -21,11 +22,16 @@ public class IpScriptMapperTests extends MapperScriptTestCase<IpFieldScript.Fact
     private static IpFieldScript.Factory factory(Consumer<IpFieldScript> executor) {
         return new IpFieldScript.Factory() {
             @Override
-            public IpFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public IpFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new IpFieldScript.LeafFactory() {
                     @Override
                     public IpFieldScript newInstance(LeafReaderContext ctx) {
-                        return new IpFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new IpFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);
@@ -66,23 +72,23 @@ public class IpScriptMapperTests extends MapperScriptTestCase<IpFieldScript.Fact
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1]>", fields[1].toString());
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:2]>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2]>", fields[3].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(4, fields.size());
+        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields.get(0).toString());
+        assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1]>", fields.get(1).toString());
+        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:2]>", fields.get(2).toString());
+        assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2]>", fields.get(3).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1]>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1]>", fields.get(0).toString());
     }
 }

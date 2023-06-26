@@ -187,7 +187,10 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
 
                 if (randomBoolean()) {
                     if (randomBoolean()) {
-                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                        org.elasticsearch.core.Streams.readFully(
+                            exchange.getRequestBody(),
+                            new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                        );
                     } else {
                         Streams.readFully(exchange.getRequestBody());
                         AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
@@ -337,7 +340,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        blobContainer.writeBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
+        blobContainer.writeMetadataBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
             int outstanding = data.length;
             while (outstanding > 0) {
                 if (randomBoolean()) {

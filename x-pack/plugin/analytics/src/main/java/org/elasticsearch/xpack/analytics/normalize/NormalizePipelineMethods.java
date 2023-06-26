@@ -91,7 +91,7 @@ class NormalizePipelineMethods {
     static class Softmax implements DoubleUnaryOperator {
         static final String NAME = "softmax";
 
-        private double sumExp;
+        private final double sumExp;
 
         Softmax(double[] values) {
             double _sumExp = 0.0;

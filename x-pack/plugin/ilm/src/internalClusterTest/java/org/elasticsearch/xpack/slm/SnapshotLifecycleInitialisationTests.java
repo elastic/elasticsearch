@@ -17,7 +17,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
@@ -31,6 +30,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.hamcrest.core.Is.is;
 
 public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
@@ -82,7 +82,6 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
         ).get(10, TimeUnit.SECONDS);
 
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        assertThat(snapMeta.getOperationMode(), is(OperationMode.RUNNING));
+        assertThat(currentSLMMode(state), is(OperationMode.RUNNING));
     }
 }

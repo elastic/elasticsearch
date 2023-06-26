@@ -60,15 +60,15 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
 
         String json = """
             {
-                "policy": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+              "policy": {
+                "phases": {
+                  "warm": {
+                    "min_age": "10s",
+                    "actions": {
                     }
+                  }
                 }
+              }
             }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {

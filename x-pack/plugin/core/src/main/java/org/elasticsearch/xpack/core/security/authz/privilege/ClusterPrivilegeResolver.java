@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
@@ -22,30 +23,48 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Translates cluster privilege names into concrete implementations
@@ -64,6 +83,10 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
+    private static final Set<String> MANAGE_BEHAVIORAL_ANALYTICS_PATTERN = Set.of("cluster:admin/xpack/application/analytics/*");
+    private static final Set<String> POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN = Set.of(
+        "cluster:admin/xpack/application/analytics/post_event"
+    );
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
@@ -81,9 +104,9 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
         "indices:admin/template/*",
-        "indices:admin/index_template/*",
-        "indices:admin/data_stream/*"
+        "indices:admin/index_template/*"
     );
+    private static final Predicate<String> ACTION_MATCHER = Automatons.predicate(ALL_CLUSTER_PATTERN);
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of(
         "cluster:admin/data_frame/*",
@@ -129,6 +152,20 @@ public class ClusterPrivilegeResolver {
         GetStatusAction.NAME
     );
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
+
+    private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+
+    private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
+        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+        RemoteClusterNodesAction.NAME,
+        XPackInfoAction.NAME
+    );
+    private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
+        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+        RemoteClusterNodesAction.NAME,
+        XPackInfoAction.NAME,
+        ClusterStateAction.NAME
+    );
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
@@ -174,6 +211,25 @@ public class ClusterPrivilegeResolver {
         ALL_SECURITY_PATTERN,
         Set.of(DelegatePkiAuthenticationAction.NAME)
     );
+    public static final NamedClusterPrivilege READ_SECURITY = new ActionClusterPrivilege(
+        "read_security",
+        Set.of(
+            GetApiKeyAction.NAME,
+            QueryApiKeyAction.NAME,
+            GetBuiltinPrivilegesAction.NAME,
+            GetPrivilegesAction.NAME,
+            GetProfilesAction.NAME,
+            ProfileHasPrivilegesAction.NAME,
+            SuggestProfilesAction.NAME,
+            GetRolesAction.NAME,
+            GetRoleMappingsAction.NAME,
+            GetServiceAccountAction.NAME,
+            GetServiceAccountCredentialsAction.NAME + "*",
+            GetUsersAction.NAME,
+            GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
+            HasPrivilegesAction.NAME
+        )
+    );
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
@@ -217,8 +273,32 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
+    public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
+        "manage_search_application",
+        MANAGE_SEARCH_APPLICATION_PATTERN
+    );
+    public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
+        "manage_behavioral_analytics",
+        MANAGE_BEHAVIORAL_ANALYTICS_PATTERN
+    );
+
+    public static final NamedClusterPrivilege POST_BEHAVIORAL_ANALYTICS_EVENT = new ActionClusterPrivilege(
+        "post_behavioral_analytics_event",
+        POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN
+    );
+
+    public static final NamedClusterPrivilege CROSS_CLUSTER_SEARCH = new ActionClusterPrivilege(
+        "cross_cluster_search",
+        CROSS_CLUSTER_SEARCH_PATTERN
+    );
+
+    public static final NamedClusterPrivilege CROSS_CLUSTER_REPLICATION = new ActionClusterPrivilege(
+        "cross_cluster_replication",
+        CROSS_CLUSTER_REPLICATION_PATTERN
+    );
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
-        List.of(
+        Stream.of(
             NONE,
             ALL,
             MONITOR,
@@ -239,6 +319,7 @@ public class ClusterPrivilegeResolver {
             READ_PIPELINE,
             TRANSPORT_CLIENT,
             MANAGE_SECURITY,
+            READ_SECURITY,
             MANAGE_SAML,
             MANAGE_OIDC,
             MANAGE_API_KEY,
@@ -260,8 +341,13 @@ public class ClusterPrivilegeResolver {
             MANAGE_OWN_API_KEY,
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
-            CANCEL_TASK
-        )
+            CANCEL_TASK,
+            MANAGE_SEARCH_APPLICATION,
+            MANAGE_BEHAVIORAL_ANALYTICS,
+            POST_BEHAVIORAL_ANALYTICS_EVENT,
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_REPLICATION : null
+        ).filter(Objects::nonNull).toList()
     );
 
     /**
@@ -297,9 +383,7 @@ public class ClusterPrivilegeResolver {
     }
 
     public static boolean isClusterAction(String actionName) {
-        return actionName.startsWith("cluster:")
-            || actionName.startsWith("indices:admin/template/")
-            || actionName.startsWith("indices:admin/index_template/");
+        return ACTION_MATCHER.test(actionName);
     }
 
     private static String actionToPattern(String text) {

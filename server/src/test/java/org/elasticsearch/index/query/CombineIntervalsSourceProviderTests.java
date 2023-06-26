@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.Combine;
 
-public class CombineIntervalsSourceProviderTests extends AbstractSerializingTestCase<Combine> {
+public class CombineIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Combine> {
 
     @Override
     protected Combine createTestInstance() {
@@ -27,7 +27,7 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
     }
 
     @Override
-    protected Combine mutateInstance(Combine instance) throws IOException {
+    protected Combine mutateInstance(Combine instance) {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         boolean ordered = instance.isOrdered();
         int maxGaps = instance.getMaxGaps();

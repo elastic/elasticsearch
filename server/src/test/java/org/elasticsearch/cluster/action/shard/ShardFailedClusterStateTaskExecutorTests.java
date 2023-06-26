@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -77,11 +78,8 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     .primaryTerm(0, randomIntBetween(2, 10))
             )
             .build();
-        routingTable = RoutingTable.builder().addAsNew(metadata.index(INDEX)).build();
-        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index(INDEX)).build();
+        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
     }
 
@@ -220,7 +218,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         IntStream.rangeClosed(1, numberOfNodes).mapToObj(node -> newNode("node" + node)).forEach(nodes::add);
         ClusterState stateAfterAddingNode = ClusterState.builder(clusterState).nodes(nodes).build();
-        ClusterState stateWithInitializingPrimary = allocationService.reroute(stateAfterAddingNode, reason);
+        ClusterState stateWithInitializingPrimary = allocationService.reroute(stateAfterAddingNode, reason, ActionListener.noop());
         ClusterState stateWithStartedPrimary = startInitializingShardsAndReroute(allocationService, stateWithInitializingPrimary);
         final boolean secondReroute = randomBoolean();
         ClusterState resultingState = secondReroute
@@ -317,7 +315,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             assertSame(clusterState, resultingState);
         }
 
-        for (final var shard : resultingState.getRoutingTable().allShards()) {
+        for (ShardRouting shard : resultingState.getRoutingTable().allShardsIterator()) {
             if (shard.assignedToNode()) {
                 for (final var task : tasks) {
                     assertFalse(
@@ -356,6 +354,6 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
+        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
     }
 }

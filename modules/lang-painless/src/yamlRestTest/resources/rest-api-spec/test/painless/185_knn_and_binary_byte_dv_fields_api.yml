@@ -1,0 +1,843 @@
+setup:
+  - skip:
+      version: " - 8.5.99"
+      reason: "support for byte vectors added in 8.6"
+
+---
+"size and isEmpty code works for any vector, including empty":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: |
+                  def dv = field(params.field).get();
+                  if (dv.isEmpty()) {
+                    return dv.size();
+                  }
+                  return dv.vector[2] * dv.size()
+                params:
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 3 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 2 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 1 }
+  - match: { hits.hits.3._id: "missing_vector" }
+  - match: { hits.hits.3._score: 0 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: |
+                  def dv = field(params.field).get();
+                  if (dv.isEmpty()) {
+                    return dv.size();
+                  }
+                  return dv.vector[2] * dv.size()
+                params:
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 3 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 2 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 1 }
+  - match: { hits.hits.3._id: "missing_vector" }
+  - match: { hits.hits.3._score: 0 }
+
+---
+"null can be used for default value":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                dims: 3
+              knn:
+                type: dense_vector
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: |
+                  DenseVector dv = field(params.field).get(null);
+                  if (dv == null) {
+                    return 1;
+                  }
+                  return dv.vector[2];
+                params:
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 3 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 2 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 1 }
+  - match: { hits.hits.3._id: "missing_vector" }
+  - match: { hits.hits.3._score: 1 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: |
+                  DenseVector dv = field(params.field).get(null);
+                  if (dv == null) {
+                    return 1;
+                  }
+                  return dv.vector[2];
+                params:
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 3 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 2 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 1 }
+  - match: { hits.hits.3._id: "missing_vector" }
+  - match: { hits.hits.3._score: 1 }
+
+---
+"empty dense vector throws for vector accesses":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { "bool": { "must_not": { "exists": { "field": "bdv" } } } }
+              script:
+                source: |
+                  field(params.field).get().vector[2]
+                params:
+                  field: bdv
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Dense vector value missing for a field, use isEmpty() to check for a missing vector value" }
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { "bool": { "must_not": { "exists": { "field": "bdv" } } } }
+              script:
+                source: |
+                  field(params.field).get().vector[2]
+                params:
+                  field: knn
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Dense vector value missing for a field, use isEmpty() to check for a missing vector value" }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "bool": { "must_not": { "exists": { "field": "bdv" } } } }
+              script:
+                source: |
+                  byte[] q = new byte[] {(byte)3};
+                  DenseVector dv = field(params.field).get();
+                  float score = 0;
+                  try { score += dv.magnitude } catch (IllegalArgumentException e) { score += 10; }
+                  try { score += dv.dotProduct(q) } catch (IllegalArgumentException e) { score += 200; }
+                  try { score += dv.l1Norm(q) } catch (IllegalArgumentException e) { score += 3000; }
+                  try { score += dv.l2Norm(q) } catch (IllegalArgumentException e) { score += 40000; }
+                  try { score += dv.vector[0] } catch (IllegalArgumentException e) { score += 500000; }
+                  try { score += dv.dims } catch (IllegalArgumentException e) { score += 6000000; }
+                  return score;
+                params:
+                  field: bdv
+
+  - match: { hits.hits.0._id: "missing_vector" }
+  - match: { hits.hits.0._score: 6543210 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "bool": { "must_not": { "exists": { "field": "bdv" } } } }
+              script:
+                source: |
+                  byte[] q = new byte[1];
+                  q[0] = 3;
+                  DenseVector dv = field(params.field).get();
+                  float score = 0;
+                  try { score += dv.magnitude } catch (IllegalArgumentException e) { score += 10; }
+                  try { score += dv.dotProduct(q) } catch (IllegalArgumentException e) { score += 200; }
+                  try { score += dv.l1Norm(q) } catch (IllegalArgumentException e) { score += 3000; }
+                  try { score += dv.l2Norm(q) } catch (IllegalArgumentException e) { score += 40000; }
+                  try { score += dv.cosineSimilarity(q) } catch (IllegalArgumentException e) { score += 200000; }
+                  try { score += dv.vector[0] } catch (IllegalArgumentException e) { score += 500000; }
+                  try { score += dv.dims } catch (IllegalArgumentException e) { score += 6000000; }
+                  return score;
+                params:
+                  field: knn
+
+  - match: { hits.hits.0._id: "missing_vector" }
+  - match: { hits.hits.0._score: 6743210 }
+
+---
+"dot product works on dense vectors":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  byte[] query = new byte[] {4, 5, 6};
+                  field(params.field).get().dotProduct(query)
+                params:
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
+                  field(params.field).get().dotProduct(query)
+                params:
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+---
+"iterator over dense vector values":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: |
+                  float sum = 0.0f;
+                  for (def v : field(params.field)) {
+                    sum += v;
+                  }
+                  return sum;
+                params:
+                  field: bdv
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot iterate over single valued dense_vector field, use get() instead" }
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: |
+                  float sum = 0.0f;
+                  for (def v : field(params.field)) {
+                    sum += v;
+                  }
+                  return sum;
+                params:
+                  field: knn
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot iterate over single valued dense_vector field, use get() instead"}
+
+---
+"l1Norm works on dense vectors":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().l1Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 12 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
+                  field(params.field).get().l1Norm(query)
+                params:
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 12 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().l1Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 12 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
+                  field(params.field).get().l1Norm(query)
+                params:
+                  field: knn
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 12 }
+
+---
+"l2Norm works on dense vectors":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
+                  (int) field(params.field).get().l2Norm(query)
+                params:
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
+                  (int) field(params.field).get().l2Norm(query)
+                params:
+                  field: knn
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
+
+---
+"cosineSimilarity works on dense vectors":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
+                  (int) (field(params.field).get().cosineSimilarity(query) * 100.0f)
+                params:
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 98 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 97 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 92 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) (field(params.field).get().cosineSimilarity(params.query) * 100.0f)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 98 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 97 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 92 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) (field(params.field).get().cosineSimilarity(params.query) * 100.0f)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 98 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 97 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 92 }
+
+---
+"query vector of wrong type errors":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: "one, two, three"
+                  field: bdv
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot use vector [one, two, three] with class [java.lang.String] as query vector" }
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: "one, two, three"
+                  field: knn
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot use vector [one, two, three] with class [java.lang.String] as query vector" }

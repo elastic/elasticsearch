@@ -26,6 +26,7 @@
           values:
             - 'checkPart1'
             - 'checkPart2'
+            - 'checkPart3'
             - 'bwcTestSnapshots'
             - 'checkRestCompat'
     builders:

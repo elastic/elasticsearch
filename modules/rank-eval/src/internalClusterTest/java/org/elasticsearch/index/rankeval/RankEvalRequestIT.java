@@ -64,7 +64,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         refresh();
 
         // set up an alias that can also be used in tests
-        assertAcked(client().admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(TEST_INDEX).alias(INDEX_ALIAS)));
+        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(TEST_INDEX).alias(INDEX_ALIAS)));
     }
 
     /**
@@ -274,7 +274,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         assertEquals(6, details.getRelevantRetrieved());
 
         // test that ignore_unavailable=true works but returns one result less
-        assertTrue(client().admin().indices().prepareClose("test2").get().isAcknowledged());
+        assertTrue(indicesAdmin().prepareClose("test2").get().isAcknowledged());
 
         request.indicesOptions(IndicesOptions.fromParameters(null, "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
@@ -283,7 +283,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         assertEquals(5, details.getRelevantRetrieved());
 
         // test that ignore_unavailable=false or default settings throw an IndexClosedException
-        assertTrue(client().admin().indices().prepareClose("test2").get().isAcknowledged());
+        assertTrue(indicesAdmin().prepareClose("test2").get().isAcknowledged());
         request.indicesOptions(IndicesOptions.fromParameters(null, "false", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
         assertEquals(1, response.getFailures().size());
@@ -291,7 +291,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         // test expand_wildcards
         request = new RankEvalRequest(task, new String[] { "tes*" });
-        request.indicesOptions(IndicesOptions.fromParameters("none", null, null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
+        request.indicesOptions(IndicesOptions.fromParameters("none", "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
         details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());

@@ -96,6 +96,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             keyword,
+            0L,
             context -> null,
             DocValueFormat.RAW,
             false,
@@ -113,6 +114,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             keyword,
+            0L,
             context -> null,
             DocValueFormat.RAW,
             true,
@@ -127,6 +129,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             keyword,
+            0L,
             context -> null,
             DocValueFormat.RAW,
             false,
@@ -141,6 +144,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             ip,
+            0L,
             context -> null,
             DocValueFormat.RAW,
             false,

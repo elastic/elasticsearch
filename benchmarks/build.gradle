@@ -28,6 +28,7 @@ dependencies {
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
+  api(project(':modules:aggregations'))
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
@@ -49,7 +50,7 @@ tasks.register('copyExpression', Copy) {
   into "${buildDir}/plugins/expression"
 }
 
-tasks.register("copyPainless", Copy) { 
+tasks.register("copyPainless", Copy) {
   dependsOn configurations.painless
   from { configurations.painless.collect { zipTree(it) } }
   into "${buildDir}/plugins/painless"
@@ -57,7 +58,7 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  jvmArgs << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
+  args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless"
 }
 

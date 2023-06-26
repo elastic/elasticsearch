@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -77,13 +78,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", "indices");
-        final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
-        }
+        final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
 
         builder.startArray("total");
         for (CacheIndexInputStats cis : getTotal()) {
@@ -91,13 +86,13 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
         }
         builder.endArray();
 
-        if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             builder.startObject("indices");
             final List<Index> indices = getStats().stream()
                 .filter(shardStats -> shardStats.getStats().isEmpty() == false)
                 .map(SearchableSnapshotShardStats::getShardRouting)
                 .map(ShardRouting::index)
-                .sorted(Comparator.comparing(Index::getName))
+                .sorted(Index.COMPARE_BY_NAME)
                 .distinct()
                 .collect(toList());
 
@@ -116,7 +111,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
                     }
                     builder.endArray();
 
-                    if ("shards".equalsIgnoreCase(level)) {
+                    if (level == ClusterStatsLevel.SHARDS) {
                         builder.startObject("shards");
                         {
                             List<SearchableSnapshotShardStats> listOfStats = getStats().stream()

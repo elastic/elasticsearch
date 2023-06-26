@@ -22,7 +22,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,8 +36,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,12 +51,12 @@ public class ConditionalProcessorTests extends ESTestCase {
         String trueValue = "truthy";
         ScriptService scriptService = new ScriptService(
             Settings.builder().build(),
-            Collections.singletonMap(
+            Map.of(
                 Script.DEFAULT_SCRIPT_LANG,
                 new MockScriptEngine(
                     Script.DEFAULT_SCRIPT_LANG,
-                    Collections.singletonMap(scriptName, ctx -> trueValue.equals(ctx.get(conditionalField))),
-                    Collections.emptyMap()
+                    Map.of(scriptName, ctx -> trueValue.equals(ctx.get(conditionalField))),
+                    Map.of()
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
@@ -69,7 +68,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
             "description",
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()),
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
             scriptService,
             new Processor() {
                 @Override
@@ -150,13 +149,10 @@ public class ConditionalProcessorTests extends ESTestCase {
 
         ScriptService scriptService = new ScriptService(
             Settings.builder().build(),
-            Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG,
-                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
-                    ctx.get("_type");
-                    return true;
-                }), Collections.emptyMap())
-            ),
+            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
+                ctx.get("_type");
+                return true;
+            }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
             () -> 1L
         );
@@ -166,7 +162,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
             "description",
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()),
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
             scriptService,
             new Processor() {
                 @Override
@@ -192,17 +188,15 @@ public class ConditionalProcessorTests extends ESTestCase {
             relativeTimeProvider
         );
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 
     public void testPrecompiledError() {
-        ScriptService scriptService = MockScriptService.singleContext(
-            IngestConditionalScript.CONTEXT,
-            code -> { throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null); },
-            Map.of()
-        );
+        ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT, code -> {
+            throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
+        }, Map.of());
         Script script = new Script(ScriptType.INLINE, "lang", "foo", Map.of());
         ScriptException e = expectThrows(ScriptException.class, () -> new ConditionalProcessor(null, null, script, scriptService, null));
         assertThat(e.getMessage(), equalTo("bad script"));
@@ -255,25 +249,22 @@ public class ConditionalProcessorTests extends ESTestCase {
         CompletableFuture<Exception> expectedException = new CompletableFuture<>();
         ScriptService scriptService = new ScriptService(
             Settings.builder().build(),
-            Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG,
-                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
-                    try {
-                        mutation.accept(ctx);
-                    } catch (Exception e) {
-                        expectedException.complete(e);
-                    }
-                    return false;
-                }), Collections.emptyMap())
-            ),
+            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
+                try {
+                    mutation.accept(ctx);
+                } catch (Exception e) {
+                    expectedException.complete(e);
+                }
+                return false;
+            }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
             () -> 1L
         );
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
-            "desription",
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()),
+            "description",
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
             scriptService,
             new FakeProcessor(null, null, null, null)
         );
@@ -288,10 +279,10 @@ public class ConditionalProcessorTests extends ESTestCase {
 
     private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {
         IngestStats.Stats stats = conditionalProcessor.getMetric().createStats();
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(0L));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
+        assertThat(stats.ingestCount(), equalTo(count));
+        assertThat(stats.ingestCurrent(), equalTo(0L));
+        assertThat(stats.ingestFailedCount(), equalTo(failed));
+        assertThat(stats.ingestTimeInMillis(), greaterThanOrEqualTo(time));
     }
 
     private static void execProcessor(Processor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {

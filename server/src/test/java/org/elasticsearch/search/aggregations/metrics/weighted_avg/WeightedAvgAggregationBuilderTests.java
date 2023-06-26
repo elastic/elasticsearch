@@ -14,7 +14,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
@@ -24,7 +24,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasSize;
 
-public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestCase<WeightedAvgAggregationBuilder> {
+public class WeightedAvgAggregationBuilderTests extends AbstractXContentSerializingTestCase<WeightedAvgAggregationBuilder> {
     String aggregationName;
 
     @Before
@@ -57,6 +57,11 @@ public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestC
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder(aggregationName).value(valueConfig)
             .weight(weightConfig);
         return aggregationBuilder;
+    }
+
+    @Override
+    protected WeightedAvgAggregationBuilder mutateInstance(WeightedAvgAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

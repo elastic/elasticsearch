@@ -114,9 +114,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     }
                 }
 
-                byte[] response = ("""
+                byte[] response = (String.format(Locale.ROOT, """
                     {"kind":"storage#objects","items":[%s],"prefixes":[%s]}\
-                    """.formatted(String.join(",", listOfBlobs), String.join(",", prefixes))).getBytes(UTF_8);
+                    """, String.join(",", listOfBlobs), String.join(",", prefixes))).getBytes(UTF_8);
 
                 exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
@@ -183,9 +183,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 if (content.isPresent()) {
                     blobs.put(content.get().v1(), content.get().v2());
 
-                    byte[] response = """
+                    byte[] response = String.format(Locale.ROOT, """
                         {"bucket":"%s","name":"%s"}
-                        """.formatted(bucket, content.get().v1()).getBytes(UTF_8);
+                        """, bucket, content.get().v1()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
@@ -266,9 +266,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private String buildBlobInfoJson(String blobName, int size) {
-        return """
+        return String.format(Locale.ROOT, """
             {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"%s"}
-            """.formatted(bucket, blobName, blobName, size);
+            """, bucket, blobName, blobName, size);
     }
 
     public Map<String, BytesReference> blobs() {

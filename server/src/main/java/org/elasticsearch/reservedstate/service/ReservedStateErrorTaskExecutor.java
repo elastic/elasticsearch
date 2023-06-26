@@ -12,31 +12,33 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-
-import java.util.List;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.core.Tuple;
 
 /**
  * Reserved cluster error state task executor
  * <p>
  * We use this task executor to record any errors while updating and reserving the cluster state
  */
-record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<ReservedStateErrorTask> {
+class ReservedStateErrorTaskExecutor extends SimpleBatchedExecutor<ReservedStateErrorTask, Void> {
+
     private static final Logger logger = LogManager.getLogger(ReservedStateErrorTaskExecutor.class);
 
     @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<ReservedStateErrorTask>> taskContexts) {
-        for (final var taskContext : taskContexts) {
-            currentState = taskContext.getTask().execute(currentState);
-            taskContext.success(
-                () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
-            );
+    public Tuple<ClusterState, Void> executeTask(ReservedStateErrorTask task, ClusterState clusterState) {
+        if (task.shouldUpdate(clusterState)) {
+            return Tuple.tuple(task.execute(clusterState), null);
         }
-        return currentState;
+        return Tuple.tuple(clusterState, null);
     }
 
     @Override
-    public void clusterStatePublished(ClusterState newClusterState) {
+    public void taskSucceeded(ReservedStateErrorTask task, Void unused) {
+        task.listener().onResponse(ActionResponse.Empty.INSTANCE);
+    }
+
+    @Override
+    public void clusterStatePublished() {
         logger.debug("Wrote new error state in reserved cluster state metadata");
     }
 }

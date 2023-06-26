@@ -201,6 +201,6 @@ public class Response {
 
     @Override
     public String toString() {
-        return "Response{" + "requestLine=" + requestLine + ", host=" + host + ", response=" + response.getStatusLine() + '}';
+        return "Response{requestLine=" + requestLine + ", host=" + host + ", response=" + response.getStatusLine() + '}';
     }
 }

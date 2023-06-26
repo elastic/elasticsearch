@@ -14,7 +14,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
@@ -42,9 +45,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
@@ -113,12 +119,16 @@ public final class TimeSeriesRestDriver {
     }
 
     public static void index(RestClient client, String index, String id, Object... fields) throws IOException {
+        index(client, index, false, id, fields);
+    }
+
+    public static void index(RestClient client, String index, boolean refresh, String id, Object... fields) throws IOException {
         XContentBuilder document = jsonBuilder().startObject();
         for (int i = 0; i < fields.length; i += 2) {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        final Request request = new Request("POST", "/" + index + "/_doc/" + (id != null ? id : "") + (refresh ? "?refresh" : ""));
         request.setJsonEntity(Strings.toString(document));
         assertThat(client.performRequest(request).getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
@@ -174,7 +184,7 @@ public final class TimeSeriesRestDriver {
     public static void createFullPolicy(RestClient client, String policyName, TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
@@ -289,7 +299,12 @@ public final class TimeSeriesRestDriver {
 
     public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings)
         throws IOException {
-        createIndexWithSettings(client, index, alias, settings, randomBoolean());
+        createIndexWithSettings(client, index, alias, settings, null);
+    }
+
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings, String mapping)
+        throws IOException {
+        createIndexWithSettings(client, index, alias, settings, mapping, randomBoolean());
     }
 
     public static void createIndexWithSettings(
@@ -299,17 +314,30 @@ public final class TimeSeriesRestDriver {
         Settings.Builder settings,
         boolean useWriteIndex
     ) throws IOException {
+        createIndexWithSettings(client, index, alias, settings, null, useWriteIndex);
+    }
+
+    public static void createIndexWithSettings(
+        RestClient client,
+        String index,
+        String alias,
+        Settings.Builder settings,
+        String mapping,
+        boolean useWriteIndex
+    ) throws IOException {
         Request request = new Request("PUT", "/" + index);
 
         String writeIndexSnippet = "";
         if (useWriteIndex) {
             writeIndexSnippet = "\"is_write_index\": true";
         }
-        request.setJsonEntity("""
+        String m = mapping != null ? String.format(Locale.ROOT, "\"mappings\": %s, ", mapping) : "";
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
              "settings": %s,
+             %s
              "aliases" : { "%s": { %s } }
-            }""".formatted(Strings.toString(settings.build()), alias, writeIndexSnippet));
+            }""", Strings.toString(settings.build()), m, alias, writeIndexSnippet));
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
@@ -317,10 +345,10 @@ public final class TimeSeriesRestDriver {
 
     public static void createIndexWithSettings(RestClient client, String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
              "settings": %s
-            }""".formatted(Strings.toString(settings.build())));
+            }""", Strings.toString(settings.build())));
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
@@ -334,19 +362,37 @@ public final class TimeSeriesRestDriver {
     }
 
     @SuppressWarnings("unchecked")
-    public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
+    public static Integer getNumberOfPrimarySegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
-        Map<String, Object> responseEntity = XContentHelper.convertToMap(
+        final Map<String, Object> originalResponseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),
             false
         );
-        responseEntity = (Map<String, Object>) responseEntity.get("indices");
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "segments response for {}: {}",
+                index,
+                originalResponseEntity.keySet()
+                    .stream()
+                    .map(key -> key + "=" + originalResponseEntity.get(key))
+                    .collect(Collectors.joining(", ", "{", "}"))
+            );
+        }
+        Map<String, Object> responseEntity = (Map<String, Object>) originalResponseEntity.get("indices");
         responseEntity = (Map<String, Object>) responseEntity.get(index);
         responseEntity = (Map<String, Object>) responseEntity.get("shards");
         List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
-        return (Integer) shards.get(0).get("num_search_segments");
+        // We want to mamke sure to get the primary shard because there is a chance the replica doesn't have data yet:
+        Optional<Map<String, Object>> shardOptional = shards.stream()
+            .filter(shard -> ((Map<String, Object>) shard.get("routing")).get("primary").equals(true))
+            .findAny();
+        if (shardOptional.isPresent()) {
+            return (Integer) shardOptional.get().get("num_search_segments");
+        } else {
+            throw new RuntimeException("No primary shard found for index " + index);
+        }
     }
 
     public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {
@@ -370,6 +416,25 @@ public final class TimeSeriesRestDriver {
         Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
+    }
+
+    /**
+     * This method waits to get the shrunk index name and if it fails, it triggers once a cluster state update and tries again.
+     * The motivation behind this method is that in ShrinkAction there are cluster state dependent steps, for example
+     * {@link org.elasticsearch.xpack.core.ilm.CheckTargetShardsCountStep}, that might miss the latest policy update if they are
+     * already queued, see {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#submitUnlessAlreadyQueued}. In the real world
+     * there is usually another cluster state coming but since this is the test world there is not. That is what this method is simulating.
+     */
+    @Nullable
+    public static String waitAndGetShrinkIndexNameWithExtraClusterStateChange(RestClient client, String originalIndex)
+        throws InterruptedException, IOException {
+        String shrunkenIndexName = waitAndGetShrinkIndexName(client, originalIndex);
+        if (shrunkenIndexName == null) {
+            logger.info("Executing dummy cluster update to re-trigger a cluster state dependent step.");
+            executeDummyClusterStateUpdate(client);
+            shrunkenIndexName = waitAndGetShrinkIndexName(client, originalIndex);
+        }
+        return shrunkenIndexName;
     }
 
     @SuppressWarnings("unchecked")
@@ -417,5 +482,24 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
+    }
+
+    private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {
+        createIndexWithSettings(
+            client,
+            "dummy-index",
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .putNull(DataTier.TIER_PREFERENCE)
+        );
+    }
+
+    public static Template getTemplate(String policyName) {
+        return new Template(getLifecycleSettings(policyName), null, null);
+    }
+
+    public static Settings getLifecycleSettings(String policyName) {
+        return Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build();
     }
 }

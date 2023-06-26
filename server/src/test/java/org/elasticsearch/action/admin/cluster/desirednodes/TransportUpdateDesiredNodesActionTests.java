@@ -147,7 +147,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
                 .stream()
                 .map(DesiredNodeWithStatus::desiredNode)
                 .toList();
-            request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
+            request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes, false);
         } else {
             request = randomUpdateDesiredNodesRequest();
         }
@@ -180,7 +180,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest equivalentDesiredNodesRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
-            equivalentDesiredNodesList
+            equivalentDesiredNodesList,
+            updateDesiredNodesRequest.isDryRun()
         );
 
         assertSame(
@@ -196,7 +197,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
-            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode)
+            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
+            false
         );
 
         IllegalArgumentException exception = expectThrows(
@@ -212,7 +214,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
-            List.copyOf(latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList())
+            List.copyOf(latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList()),
+            false
         );
 
         VersionConflictException exception = expectThrows(

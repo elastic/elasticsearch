@@ -416,4 +416,39 @@ public class DefOptimizationTests extends ScriptTestCase {
             "synthetic lambda$synthetic$0(D)D"
         );
     }
+
+    public void testPrimitiveArrayIteration() {
+        assertBytecodeExists(
+            "def x = new boolean[] { true, false }; boolean s = false; for (boolean l : x) s |= l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextBoolean ()Z"
+        );
+        assertBytecodeExists(
+            "def x = new byte[] { (byte)10, (byte)20 }; byte s = 0; for (byte l : x) s += l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextByte ()B"
+        );
+        assertBytecodeExists(
+            "def x = new short[] { (short)100, (short)200 }; short s = 0; for (short l : x) s += l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextShort ()S"
+        );
+        assertBytecodeExists(
+            "def x = new char[] { (char)'a', (char)'b' }; char s = 0; for (char l : x) s = l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextChar ()C"
+        );
+        assertBytecodeExists(
+            "def x = new int[] { 100, 200 }; int s = 0; for (int l : x) s += l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextInt ()I"
+        );
+        assertBytecodeExists(
+            "def x = new long[] { 100, 200 }; long s = 0; for (long l : x) s += l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextLong ()J"
+        );
+        assertBytecodeExists(
+            "def x = new float[] { 100, 200 }; float s = 0; for (float l : x) s += l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextFloat ()F"
+        );
+        assertBytecodeExists(
+            "def x = new double[] { 100, 200 }; double s = 0; for (double l : x) s += l; return s",
+            "INVOKEINTERFACE org/elasticsearch/painless/api/ValueIterator.nextDouble ()D"
+        );
+    }
 }

@@ -9,16 +9,18 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -34,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -195,8 +198,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -471,11 +474,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             builder.endObject();
             return builder;
         }
-
-        @Override
-        public boolean isFragment() {
-            return false;
-        }
     }
 
     private static class TaskBuilder<Params extends PersistentTaskParams> {
@@ -534,7 +532,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     public PersistentTasksCustomMetadata(StreamInput in) throws IOException {
         lastAllocationId = in.readLong();
-        tasks = in.readMap(StreamInput::readString, PersistentTask::new);
+        tasks = in.readMap(PersistentTask::new);
     }
 
     @Override
@@ -552,16 +550,11 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("last_allocation_id", lastAllocationId);
-        builder.startArray("tasks");
-        {
-            for (PersistentTask<?> entry : tasks.values()) {
-                entry.toXContent(builder, params);
-            }
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.field("last_allocation_id", lastAllocationId)),
+            ChunkedToXContentHelper.array("tasks", tasks.values().iterator())
+        );
     }
 
     public static Builder builder() {

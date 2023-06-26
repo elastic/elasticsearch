@@ -16,6 +16,7 @@ dependencies {
   api project(':libs:elasticsearch-ssl-config')
   api project(":server")
   api project(":libs:elasticsearch-cli")
+  api project(':libs:elasticsearch-preallocate')
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -25,9 +26,10 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // mockito
-  api 'org.mockito:mockito-core:4.4.0'
-  api 'net.bytebuddy:byte-buddy:1.12.9'
-  api 'org.objenesis:objenesis:3.2'
+  api 'org.mockito:mockito-core:5.1.1'
+  api 'org.mockito:mockito-subclass:5.1.1'
+  api 'net.bytebuddy:byte-buddy:1.12.22'
+  api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
@@ -55,7 +57,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
-          'org.apache.log4j.Category',
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
           'org.apache.log4j.Priority',
@@ -93,5 +94,5 @@ tasks.register("verifyVersions") {
 
 tasks.named('splitPackagesAudit').configure {
   // for now we always run tests with the classpath, so we are ok with split packages for tests
-  onlyIf { false }
+  enabled = false
 }

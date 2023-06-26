@@ -46,7 +46,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(indexMetadata, node.node().getRoles(), allocation);
+        return shouldFilter(indexMetadata, node.node(), allocation);
     }
 
     @Override
@@ -56,15 +56,11 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return shouldFilter(indexMetadata, node.getRoles(), allocation);
+        return shouldFilter(indexMetadata, node, allocation);
     }
 
-    private Decision shouldFilter(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return shouldFilter(indexMetadata, node.getRoles(), allocation);
-    }
-
-    private static Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles, RoutingAllocation allocation) {
-        return shouldFilter(indexMd, roles, DataTierAllocationDecider::preferredAvailableTier, allocation);
+    private static Decision shouldFilter(IndexMetadata indexMd, DiscoveryNode node, RoutingAllocation allocation) {
+        return shouldFilter(indexMd, node, DataTierAllocationDecider::preferredAvailableTier, allocation);
     }
 
     public interface PreferredTierFunction {
@@ -75,18 +71,18 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     public static Decision shouldFilter(
         IndexMetadata indexMd,
-        Set<DiscoveryNodeRole> roles,
+        DiscoveryNode node,
         PreferredTierFunction preferredTierFunction,
         RoutingAllocation allocation
     ) {
         List<String> tierPreference = indexMd.getTierPreference();
-        if (tierPreference.isEmpty() != false) {
+        if (tierPreference.isEmpty()) {
             return YES_PASSES;
         }
         Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.desiredNodes());
         if (tier.isPresent()) {
             String tierName = tier.get();
-            if (allocationAllowed(tierName, roles)) {
+            if (allocationAllowed(tierName, node)) {
                 if (allocation.debugDecision()) {
                     return debugYesAllowed(allocation, tierPreference, tierName);
                 }
@@ -226,12 +222,12 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
             : "tier " + singleTier + " is an invalid tier name";
-        for (DiscoveryNode node : nodes) {
-            if (allocationAllowed(singleTier, node.getRoles())) {
-                return true;
-            }
-        }
-        return false;
+        return nodes.isRoleAvailable(DiscoveryNodeRole.DATA_ROLE.roleName()) || nodes.isRoleAvailable(singleTier);
+    }
+
+    public static boolean allocationAllowed(String tierName, DiscoveryNode node) {
+        assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
+        return node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName()) || node.hasRole(tierName);
     }
 
     public static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {

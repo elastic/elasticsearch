@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.profile.aggregation;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +21,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -83,7 +83,7 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
 
     @Override
     public String toString() {
-        return Objects.toString(this);
+        return Strings.toString(this);
     }
 
     public static AggregationProfileShardResult fromXContent(XContentParser parser) throws IOException {

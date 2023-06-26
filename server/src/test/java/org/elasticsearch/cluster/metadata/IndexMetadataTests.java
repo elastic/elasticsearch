@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -46,6 +47,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETT
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 public class IndexMetadataTests extends ESTestCase {
@@ -65,6 +67,7 @@ public class IndexMetadataTests extends ESTestCase {
         return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
+    @SuppressForbidden(reason = "Use IndexMetadata#getForecastedWriteLoad to ensure that the serialized value is correct")
     public void testIndexMetadataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
@@ -72,14 +75,11 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+        IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
+        Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
+        Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", numShard)
-                    .put("index.number_of_replicas", numberOfReplicas)
-                    .build()
-            )
+            .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -91,13 +91,16 @@ public class IndexMetadataTests extends ESTestCase {
                     List.of(
                         new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong()),
-                        new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                        new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+                        new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
                     ),
                     randomNonNegativeLong()
                 )
             )
+            .stats(indexStats)
+            .indexWriteLoadForecast(indexWriteLoadForecast)
+            .shardSizeInBytesForecast(shardSizeInBytesForecast)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -126,6 +129,9 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
+        assertEquals(metadata.getStats(), fromXContentMeta.getStats());
+        assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
+        assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -146,6 +152,9 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
+            assertEquals(metadata.getStats(), deserialized.getStats());
+            assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
+            assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
         }
     }
 
@@ -161,13 +170,7 @@ public class IndexMetadataTests extends ESTestCase {
     public void testSelectShrinkShards() {
         int numberOfReplicas = randomIntBetween(0, 10);
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 32)
-                    .put("index.number_of_replicas", numberOfReplicas)
-                    .build()
-            )
+            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
             .build();
         Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(0, metadata, 8);
@@ -211,25 +214,13 @@ public class IndexMetadataTests extends ESTestCase {
         int numTargetShards = randomFrom(4, 6, 8, 12);
 
         IndexMetadata split = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 2)
-                    .put("index.number_of_replicas", 0)
-                    .build()
-            )
+            .settings(indexSettings(2, 0).put("index.version.created", 1))
             .creationDate(randomLong())
             .setRoutingNumShards(numTargetShards * 2)
             .build();
 
         IndexMetadata shrink = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 32)
-                    .put("index.number_of_replicas", 0)
-                    .build()
-            )
+            .settings(indexSettings(32, 0).put("index.version.created", 1))
             .creationDate(randomLong())
             .build();
         int shard = randomIntBetween(0, numTargetShards - 1);
@@ -250,13 +241,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testSelectSplitShard() {
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 2)
-                    .put("index.number_of_replicas", 0)
-                    .build()
-            )
+            .settings(indexSettings(2, 0).put("index.version.created", 1))
             .creationDate(randomLong())
             .setRoutingNumShards(4)
             .build();
@@ -286,12 +271,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testIndexFormat() {
-        Settings defaultSettings = Settings.builder()
-            .put("index.version.created", 1)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-            .build();
-
+        Settings defaultSettings = indexSettings(1, 1).put("index.version.created", 1).build();
         // matching version
         {
             IndexMetadata metadata = IndexMetadata.builder("foo")
@@ -431,10 +411,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testIsHidden() {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settings = indexSettings(Version.CURRENT, randomIntBetween(1, 8), 0);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).build();
         assertFalse(indexMetadata.isHidden());
 
@@ -465,11 +442,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testLifeCyclePolicyName() {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
-
+        Settings.Builder settings = indexSettings(Version.CURRENT, randomIntBetween(1, 8), 0);
         IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
 
         // null means no policy
@@ -482,12 +455,53 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(idxMeta2.getLifecyclePolicyName(), equalTo("some_policy"));
     }
 
+    public void testIndexAndAliasWithSameName() {
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(randomBoolean())
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(false)
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
+    }
+
+    public void testRepairIndexAndAliasWithSameName() {
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("index").build())
+            .build(true);
+        assertThat(indexMetadata.getAliases(), hasKey("index-alias-corrupted-by-8-5"));
+    }
+
     private static Settings indexSettingsWithDataTier(String dataTier) {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(DataTier.TIER_PREFERENCE, dataTier)
-            .build();
+        return indexSettings(Version.CURRENT, 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
+    }
+
+    private IndexMetadataStats randomIndexStats(int numberOfShards) {
+        IndexWriteLoad.Builder indexWriteLoadBuilder = IndexWriteLoad.builder(numberOfShards);
+        int numberOfPopulatedWriteLoads = randomIntBetween(0, numberOfShards);
+        for (int i = 0; i < numberOfPopulatedWriteLoads; i++) {
+            indexWriteLoadBuilder.withShardWriteLoad(i, randomDoubleBetween(0.0, 128.0, true), randomNonNegativeLong());
+        }
+        return new IndexMetadataStats(indexWriteLoadBuilder.build(), randomLongBetween(100, 1024), randomIntBetween(1, 2));
     }
 }

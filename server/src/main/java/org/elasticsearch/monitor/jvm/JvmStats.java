@@ -8,6 +8,8 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +42,8 @@ public class JvmStats implements Writeable, ToXContentFragment {
     private static final ThreadMXBean threadMXBean;
     private static final ClassLoadingMXBean classLoadingMXBean;
 
+    private static final Logger logger = LogManager.getLogger(JvmStats.class);
+
     static {
         runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         memoryMXBean = ManagementFactory.getMemoryMXBean();
@@ -59,12 +63,12 @@ public class JvmStats implements Writeable, ToXContentFragment {
         List<MemoryPool> pools = new ArrayList<>();
         for (MemoryPoolMXBean memoryPoolMXBean : memoryPoolMXBeans) {
             try {
-                MemoryUsage usage = memoryPoolMXBean.getUsage();
-                MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
                 String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
                 if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
                     continue;
                 }
+                MemoryUsage usage = memoryPoolMXBean.getUsage();
+                MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
                 pools.add(
                     new MemoryPool(
                         name,
@@ -76,6 +80,15 @@ public class JvmStats implements Writeable, ToXContentFragment {
                 );
             } catch (final Exception ignored) {
 
+            } catch (InternalError e) {
+                /*
+                 * This catch block is here due to https://github.com/elastic/elasticsearch/issues/94728. It appears to be due to a JVM
+                 * bug starting in java 20. This is meant to (1) log a warning in production and move on rather than killing the server and
+                 * (2) fail any tests that hit this, giving us information about which memory pool it is so that we can troubleshoot more.
+                 */
+                String message = "Unexpected error getting information about " + memoryPoolMXBean.getName();
+                logger.warn(message, e);
+                assert false : message;
             }
         }
         Mem mem = new Mem(heapCommitted, heapUsed, heapMax, nonHeapCommitted, nonHeapUsed, Collections.unmodifiableList(pools));
@@ -205,23 +218,27 @@ public class JvmStats implements Writeable, ToXContentFragment {
 
         builder.startObject(Fields.MEM);
 
-        builder.humanReadableField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, new ByteSizeValue(mem.heapUsed));
+        builder.humanReadableField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, ByteSizeValue.ofBytes(mem.heapUsed));
         if (mem.getHeapUsedPercent() >= 0) {
             builder.field(Fields.HEAP_USED_PERCENT, mem.getHeapUsedPercent());
         }
-        builder.humanReadableField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, new ByteSizeValue(mem.heapCommitted));
-        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, new ByteSizeValue(mem.heapMax));
-        builder.humanReadableField(Fields.NON_HEAP_USED_IN_BYTES, Fields.NON_HEAP_USED, new ByteSizeValue(mem.nonHeapUsed));
-        builder.humanReadableField(Fields.NON_HEAP_COMMITTED_IN_BYTES, Fields.NON_HEAP_COMMITTED, new ByteSizeValue(mem.nonHeapCommitted));
+        builder.humanReadableField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, ByteSizeValue.ofBytes(mem.heapCommitted));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, ByteSizeValue.ofBytes(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_USED_IN_BYTES, Fields.NON_HEAP_USED, ByteSizeValue.ofBytes(mem.nonHeapUsed));
+        builder.humanReadableField(
+            Fields.NON_HEAP_COMMITTED_IN_BYTES,
+            Fields.NON_HEAP_COMMITTED,
+            ByteSizeValue.ofBytes(mem.nonHeapCommitted)
+        );
 
         builder.startObject(Fields.POOLS);
         for (MemoryPool pool : mem) {
             builder.startObject(pool.getName());
-            builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, new ByteSizeValue(pool.used));
-            builder.humanReadableField(Fields.MAX_IN_BYTES, Fields.MAX, new ByteSizeValue(pool.max));
+            builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, ByteSizeValue.ofBytes(pool.used));
+            builder.humanReadableField(Fields.MAX_IN_BYTES, Fields.MAX, ByteSizeValue.ofBytes(pool.max));
 
-            builder.humanReadableField(Fields.PEAK_USED_IN_BYTES, Fields.PEAK_USED, new ByteSizeValue(pool.peakUsed));
-            builder.humanReadableField(Fields.PEAK_MAX_IN_BYTES, Fields.PEAK_MAX, new ByteSizeValue(pool.peakMax));
+            builder.humanReadableField(Fields.PEAK_USED_IN_BYTES, Fields.PEAK_USED, ByteSizeValue.ofBytes(pool.peakUsed));
+            builder.humanReadableField(Fields.PEAK_MAX_IN_BYTES, Fields.PEAK_MAX, ByteSizeValue.ofBytes(pool.peakMax));
 
             builder.endObject();
         }
@@ -252,11 +269,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
             for (BufferPool bufferPool : bufferPools) {
                 builder.startObject(bufferPool.getName());
                 builder.field(Fields.COUNT, bufferPool.getCount());
-                builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, new ByteSizeValue(bufferPool.used));
+                builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, ByteSizeValue.ofBytes(bufferPool.used));
                 builder.humanReadableField(
                     Fields.TOTAL_CAPACITY_IN_BYTES,
                     Fields.TOTAL_CAPACITY,
-                    new ByteSizeValue(bufferPool.totalCapacity)
+                    ByteSizeValue.ofBytes(bufferPool.totalCapacity)
                 );
                 builder.endObject();
             }
@@ -456,11 +473,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getUsed() {
-            return new ByteSizeValue(used);
+            return ByteSizeValue.ofBytes(used);
         }
 
         public ByteSizeValue getMax() {
-            return new ByteSizeValue(max);
+            return ByteSizeValue.ofBytes(max);
         }
 
     }
@@ -508,18 +525,18 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getHeapCommitted() {
-            return new ByteSizeValue(heapCommitted);
+            return ByteSizeValue.ofBytes(heapCommitted);
         }
 
         public ByteSizeValue getHeapUsed() {
-            return new ByteSizeValue(heapUsed);
+            return ByteSizeValue.ofBytes(heapUsed);
         }
 
         /**
          * returns the maximum heap size. 0 bytes signals unknown.
          */
         public ByteSizeValue getHeapMax() {
-            return new ByteSizeValue(heapMax);
+            return ByteSizeValue.ofBytes(heapMax);
         }
 
         /**
@@ -533,11 +550,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getNonHeapCommitted() {
-            return new ByteSizeValue(nonHeapCommitted);
+            return ByteSizeValue.ofBytes(nonHeapCommitted);
         }
 
         public ByteSizeValue getNonHeapUsed() {
-            return new ByteSizeValue(nonHeapUsed);
+            return ByteSizeValue.ofBytes(nonHeapUsed);
         }
     }
 
@@ -579,11 +596,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getTotalCapacity() {
-            return new ByteSizeValue(totalCapacity);
+            return ByteSizeValue.ofBytes(totalCapacity);
         }
 
         public ByteSizeValue getUsed() {
-            return new ByteSizeValue(used);
+            return ByteSizeValue.ofBytes(used);
         }
     }
 

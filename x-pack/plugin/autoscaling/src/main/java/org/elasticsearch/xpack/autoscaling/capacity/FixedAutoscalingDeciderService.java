@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,7 +29,11 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     public static final Setting<ByteSizeValue> STORAGE = Setting.byteSizeSetting("storage", ByteSizeValue.ofBytes(-1));
     public static final Setting<ByteSizeValue> MEMORY = Setting.byteSizeSetting("memory", ByteSizeValue.ofBytes(-1));
-    public static final Setting<Float> PROCESSORS = Setting.floatSetting("processors", 1f, 0f);
+    public static final Setting<Processors> PROCESSORS = new Setting<>(
+        "processors",
+        Double.toString(1.0),
+        textValue -> Processors.of(Double.parseDouble(textValue))
+    );
     public static final Setting<Integer> NODES = Setting.intSetting("nodes", 1, 0);
 
     @Inject
@@ -47,7 +52,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         AutoscalingCapacity requiredCapacity;
         ByteSizeValue storage = STORAGE.exists(configuration) ? STORAGE.get(configuration) : null;
         ByteSizeValue memory = MEMORY.exists(configuration) ? MEMORY.get(configuration) : null;
-        Float processors = PROCESSORS.exists(configuration) ? PROCESSORS.get(configuration) : null;
+        Processors processors = PROCESSORS.exists(configuration) ? PROCESSORS.get(configuration) : null;
         if (storage != null || memory != null || processors != null) {
             requiredCapacity = AutoscalingCapacity.builder()
                 .total(totalCapacity(storage, nodes), totalCapacity(memory, nodes), totalCapacity(processors, nodes))
@@ -62,15 +67,15 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     private static ByteSizeValue totalCapacity(ByteSizeValue nodeCapacity, int nodes) {
         if (nodeCapacity != null) {
-            return new ByteSizeValue(nodeCapacity.getBytes() * nodes);
+            return ByteSizeValue.ofBytes(nodeCapacity.getBytes() * nodes);
         } else {
             return null;
         }
     }
 
-    private static Float totalCapacity(Float nodeCapacity, int nodes) {
+    private static Processors totalCapacity(Processors nodeCapacity, int nodes) {
         if (nodeCapacity != null) {
-            return nodeCapacity * nodes;
+            return nodeCapacity.multiply(nodes);
         } else {
             return null;
         }
@@ -100,25 +105,22 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
         private final ByteSizeValue storage;
         private final ByteSizeValue memory;
-        private final Float processors;
+        private final Processors processors;
         private final int nodes;
 
-        public FixedReason(ByteSizeValue storage, ByteSizeValue memory, int nodes, Float processors) {
+        public FixedReason(ByteSizeValue storage, ByteSizeValue memory, int nodes, Processors processors) {
             this.storage = storage;
             this.memory = memory;
             this.nodes = nodes;
             this.processors = processors;
-            if (processors != null && processors < 0) {
-                throw new IllegalArgumentException("[processors] must be a non-negative number");
-            }
         }
 
         public FixedReason(StreamInput in) throws IOException {
-            this.storage = in.readOptionalWriteable(ByteSizeValue::new);
-            this.memory = in.readOptionalWriteable(ByteSizeValue::new);
+            this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.nodes = in.readInt();
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.processors = in.readOptionalFloat();
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+                this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
                 this.processors = null;
             }
@@ -147,8 +149,8 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
             out.writeInt(nodes);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-                out.writeOptionalFloat(processors);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+                out.writeOptionalWriteable(processors);
             }
         }
 
@@ -159,7 +161,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
             builder.field("memory", memory);
             builder.field("nodes", nodes);
             if (processors != null) {
-                builder.field("processors", nodes);
+                builder.field("processors", processors);
             }
             builder.endObject();
             return builder;

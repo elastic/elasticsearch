@@ -12,7 +12,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<MulticlassConfusionMatrix> {
+public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingTestCase<MulticlassConfusionMatrix> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
     private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
@@ -47,6 +47,11 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
     @Override
     protected MulticlassConfusionMatrix createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected MulticlassConfusionMatrix mutateInstance(MulticlassConfusionMatrix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

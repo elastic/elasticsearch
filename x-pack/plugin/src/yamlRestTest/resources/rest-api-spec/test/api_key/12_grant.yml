@@ -239,7 +239,7 @@ teardown:
           }
   - match: { "error.type": "security_exception" }
   - match:
-      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with effective roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
 
 ---
 "Test grant api key forbidden with manage_own_api_key privilege":
@@ -288,7 +288,7 @@ teardown:
           }
   - match: { "error.type": "security_exception" }
   - match:
-      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with effective roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
 
   # Can't grant to others
   - do:
@@ -307,7 +307,7 @@ teardown:
           }
   - match: { "error.type": "security_exception" }
   - match:
-      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with effective roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
 
   - do:
       security.clear_api_key_cache:

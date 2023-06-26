@@ -8,15 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -126,7 +125,7 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
         int numberOfMasterEligibleNodes = randomIntBetween(1, 7);
         for (int i = 0; i < numberOfMasterEligibleNodes; i++) {
             String id = "_id" + i;
-            DiscoveryNode masterNode = new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode masterNode = DiscoveryNodeUtils.create(id);
             masterEligibleNodes.put(id, masterNode);
         }
         return masterEligibleNodes;
@@ -134,15 +133,12 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
 
     private ClusterFormationFailureHelper.ClusterFormationState getClusterFormationState() {
         Map<String, DiscoveryNode> masterEligibleNodesMap = getMasterEligibleNodes();
-        List<String> initialMasterNodesSetting = Arrays.stream(generateRandomStringArray(7, 30, false, false)).toList();
+        List<String> initialMasterNodesSetting = Arrays.asList(generateRandomStringArray(7, 30, false, false));
         DiscoveryNode localNode = masterEligibleNodesMap.values().stream().findAny().get();
-        ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
-        masterEligibleNodesMap.forEach(masterEligibleNodesBuilder::put);
-        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes = masterEligibleNodesBuilder.build();
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
             localNode,
-            masterEligibleNodes,
+            Map.copyOf(masterEligibleNodesMap),
             randomLong(),
             randomLong(),
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),

@@ -17,7 +17,7 @@ The Profile API gives the user insight into how search requests are executed at
 a low level so that the user can understand why certain requests are slow, and
 take steps to improve them. Note that the Profile API,
 <<profile-limitations, amongst other things>>, doesn't measure network latency,
-time spent while the requests spends in queues, or while merging shard
+time the requests spend in queues, or time spent merging shard
 responses on the coordinating node.
 
 The output from the Profile API is *very* verbose, especially for complicated
@@ -71,7 +71,11 @@ The API returns the following result:
   "profile": {
     "shards": [
       {
-        "id": "[2aE02wS1R8q_QFnYu6vDVQ][my-index-000001][0]",
+        "id": "[q2aE02wS1R8qQFnYu6vDVQ][my-index-000001][0]",
+        "node_id": "q2aE02wS1R8qQFnYu6vDVQ",
+        "shard_id": 0,
+        "index": "my-index-000001",
+        "cluster": "(local)",
         "searches": [
           {
             "query": [
@@ -97,7 +101,9 @@ The API returns the following result:
                   "create_weight": 4694895,
                   "shallow_advance": 0,
                   "create_weight_count": 1,
-                  "build_scorer": 7112295
+                  "build_scorer": 7112295,
+                  "count_weight": 0,
+                  "count_weight_count": 0
                 },
                 "children": [
                   {
@@ -122,7 +128,9 @@ The API returns the following result:
                       "create_weight": 2382719,
                       "shallow_advance": 9754,
                       "create_weight_count": 1,
-                      "build_scorer": 1355007
+                      "build_scorer": 1355007,
+                      "count_weight": 0,
+                      "count_weight_count": 0
                     }
                   },
                   {
@@ -147,7 +155,9 @@ The API returns the following result:
                       "create_weight": 130951,
                       "shallow_advance": 2512,
                       "create_weight_count": 1,
-                      "build_scorer": 46153
+                      "build_scorer": 46153,
+                      "count_weight": 0,
+                      "count_weight_count": 0
                     }
                   }
                 ]
@@ -193,6 +203,17 @@ The API returns the following result:
               "debug": {
                 "fast_path": 5
               }
+            },
+            {
+              "type": "StoredFieldsPhase",
+              "description": "",
+              "time_in_nanos": 5310,
+              "breakdown": {
+                "next_reader": 745,
+                "next_reader_count": 1,
+                "process": 4445,
+                "process_count": 5
+              }
             }
           ]
         }
@@ -204,7 +225,8 @@ The API returns the following result:
 // TESTRESPONSE[s/"took": 25/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \[...\]/"hits": $body.$_path/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
-// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[my-index-000001\]\[0\]/$body.$_path/]
+// TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+// TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
 
 <1> Search results are returned, but were omitted here for brevity.
 
@@ -220,16 +242,20 @@ The overall structure of the profile response is as follows:
    "profile": {
         "shards": [
            {
-              "id": "[2aE02wS1R8q_QFnYu6vDVQ][my-index-000001][0]",  <1>
+              "id": "[q2aE02wS1R8qQFnYu6vDVQ][my-index-000001][0]",  <1>
+              "node_id": "q2aE02wS1R8qQFnYu6vDVQ",
+              "shard_id": 0,
+              "index": "my-index-000001",
+              "cluster": "(local)",             <2>
               "searches": [
                  {
-                    "query": [...],             <2>
-                    "rewrite_time": 51443,      <3>
-                    "collector": [...]          <4>
+                    "query": [...],             <3>
+                    "rewrite_time": 51443,      <4>
+                    "collector": [...]          <5>
                  }
               ],
-              "aggregations": [...],            <5>
-              "fetch": {...}                    <6>
+              "aggregations": [...],            <6>
+              "fetch": {...}                    <7>
            }
         ]
      }
@@ -237,23 +263,31 @@ The overall structure of the profile response is as follows:
 --------------------------------------------------
 // TESTRESPONSE[s/"profile": /"took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": /]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
-// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[my-index-000001\]\[0\]/$body.$_path/]
+// TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+// TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
 // TESTRESPONSE[s/"query": \[...\]/"query": $body.$_path/]
 // TESTRESPONSE[s/"collector": \[...\]/"collector": $body.$_path/]
 // TESTRESPONSE[s/"aggregations": \[...\]/"aggregations": []/]
 // TESTRESPONSE[s/"fetch": \{...\}/"fetch": $body.$_path/]
 <1> A profile is returned for each shard that participated in the response, and
 is identified by a unique ID.
-<2> Query timings and other debugging information.
-<3> The cumulative rewrite time.
-<4> Names and invocation timings for each collector.
-<5> Aggregation timings, invocation counts, and debug information.
-<6> Fetch timing and debug information.
+<2> If the query was run on the local cluster, the cluster name is left out of the
+composite id and is marked "(local)" here. For a profile running on a remote_cluster
+using cross-cluster search, the "id" value would be something like
+`[q2aE02wS1R8qQFnYu6vDVQ][remote1:my-index-000001][0]` and the "cluster"
+value would be `remote1`.
+<3> Query timings and other debugging information.
+<4> The cumulative rewrite time.
+<5> Names and invocation timings for each collector.
+<6> Aggregation timings, invocation counts, and debug information.
+<7> Fetch timing and debug information.
 
 Because a search request may be executed against one or more shards in an index,
 and a search may cover one or more indices, the top level element in the profile
 response is an array of `shard` objects. Each shard object lists its `id` which
 uniquely identifies the shard. The ID's format is
+`[nodeID][clusterName:indexName][shardID]`. If the search is run against the
+local cluster then the clusterName is not added and the format is
 `[nodeID][indexName][shardID]`.
 
 The profile itself may consist of one or more "searches", where a search is a
@@ -326,7 +360,7 @@ Using our previous `match` query example, let's analyze the `query` section:
     }
 ]
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n/]
 // TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"breakdown": \{...\}/"breakdown": $body.$_path/]
@@ -375,10 +409,12 @@ Lucene execution:
   "create_weight": 4694895,
   "shallow_advance": 0,
   "create_weight_count": 1,
-  "build_scorer": 7112295
+  "build_scorer": 7112295,
+  "count_weight": 0,
+  "count_weight_count": 0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
 // TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
@@ -479,7 +515,7 @@ Looking at the previous example:
   }
 ]
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
 // TESTRESPONSE[s/]$/]}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
@@ -601,7 +637,7 @@ GET /my-index-000001/_search
 }
 --------------------------------------------------
 // TEST[setup:my_index]
-// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations,profile.shards.fetch/]
+// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.node_id,profile.shards.shard_id,profile.shards.index,profile.shards.cluster,profile.shards.searches,profile.shards.aggregations,profile.shards.fetch/]
 
 
 This example has:
@@ -621,7 +657,11 @@ The API returns the following result:
   "profile": {
     "shards": [
       {
-        "id": "[P6-vulHtQRWuD4YnubWb7A][my-index-000001][0]",
+        "id": "[P6xvulHtQRWuD4YnubWb7A][my-index-000001][0]",
+        "node_id": "P6xvulHtQRWuD4YnubWb7A",
+        "shard_id": 0,
+        "index": "my-index-000001",
+        "cluster": "(local)",
         "searches": [
           {
             "query": [
@@ -642,10 +682,12 @@ The API returns the following result:
                   "compute_max_score": 0,
                   "advance": 3942,
                   "advance_count": 4,
+                  "count_weight_count": 0,
                   "score": 0,
                   "build_scorer_count": 2,
                   "create_weight": 38380,
                   "shallow_advance": 0,
+                  "count_weight": 0,
                   "create_weight_count": 1,
                   "build_scorer": 99296
                 }
@@ -668,9 +710,11 @@ The API returns the following result:
                   "advance": 3552,
                   "advance_count": 1,
                   "score": 5027,
+                  "count_weight_count": 0,
                   "build_scorer_count": 2,
                   "create_weight": 107840,
                   "shallow_advance": 0,
+                  "count_weight": 0,
                   "create_weight_count": 1,
                   "build_scorer": 44215
                 }
@@ -716,7 +760,8 @@ The API returns the following result:
 // TESTRESPONSE[s/"fetch": \{\.\.\.\}/"fetch": $body.$_path/]
 // TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
-// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+// TESTRESPONSE[s/"id": "\[P6xvulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+// TESTRESPONSE[s/"node_id": "P6xvulHtQRWuD4YnubWb7A",/"node_id": "$body.profile.shards.0.node_id",/]
 <1> The `"aggregations"` portion has been omitted because it will be covered in
 the next section.
 
@@ -955,9 +1000,8 @@ overall time, the breakdown is inclusive of all children times.
 [[profiling-fetch]]
 ===== Profiling Fetch
 
-
-All shards the fetched documents will have a `fetch` section in the profile.
-Let's execute a small search and have a look a the fetch profile:
+All shards that fetched documents will have a `fetch` section in the profile.
+Let's execute a small search and have a look at the fetch profile:
 
 [source,console]
 ----
@@ -1012,6 +1056,17 @@ And here is the fetch profile:
               "debug": {
                 "fast_path": 4
               }
+            },
+            {
+              "type": "StoredFieldsPhase",
+              "description": "",
+              "time_in_nanos": 5310,
+              "breakdown": {
+                "next_reader": 745,
+                "next_reader_count": 1,
+                "process": 4445,
+                "process_count": 5
+              }
             }
           ]
         }
@@ -1047,6 +1102,227 @@ per hit. In that case the true cost of `_source` phase is hidden in the
 loading stored fields by setting
 `"_source": false, "stored_fields": ["_none_"]`.
 
+[[profiling-dfs]]
+===== Profiling DFS
+
+The DFS phase runs before the query phase to collect global information
+relevant to the query. It's currently used in two cases:
+
+. When the `search_type` is set to
+<<profiling-dfs-statistics, `dfs_query_then_fetch`>> and the index has
+multiple shards.
+. When the search request contains a <<profiling-knn-search, knn section>>.
+
+Both of these cases can be profiled by setting `profile` to `true` as
+part of the search request.
+
+[[profiling-dfs-statistics]]
+====== Profiling DFS Statistics
+
+When the `search_type` is set to `dfs_query_then_fetch` and the index
+has multiple shards, the dfs phase collects term statistics to improve
+the relevance of search results.
+
+The following is an example of setting `profile` to `true` on a search
+that uses `dfs_query_then_fetch`:
+
+Let's first setup an index with multiple shards and index
+a pair of documents with different values on a `keyword` field.
+
+[source,console,id=profile_dfs]
+--------------------------------------------------
+PUT my-dfs-index
+{
+  "settings": {
+    "number_of_shards": 2, <1>
+    "number_of_replicas": 1
+  },
+  "mappings": {
+      "properties": {
+        "my-keyword": { "type": "keyword" }
+      }
+    }
+}
+
+POST my-dfs-index/_bulk?refresh=true
+{ "index" : { "_id" : "1" } }
+{ "my-keyword" : "a" }
+{ "index" : { "_id" : "2" } }
+{ "my-keyword" : "b" }
+--------------------------------------------------
+<1> The `my-dfs-index` is created with multiple shards.
+
+With an index setup, we can now profile the dfs phase of a
+search query. For this example we use a term query.
+
+[source,console]
+--------------------------------------------------
+GET /my-dfs-index/_search?search_type=dfs_query_then_fetch&pretty&size=0 <1>
+{
+  "profile": true, <2>
+  "query": {
+    "term": {
+      "my-keyword": {
+        "value": "a"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+<1> The `search_type` url parameter is set to `dfs_query_then_fetch` to
+ensure the dfs phase is run.
+<2> The `profile` parameter is set to `true`.
+
+In the response, we see a profile which includes a `dfs` section
+for each shard along with profile output for the rest of the search phases.
+One of the `dfs` sections for a shard looks like the following:
+
+[source,console-result]
+--------------------------------------------------
+"dfs" : {
+    "statistics" : {
+        "type" : "statistics",
+        "description" : "collect term statistics",
+        "time_in_nanos" : 236955,
+        "breakdown" : {
+            "term_statistics" : 4815,
+            "collection_statistics" : 27081,
+            "collection_statistics_count" : 1,
+            "create_weight" : 153278,
+            "term_statistics_count" : 1,
+            "rewrite_count" : 0,
+            "create_weight_count" : 1,
+            "rewrite" : 0
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ "$body.$_path", {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
+// TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path}]}}/]
+// TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
+
+In the `dfs.statistics` portion of this response we see a `time_in_nanos`
+which is the total time it took to collect term statistics for this
+shard along with a further breakdown of the individual parts.
+
+[[profiling-knn-search]]
+====== Profiling kNN Search
+
+A <<approximate-knn, k-nearest neighbor (kNN)>> search runs during
+the dfs phase.
+
+The following is an example of setting `profile` to `true` on a search
+that has a `knn` section:
+
+Let's first setup an index with several dense vectors.
+
+[source,console,id=profile_knn]
+--------------------------------------------------
+PUT my-knn-index
+{
+  "mappings": {
+    "properties": {
+      "my-vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      }
+    }
+  }
+}
+
+POST my-knn-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "my-vector": [1, 5, -20] }
+{ "index": { "_id": "2" } }
+{ "my-vector": [42, 8, -15] }
+{ "index": { "_id": "3" } }
+{ "my-vector": [15, 11, 23] }
+--------------------------------------------------
+
+With an index setup, we can now profile a kNN search query.
+
+[source,console]
+--------------------------------------------------
+POST my-knn-index/_search
+{
+  "profile": true, <1>
+  "knn": {
+    "field": "my-vector",
+    "query_vector": [-5, 9, -12],
+    "k": 3,
+    "num_candidates": 100
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+<1> The `profile` parameter is set to `true`.
+
+In the response, we see a profile which includes a `knn` section
+as part of the `dfs` section for each shard along with profile output for the
+rest of the search phases.
+
+One of the `dfs.knn` sections for a shard looks like the following:
+
+[source,js]
+--------------------------------------------------
+"dfs" : {
+    "knn" : [
+        {
+        "query" : [
+            {
+                "type" : "DocAndScoreQuery",
+                "description" : "DocAndScore[100]",
+                "time_in_nanos" : 444414,
+                "breakdown" : {
+                  "set_min_competitive_score_count" : 0,
+                  "match_count" : 0,
+                  "shallow_advance_count" : 0,
+                  "set_min_competitive_score" : 0,
+                  "next_doc" : 1688,
+                  "match" : 0,
+                  "next_doc_count" : 3,
+                  "score_count" : 3,
+                  "compute_max_score_count" : 0,
+                  "compute_max_score" : 0,
+                  "advance" : 4153,
+                  "advance_count" : 1,
+                  "score" : 2099,
+                  "build_scorer_count" : 2,
+                  "create_weight" : 128879,
+                  "shallow_advance" : 0,
+                  "create_weight_count" : 1,
+                  "build_scorer" : 307595,
+                  "count_weight": 0,
+                  "count_weight_count": 0
+                }
+            }
+        ],
+        "rewrite_time" : 1275732,
+        "collector" : [
+            {
+                "name" : "SimpleTopScoreDocCollector",
+                "reason" : "search_top_hits",
+                "time_in_nanos" : 17163
+            }
+        ]
+    }   ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
+// TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path, "fetch": $body.$_path}]}}/]
+// TESTRESPONSE[s/ (\-)?[0-9]+/ $body.$_path/]
+// TESTRESPONSE[s/"dfs" : \{/"dfs" : {"statistics": $body.$_path,/]
+
+In the `dfs.knn` portion of the response we can see the output
+the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,
+and <<collectors-section, collector>>. Unlike many other queries, kNN
+search does the bulk of the work during the query rewrite. This means
+`rewrite_time` represents the time spent on kNN search.
+
 [[profiling-considerations]]
 ===== Profiling Considerations
 
@@ -1069,8 +1345,7 @@ have a drastic effect compared to other components in the profiled query.
 - Profiling also does not account for time spent in the queue, merging shard
 responses on the coordinating node, or additional work such as building global
 ordinals (an internal data structure used to speed up search).
-- Profiling statistics are currently not available for suggestions,
-highlighting, `dfs_query_then_fetch`.
+- Profiling statistics are currently not available for suggestions.
 - Profiling of the reduce phase of aggregation is currently not available.
 - The Profiler is instrumenting internals that can change from version to
 version. The resulting json should be considered mostly unstable, especially

@@ -14,5 +14,6 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 public enum GeoRelation {
     QUERY_CROSSES,
     QUERY_INSIDE,
-    QUERY_DISJOINT
+    QUERY_DISJOINT,
+    QUERY_CONTAINS
 }

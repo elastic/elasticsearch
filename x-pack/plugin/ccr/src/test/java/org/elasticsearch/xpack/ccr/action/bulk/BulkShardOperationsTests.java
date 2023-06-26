@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.ccr.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
@@ -27,14 +32,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction.rewriteOperationWithPrimaryTerm;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class BulkShardOperationsTests extends IndexShardTestCase {
 
-    private static final byte[] SOURCE = "{}".getBytes(StandardCharsets.UTF_8);
+    private static final BytesReference SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
 
     // test that we use the primary term on the follower when applying operations from the leader
     public void testPrimaryTermFromFollower() throws IOException {
@@ -68,7 +73,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 operations,
                 numOps - 1,
                 followerPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(mock(TransportService.class))
             );
 
         boolean accessStats = randomBoolean();
@@ -130,7 +136,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 firstBulk,
                 seqno,
                 oldPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(mock(TransportService.class))
             );
         assertThat(
             fullResult.replicaRequest().getOperations(),
@@ -138,10 +145,13 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         );
         primaryTerm = randomLongBetween(primaryTerm, primaryTerm + 10);
         final IndexShard newPrimary = reinitShard(oldPrimary);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newPrimary.markAsRecovering("store", new RecoveryState(newPrimary.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newPrimary));
-        IndexShardTestCase.updateRoutingEntry(newPrimary, newPrimary.routingEntry().moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(
+            newPrimary,
+            newPrimary.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+        );
         newPrimary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
         // The second bulk includes some operations from the first bulk which were processed already;
         // only a subset of these operations will be included the result but with the old primary term.
@@ -153,7 +163,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 Stream.concat(secondBulk.stream(), existingOps.stream()).collect(Collectors.toList()),
                 seqno,
                 newPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(mock(TransportService.class))
             );
         final long newPrimaryTerm = newPrimary.getOperationPrimaryTerm();
         final long globalCheckpoint = newPrimary.getLastKnownGlobalCheckpoint();

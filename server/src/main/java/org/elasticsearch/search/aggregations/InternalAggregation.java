@@ -138,10 +138,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected abstract boolean mustReduceOnSingleInternalAgg();
 
     /**
-     * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
-     * false, it should return itself if asked to lead a reduction
+     * Return true if this aggregation can lead a reduction (ie, is not unmapped or empty).  If this agg returns
+     * false, it should return itself if asked to lead a reduction.
      */
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return true;
     }
 

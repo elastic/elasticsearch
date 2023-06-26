@@ -34,6 +34,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -55,12 +56,15 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -149,7 +153,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
                 repositoryMetadata,
-                BigArrays.NON_RECYCLING_INSTANCE
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
             )
         ) {
             @Override
@@ -186,7 +191,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
                 if (randomBoolean()) {
                     if (randomBoolean()) {
-                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                        org.elasticsearch.core.Streams.readFully(
+                            exchange.getRequestBody(),
+                            new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                        );
                     } else {
                         Streams.readFully(exchange.getRequestBody());
                         exchange.sendResponseHeaders(
@@ -218,7 +226,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_timeout"), exchange -> {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
+                    org.elasticsearch.core.Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                 }
@@ -313,7 +321,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             // sends an error back or let the request time out
             if (useTimeout == false) {
                 if (randomBoolean() && contentLength > 0) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]
+                    );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(
@@ -408,7 +419,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             // sends an error back or let the request time out
             if (useTimeout == false) {
                 if (randomBoolean() && contentLength > 0) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]
+                    );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(
@@ -425,7 +439,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
+        blobContainer.writeMetadataBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
             final byte[] buffer = new byte[16 * 1024];
             long outstanding = blobSize;
             while (outstanding > 0) {
@@ -449,7 +463,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             0,
             randomFrom(1000, Math.toIntExact(S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY).getBytes()))
         );
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, new ByteSizeValue(bufferSizeBytes));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, ByteSizeValue.ofBytes(bufferSizeBytes));
         final int meaningfulProgressBytes = Math.max(1, bufferSizeBytes / 100);
 
         final byte[] bytes = randomBlobContent();
@@ -514,6 +528,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(wrappedStream));
             assertArrayEquals(Arrays.copyOfRange(bytes, 0, readLimit), bytesRead);
         }
+    }
+
+    @Override
+    protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
+        // some attempts make meaningful progress and do not count towards the max retry limit
+        return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
     }
 
     /**

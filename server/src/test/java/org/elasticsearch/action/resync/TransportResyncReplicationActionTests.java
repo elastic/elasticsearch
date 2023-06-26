@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.resync;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -47,7 +48,6 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
@@ -62,7 +62,6 @@ import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -102,7 +101,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
             try (
                 TcpTransport transport = new Netty4Transport(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -141,18 +140,19 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getActiveOperationsCount()).then(i -> acquiredPermits.get());
+                when(indexShard.isPrimaryMode()).then(i -> true);
                 doAnswer(invocation -> {
                     @SuppressWarnings("unchecked")
                     ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
-                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), any(), eq(true));
+                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds(),
+                        shardRoutingTable.getPromotableAllocationIds(),
                         0
                     )
                 );
@@ -181,12 +181,11 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 final Task task = mock(Task.class);
                 when(task.getId()).thenReturn(randomNonNegativeLong());
 
-                final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
                 final ResyncReplicationRequest request = new ResyncReplicationRequest(
                     shardId,
                     42L,
                     100,
-                    new Translog.Operation[] { new Translog.Index("id", 0, primaryTerm, 0L, bytes, null, -1) }
+                    new Translog.Operation[] { TranslogOperationsUtils.indexOp("id", 0, primaryTerm) }
                 );
 
                 final PlainActionFuture<ResyncReplicationResponse> listener = new PlainActionFuture<>();

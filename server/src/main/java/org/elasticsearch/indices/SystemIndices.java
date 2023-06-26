@@ -8,6 +8,8 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -17,8 +19,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -32,7 +36,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.synonyms.SynonymsAPI;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,12 +50,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -105,12 +113,22 @@ public class SystemIndices {
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
+    private static final Logger logger = LogManager.getLogger(SystemIndices.class);
+
     /**
      * This is the source for non-plugin system features.
      */
-    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
-        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
-    ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
+    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS;
+
+    static {
+        Collection<Feature> indicesFeatures = new ArrayList<>();
+        indicesFeatures.add(new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)));
+        if (SynonymsAPI.isEnabled()) {
+            indicesFeatures.add(new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)));
+        }
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS = indicesFeatures.stream()
+            .collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
+    }
 
     /**
      * The node's full list of system features is stored here. The map is keyed
@@ -328,6 +346,11 @@ public class SystemIndices {
      * @return The matching {@link SystemIndexDescriptor} or {@code null} if no descriptor is found
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
+        return findMatchingDescriptor(indexDescriptors, name);
+    }
+
+    @Nullable
+    static SystemIndexDescriptor findMatchingDescriptor(SystemIndexDescriptor[] indexDescriptors, String name) {
         SystemIndexDescriptor matchingDescriptor = null;
         for (SystemIndexDescriptor systemIndexDescriptor : indexDescriptors) {
             if (systemIndexDescriptor.matchesIndexPattern(name)) {
@@ -854,38 +877,14 @@ public class SystemIndices {
             return postMigrationFunction;
         }
 
-        /**
-         * Clean up the state of a feature
-         * @param indexDescriptors List of descriptors of a feature's system indices
-         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
-         * @param name Name of the feature, used in logging
-         * @param clusterService A clusterService, for retrieving cluster metadata
-         * @param client A client, for issuing delete requests
-         * @param listener A listener to return success or failure of cleanup
-         */
-        public static void cleanUpFeature(
-            Collection<? extends IndexPatternMatcher> indexDescriptors,
-            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+        private static void cleanUpFeatureForIndices(
             String name,
-            ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener
+            String[] indexNames,
+            final ActionListener<ResetFeatureStateStatus> listener
         ) {
-            Metadata metadata = clusterService.state().getMetadata();
-
-            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
-                .map(descriptor -> descriptor.getMatchingIndices(metadata))
-                .flatMap(List::stream)
-                .toList();
-
-            if (allIndices.isEmpty()) {
-                // if no actual indices match the pattern, we can stop here
-                listener.onResponse(ResetFeatureStateStatus.success(name));
-                return;
-            }
-
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-            deleteIndexRequest.indices(allIndices.toArray(Strings.EMPTY_ARRAY));
+            deleteIndexRequest.indices(indexNames);
             client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -897,6 +896,75 @@ public class SystemIndices {
                     listener.onResponse(ResetFeatureStateStatus.failure(name, e));
                 }
             });
+        }
+
+        /**
+         * Clean up the state of a feature
+         * @param indexDescriptors List of descriptors of a feature's system indices
+         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
+         * @param name Name of the feature, used in logging
+         * @param clusterService A clusterService, for retrieving cluster metadata
+         * @param client A client, for issuing delete requests
+         * @param listener A listener to return success or failure of cleanup
+         */
+        public static void cleanUpFeature(
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+            String name,
+            ClusterService clusterService,
+            Client client,
+            final ActionListener<ResetFeatureStateStatus> listener
+        ) {
+            Metadata metadata = clusterService.state().getMetadata();
+
+            final List<Exception> exceptions = new ArrayList<>();
+            final Consumer<ResetFeatureStateStatus> handleResponse = resetFeatureStateStatus -> {
+                if (resetFeatureStateStatus.getStatus() == ResetFeatureStateStatus.Status.FAILURE) {
+                    synchronized (exceptions) {
+                        exceptions.add(resetFeatureStateStatus.getException());
+                    }
+                }
+            };
+
+            try (var listeners = new RefCountingListener(listener.map(ignored -> {
+                if (exceptions.isEmpty()) {
+                    return ResetFeatureStateStatus.success(name);
+                } else {
+                    for (final var exception : exceptions) {
+                        logger.warn(() -> "error while resetting feature [" + name + "]", exception);
+                    }
+                    return ResetFeatureStateStatus.failure(
+                        name,
+                        new Exception(exceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", ", "[", "]")))
+                    );
+                }
+            }))) {
+
+                // Send cleanup for the associated indices, they don't need special origin since they are not protected
+                String[] associatedIndices = associatedIndexDescriptors.stream()
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream())
+                    .toArray(String[]::new);
+                if (associatedIndices.length > 0) {
+                    cleanUpFeatureForIndices(name, client, associatedIndices, listeners.acquire(handleResponse));
+                }
+
+                // One descriptor at a time, create an originating client and clean up the feature
+                for (final var indexDescriptor : indexDescriptors) {
+                    List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
+                    if (matchingIndices.isEmpty() == false) {
+                        final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
+                            ? client
+                            : new OriginSettingClient(client, indexDescriptor.getOrigin());
+
+                        cleanUpFeatureForIndices(
+                            name,
+                            clientWithOrigin,
+                            matchingIndices.toArray(Strings.EMPTY_ARRAY),
+                            listeners.acquire(handleResponse)
+                        );
+                    }
+                }
+            }
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.

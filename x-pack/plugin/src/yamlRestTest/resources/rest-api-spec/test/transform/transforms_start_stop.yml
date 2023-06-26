@@ -61,6 +61,16 @@ setup:
               }
             }
           }
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.xpack.transform.action": "DEBUG",
+              "logger.org.elasticsearch.xpack.transform.transforms": "DEBUG"
+            }
+          }
+
 
 ---
 teardown:
@@ -91,6 +101,16 @@ teardown:
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-start-stop-continuous"
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.xpack.transform.action": "INFO",
+              "logger.org.elasticsearch.xpack.transform.transforms": "INFO"
+            }
+          }
+
 ---
 "Test start transform":
   - do:
@@ -116,6 +136,39 @@ teardown:
       catch: /Cannot start transform \[airline-transform-start-stop\] as it is already started/
       transform.start_transform:
         transform_id: "airline-transform-start-stop"
+
+---
+"Test schedule_now on a stopped transform":
+  - do:
+      transform.schedule_now_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+---
+"Test schedule_now on an already started transform":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.schedule_now_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+---
+"Test schedule_now all transforms":
+  - do:
+      catch: /_schedule_now API does not support _all wildcard/
+      transform.schedule_now_transform:
+        transform_id: "_all"
+
+---
+"Test schedule_now missing transform":
+  - do:
+      catch: missing
+      transform.schedule_now_transform:
+        transform_id: "missing"
 
 ---
 "Verify start transform creates destination index with appropriate mapping":
@@ -236,6 +289,31 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
+
+---
+"Test start transform with empty value of from parameter":
+  - do:
+      catch: /Failed to parse date for \[from\]/
+      transform.start_transform:
+        from: ""
+        transform_id: "airline-transform-start-stop-continuous"
+
+---
+"Test start transform with invalid value of from parameter":
+  - do:
+      catch: /Failed to parse date for \[from\]/
+      transform.start_transform:
+        from: "not-a-valid-timestamp"
+        transform_id: "airline-transform-start-stop-continuous"
+
+---
+"Test start batch transform with from parameter":
+  - do:
+      catch: /\[from\] parameter is currently not supported for batch \(non-continuous\) transforms/
+      transform.start_transform:
+        from: "2023-01-11T12:00:00"
+        transform_id: "airline-transform-start-stop"
+
 ---
 "Test stop missing transform":
   - do:

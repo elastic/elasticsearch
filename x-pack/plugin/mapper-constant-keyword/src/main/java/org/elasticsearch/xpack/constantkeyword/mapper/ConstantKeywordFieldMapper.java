@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -17,13 +19,15 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -36,9 +40,9 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
@@ -47,11 +51,10 @@ import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -132,7 +135,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new ConstantIndexFieldData.Builder(
                 value,
                 name(),
@@ -147,17 +150,26 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(value);
+            return value == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
+
+        @Override
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) {
             if (value == null) {
                 return TermsEnum.EMPTY;
             }
             boolean matches = caseInsensitive
-                ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
-                : value.startsWith(string);
+                ? value.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))
+                : value.startsWith(prefix);
             if (matches == false) {
                 return TermsEnum.EMPTY;
             }
@@ -171,7 +183,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             if (value == null) {
                 return false;
             }
@@ -215,7 +227,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
@@ -310,15 +323,25 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return (reader, docIdsInLeaf) -> new SourceLoader.SyntheticFieldLoader.Leaf() {
+        String value = fieldType().value();
+        ;
+        if (value == null) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public boolean empty() {
-                return fieldType().value == null;
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
             }
 
             @Override
-            public boolean advanceToDoc(int docId) throws IOException {
-                return fieldType().value != null;
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
+                return docId -> true;
+            }
+
+            @Override
+            public boolean hasValue() {
+                return true;
             }
 
             @Override

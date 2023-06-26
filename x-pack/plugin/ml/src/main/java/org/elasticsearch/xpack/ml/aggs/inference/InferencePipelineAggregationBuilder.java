@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
@@ -166,7 +166,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     ) throws IOException {
         super(in, NAME);
         modelId = in.readString();
-        bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
+        bucketPathMap = in.readMap(StreamInput::readString);
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         this.modelLoadingService = modelLoadingService;
         this.model = null;
@@ -268,7 +268,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 loadedModel.set(localModel);
 
                 boolean isLicensed = localModel.getLicenseLevel() == License.OperationMode.BASIC
-                    || MachineLearningField.ML_API_FEATURE.check(licenseState);
+                    || MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {
@@ -379,7 +379,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_9_0;
     }
 }

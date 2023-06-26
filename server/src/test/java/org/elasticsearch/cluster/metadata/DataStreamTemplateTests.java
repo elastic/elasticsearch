@@ -10,12 +10,12 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DataStreamTemplateTests extends AbstractSerializingTestCase<DataStreamTemplate> {
+public class DataStreamTemplateTests extends AbstractXContentSerializingTestCase<DataStreamTemplate> {
 
     @Override
     protected DataStreamTemplate doParseInstance(XContentParser parser) throws IOException {
@@ -30,6 +30,11 @@ public class DataStreamTemplateTests extends AbstractSerializingTestCase<DataStr
     @Override
     protected DataStreamTemplate createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected DataStreamTemplate mutateInstance(DataStreamTemplate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static DataStreamTemplate randomInstance() {

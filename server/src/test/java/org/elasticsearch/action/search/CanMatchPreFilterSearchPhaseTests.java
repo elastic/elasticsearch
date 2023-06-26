@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -20,10 +21,10 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -50,7 +51,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -99,8 +99,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = randomBoolean() ? null : new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = randomBoolean() ? null : DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -142,23 +142,19 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            EMPTY_CONTEXT_PROVIDER
+            true,
+            EMPTY_CONTEXT_PROVIDER,
+            ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            })
         );
 
         canMatchPhase.start();
@@ -188,8 +184,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             System::nanoTime
         );
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -244,23 +240,19 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            EMPTY_CONTEXT_PROVIDER
+            true,
+            EMPTY_CONTEXT_PROVIDER,
+            ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            })
         );
 
         canMatchPhase.start();
@@ -284,8 +276,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -341,23 +333,19 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 logger,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
-                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
-                null,
                 shardsIter,
                 timeProvider,
                 null,
-                (iter) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        result.set(iter);
-                        latch.countDown();
-                    }
-                },
-                SearchResponse.Clusters.EMPTY,
-                EMPTY_CONTEXT_PROVIDER
+                true,
+                EMPTY_CONTEXT_PROVIDER,
+                ActionTestUtils.assertNoFailureListener(iter -> {
+                    result.set(iter);
+                    latch.countDown();
+                })
             );
 
             canMatchPhase.start();
@@ -387,8 +375,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -447,23 +435,19 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 logger,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
-                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
-                null,
                 shardsIter,
                 timeProvider,
                 null,
-                (iter) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        result.set(iter);
-                        latch.countDown();
-                    }
-                },
-                SearchResponse.Clusters.EMPTY,
-                EMPTY_CONTEXT_PROVIDER
+                true,
+                EMPTY_CONTEXT_PROVIDER,
+                ActionTestUtils.assertNoFailureListener(iter -> {
+                    result.set(iter);
+                    latch.countDown();
+                })
             );
 
             canMatchPhase.start();
@@ -725,8 +709,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -775,10 +759,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
 
             // Sometimes apply the same query in the alias filter too
-            aliasFilter = new AliasFilter(randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
+            aliasFilter = AliasFilter.of(randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
         } else {
             // Apply the query as an alias filter
-            aliasFilter = new AliasFilter(query, Strings.EMPTY_ARRAY);
+            aliasFilter = AliasFilter.of(query, Strings.EMPTY_ARRAY);
         }
 
         Map<String, AliasFilter> aliasFilters = new HashMap<>();
@@ -828,19 +812,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            contextProvider
+            true,
+            contextProvider,
+            ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            })
         );
 
         canMatchPhase.start();
@@ -924,7 +904,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         public CoordinatorRewriteContextProvider build() {
             return new CoordinatorRewriteContextProvider(
                 XContentParserConfiguration.EMPTY,
-                mock(NamedWriteableRegistry.class),
                 mock(Client.class),
                 System::currentTimeMillis,
                 () -> clusterState,

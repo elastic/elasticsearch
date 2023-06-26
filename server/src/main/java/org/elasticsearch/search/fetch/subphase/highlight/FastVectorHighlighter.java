@@ -31,7 +31,7 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -68,7 +68,6 @@ public class FastVectorHighlighter implements Highlighter {
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
         MappedFieldType fieldType = fieldContext.fieldType;
-        boolean forceSource = fieldContext.forceSource;
         boolean fixBrokenAnalysis = fieldContext.context.containsBrokenAnalysis(fieldContext.fieldName);
 
         if (canHighlight(fieldType) == false) {
@@ -96,11 +95,10 @@ public class FastVectorHighlighter implements Highlighter {
                     : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());
             }
 
-            Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier = fragmentsBuilderSupplier(
+            Function<Source, FragmentsBuilder> fragmentsBuilderSupplier = fragmentsBuilderSupplier(
                 field,
                 fieldType,
                 fieldContext.context,
-                forceSource,
                 fixBrokenAnalysis
             );
 
@@ -148,7 +146,7 @@ public class FastVectorHighlighter implements Highlighter {
         cache.fvh.setPhraseLimit(field.fieldOptions().phraseLimit());
 
         String[] fragments;
-        FragmentsBuilder fragmentsBuilder = entry.fragmentsBuilderSupplier.apply(hitContext.sourceLookup());
+        FragmentsBuilder fragmentsBuilder = entry.fragmentsBuilderSupplier.apply(hitContext.source());
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0
@@ -216,17 +214,16 @@ public class FastVectorHighlighter implements Highlighter {
         return null;
     }
 
-    private Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier(
+    private Function<Source, FragmentsBuilder> fragmentsBuilderSupplier(
         SearchHighlightContext.Field field,
         MappedFieldType fieldType,
         FetchContext fetchContext,
-        boolean forceSource,
         boolean fixBrokenAnalysis
     ) {
         BoundaryScanner boundaryScanner = getBoundaryScanner(field);
         FieldOptions options = field.fieldOptions();
-        Function<SourceLookup, BaseFragmentsBuilder> supplier;
-        if (forceSource == false && fieldType.isStored()) {
+        Function<Source, BaseFragmentsBuilder> supplier;
+        if (fieldType.isStored()) {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = ignored -> new ScoreOrderFragmentsBuilder(options.preTags(), options.postTags(), boundaryScanner);
             } else {
@@ -308,7 +305,7 @@ public class FastVectorHighlighter implements Highlighter {
 
     private static class FieldHighlightEntry {
         public FragListBuilder fragListBuilder;
-        public Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier;
+        public Function<Source, FragmentsBuilder> fragmentsBuilderSupplier;
         public FieldQuery noFieldMatchFieldQuery;
         public FieldQuery fieldMatchFieldQuery;
     }

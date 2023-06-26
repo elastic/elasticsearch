@@ -44,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
- * and allows to executes it in a single batch.
+ * and allows to execute it in a single batch.
  *
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)

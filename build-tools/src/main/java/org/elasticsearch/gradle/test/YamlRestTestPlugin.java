@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
+import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -36,8 +36,8 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
 public class YamlRestTestPlugin implements Plugin<Project> {
 
@@ -83,7 +83,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         setupDefaultDependencies(project.getDependencies(), restTestSpecs, yamlRestTestImplementation);
         var cluster = testClusters.register(YAML_REST_TEST);
         TaskProvider<StandaloneRestIntegTestTask> yamlRestTestTask = setupTestTask(project, testSourceSet, cluster);
-        project.getPlugins().withType(PluginBuildPlugin.class, p -> {
+        project.getPlugins().withType(BasePluginBuildPlugin.class, p -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
                 cluster.configure(c -> c.module(bundle));

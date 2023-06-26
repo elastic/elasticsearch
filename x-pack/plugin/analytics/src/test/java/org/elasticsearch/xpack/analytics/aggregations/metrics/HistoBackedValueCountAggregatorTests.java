@@ -111,7 +111,7 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalValueCount> verify)
         throws IOException {
-        testCase(count("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
+        testCase(indexer, verify, new AggTestConfig(count("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query));
     }
 
     @Override
@@ -140,6 +140,6 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap(), null);
+        return new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap());
     }
 }

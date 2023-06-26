@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.io.stream.Writeable;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,7 +19,7 @@ import java.util.Set;
 /**
  * An accessor for settings which are securely stored. See {@link SecureSetting}.
  */
-public interface SecureSettings extends Closeable {
+public interface SecureSettings extends Closeable, Writeable {
 
     /** Returns true iff the settings are loaded and retrievable. */
     boolean isLoaded();
@@ -26,7 +28,7 @@ public interface SecureSettings extends Closeable {
     Set<String> getSettingNames();
 
     /** Return a string setting. The {@link SecureString} should be closed once it is used. */
-    SecureString getString(String setting) throws GeneralSecurityException;
+    SecureString getString(String setting);
 
     /** Return a file setting. The {@link InputStream} should be closed once it is used. */
     InputStream getFile(String setting) throws GeneralSecurityException;

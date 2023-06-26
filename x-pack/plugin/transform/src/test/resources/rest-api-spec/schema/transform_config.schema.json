@@ -139,6 +139,33 @@
           "type": "string",
           "pattern": "^.*$"
         },
+        "aliases": {
+          "$id": "#root/dest/aliases",
+          "title": "Aliases",
+          "type": "array",
+          "items": [
+            {
+              "type": "object",
+              "description": "describes a single alias",
+              "additionalProperties": false,
+              "required": [
+                "alias"
+              ],
+              "properties": {
+                "alias": {
+                  "type": "string",
+                  "description": "single alias name"
+                },
+                "move_on_creation": {
+                  "type": "boolean",
+                  "description": "remove this alias from all the indices it points to and assign it to the dest index only",
+                  "default": false
+                }
+              }
+            }
+          ],
+          "pattern": "^.*$"
+        },
         "pipeline": {
           "$id": "#root/dest/pipeline",
           "title": "Pipeline",
@@ -208,6 +235,13 @@
           "$id": "#root/settings/num_failure_retries",
           "title": "num failure retries",
           "type": "integer"
+        },
+        "unattended": {
+          "$id": "#root/settings/unattended",
+          "title": "unattended",
+          "type": "boolean",
+          "description": "run this transform in unattended mode",
+          "default": false
         }
       }
     },

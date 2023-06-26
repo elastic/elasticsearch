@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
@@ -13,7 +13,7 @@ esplugin {
 GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
 tasks.named("javaRestTest").configure {
-  it.onlyIf { BuildParams.isSnapshotBuild() }
+  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
   systemProperty 'tests.security.manager', 'false'
   systemProperty 'tests.system_call_filter', 'false'
   nonInputProperties.systemProperty 'log', testClusters.named("javaRestTest").map(c -> c.singleNode().getServerLog())

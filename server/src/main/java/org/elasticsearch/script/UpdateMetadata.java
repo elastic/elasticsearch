@@ -22,39 +22,29 @@ import java.util.stream.Collectors;
 public class UpdateMetadata extends Metadata {
     // AbstractAsyncBulkByScrollAction.OpType uses 'noop' rather than 'none', so unify on 'noop' but allow 'none' in
     // the ctx map
-
     protected static final String LEGACY_NOOP_STRING = "none";
-
-    protected static final FieldProperty<String> SET_ONCE_STRING = new FieldProperty<>(String.class, true, false, null);
-
-    protected static final FieldProperty<Number> SET_ONCE_LONG = new FieldProperty<>(
-        Number.class,
-        false,
-        false,
-        FieldProperty.LONGABLE_NUMBER
-    );
 
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        SET_ONCE_STRING,
+        StringField.withNullable(),
         ID,
-        SET_ONCE_STRING,
+        StringField.withNullable(),
         VERSION,
-        SET_ONCE_LONG,
+        LongField,
         ROUTING,
-        SET_ONCE_STRING,
+        StringField.withNullable(),
         TYPE,
-        SET_ONCE_STRING,
+        StringField.withNullable(),
         OP,
-        new FieldProperty<>(String.class, true, true, null),
-        TIMESTAMP,
-        SET_ONCE_LONG
+        StringField.withWritable().withNullable(),
+        NOW,
+        LongField
     );
 
     protected final Set<String> validOps;
 
-    public UpdateMetadata(String index, String id, long version, String routing, String type, String op, long timestamp) {
-        this(metadataMap(index, id, version, routing, type, op, timestamp), Set.of("noop", "index", "delete"), PROPERTIES);
+    public UpdateMetadata(String index, String id, long version, String routing, String type, String op, long now) {
+        this(metadataMap(index, id, version, routing, type, op, now), Set.of("noop", "index", "delete"), PROPERTIES);
     }
 
     protected UpdateMetadata(Map<String, Object> metadata, Set<String> validOps, Map<String, FieldProperty<?>> properties) {
@@ -69,7 +59,7 @@ public class UpdateMetadata extends Metadata {
         String routing,
         String type,
         String op,
-        long timestamp
+        long now
     ) {
         Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(PROPERTIES.size());
         metadata.put(INDEX, index);
@@ -78,7 +68,7 @@ public class UpdateMetadata extends Metadata {
         metadata.put(ROUTING, routing);
         metadata.put(TYPE, type);
         metadata.put(OP, op);
-        metadata.put(TIMESTAMP, timestamp);
+        metadata.put(NOW, now);
         return metadata;
     }
 

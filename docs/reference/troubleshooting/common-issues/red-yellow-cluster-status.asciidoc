@@ -59,7 +59,9 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 A shard can become unassigned for several reasons. The following tips outline the
 most common causes and their solutions.
 
-**Re-enable shard allocation**
+[discrete]
+[[fix-cluster-status-reenable-allocation]]
+===== Re-enable shard allocation
 
 You typically disable allocation during a <<restart-cluster,restart>> or other
 cluster maintenance. If you forgot to re-enable allocation afterward, {es} will
@@ -76,7 +78,9 @@ PUT _cluster/settings
 }
 ----
 
-**Recover lost nodes**
+[discrete]
+[[fix-cluster-status-recover-nodes]]
+===== Recover lost nodes
 
 Shards often become unassigned when a data node leaves the cluster. This can
 occur for several reasons, ranging from connectivity issues to hardware failure.
@@ -91,10 +95,12 @@ asynchronously in the background.
 
 [source,console]
 ----
-POST _cluster/reroute
+POST _cluster/reroute?metric=none
 ----
 
-**Fix allocation settings**
+[discrete]
+[[fix-cluster-status-allocation-settings]]
+===== Fix allocation settings
 
 Misconfigured allocation settings can result in an unassigned primary shard.
 These settings include:
@@ -117,7 +123,9 @@ GET _cluster/settings?flat_settings=true&include_defaults=true
 You can change the settings using the <<indices-update-settings,update index
 settings>> and <<cluster-update-settings,cluster update settings>> APIs.
 
-**Allocate or reduce replicas**
+[discrete]
+[[fix-cluster-status-allocation-replicas]]
+===== Allocate or reduce replicas
 
 To protect against hardware failure, {es} will not assign a replica to the same
 node as its primary shard. If no other data nodes are available to host the
@@ -138,7 +146,10 @@ PUT _settings
 ----
 // TEST[s/^/PUT my-index\n/]
 
-**Free up or increase disk space**
+
+[discrete]
+[[fix-cluster-status-disk-space]]
+===== Free up or increase disk space
 
 {es} uses a <<disk-based-shard-allocation,low disk watermark>> to ensure data
 nodes have enough disk space for incoming shards. By default, {es} does not
@@ -194,13 +205,17 @@ PUT _cluster/settings
 ----
 // TEST[s/"30gb"/null/]
 
-**Reduce JVM memory pressure**
+[discrete]
+[[fix-cluster-status-jvm]]
+===== Reduce JVM memory pressure
 
 Shard allocation requires JVM heap memory. High JVM memory pressure can trigger
 <<circuit-breaker,circuit breakers>> that stop allocation and leave shards
 unassigned. See <<high-jvm-memory-pressure>>.
 
-**Recover data for a lost primary shard**
+[discrete]
+[[fix-cluster-status-restore]]
+===== Recover data for a lost primary shard
 
 If a node containing a primary shard is lost, {es} can typically replace it
 using a replica on another node. If you can't recover the node and replicas
@@ -218,7 +233,7 @@ unassigned primary shard to another data node in the same tier. Set
 
 [source,console]
 ----
-POST _cluster/reroute
+POST _cluster/reroute?metric=none
 {
   "commands": [
     {

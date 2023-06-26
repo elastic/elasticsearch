@@ -23,11 +23,11 @@ import java.util.Map;
  */
 public final class PutPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
-    private Map<String, List<String>> created;
+    private final Map<String, List<String>> created;
 
     public PutPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        this.created = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readStringList));
+        this.created = in.readImmutableMap(StreamInput::readStringList);
     }
 
     public PutPrivilegesResponse(Map<String, List<String>> created) {

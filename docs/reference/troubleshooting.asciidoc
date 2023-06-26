@@ -6,8 +6,56 @@
 This section provides a series of troubleshooting solutions aimed at helping users
 fix problems that an {es} deployment might encounter.
 
-Several troubleshooting issues can be diagnosed using the
+[discrete]
+[[troubleshooting-general]]
+=== General
+* <<fix-common-cluster-issues,Fix common cluster issues>>
+* Several troubleshooting issues can be diagnosed using the
 <<health-api,health API>>.
+
+[discrete]
+[[troubleshooting-data]]
+=== Data
+* <<fix-watermark-errors,Fix watermark errors caused by low disk space>>
+* <<add-tier,Add a missing tier to the system>>
+* <<allow-all-cluster-allocation,Allow Elasticsearch to allocate the data in the system>>
+* <<allow-all-index-allocation,Allow Elasticsearch to allocate the index>>
+* <<troubleshoot-migrate-to-tiers,Indices mix index allocation filters with data tiers node roles to move through data tiers>>
+* <<increase-tier-capacity,Not enough nodes to allocate all shard replicas>>
+* <<increase-shard-limit,Total number of shards for an index on a single node exceeded>>
+* <<increase-cluster-shard-limit,Total number of shards per node has been reached>>
+* <<corruption-troubleshooting,Troubleshooting data corruption>>
+
+[discrete]
+[[troubleshooting-management]]
+=== Management
+* <<start-ilm,Start index lifecycle management>>
+* <<start-slm,Start snapshot lifecycle management>>
+
+[discrete]
+[[troubleshooting-capacity]]
+=== Capacity
+* <<fix-data-node-out-of-disk, Fix data nodes out of disk>>
+* <<fix-master-node-out-of-disk, Fix master nodes out of disk>>
+* <<fix-other-node-out-of-disk, Fix other role nodes out of disk>>
+
+[discrete]
+[[troubleshooting-snapshot]]
+=== Snapshot and restore
+* <<restore-from-snapshot,Restore data from snapshot>>
+* <<add-repository,Multiple deployments writing to the same snapshot repository>>
+* <<repeated-snapshot-failures,Troubleshooting repeated snapshot failures>>
+
+[discrete]
+[[troubleshooting-others]]
+=== Others
+* <<cluster-fault-detection-troubleshooting,Troubleshooting an unstable cluster>>
+* <<discovery-troubleshooting,Troubleshooting discovery>>
+* <<monitoring-troubleshooting,Troubleshooting monitoring>>
+* <<transform-troubleshooting,Troubleshooting transforms>>
+* <<watcher-troubleshooting,Troubleshooting Watcher>>
+* <<troubleshooting-searches,Troubleshooting searches>>
+* <<troubleshooting-shards-capacity-issues, Troubleshoot shards capacity>>
 
 If none of these solutions relate to your issue, you can still get help:
 
@@ -36,32 +84,46 @@ the experts in the community, including people from Elastic.
 
 include::troubleshooting/fix-common-cluster-issues.asciidoc[]
 
+include::troubleshooting/data/add-tier.asciidoc[]
+
+include::troubleshooting/data/enable-cluster-allocation.asciidoc[]
+
+include::troubleshooting/data/enable-index-allocation.asciidoc[]
+
+include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
+
+include::troubleshooting/data/increase-tier-capacity.asciidoc[]
+
 include::troubleshooting/data/increase-shard-limit.asciidoc[]
 
 include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
-include::troubleshooting/data/enable-index-allocation.asciidoc[]
+include::troubleshooting/corruption-issues.asciidoc[]
 
-include::troubleshooting/data/enable-cluster-allocation.asciidoc[]
+include::troubleshooting/disk/fix-data-node-out-of-disk.asciidoc[]
 
-include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
+include::troubleshooting/disk/fix-master-node-out-of-disk.asciidoc[]
 
-include::troubleshooting/data/add-tier.asciidoc[]
-
-include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
-
-include::troubleshooting/discovery-issues.asciidoc[]
-
-include::troubleshooting/data/increase-tier-capacity.asciidoc[]
+include::troubleshooting/disk/fix-other-node-out-of-disk.asciidoc[]
 
 include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]
 
+include::troubleshooting/data/restore-from-snapshot.asciidoc[]
+
 include::troubleshooting/snapshot/add-repository.asciidoc[]
+
+include::troubleshooting/snapshot/repeated-snapshot-failures.asciidoc[]
+
+include::troubleshooting/discovery-issues.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]
 
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
 include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+
+include::troubleshooting/troubleshooting-searches.asciidoc[]
+
+include::troubleshooting/troubleshooting-shards-capacity.asciidoc[]

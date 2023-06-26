@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -459,7 +461,7 @@ public class XContentBuilderTests extends ESTestCase {
         final Map<String, Object> actualValues = XContentHelper.convertToMap(bytes, true).v2();
         assertThat(actualValues, aMapWithSize(fields));
         for (Map.Entry<String, Object> e : expectedValues.entrySet()) {
-            if (e.getValue()instanceof final TestWritableValue expectedValue) {
+            if (e.getValue() instanceof final TestWritableValue expectedValue) {
                 assertThat(actualValues.get(e.getKey()), instanceOf(String.class));
                 final byte[] decoded = Base64.getDecoder().decode((String) actualValues.get(e.getKey()));
                 final TestWritableValue actualValue = new TestWritableValue(new InputStream() {
@@ -476,5 +478,70 @@ public class XContentBuilderTests extends ESTestCase {
                 assertThat(actualValues, hasEntry(e.getKey(), e.getValue()));
             }
         }
+    }
+
+    private static class NonXContentable {}
+
+    private static class XContentable implements ToXContent {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
+        }
+    }
+
+    private enum XContentableEnum {
+        A,
+        B,
+        C
+    }
+
+    private void assertNotXContentable(Object o, Class<?> type) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureToXContentable(o));
+        assertThat(e.getMessage(), equalTo("Cannot write type [" + type.getCanonicalName() + "] to x-content"));
+    }
+
+    public void testIsXContentable() throws IOException {
+        assertNotXContentable(new NonXContentable(), NonXContentable.class);
+    }
+
+    public void testSetIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(Set.of("a", "b"));
+        assertNotXContentable(Set.of(new NonXContentable()), NonXContentable.class);
+    }
+
+    public void testListIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(List.of("a", "b"));
+        assertNotXContentable(List.of(new NonXContentable()), NonXContentable.class);
+    }
+
+    public void testMapIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(Map.of("a", "b", "c", "d"));
+        assertNotXContentable(Map.of("a", new NonXContentable()), NonXContentable.class);
+
+        Map<Object, Object> nonStringKey = Map.of(1, 2);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureToXContentable(nonStringKey));
+        assertThat(e.getMessage(), equalTo("Cannot write non-String map key [java.lang.Integer] to x-content"));
+    }
+
+    public void testObjectArrayIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(new Object[] { "a", "b" });
+        assertNotXContentable(new Object[] { new NonXContentable() }, NonXContentable.class);
+    }
+
+    public void testIterableIsXContentable() {
+        XContentBuilder.ensureToXContentable((Iterable<String>) () -> List.of("a", "b").iterator());
+        assertNotXContentable((Iterable<NonXContentable>) () -> List.of(new NonXContentable()).iterator(), NonXContentable.class);
+    }
+
+    public void testPathIsXContentable() {
+        XContentBuilder.ensureToXContentable(createTempDir());
+    }
+
+    public void testXContentIsXContentable() {
+        XContentBuilder.ensureToXContentable(new XContentable());
+    }
+
+    public void testEnumIsXContentable() {
+        XContentBuilder.ensureToXContentable(XContentableEnum.A);
     }
 }

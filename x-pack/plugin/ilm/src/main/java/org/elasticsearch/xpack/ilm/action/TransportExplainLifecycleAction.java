@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,10 +38,10 @@ import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 
 public class TransportExplainLifecycleAction extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
@@ -79,13 +80,13 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ClusterState state,
         ActionListener<ExplainLifecycleResponse> listener
     ) {
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
-            IndexMetadata idxMetadata = state.metadata().index(index);
             final IndexLifecycleExplainResponse indexResponse;
             try {
                 indexResponse = getIndexLifecycleExplainResponse(
-                    idxMetadata,
+                    index,
+                    state.metadata(),
                     request.onlyErrors(),
                     request.onlyManaged(),
                     indexLifecycleService,
@@ -105,12 +106,14 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
 
     @Nullable
     static IndexLifecycleExplainResponse getIndexLifecycleExplainResponse(
-        IndexMetadata indexMetadata,
+        String indexName,
+        Metadata metadata,
         boolean onlyErrors,
         boolean onlyManaged,
         IndexLifecycleService indexLifecycleService,
         NamedXContentRegistry xContentRegistry
     ) throws IOException {
+        IndexMetadata indexMetadata = metadata.index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = indexMetadata.getLifecyclePolicyName();
@@ -120,7 +123,6 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         if (stepInfo != null) {
             stepInfoBytes = new BytesArray(stepInfo);
         }
-        String indexName = indexMetadata.getIndex().getName();
         Long indexCreationDate = indexMetadata.getCreationDate();
 
         // parse existing phase steps from the phase definition in the index settings
@@ -138,7 +140,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        if (Strings.hasLength(policyName)) {
+        if (metadata.isIndexManagedByILM(indexMetadata)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
                 || (ErrorStep.NAME.equals(lifecycleState.step()) || indexLifecycleService.policyExists(policyName) == false)) {

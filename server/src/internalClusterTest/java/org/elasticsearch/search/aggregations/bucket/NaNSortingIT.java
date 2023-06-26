@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -93,11 +92,7 @@ public class NaNSortingIT extends ESIntegTestCase {
 
         public String name;
 
-        public abstract
-            ValuesSourceAggregationBuilder.LeafOnly<
-                ValuesSource.Numeric,
-                ? extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ?>>
-            builder();
+        public abstract ValuesSourceAggregationBuilder.LeafOnly<? extends ValuesSourceAggregationBuilder.LeafOnly<?>> builder();
 
         public String sortKey() {
             return name;
@@ -108,7 +103,7 @@ public class NaNSortingIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("string_value", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping("string_value", "type=keyword").get());
         final int numDocs = randomIntBetween(2, 10);
         for (int i = 0; i < numDocs; ++i) {
             final long value = randomInt(5);

@@ -5,6 +5,7 @@
     description: "Elasticsearch %BRANCH% unix compatibility testing.\n"
     project-type: matrix
     node: master
+    child-workspace: "/var/lib/jenkins/workspace/elastic+elasticsearch+%BRANCH%+multijob+platform-support-unix"
     scm:
       - git:
           wipe-workspace: false
@@ -14,7 +15,8 @@
           name: os
           values:
             - "centos-7&&immutable"
-            - "amazon&&immutable"
+            - "amazon-2&&immutable"
+            - "amazon-2022&&immutable"
             - "debian-10&&immutable"
             - "debian-11&&immutable"
             - "opensuse-15-1&&immutable"
@@ -35,7 +37,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA11_HOME=$HOME/.java/java11
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |

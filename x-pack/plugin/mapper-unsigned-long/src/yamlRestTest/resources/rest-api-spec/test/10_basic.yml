@@ -376,3 +376,32 @@ setup:
               }]
 
   - length: { aggregations.test.buckets: 0 }
+
+---
+"Decay":
+  - skip:
+      features: close_to
+      version: " - 8.8.99"
+      reason: "decay functions not supported for unsigned_long"
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 10
+          query:
+            function_score:
+              functions: [{
+                "linear": {
+                  "ul": {
+                    "scale": 18000000000000000000.0,
+                    "origin": 12000000000000000000.0
+                  }
+                }
+              }]
+
+  - close_to: { hits.hits.0._score: { value: 0.9228715, error: 0.001 } }
+  - close_to: { hits.hits.1._score: { value: 0.9228715, error: 0.001 } }
+  - close_to: { hits.hits.2._score: { value: 0.8209238, error: 0.001 } }
+  - close_to: { hits.hits.3._score: { value: 0.8209238, error: 0.001 } }
+  - close_to: { hits.hits.4._score: { value: 0.6666667, error: 0.001 } }

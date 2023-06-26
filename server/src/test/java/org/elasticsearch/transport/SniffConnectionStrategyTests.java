@@ -8,7 +8,9 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -17,15 +19,19 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -48,14 +54,33 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 
 public class SniffConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
-    private final Settings settings = Settings.builder().put(modeKey, "sniff").build();
-    private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile("cluster", settings);
+    private Settings clientSettings;
+    private ConnectionProfile profile;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+    private boolean hasClusterCredentials;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        hasClusterCredentials = randomBoolean();
+        final Settings.Builder builder = Settings.builder().put(modeKey, "sniff");
+        if (hasClusterCredentials) {
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                randomAlphaOfLength(20)
+            );
+            builder.setSecureSettings(secureSettings);
+        }
+        clientSettings = builder.build();
+        profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, clientSettings, hasClusterCredentials);
+    }
 
     @Override
     public void tearDown() throws Exception {
@@ -63,14 +88,20 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
-        return startTransport(id, knownNodes, version, Settings.EMPTY);
+    private MockTransportService startTransport(
+        String id,
+        List<DiscoveryNode> knownNodes,
+        Version version,
+        TransportVersion transportVersion
+    ) {
+        return startTransport(id, knownNodes, version, transportVersion, Settings.EMPTY);
     }
 
     public MockTransportService startTransport(
         final String id,
         final List<DiscoveryNode> knownNodes,
         final Version version,
+        final TransportVersion transportVersion,
         final Settings settings
     ) {
         boolean success = false;
@@ -78,9 +109,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterAlias)
             .put("node.name", id)
             .put(settings)
+            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), hasClusterCredentials)
+            .put(RemoteClusterPortSettings.PORT.getKey(), "0")
             .build();
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
-        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool);
+        MockTransportService newService = MockTransportService.createNewService(s, version, transportVersion, threadPool);
         try {
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
@@ -95,6 +128,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
                 }
             );
+            if (hasClusterCredentials) {
+                newService.registerRequestHandler(
+                    RemoteClusterNodesAction.NAME,
+                    ThreadPool.Names.SAME,
+                    RemoteClusterNodesAction.Request::new,
+                    (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(knownNodes))
+                );
+            }
             newService.start();
             newService.acceptIncomingRequests();
             success = true;
@@ -109,16 +150,29 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testSniffStrategyWillConnectToAndDiscoverNodes() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService discoverableTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode discoverableNode = getLocalNode(discoverableTransport);
             knownNodes.add(seedNode);
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    clientSettings,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
+                addSendBehaviour(localService);
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -134,7 +188,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         localService,
                         remoteConnectionManager,
                         null,
-                        Settings.EMPTY,
+                        clientSettings,
                         3,
                         n -> true,
                         seedNodes(seedNode)
@@ -156,11 +210,16 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testSniffStrategyWillResolveDiscoveryNodesEachConnect() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService discoverableTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode discoverableNode = getLocalNode(discoverableTransport);
             knownNodes.add(seedNode);
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
@@ -171,7 +230,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 return seedNode;
             };
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -211,19 +277,36 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testSniffStrategyWillConnectToMaxAllowedNodesAndOpenNewConnectionsOnDisconnect() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport1 = startTransport("discoverable_node", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport2 = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService discoverableTransport1 = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            );
+            MockTransportService discoverableTransport2 = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode discoverableNode1 = discoverableTransport1.getLocalNode();
-            DiscoveryNode discoverableNode2 = discoverableTransport2.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode discoverableNode1 = getLocalNode(discoverableTransport1);
+            DiscoveryNode discoverableNode2 = getLocalNode(discoverableTransport2);
             knownNodes.add(seedNode);
             knownNodes.add(discoverableNode1);
             knownNodes.add(discoverableNode2);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -271,20 +354,38 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testDiscoverWithSingleIncompatibleSeedNode() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService incompatibleSeedTransport = startTransport("discoverable_node", knownNodes, incompatibleVersion);
-            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService incompatibleSeedTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                incompatibleVersion,
+                incompatibleTransportVersion
+            );
+            MockTransportService discoverableTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode incompatibleSeedNode = incompatibleSeedTransport.getLocalNode();
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode incompatibleSeedNode = getLocalNode(incompatibleSeedTransport);
+            DiscoveryNode discoverableNode = getLocalNode(discoverableTransport);
             knownNodes.add(seedNode);
             knownNodes.add(incompatibleSeedNode);
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -323,11 +424,26 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testConnectFailsWithIncompatibleNodes() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
-        try (MockTransportService incompatibleSeedTransport = startTransport("seed_node", knownNodes, incompatibleVersion)) {
-            DiscoveryNode incompatibleSeedNode = incompatibleSeedTransport.getLocalNode();
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
+        try (
+            MockTransportService incompatibleSeedTransport = startTransport(
+                "seed_node",
+                knownNodes,
+                incompatibleVersion,
+                incompatibleTransportVersion
+            )
+        ) {
+            DiscoveryNode incompatibleSeedNode = getLocalNode(incompatibleSeedTransport);
             knownNodes.add(incompatibleSeedNode);
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -363,17 +479,29 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testFilterNodesWithNodePredicate() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService discoverableTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode discoverableNode = getLocalNode(discoverableTransport);
             knownNodes.add(seedNode);
             knownNodes.add(discoverableNode);
             DiscoveryNode rejectedNode = randomBoolean() ? seedNode : discoverableNode;
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -415,15 +543,27 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testConnectFailsIfNoConnectionsOpened() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService closedTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService closedTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode discoverableNode = closedTransport.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode discoverableNode = getLocalNode(closedTransport);
             knownNodes.add(discoverableNode);
             closedTransport.close();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -463,21 +603,45 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Settings otherSettings = Settings.builder().put("cluster.name", "otherCluster").build();
 
         try (
-            MockTransportService seed = startTransport("other_seed", knownNodes, Version.CURRENT);
-            MockTransportService discoverable = startTransport("other_discoverable", knownNodes, Version.CURRENT);
-            MockTransportService otherSeed = startTransport("other_seed", knownNodes, Version.CURRENT, otherSettings);
-            MockTransportService otherDiscoverable = startTransport("other_discoverable", knownNodes, Version.CURRENT, otherSettings)
+            MockTransportService seed = startTransport("other_seed", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService discoverable = startTransport(
+                "other_discoverable",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            );
+            MockTransportService otherSeed = startTransport(
+                "other_seed",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current(),
+                otherSettings
+            );
+            MockTransportService otherDiscoverable = startTransport(
+                "other_discoverable",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current(),
+                otherSettings
+            )
         ) {
-            DiscoveryNode seedNode = seed.getLocalNode();
-            DiscoveryNode discoverableNode = discoverable.getLocalNode();
-            DiscoveryNode otherSeedNode = otherSeed.getLocalNode();
-            DiscoveryNode otherDiscoverableNode = otherDiscoverable.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seed);
+            DiscoveryNode discoverableNode = getLocalNode(discoverable);
+            DiscoveryNode otherSeedNode = getLocalNode(otherSeed);
+            DiscoveryNode otherDiscoverableNode = getLocalNode(otherDiscoverable);
             knownNodes.add(seedNode);
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
             Collections.shuffle(otherKnownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -540,16 +704,28 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testMultipleCallsToConnectEnsuresConnection() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService discoverableTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode discoverableNode = getLocalNode(discoverableTransport);
             knownNodes.add(seedNode);
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -599,16 +775,26 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testConfiguredProxyAddressModeWillReplaceNodeAddress() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService accessible = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService unresponsive1 = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
-            MockTransportService unresponsive2 = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)
+            MockTransportService accessible = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService unresponsive1 = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            );
+            MockTransportService unresponsive2 = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            )
         ) {
             // We start in order to get a valid address + port, but do not start accepting connections as we
             // will not actually connect to these transports
             unresponsive1.start();
             unresponsive2.start();
-            DiscoveryNode accessibleNode = accessible.getLocalNode();
-            DiscoveryNode discoverableNode = unresponsive2.getLocalNode();
+            DiscoveryNode accessibleNode = getLocalNode(accessible);
+            DiscoveryNode discoverableNode = getLocalNode(unresponsive2);
 
             // Use the address for the node that will not respond
             DiscoveryNode unaddressableSeedNode = new DiscoveryNode(
@@ -617,7 +803,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 accessibleNode.getEphemeralId(),
                 accessibleNode.getHostName(),
                 accessibleNode.getHostAddress(),
-                unresponsive1.getLocalNode().getAddress(),
+                getLocalNode(unresponsive1).getAddress(),
                 accessibleNode.getAttributes(),
                 accessibleNode.getRoles(),
                 accessibleNode.getVersion()
@@ -627,7 +813,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -685,16 +878,28 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testSniffStrategyWillNeedToBeRebuiltIfNumOfConnectionsOrSeedsOrProxyChange() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService discoverableTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.current()
+            )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            DiscoveryNode seedNode = getLocalNode(seedTransport);
+            DiscoveryNode discoverableNode = getLocalNode(discoverableTransport);
             knownNodes.add(seedNode);
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.current(),
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -758,81 +963,74 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
         {
-            DiscoveryNode all = new DiscoveryNode("id", address, Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT);
+            DiscoveryNode all = DiscoveryNodeUtils.create("id", address);
             assertTrue(nodePredicate.test(all));
         }
         {
-            DiscoveryNode dataMaster = new DiscoveryNode(
+            DiscoveryNode dataMaster = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)
             );
             assertTrue(nodePredicate.test(dataMaster));
         }
         {
-            DiscoveryNode dedicatedMaster = new DiscoveryNode(
+            DiscoveryNode dedicatedMaster = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.MASTER_ROLE)
             );
             assertFalse(nodePredicate.test(dedicatedMaster));
         }
         {
-            DiscoveryNode dedicatedIngest = new DiscoveryNode(
+            DiscoveryNode dedicatedIngest = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.INGEST_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.INGEST_ROLE)
             );
             assertTrue(nodePredicate.test(dedicatedIngest));
         }
         {
-            DiscoveryNode masterIngest = new DiscoveryNode(
+            DiscoveryNode masterIngest = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE)
             );
             assertTrue(nodePredicate.test(masterIngest));
         }
         {
-            DiscoveryNode dedicatedData = new DiscoveryNode(
+            DiscoveryNode dedicatedData = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.DATA_ROLE)
             );
             assertTrue(nodePredicate.test(dedicatedData));
         }
         {
-            DiscoveryNode ingestData = new DiscoveryNode(
+            DiscoveryNode ingestData = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE)
             );
             assertTrue(nodePredicate.test(ingestData));
         }
         {
-            DiscoveryNode coordOnly = new DiscoveryNode("id", address, Collections.emptyMap(), Set.of(), Version.CURRENT);
+            DiscoveryNode coordOnly = DiscoveryNodeUtils.create("id", address, Collections.emptyMap(), Set.of());
             assertTrue(nodePredicate.test(coordOnly));
         }
     }
 
     public void testGetNodePredicateNodeVersion() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
         Version version = VersionUtils.randomVersion(random());
-        DiscoveryNode node = new DiscoveryNode("id", address, Collections.emptyMap(), roles, version);
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id").address(address).version(version).build();
         assertThat(nodePredicate.test(node), equalTo(Version.CURRENT.isCompatible(version)));
     }
 
@@ -842,29 +1040,17 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
         {
-            DiscoveryNode nonGatewayNode = new DiscoveryNode(
-                "id",
-                address,
-                Collections.singletonMap("gateway", "false"),
-                roles,
-                Version.CURRENT
-            );
+            DiscoveryNode nonGatewayNode = DiscoveryNodeUtils.create("id", address, Collections.singletonMap("gateway", "false"), roles);
             assertFalse(nodePredicate.test(nonGatewayNode));
             assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(nonGatewayNode));
         }
         {
-            DiscoveryNode gatewayNode = new DiscoveryNode(
-                "id",
-                address,
-                Collections.singletonMap("gateway", "true"),
-                roles,
-                Version.CURRENT
-            );
+            DiscoveryNode gatewayNode = DiscoveryNodeUtils.create("id", address, Collections.singletonMap("gateway", "true"), roles);
             assertTrue(nodePredicate.test(gatewayNode));
             assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(gatewayNode));
         }
         {
-            DiscoveryNode noAttrNode = new DiscoveryNode("id", address, Collections.emptyMap(), roles, Version.CURRENT);
+            DiscoveryNode noAttrNode = DiscoveryNodeUtils.create("id", address, Collections.emptyMap(), roles);
             assertFalse(nodePredicate.test(noAttrNode));
             assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(noAttrNode));
         }
@@ -877,37 +1063,34 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.roles();
         Set<DiscoveryNodeRole> dedicatedMasterRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
         {
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.singletonMap("gateway", "true"),
-                dedicatedMasterRoles,
-                Version.CURRENT
+                dedicatedMasterRoles
             );
             assertFalse(nodePredicate.test(node));
         }
         {
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.singletonMap("gateway", "false"),
-                dedicatedMasterRoles,
-                Version.CURRENT
+                dedicatedMasterRoles
             );
             assertFalse(nodePredicate.test(node));
         }
         {
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 "id",
                 address,
                 Collections.singletonMap("gateway", "false"),
-                dedicatedMasterRoles,
-                Version.CURRENT
+                dedicatedMasterRoles
             );
             assertFalse(nodePredicate.test(node));
         }
         {
-            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"), allRoles, Version.CURRENT);
+            DiscoveryNode node = DiscoveryNodeUtils.create("id", address, Collections.singletonMap("gateway", "true"), allRoles);
             assertTrue(nodePredicate.test(node));
         }
     }
@@ -937,15 +1120,35 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
-            String expected = """
+            String expected = Strings.format("""
                 Setting "%s" cannot be used with the configured "cluster.remote.cluster_name.mode" \
                 [required=SNIFF, configured=PROXY]\
-                """.formatted(concreteSetting.getKey());
+                """, concreteSetting.getKey());
             assertEquals(expected, iae.getMessage());
         }
     }
 
+    private void addSendBehaviour(MockTransportService transportService) {
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (hasClusterCredentials) {
+                assertThat(action, oneOf(RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME, RemoteClusterNodesAction.NAME));
+            } else {
+                assertThat(action, oneOf(TransportService.HANDSHAKE_ACTION_NAME, ClusterStateAction.NAME));
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+    }
+
     private static List<String> seedNodes(final DiscoveryNode... seedNodes) {
         return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).toList();
+    }
+
+    private static DiscoveryNode getLocalNode(MockTransportService transportService) {
+        final BoundTransportAddress remoteClusterServerAddress = transportService.boundRemoteAccessAddress();
+        if (remoteClusterServerAddress != null) {
+            return transportService.getLocalNode().withTransportAddress(remoteClusterServerAddress.publishAddress());
+        } else {
+            return transportService.getLocalNode();
+        }
     }
 }

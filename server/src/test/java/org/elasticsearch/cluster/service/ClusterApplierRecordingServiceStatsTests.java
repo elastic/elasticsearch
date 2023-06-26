@@ -32,4 +32,9 @@ public class ClusterApplierRecordingServiceStatsTests extends AbstractWireSerial
         }
         return new Stats(recordings);
     }
+
+    @Override
+    protected Stats mutateInstance(Stats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

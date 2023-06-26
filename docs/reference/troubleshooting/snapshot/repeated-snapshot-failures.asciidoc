@@ -1,0 +1,18 @@
+[[repeated-snapshot-failures]]
+== Addressing repeated snapshot policy failures
+
+Repeated snapshot failures are usually an indicator of a problem with your deployment. Continuous failures of automated
+snapshots can leave a deployment without recovery options in cases of data loss or outages.
+
+Elasticsearch keeps track of the number of repeated failures when executing automated snapshots. If an automated
+snapshot fails too many times without a successful execution, the health API will report a warning. The number of
+repeated failures before reporting a warning is controlled by the
+<<slm-health-failed-snapshot-warn-threshold,`slm.health.failed_snapshot_warn_threshold`>> setting.
+
+In the event that an automated {slm} policy execution is experiencing repeated failures, follow these steps to get more
+information about the problem:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/repeated-snapshot-failures-widget.asciidoc[]
+
+
+

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+
 /**
  * This class encapsulates all remote cluster information to be rendered on
  * {@code _remote/info} requests.
@@ -31,21 +33,34 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     final TimeValue initialConnectionTimeout;
     final String clusterAlias;
     final boolean skipUnavailable;
+    final boolean hasClusterCredentials;
 
-    public RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
+    public RemoteConnectionInfo(
+        String clusterAlias,
+        ModeInfo modeInfo,
+        TimeValue initialConnectionTimeout,
+        boolean skipUnavailable,
+        boolean hasClusterCredentials
+    ) {
         this.clusterAlias = clusterAlias;
         this.modeInfo = modeInfo;
         this.initialConnectionTimeout = initialConnectionTimeout;
         this.skipUnavailable = skipUnavailable;
+        this.hasClusterCredentials = hasClusterCredentials;
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        if (input.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
             modeInfo = mode.getReader().read(input);
             initialConnectionTimeout = input.readTimeValue();
             clusterAlias = input.readString();
             skipUnavailable = input.readBoolean();
+            if (input.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+                hasClusterCredentials = input.readBoolean();
+            } else {
+                hasClusterCredentials = false;
+            }
         } else {
             List<String> seedNodes = Arrays.asList(input.readStringArray());
             int connectionsPerCluster = input.readVInt();
@@ -54,6 +69,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             clusterAlias = input.readString();
             skipUnavailable = input.readBoolean();
             modeInfo = new SniffConnectionStrategy.SniffModeInfo(seedNodes, connectionsPerCluster, numNodesConnected);
+            hasClusterCredentials = false;
         }
     }
 
@@ -77,9 +93,13 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return skipUnavailable;
     }
 
+    public boolean hasClusterCredentials() {
+        return hasClusterCredentials;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeEnum(modeInfo.modeType());
             modeInfo.writeTo(out);
             out.writeTimeValue(initialConnectionTimeout);
@@ -99,6 +119,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         }
         out.writeString(clusterAlias);
         out.writeBoolean(skipUnavailable);
+        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            out.writeBoolean(hasClusterCredentials);
+        }
     }
 
     @Override
@@ -110,6 +133,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             modeInfo.toXContent(builder, params);
             builder.field("initial_connect_timeout", initialConnectionTimeout);
             builder.field("skip_unavailable", skipUnavailable);
+            if (hasClusterCredentials) {
+                builder.field("cluster_credentials", "::es_redacted::");
+            }
         }
         builder.endObject();
         return builder;
@@ -123,12 +149,13 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return skipUnavailable == that.skipUnavailable
             && Objects.equals(modeInfo, that.modeInfo)
             && Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout)
-            && Objects.equals(clusterAlias, that.clusterAlias);
+            && Objects.equals(clusterAlias, that.clusterAlias)
+            && hasClusterCredentials == that.hasClusterCredentials;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable);
+        return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable, hasClusterCredentials);
     }
 
     public interface ModeInfo extends ToXContentFragment, Writeable {

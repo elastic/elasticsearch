@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -22,8 +24,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import javax.crypto.SecretKeyFactory;
@@ -55,11 +59,26 @@ public class XPackSettings {
      */
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
-    public static final boolean CROSS_CLUSTER_2_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
-        || "true".equals(System.getProperty("es.cross_cluster_2_feature_flag_enabled"));
-
     /** Setting for enabling or disabling security. Defaults to true. */
-    public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean value) {}
+
+        @Override
+        public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            final boolean remoteClusterServerEnabled = (boolean) settings.get(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED);
+            if (remoteClusterServerEnabled && false == value) {
+                throw new IllegalArgumentException(
+                    Strings.format("Security [%s] must be enabled to use the remote cluster server feature", SECURITY_ENABLED.getKey())
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED).iterator();
+        }
+    }, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling watcher. Defaults to true. */
     public static final Setting<Boolean> WATCHER_ENABLED = Setting.boolSetting("xpack.watcher.enabled", true, Setting.Property.NodeScope);
@@ -70,6 +89,20 @@ public class XPackSettings {
     /** Setting for enabling or disabling machine learning. Defaults to true. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling universal profiling. Defaults to true. */
+    public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
+        "xpack.profiling.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling enterprise search. Defaults to true. */
+    public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
+        "xpack.ent_search.enabled",
         true,
         Setting.Property.NodeScope
     );
@@ -239,6 +272,7 @@ public class XPackSettings {
 
     public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
     public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
+    public static final SslClientAuthenticationMode REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
     public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
     // http specific settings
@@ -249,19 +283,59 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
+    // remote cluster specific settings
+    public static final String REMOTE_CLUSTER_SERVER_SSL_PREFIX = SecurityField.setting("remote_cluster_server.ssl.");
+    public static final String REMOTE_CLUSTER_CLIENT_SSL_PREFIX = SecurityField.setting("remote_cluster_client.ssl.");
+
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_SERVER_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_SERVER_SSL_PREFIX,
+        false,
+        SSLConfigurationSettings.IntendedUse.SERVER
+    );
+
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_CLIENT_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_CLIENT_SSL_PREFIX,
+        false,
+        SSLConfigurationSettings.IntendedUse.CLIENT
+    );
+
+    /** Setting for enabling or disabling remote cluster server TLS. Defaults to true. */
+    public static final Setting<Boolean> REMOTE_CLUSTER_SERVER_SSL_ENABLED = Setting.boolSetting(
+        REMOTE_CLUSTER_SERVER_SSL_PREFIX + "enabled",
+        true,
+        Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling remote cluster client TLS. Defaults to true. */
+    public static final Setting<Boolean> REMOTE_CLUSTER_CLIENT_SSL_ENABLED = Setting.boolSetting(
+        REMOTE_CLUSTER_CLIENT_SSL_PREFIX + "enabled",
+        true,
+        Property.NodeScope
+    );
+
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(HTTP_SSL.getEnabledSettings());
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settings.addAll(REMOTE_CLUSTER_SERVER_SSL.getEnabledSettings());
+            settings.addAll(REMOTE_CLUSTER_CLIENT_SSL.getEnabledSettings());
+        }
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
+        settings.add(PROFILING_ENABLED);
+        settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);
         settings.add(DLS_FLS_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
         settings.add(HTTP_SSL_ENABLED);
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settings.add(REMOTE_CLUSTER_SERVER_SSL_ENABLED);
+            settings.add(REMOTE_CLUSTER_CLIENT_SSL_ENABLED);
+        }
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);

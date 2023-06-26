@@ -9,25 +9,27 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -41,18 +43,20 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -64,6 +68,9 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -222,6 +229,120 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(2, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
+    }
+
+    public void testIndexedSingleValuedString() throws IOException {
+        // Indexing enables dynamic pruning optimizations
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("str_value", "one", Field.Store.NO),
+                    new SortedDocValuesField("str_value", new BytesRef("one"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("unrelatedField", "two", Field.Store.NO),
+                    new SortedDocValuesField("unrelatedField", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("str_value", "three", Field.Store.NO),
+                    new SortedDocValuesField("str_value", new BytesRef("three"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("str_value", "one", Field.Store.NO),
+                    new SortedDocValuesField("str_value", new BytesRef("one"))
+                )
+            );
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(2, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+
+        // Enforce auto-detection of the execution mode
+        aggregationBuilder.executionHint(null);
+        debugTestCase(
+            aggregationBuilder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertEquals(2, card.getValue(), 0);
+                assertEquals(GlobalOrdCardinalityAggregator.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("dynamic_pruning_attempted", greaterThanOrEqualTo(1))
+                            .entry("skipped_due_to_no_data", 0)
+                            .entry("brute_force_used", 0)
+                    )
+                );
+            },
+            mappedFieldTypes
+        );
+    }
+
+    public void testIndexedSingleValuedIP() throws IOException {
+        // IP addresses are interesting to test because they use sorted doc values like keywords, but index data using points rather than an
+        // inverted index, so this triggers a different code path to disable dynamic pruning
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("ip_value");
+        final MappedFieldType mappedFieldTypes = new IpFieldMapper.IpFieldType("ip_value");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            InetAddress value = InetAddresses.forString("::1");
+            byte[] encodedValue = InetAddressPoint.encode(value);
+            iw.addDocument(
+                Arrays.asList(new InetAddressPoint("ip_value", value), new SortedDocValuesField("ip_value", new BytesRef(encodedValue)))
+            );
+            value = InetAddresses.forString("192.168.0.1");
+            encodedValue = InetAddressPoint.encode(value);
+            iw.addDocument(
+                Arrays.asList(new InetAddressPoint("ip_value", value), new SortedDocValuesField("ip_value", new BytesRef(encodedValue)))
+            );
+            value = InetAddresses.forString("::1");
+            encodedValue = InetAddressPoint.encode(value);
+            iw.addDocument(
+                Arrays.asList(new InetAddressPoint("ip_value", value), new SortedDocValuesField("ip_value", new BytesRef(encodedValue)))
+            );
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(2, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+
+        // Enforce auto-detection of the execution mode
+        aggregationBuilder.executionHint(null);
+        debugTestCase(
+            aggregationBuilder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertEquals(2, card.getValue(), 0);
+                assertEquals(GlobalOrdCardinalityAggregator.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("dynamic_pruning_used", 0)
+                            .entry("dynamic_pruning_attempted", 0)
+                            .entry("skipped_due_to_no_data", 0)
+                            .entry("brute_force_used", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            mappedFieldTypes
+        );
     }
 
     public void testSingleValuedStringValueScript() throws IOException {
@@ -383,6 +504,109 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, mappedFieldTypes);
     }
 
+    public void testIndexedMultiValuedString() throws IOException {
+        // Indexing enables dynamic pruning optimizations
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            iw.addDocument(
+                List.of(
+                    new StringField("str_values", "one", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new StringField("str_values", "two", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new StringField("str_values", "one", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new StringField("str_values", "three", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new StringField("str_values", "three", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three")),
+                    new StringField("str_values", "two", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new StringField("str_values", "three", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three")),
+                    new StringField("str_values", "two", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new StringField("str_values", "two", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two")),
+                    new StringField("str_values", "three", Field.Store.NO),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+
+        // Enforce auto-detection of the execution mode
+        aggregationBuilder.executionHint(null);
+        debugTestCase(
+            aggregationBuilder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertEquals(3, card.getValue(), 0);
+                assertEquals(GlobalOrdCardinalityAggregator.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("dynamic_pruning_attempted", greaterThanOrEqualTo(1))
+                            .entry("skipped_due_to_no_data", 0)
+                            .entry("brute_force_used", 0)
+                    )
+                );
+            },
+            mappedFieldTypes
+        );
+    }
+
+    public void testIndexedAllDifferentValues() throws IOException {
+        // Indexing enables testing of ordinal values
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        int docs = randomIntBetween(50, 100);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+
+            for (int i = 0; i < docs; i++) {
+                iw.addDocument(
+                    List.of(
+                        new StringField("str_values", "" + i, Field.Store.NO),
+                        new SortedSetDocValuesField("str_values", new BytesRef("" + i))
+                    )
+                );
+                if (rarely()) {
+                    iw.commit();
+                }
+            }
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(docs, card.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
     public void testUnmappedMissingString() throws IOException {
         CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
@@ -407,43 +631,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
-    }
-
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        final Directory directory = newDirectory();
-        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        final int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
-        }
-        indexWriter.close();
-
-        final Directory unmappedDirectory = newDirectory();
-        final RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        final IndexReader indexReader = DirectoryReader.open(directory);
-        final IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        final MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        final IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        final AggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
-
-        final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);
-
-        assertEquals(10.0, cardinality.getValue(), 0);
-        assertEquals("cardinality", cardinality.getName());
-        assertTrue(AggregationInspectionHelper.hasValue(cardinality));
-
-        multiReader.close();
-        directory.close();
-        unmappedDirectory.close();
     }
 
     public void testSingleValuedNumericValueScript() throws IOException {
@@ -540,7 +727,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
 
         final int numDocs = 10;
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
@@ -560,7 +747,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
             assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
             assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -586,7 +773,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .missing("unknown")
             .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        // ("even", "odd")
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(
@@ -604,10 +792,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertNotNull(buckets);
             assertEquals(expectedTermBucketsCount, buckets.size());
 
-            for (int i = 0; i < expectedTermBucketsCount; i++) {
-                final Terms.Bucket bucket = buckets.get(i);
+            for (int i1 = 0; i1 < expectedTermBucketsCount; i1++) {
+                final Terms.Bucket bucket = buckets.get(i1);
                 assertNotNull(bucket);
-                assertEquals(((i + 1) % 2 == 0) ? "odd" : "even", bucket.getKey());
+                assertEquals(((i1 + 1) % 2 == 0) ? "odd" : "even", bucket.getKey());
                 assertEquals(5L, bucket.getDocCount());
 
                 final InternalCardinality cardinality = bucket.getAggregations().get("cardinality");
@@ -615,48 +803,114 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 assertEquals("cardinality", cardinality.getName());
                 assertEquals(5, cardinality.getValue());
             }
+        }, new AggTestConfig(aggregationBuilder, mappedFieldTypes));
+    }
+
+    public void testIndexedWithMissingValues() throws IOException {
+        // Indexing enables dynamic pruning optimizations
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("str_value", "one", Field.Store.NO),
+                    new SortedDocValuesField("str_value", new BytesRef("one"))
+                )
+            );
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("unrelatedField", "two", Field.Store.NO),
+                    new SortedDocValuesField("unrelatedField", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("str_value", "three", Field.Store.NO),
+                    new SortedDocValuesField("str_value", new BytesRef("three"))
+                )
+            );
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(Collections.emptySet());
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("str_value", "one", Field.Store.NO),
+                    new SortedDocValuesField("str_value", new BytesRef("one"))
+                )
+            );
+        }, card -> {
+            assertEquals(2, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
     }
 
-    public void testCacheAggregation() throws IOException {
-        final Directory directory = newDirectory();
-        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        final int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
-        }
-        indexWriter.close();
+    public void testMoreThan128UniqueStringValues() throws IOException {
+        // Indexing enables dynamic pruning optimizations
+        // Fields with more than 128 unique values exercise slightly different code paths
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
 
-        final Directory unmappedDirectory = newDirectory();
-        final RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 200; ++i) {
+                final String value = Integer.toString(i);
+                iw.addDocument(
+                    Arrays.asList(
+                        new StringField("keyword1", Integer.toString(i % 2), Field.Store.NO),
+                        new StringField("keyword2", Integer.toString(i % 5), Field.Store.NO),
+                        new StringField("str_value", value, Field.Store.NO),
+                        new SortedDocValuesField("str_value", new BytesRef(value))
+                    )
+                );
+            }
+        };
 
-        final IndexReader indexReader = DirectoryReader.open(directory);
-        final IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        final MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        final IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("keyword1", "0")),
+            buildIndex,
+            (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertEquals(100, card.getValue(), 0);
+                assertEquals(GlobalOrdCardinalityAggregator.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("dynamic_pruning_attempted", greaterThanOrEqualTo(1))
+                            .entry("skipped_due_to_no_data", 0)
+                            .entry("brute_force_used", 0)
+                    )
+                );
+            },
+            mappedFieldTypes
+        );
 
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
-
-        final AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
-        final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);
-
-        assertEquals(10.0, cardinality.getValue(), 0);
-        assertEquals("cardinality", cardinality.getName());
-        assertTrue(AggregationInspectionHelper.hasValue(cardinality));
-
-        // Test that an aggregation not using a script does get cached
-        assertTrue(context.isCacheable());
-
-        multiReader.close();
-        directory.close();
-        unmappedDirectory.close();
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("keyword2", "0")),
+            buildIndex,
+            (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertEquals(40, card.getValue(), 0);
+                assertEquals(GlobalOrdCardinalityAggregator.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("dynamic_pruning_used", 0)
+                            .entry("dynamic_pruning_attempted", greaterThanOrEqualTo(1))
+                            .entry("skipped_due_to_no_data", 0)
+                            .entry("brute_force_used", 0)
+                    )
+                );
+            },
+            mappedFieldTypes
+        );
     }
 
     private void testAggregation(
@@ -676,10 +930,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         Consumer<InternalCardinality> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
         for (CardinalityAggregatorFactory.ExecutionMode mode : CardinalityAggregatorFactory.ExecutionMode.values()) {
             aggregationBuilder.executionHint(mode.toString().toLowerCase(Locale.ROOT));
-            testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+            testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
         }
     }
 }

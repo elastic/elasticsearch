@@ -1,5 +1,277 @@
 [role="xpack"]
 [[security-api-update-api-key]]
-=== Update API key information API
+=== Update API key API
 
-coming::[8.4.0]
+++++
+<titleabbrev>Update API key</titleabbrev>
+++++
+
+[[security-api-update-api-key-request]]
+==== {api-request-title}
+
+`PUT /_security/api_key/<id>`
+
+[[security-api-update-api-key-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_own_api_key` cluster privilege.
+Users can only update API keys that they created or that were granted to them.
+To update another user's API key, use the <<run-as-privilege,`run_as` feature>>
+to submit a request on behalf of another user.
+
+IMPORTANT: It's not possible to use an API key as the authentication credential for this API.
+To update an API key, the owner user's credentials are required.
+
+[[security-api-update-api-key-desc]]
+==== {api-description-title}
+
+Use this API to update API keys created by the <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> APIs.
+If you need to apply the same update to many API keys, you can use <<security-api-bulk-update-api-keys,bulk update API Keys>> to reduce overhead.
+
+It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
+
+This API supports updates to an API key's access scope and metadata.
+The access scope of an API key is derived from the <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> you specify in the request, and a snapshot of the owner user's permissions at the time of the request.
+The snapshot of the owner's permissions is updated automatically on every call.
+
+[IMPORTANT]
+====
+If you don't specify <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request, a call to this API might still change the API key's access scope.
+This change can occur if the owner user's permissions have changed since the API key was created or last modified.
+====
+
+[[security-api-update-api-key-path-params]]
+==== {api-path-parms-title}
+
+`id`::
+(Required, string) The ID of the API key to update.
+
+[[security-api-update-api-key-request-body]]
+==== {api-request-body-title}
+
+You can specify the following parameters in the request body, which is optional.
+
+[[security-api-update-api-key-api-key-role-descriptors]]
+`role_descriptors`::
+(Optional, object) The role descriptors to assign to this API key.
+The API key's effective permissions are an intersection of its assigned privileges and the point in time snapshot of permissions of the owner user.
+You can assign new privileges by specifying them in this parameter.
+To remove assigned privileges, you can supply an empty `role_descriptors` parameter, i.e., an empty object `{}`.
+If an API key has no assigned privileges, it inherits the owner user's full permissions.
+The snapshot of the owner's permissions is always updated, whether you supply the `role_descriptors` parameter or not.
+The structure of a role descriptor is the same as the request for the <<security-api-put-role, create or update roles API>>.
+
+`metadata`::
+(Optional, object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, top-level keys beginning with `_` are reserved for system usage.
+When specified, this fully replaces metadata previously associated with the API key.
+
+[[security-api-update-api-key-response-body]]
+==== {api-response-body-title}
+
+`updated`::
+(boolean) If `true`, the API key was updated.
+If `false`, the API key didn't change because no change was detected.
+
+[[security-api-update-api-key-example]]
+==== {api-examples-title}
+
+If you create an API key as follows:
+
+[source,console]
+------------------------------------------------------------
+POST /_security/api_key
+{
+  "name": "my-api-key",
+  "role_descriptors": {
+    "role-a": {
+      "cluster": ["all"],
+      "index": [
+        {
+          "names": ["index-a*"],
+          "privileges": ["read"]
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "application": "my-application",
+    "environment": {
+       "level": 1,
+       "trusted": true,
+       "tags": ["dev", "staging"]
+    }
+  }
+}
+------------------------------------------------------------
+
+A successful call returns a JSON structure that provides API key information.
+For example:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "VuaCfGcBCdbkQm-e5aOx",
+  "name": "my-api-key",
+  "api_key": "ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
+}
+--------------------------------------------------
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
+
+For the examples below, assume that the owner user's permissions are:
+
+[[security-api-update-api-key-examples-user-permissions]]
+[source,js]
+--------------------------------------------------
+{
+  "cluster": ["all"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["all"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following example updates the API key created above, assigning it new role descriptors and metadata:
+
+[source,console]
+----
+PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
+{
+  "role_descriptors": {
+    "role-a": {
+      "index": [
+        {
+          "names": ["*"],
+          "privileges": ["write"]
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "environment": {
+       "level": 2,
+       "trusted": true,
+       "tags": ["production"]
+    }
+  }
+}
+----
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.id}/]
+// TEST[continued]
+
+A successful call returns a JSON structure indicating that the API key was updated:
+
+[source,console-result]
+----
+{
+  "updated": true
+}
+----
+
+The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-update-api-key-examples-user-permissions, owner user's permissions>>:
+
+[source,js]
+--------------------------------------------------
+{
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["write"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following example removes the API key's previously assigned permissions, making it inherit the owner user's full permissions.
+
+[source,console]
+----
+PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
+{
+  "role_descriptors": {}
+}
+----
+// TEST[skip:api key id not available anymore]
+
+Which returns the response:
+
+[source,console-result]
+----
+{
+  "updated": true
+}
+----
+
+The API key's effective permissions after the update will be the same as the owner user's:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster": ["all"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["all"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+For the next example, assume that the owner user's permissions have changed from <<security-api-update-api-key-examples-user-permissions, the original permissions>> to:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster": ["manage_security"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following request auto-updates the snapshot of the user's permissions associated with the API key:
+
+[source,console]
+----
+PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
+----
+// TEST[skip:api key id not available anymore]
+
+Which returns the response:
+
+[source,console-result]
+----
+{
+  "updated": true
+}
+----
+
+Resulting in the following effective permissions for the API key:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster": ["manage_security"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE

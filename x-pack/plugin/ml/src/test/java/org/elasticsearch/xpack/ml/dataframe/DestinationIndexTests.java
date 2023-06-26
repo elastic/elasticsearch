@@ -24,6 +24,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +56,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -90,30 +93,155 @@ public class DestinationIndexTests extends ESTestCase {
     private Client client = mock(Client.class);
     private Clock clock = Clock.fixed(Instant.ofEpochMilli(123456789L), ZoneId.systemDefault());
 
+    private enum ExpectedError {
+        NONE,
+        INDEX_SIMILARITY,
+        INDEX_ANALYSIS_FILTER,
+        INDEX_ANALYSIS_ANALYZER
+    }
+
     @Before
     public void setUpMocks() {
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
     }
 
-    private Map<String, Object> testCreateDestinationIndex(DataFrameAnalysis analysis) throws IOException {
+    private Map<String, Object> testCreateDestinationIndex(DataFrameAnalysis analysis, ExpectedError expectedError) throws IOException {
         DataFrameAnalyticsConfig config = createConfig(analysis);
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         doAnswer(callListenerOnResponse(null)).when(client)
             .execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
 
-        Settings index1Settings = Settings.builder()
+        Map<String, Object> analysisSettings1 = Map.ofEntries(
+            Map.entry("index.analysis.filter.bigram_joiner.max_shingle_size", "2"),
+            Map.entry("index.analysis.filter.bigram_joiner.output_unigrams", "false"),
+            Map.entry("index.analysis.filter.bigram_joiner.token_separator", ""),
+            Map.entry("index.analysis.filter.bigram_joiner.type", "shingle"),
+            Map.entry("index.analysis.filter.bigram_max_size.max", "16"),
+            Map.entry("index.analysis.filter.bigram_max_size.min", "0"),
+            Map.entry("index.analysis.filter.bigram_max_size.type", "length"),
+            Map.entry("index.analysis.filter.en-stem-filter.name", "light_english"),
+            Map.entry(
+                "index.analysis.filter.en-stem-filter.type",
+                (expectedError == ExpectedError.INDEX_ANALYSIS_FILTER) ? "foobarbaz" : "stemmer"
+            ),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.max_shingle_size", "2"),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.output_unigrams", "true"),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.token_separator", ""),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.type", "shingle"),
+            Map.entry("index.analysis.filter.en-stop-words-filter.stopwords", "_english_"),
+            Map.entry("index.analysis.filter.en-stop-words-filter.type", "stop"),
+            Map.entry("index.analysis.analyzer.i_prefix.filter", List.of("cjk_width", "lowercase", "asciifolding", "front_ngram")),
+            Map.entry("index.analysis.analyzer.i_prefix.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.iq_text_delimiter.filter",
+                (expectedError == ExpectedError.INDEX_ANALYSIS_ANALYZER)
+                    ? List.of("delimiter", "cjk_width", "lowercase", "en-stop-words-filter", "en-stem-filter")
+                    : List.of("delimiter", "cjk_width", "lowercase", "asciifolding", "en-stop-words-filter", "en-stem-filter")
+            ),
+            Map.entry("index.analysis.analyzer.iq_text_delimiter.tokenizer", "whitespace"),
+            Map.entry("index.analysis.analyzer.q_prefix.filter", List.of("cjk_width", "lowercase", "asciifolding")),
+            Map.entry("index.analysis.analyzer.q_prefix.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.iq_text_base.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stop-words-filter")
+            ),
+            Map.entry("index.analysis.analyzer.iq_text_base.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.iq_text_stem.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stop-words-filter", "en-stem-filter")
+            ),
+            Map.entry("index.analysis.analyzer.iq_text_stem.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.i_text_bigram.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stem-filter", "bigram_joiner", "bigram_max_size")
+            ),
+            Map.entry("index.analysis.analyzer.i_text_bigram.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.q_text_bigram.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stem-filter", "bigram_joiner_unigrams", "bigram_max_size")
+            ),
+            Map.entry("index.analysis.analyzer.q_text_bigram.tokenizer", "standard")
+        );
+
+        Settings.Builder index1SettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+            .put("index.mapping.total_fields.limit", 1000)
+            .put("index.mapping.depth.limit", 20)
+            .put("index.mapping.nested_fields.limit", 50)
+            .put("index.mapping.nested_objects.limit", 10000)
+            .put("index.mapping.field_name_length.limit", Long.MAX_VALUE)
+            .put("index.mapping.dimension_fields.limit", 16)
+            .put("index.similarity.default", "bm25");
+        index1SettingsBuilder.loadFromMap(analysisSettings1);
+        Settings index1Settings = index1SettingsBuilder.build();
 
-        Settings index2Settings = Settings.builder()
+        Map<String, Object> analysisSettings2 = Map.ofEntries(
+            Map.entry("index.analysis.filter.front_ngram.max_gram", "12"),
+            Map.entry("index.analysis.filter.front_ngram.min_gram", "1"),
+            Map.entry("index.analysis.filter.front_ngram.type", "edge_ngram"),
+            Map.entry("index.analysis.filter.bigram_joiner.max_shingle_size", "2"),
+            Map.entry("index.analysis.filter.bigram_joiner.output_unigrams", "false"),
+            Map.entry("index.analysis.filter.bigram_joiner.token_separator", ""),
+            Map.entry("index.analysis.filter.bigram_joiner.type", "shingle"),
+            Map.entry("index.analysis.filter.bigram_max_size.max", "16"),
+            Map.entry("index.analysis.filter.bigram_max_size.min", "0"),
+            Map.entry("index.analysis.filter.bigram_max_size.type", "length"),
+            Map.entry("index.analysis.filter.en-stem-filter.name", "light_english"),
+            Map.entry("index.analysis.filter.en-stem-filter.type", "stemmer"),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.max_shingle_size", "2"),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.output_unigrams", "true"),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.token_separator", ""),
+            Map.entry("index.analysis.filter.bigram_joiner_unigrams.type", "shingle"),
+            Map.entry("index.analysis.filter.en-stop-words-filter.stopwords", "_english_"),
+            Map.entry("index.analysis.filter.en-stop-words-filter.type", "stop"),
+            Map.entry(
+                "index.analysis.analyzer.iq_text_delimiter.filter",
+                List.of("delimiter", "cjk_width", "lowercase", "asciifolding", "en-stop-words-filter", "en-stem-filter")
+            ),
+            Map.entry("index.analysis.analyzer.iq_text_delimiter.tokenizer", "whitespace"),
+            Map.entry("index.analysis.analyzer.q_prefix.filter", List.of("cjk_width", "lowercase", "asciifolding")),
+            Map.entry("index.analysis.analyzer.q_prefix.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.iq_text_base.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stop-words-filter")
+            ),
+            Map.entry("index.analysis.analyzer.iq_text_base.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.iq_text_stem.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stop-words-filter", "en-stem-filter")
+            ),
+            Map.entry("index.analysis.analyzer.iq_text_stem.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.i_text_bigram.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stem-filter", "bigram_joiner", "bigram_max_size")
+            ),
+            Map.entry("index.analysis.analyzer.i_text_bigram.tokenizer", "standard"),
+            Map.entry(
+                "index.analysis.analyzer.q_text_bigram.filter",
+                List.of("cjk_width", "lowercase", "asciifolding", "en-stem-filter", "bigram_joiner_unigrams", "bigram_max_size")
+            ),
+            Map.entry("index.analysis.analyzer.q_text_bigram.tokenizer", "standard")
+        );
+
+        Settings.Builder index2SettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+            .put("index.mapping.total_fields.limit", 99999999)
+            .put("index.mapping.depth.limit", 30)
+            .put("index.mapping.nested_fields.limit", 40)
+            .put("index.mapping.nested_objects.limit", 20000)
+            .put("index.mapping.field_name_length.limit", 65536)
+            .put("index.mapping.dimension_fields.limit", 32);
+        index2SettingsBuilder = (expectedError == ExpectedError.INDEX_SIMILARITY)
+            ? index2SettingsBuilder.put("index.similarity.default", "boolean")
+            : index2SettingsBuilder.put("index.similarity.default", "bm25");
+        index2SettingsBuilder.loadFromMap(analysisSettings2);
+        Settings index2Settings = index2SettingsBuilder.build();
 
         ArgumentCaptor<GetSettingsRequest> getSettingsRequestCaptor = ArgumentCaptor.forClass(GetSettingsRequest.class);
         ArgumentCaptor<GetMappingsRequest> getMappingsRequestCaptor = ArgumentCaptor.forClass(GetMappingsRequest.class);
@@ -165,20 +293,184 @@ public class DestinationIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
             .execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
 
-        DestinationIndex.createDestinationIndex(client, clock, config, ActionListener.wrap(response -> {}, e -> fail(e.getMessage())));
+        String errorMessage = "";
+        switch (expectedError) {
+            case NONE: {
+                break;
+            }
+            case INDEX_SIMILARITY: {
+                errorMessage = "cannot merge settings because of differences for index\\.similarity; specified as "
+                    + "\\[\\{\"default\":\"(bm25|boolean)\"}] in index \\[index_\\d]; specified as "
+                    + "\\[\\{\"default\":\"(bm25|boolean)\"}] in index \\[index_\\d]";
+                break;
+            }
+            case INDEX_ANALYSIS_FILTER: {
+                errorMessage = "cannot merge settings because of differences for index\\.analysis\\.filter\\.en-stem-filter; specified as "
+                    + "\\[\\{\"name\":\"light_english\",\"type\":\"(stemmer|foobarbaz)\"}] in index \\[index_\\d]; specified as"
+                    + " \\[\\{\"name\":\"light_english\",\"type\":\"(stemmer|foobarbaz)\"}] in index \\[index_\\d]";
+                break;
+            }
+            case INDEX_ANALYSIS_ANALYZER: {
+                errorMessage = "cannot merge settings because of differences for "
+                    + "index\\.analysis\\.analyzer\\.iq_text_delimiter; specified as "
+                    + "\\[\\{\"filter\":\\[\"delimiter\",\"cjk_width\",\"lowercase\",(\"asciifolding\",)?"
+                    + "\"en-stop-words-filter\",\"en-stem-filter\"],\"tokenizer\":\"whitespace\"}] in index \\[index_\\d]; specified as "
+                    + "\\[\\{\"filter\":\\[\"delimiter\",\"cjk_width\",\"lowercase\",(\"asciifolding\",)?"
+                    + "\"en-stop-words-filter\",\"en-stem-filter\"],\"tokenizer\":\"whitespace\"}] in index \\[index_\\d]";
+                break;
+            }
+            default: {
+                assertThat("Unexpected error case " + expectedError, Matchers.is(false));
+                break;
+            }
+        }
+
+        if (errorMessage.isEmpty() == false) {
+            String finalErrorMessage = errorMessage;
+            DestinationIndex.createDestinationIndex(
+                client,
+                clock,
+                config,
+                ActionListener.wrap(
+                    response -> fail("should not succeed"),
+                    e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage))
+                )
+            );
+
+            return null;
+        }
+
+        DestinationIndex.createDestinationIndex(client, clock, config, ActionTestUtils.assertNoFailureListener(response -> {}));
 
         GetSettingsRequest capturedGetSettingsRequest = getSettingsRequestCaptor.getValue();
         assertThat(capturedGetSettingsRequest.indices(), equalTo(SOURCE_INDEX));
         assertThat(capturedGetSettingsRequest.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
-        assertThat(Arrays.asList(capturedGetSettingsRequest.names()), contains("index.number_of_shards", "index.number_of_replicas"));
+        assertThat(
+            Arrays.asList(capturedGetSettingsRequest.names()),
+            contains("index.number_of_shards", "index.number_of_replicas", "index.analysis.*", "index.similarity.*", "index.mapping.*")
+        );
 
         assertThat(getMappingsRequestCaptor.getValue().indices(), equalTo(SOURCE_INDEX));
 
         CreateIndexRequest createIndexRequest = createIndexRequestCaptor.getValue();
 
-        assertThat(createIndexRequest.settings().keySet(), containsInAnyOrder("index.number_of_shards", "index.number_of_replicas"));
+        assertThat(
+            createIndexRequest.settings().keySet(),
+            containsInAnyOrder(
+                "index.number_of_shards",
+                "index.number_of_replicas",
+                "index.mapping.total_fields.limit",
+                "index.mapping.depth.limit",
+                "index.mapping.nested_fields.limit",
+                "index.mapping.nested_objects.limit",
+                "index.mapping.field_name_length.limit",
+                "index.mapping.dimension_fields.limit",
+                "index.similarity.default",
+                "index.analysis.analyzer.i_prefix.filter",
+                "index.analysis.analyzer.i_prefix.tokenizer",
+                "index.analysis.analyzer.i_text_bigram.filter",
+                "index.analysis.analyzer.i_text_bigram.tokenizer",
+                "index.analysis.analyzer.iq_text_base.filter",
+                "index.analysis.analyzer.iq_text_base.tokenizer",
+                "index.analysis.analyzer.iq_text_delimiter.filter",
+                "index.analysis.analyzer.iq_text_delimiter.tokenizer",
+                "index.analysis.analyzer.iq_text_stem.filter",
+                "index.analysis.analyzer.iq_text_stem.tokenizer",
+                "index.analysis.analyzer.q_prefix.filter",
+                "index.analysis.analyzer.q_prefix.tokenizer",
+                "index.analysis.analyzer.q_text_bigram.filter",
+                "index.analysis.analyzer.q_text_bigram.tokenizer",
+                "index.analysis.filter.bigram_joiner.max_shingle_size",
+                "index.analysis.filter.bigram_joiner.output_unigrams",
+                "index.analysis.filter.bigram_joiner.token_separator",
+                "index.analysis.filter.bigram_joiner.type",
+                "index.analysis.filter.bigram_joiner_unigrams.max_shingle_size",
+                "index.analysis.filter.bigram_joiner_unigrams.output_unigrams",
+                "index.analysis.filter.bigram_joiner_unigrams.token_separator",
+                "index.analysis.filter.bigram_joiner_unigrams.type",
+                "index.analysis.filter.bigram_max_size.max",
+                "index.analysis.filter.bigram_max_size.min",
+                "index.analysis.filter.bigram_max_size.type",
+                "index.analysis.filter.en-stem-filter.name",
+                "index.analysis.filter.en-stem-filter.type",
+                "index.analysis.filter.en-stop-words-filter.stopwords",
+                "index.analysis.filter.en-stop-words-filter.type",
+                "index.analysis.filter.front_ngram.max_gram",
+                "index.analysis.filter.front_ngram.min_gram",
+                "index.analysis.filter.front_ngram.type"
+            )
+        );
+
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_shards", -1), equalTo(5));
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_replicas", -1), equalTo(1));
+        assertThat(createIndexRequest.settings().getAsLong("index.mapping.total_fields.limit", -1L), equalTo(99999999L));
+        assertThat(createIndexRequest.settings().getAsLong("index.mapping.depth.limit", -1L), equalTo(30L));
+        assertThat(createIndexRequest.settings().getAsLong("index.mapping.nested_fields.limit", -1L), equalTo(50L));
+        assertThat(createIndexRequest.settings().getAsLong("index.mapping.nested_objects.limit", -1L), equalTo(20000L));
+        assertThat(createIndexRequest.settings().getAsLong("index.mapping.field_name_length.limit", -1L), equalTo(Long.MAX_VALUE));
+        assertThat(createIndexRequest.settings().getAsLong("index.mapping.dimension_fields.limit", -1L), equalTo(32L));
+        assertThat(
+            createIndexRequest.settings().getAsList("index.analysis.analyzer.i_prefix.filter"),
+            equalTo(List.of("cjk_width", "lowercase", "asciifolding", "front_ngram"))
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.analyzer.i_prefix.tokenizer"), equalTo("standard"));
+        assertThat(
+            createIndexRequest.settings().getAsList("index.analysis.analyzer.iq_text_delimiter.filter"),
+            equalTo(List.of("delimiter", "cjk_width", "lowercase", "asciifolding", "en-stop-words-filter", "en-stem-filter"))
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.analyzer.iq_text_delimiter.tokenizer"), equalTo("whitespace"));
+        assertThat(
+            createIndexRequest.settings().getAsList("index.analysis.analyzer.q_prefix.filter"),
+            equalTo(List.of("cjk_width", "lowercase", "asciifolding"))
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.analyzer.q_prefix.tokenizer"), equalTo("standard"));
+        assertThat(
+            createIndexRequest.settings().getAsList("index.analysis.analyzer.iq_text_base.filter"),
+            equalTo(List.of("cjk_width", "lowercase", "asciifolding", "en-stop-words-filter"))
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.analyzer.iq_text_base.tokenizer"), equalTo("standard"));
+        assertThat(
+            createIndexRequest.settings().getAsList("index.analysis.analyzer.iq_text_stem.filter"),
+            equalTo(List.of("cjk_width", "lowercase", "asciifolding", "en-stop-words-filter", "en-stem-filter"))
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.analyzer.iq_text_stem.tokenizer"), equalTo("standard"));
+        assertThat(
+            createIndexRequest.settings().getAsList("index.analysis.analyzer.i_text_bigram.filter"),
+            equalTo(List.of("cjk_width", "lowercase", "asciifolding", "en-stem-filter", "bigram_joiner", "bigram_max_size"))
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.analyzer.i_text_bigram.tokenizer"), equalTo("standard"));
+        assertThat(
+            createIndexRequest.settings().getAsList("index.analysis.analyzer.q_text_bigram.filter"),
+            equalTo(List.of("cjk_width", "lowercase", "asciifolding", "en-stem-filter", "bigram_joiner_unigrams", "bigram_max_size"))
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.analyzer.q_text_bigram.tokenizer"), equalTo("standard"));
+
+        assertThat(createIndexRequest.settings().getAsInt("index.analysis.filter.bigram_joiner.max_shingle_size", -1), equalTo(2));
+        assertThat(createIndexRequest.settings().getAsBoolean("index.analysis.filter.bigram_joiner.output_unigrams", true), equalTo(false));
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.bigram_joiner.token_separator"), equalTo(""));
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.bigram_joiner.type"), equalTo("shingle"));
+
+        assertThat(createIndexRequest.settings().getAsInt("index.analysis.filter.bigram_joiner_unigrams.max_shingle_size", -1), equalTo(2));
+        assertThat(
+            createIndexRequest.settings().getAsBoolean("index.analysis.filter.bigram_joiner_unigrams.output_unigrams", false),
+            equalTo(true)
+        );
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.bigram_joiner_unigrams.token_separator"), equalTo(""));
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.bigram_joiner_unigrams.type"), equalTo("shingle"));
+
+        assertThat(createIndexRequest.settings().getAsInt("index.analysis.filter.bigram_max_size.max", -1), equalTo(16));
+        assertThat(createIndexRequest.settings().getAsInt("index.analysis.filter.bigram_max_size.min", -1), equalTo(0));
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.bigram_max_size.type"), equalTo("length"));
+
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.en-stem-filter.name"), equalTo("light_english"));
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.en-stem-filter.type"), equalTo("stemmer"));
+
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.en-stop-words-filter.stopwords"), equalTo("_english_"));
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.en-stop-words-filter.type"), equalTo("stop"));
+
+        assertThat(createIndexRequest.settings().getAsInt("index.analysis.filter.front_ngram.max_gram", -1), equalTo(12));
+        assertThat(createIndexRequest.settings().getAsInt("index.analysis.filter.front_ngram.min_gram", -1), equalTo(1));
+        assertThat(createIndexRequest.settings().get("index.analysis.filter.front_ngram.type"), equalTo("edge_ngram"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings())) {
             Map<String, Object> map = parser.map();
@@ -197,36 +489,68 @@ public class DestinationIndexTests extends ESTestCase {
     }
 
     public void testCreateDestinationIndex_OutlierDetection() throws IOException {
-        testCreateDestinationIndex(new OutlierDetection.Builder().build());
+        for (ExpectedError expectedError : ExpectedError.values()) {
+            testCreateDestinationIndex(new OutlierDetection.Builder().build(), expectedError);
+        }
     }
 
     public void testCreateDestinationIndex_Regression() throws IOException {
-        Map<String, Object> map = testCreateDestinationIndex(new Regression(NUMERICAL_FIELD));
-        assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("double"));
+        for (ExpectedError expectedError : ExpectedError.values()) {
+            Map<String, Object> map = testCreateDestinationIndex(new Regression(NUMERICAL_FIELD), expectedError);
+            if (expectedError == ExpectedError.NONE) {
+                assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("double"));
+            } else {
+                assertThat(map, equalTo(null));
+            }
+        }
     }
 
     public void testCreateDestinationIndex_Classification() throws IOException {
-        Map<String, Object> map = testCreateDestinationIndex(new Classification(NUMERICAL_FIELD));
-        assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+        for (ExpectedError expectedError : ExpectedError.values()) {
+            Map<String, Object> map = testCreateDestinationIndex(new Classification(NUMERICAL_FIELD), expectedError);
+            if (expectedError == ExpectedError.NONE) {
+                assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
+                assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+            } else {
+                assertThat(map, equalTo(null));
+            }
+        }
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsNested() throws IOException {
-        Map<String, Object> map = testCreateDestinationIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
-        assertThat(extractValue("_doc.properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+        for (ExpectedError expectedError : ExpectedError.values()) {
+            Map<String, Object> map = testCreateDestinationIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD), expectedError);
+            if (expectedError == ExpectedError.NONE) {
+                assertThat(extractValue("_doc.properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
+                assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+            } else {
+                assertThat(map, equalTo(null));
+            }
+        }
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAlias() throws IOException {
-        Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
-        assertThat(extractValue("_doc.properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+        for (ExpectedError expectedError : ExpectedError.values()) {
+            Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD), expectedError);
+            if (expectedError == ExpectedError.NONE) {
+                assertThat(extractValue("_doc.properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
+                assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+            } else {
+                assertThat(map, equalTo(null));
+            }
+        }
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
-        Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NESTED_FIELD));
-        assertThat(extractValue("_doc.properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+        for (ExpectedError expectedError : ExpectedError.values()) {
+            Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NESTED_FIELD), expectedError);
+            if (expectedError == ExpectedError.NONE) {
+                assertThat(extractValue("_doc.properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
+                assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
+            } else {
+                assertThat(map, equalTo(null));
+            }
+        }
     }
 
     public void testCreateDestinationIndex_ResultsFieldsExistsInSourceIndex() {
@@ -299,7 +623,7 @@ public class DestinationIndexTests extends ESTestCase {
             client,
             config,
             getIndexResponse,
-            ActionListener.wrap(response -> assertThat(response.isAcknowledged(), is(true)), e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(response -> assertThat(response.isAcknowledged(), is(true)))
         );
 
         verify(client, atLeastOnce()).threadPool();
@@ -364,7 +688,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> DestinationIndex.updateMappingsToDestIndex(client, config, getIndexResponse, ActionListener.wrap(Assert::fail))
+            () -> DestinationIndex.updateMappingsToDestIndex(client, config, getIndexResponse, ActionListener.running(Assert::fail))
         );
         assertThat(
             e.getMessage(),

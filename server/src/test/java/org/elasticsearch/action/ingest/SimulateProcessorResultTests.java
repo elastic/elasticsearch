@@ -61,8 +61,8 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
 
     static SimulateProcessorResult createTestInstance(boolean isSuccessful, boolean isIgnoredException, boolean hasCondition) {
         String type = randomAlphaOfLengthBetween(1, 10);
-        String processorTag = randomAlphaOfLengthBetween(1, 10);
-        String description = randomAlphaOfLengthBetween(1, 10);
+        String processorTag = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10);
+        String description = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10);
         Tuple<String, Boolean> conditionWithResult = hasCondition ? new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomBoolean()) : null;
         SimulateProcessorResult simulateProcessorResult;
         if (isSuccessful) {

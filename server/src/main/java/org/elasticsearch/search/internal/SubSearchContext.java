@@ -8,6 +8,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -41,7 +42,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private final QuerySearchResult querySearchResult;
 
     private int[] docIdsToLoad;
-    private int docsIdsToLoadSize;
 
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
@@ -91,7 +91,7 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public boolean hasScriptFields() {
-        return scriptFields != null;
+        return scriptFields != null && scriptFields.fields().isEmpty() == false;
     }
 
     @Override
@@ -285,14 +285,8 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public int docIdsToLoadSize() {
-        return docsIdsToLoadSize;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }
 
@@ -314,5 +308,15 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return querySearchResult.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return querySearchResult.getMaxScore();
     }
 }

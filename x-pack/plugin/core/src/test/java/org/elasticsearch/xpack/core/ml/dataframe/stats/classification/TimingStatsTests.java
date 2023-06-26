@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.classification;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,7 +30,7 @@ public class TimingStatsTests extends AbstractBWCSerializationTestCase<TimingSta
     }
 
     @Override
-    protected TimingStats mutateInstanceForVersion(TimingStats instance, Version version) {
+    protected TimingStats mutateInstanceForVersion(TimingStats instance, TransportVersion version) {
         return instance;
     }
 
@@ -47,6 +47,11 @@ public class TimingStatsTests extends AbstractBWCSerializationTestCase<TimingSta
     @Override
     protected TimingStats createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected TimingStats mutateInstance(TimingStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static TimingStats createRandom() {

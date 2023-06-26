@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class StringMatcherTests extends ESTestCase {
@@ -180,15 +183,38 @@ public class StringMatcherTests extends ESTestCase {
         assertThat(m.toString(), equalTo(text2 + "|" + text3 + "|" + text4.substring(0, 59) + "...|" + text5.substring(0, 59) + "..."));
     }
 
+    public void testInvalidRegexPatterns() {
+        final List<String> invalidPatterns = randomNonEmptySubsetOf(
+            List.of(
+                "/~(([.]|ilm-history-).*/",  // missing closing bracket
+                "/~(([.]|ilm-history-).*", // missing ending slash,
+                "/[0-9/", // missing closing square bracket
+                "/a{0,3/", // missing closing curly bracket
+                "/[]/", // empty character class
+                "/a{}/" // empty number of occurrences
+            )
+        );
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> StringMatcher.of(invalidPatterns)
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString("The set of patterns [" + Strings.collectionToCommaDelimitedString(invalidPatterns) + "] is invalid")
+        );
+        assertThat(e.getCause(), isA(IllegalArgumentException.class));
+    }
+
     private void assertMatch(StringMatcher matcher, String str) {
         if (matcher.test(str) == false) {
-            fail(String.format(Locale.ROOT, "Matcher [%s] failed to match [%s] but should", matcher, str));
+            fail(Strings.format("Matcher [%s] failed to match [%s] but should", matcher, str));
         }
     }
 
     private void assertNoMatch(StringMatcher matcher, String str) {
         if (matcher.test(str)) {
-            fail(String.format(Locale.ROOT, "Matcher [%s] matched [%s] but should not", matcher, str));
+            fail(Strings.format("Matcher [%s] matched [%s] but should not", matcher, str));
         }
     }
 

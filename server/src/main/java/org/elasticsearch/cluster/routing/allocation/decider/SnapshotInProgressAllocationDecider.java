@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.function.Predicate;
-
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
  * are currently been snapshotted to be moved to other nodes.
@@ -52,12 +50,16 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
 
     private static Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
         if (shardRouting.primary() == false) {
             // Only primary shards are snapshotted
             return YES_NOT_SNAPSHOTTED;
         }
 
-        SnapshotsInProgress snapshotsInProgress = allocation.custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress snapshotsInProgress = allocation.getClusterState().custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress == null || snapshotsInProgress.isEmpty()) {
             // Snapshots are not running
             return YES_NOT_RUNNING;
@@ -65,7 +67,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
         final ShardId shardId = shardRouting.shardId();
         return snapshotsInProgress.asStream()
-            .filter(Predicate.not(SnapshotsInProgress.Entry::isClone))
+            .filter(entry -> entry.hasShardsInInitState() && entry.isClone() == false)
             .map(entry -> entry.shards().get(shardId))
             .filter(
                 shardSnapshotStatus -> shardSnapshotStatus != null

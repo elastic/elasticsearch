@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-redact'
+  description 'Elasticsearch Expanded Pack Plugin - Redact'
+  classname 'org.elasticsearch.xpack.redact.RedactPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-redact'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies(project)

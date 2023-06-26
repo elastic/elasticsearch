@@ -225,7 +225,7 @@ public class Detector implements ToXContentObject, Writeable {
         partitionFieldName = in.readOptionalString();
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
-        rules = Collections.unmodifiableList(in.readList(DetectionRule::new));
+        rules = in.readImmutableList(DetectionRule::new);
         detectorIndex = in.readInt();
     }
 

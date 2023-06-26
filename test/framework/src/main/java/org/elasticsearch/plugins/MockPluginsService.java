@@ -13,13 +13,21 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+import org.elasticsearch.plugins.spi.SPIClassIterator;
 
+import java.lang.reflect.Constructor;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class MockPluginsService extends PluginsService {
 
@@ -53,6 +61,8 @@ public class MockPluginsService extends PluginsService {
                 null,
                 Collections.emptyList(),
                 false,
+                false,
+                false,
                 false
             );
             if (logger.isTraceEnabled()) {
@@ -60,7 +70,7 @@ public class MockPluginsService extends PluginsService {
             }
             pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, pluginClass.getClassLoader(), ModuleLayer.boot()));
         }
-
+        loadExtensions(pluginsLoaded);
         this.classpathPlugins = List.copyOf(pluginsLoaded);
     }
 
@@ -75,5 +85,76 @@ public class MockPluginsService extends PluginsService {
             this.classpathPlugins.stream().map(LoadedPlugin::descriptor).map(PluginRuntimeInfo::new).toList(),
             List.of()
         );
+    }
+
+    private static final Map<Class<?>, Collection<Class<?>>> spiClassesByService = ConcurrentCollections.newConcurrentMap();
+
+    @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public <T> List<? extends T> loadServiceProviders(Class<T> service) {
+        // We use a set here to avoid duplicates because SPIClassIterator will match
+        // all plugins in MockNode, because all plugins are loaded by the same class loader.
+        Set<T> result = new HashSet<>();
+        for (LoadedPlugin pluginTuple : plugins()) {
+            var plugin = pluginTuple.instance();
+            var classLoader = plugin.getClass().getClassLoader();
+            final Collection<? extends T> extension;
+            if (classLoader == ClassLoader.getSystemClassLoader()) {
+                // only determine the spi classes handled by the system classloader that loads most plugins in tests once to save test time;
+                extension = createExtensions(service, plugin, (Iterator) spiClassesByService.computeIfAbsent(service, s -> {
+                    var res = new ArrayList<Class<? extends T>>();
+                    SPIClassIterator.get(service, classLoader).forEachRemaining(res::add);
+                    return List.copyOf(res);
+                }).iterator());
+            } else {
+                extension = createExtensions(service, plugin);
+            }
+            result.addAll(extension);
+        }
+
+        return List.copyOf(result);
+    }
+
+    /**
+     * When we load tests with MockNode, all plugins are loaded with the same class loader,
+     * which breaks loading service providers with our SPIClassIterator. Since all plugins are
+     * loaded in the same class loader, we find all plugins for any class found by the SPIClassIterator
+     * causing us to pass wrong plugin type to createExtension. This modified createExtensions, checks for
+     * the type and returns an empty list if the plugin class type is incompatible.
+     */
+    static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
+        Iterator<Class<? extends T>> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
+        return createExtensions(extensionPointType, plugin, classIterator);
+    }
+
+    private static <T> List<T> createExtensions(Class<T> extensionPointType, Plugin plugin, Iterator<Class<? extends T>> classIterator) {
+        List<T> extensions = new ArrayList<>();
+        while (classIterator.hasNext()) {
+            Class<? extends T> extensionClass = classIterator.next();
+
+            @SuppressWarnings("unchecked")
+            Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
+            boolean compatible = true;
+
+            // We only check if we have incompatible one argument constructor, otherwise we let the code
+            // fall-through to the PluginsService method that will check if we have valid service provider.
+            // For one argument constructors we cannot validate from which plugin they should be loaded, which
+            // is why we de-dup the instances by using a Set in loadServiceProviders.
+            for (var constructor : constructors) {
+                if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
+                    compatible = false;
+                    break;
+                }
+            }
+            if (compatible) {
+                extensions.add(createExtension(extensionClass, extensionPointType, plugin));
+            }
+        }
+        return extensions;
+    }
+
+    @Override
+    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+        // tests don't run modular
     }
 }

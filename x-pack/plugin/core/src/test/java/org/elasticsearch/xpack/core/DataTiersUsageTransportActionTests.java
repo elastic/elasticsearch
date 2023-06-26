@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -50,9 +51,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -63,9 +61,9 @@ import static org.mockito.Mockito.when;
 public class DataTiersUsageTransportActionTests extends ESTestCase {
 
     public void testCalculateMAD() {
-        assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(new TDigestState(10)), equalTo(0L));
+        assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(TDigestState.create(10)), equalTo(0L));
 
-        TDigestState sketch = new TDigestState(randomDoubleBetween(1, 1000, false));
+        TDigestState sketch = TDigestState.create(randomDoubleBetween(1, 1000, false));
         sketch.add(1);
         sketch.add(1);
         sketch.add(2);
@@ -703,21 +701,14 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return new DiscoveryNode(
-            "node_" + nodeId,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(roles),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder("node_" + nodeId).roles(Set.of(roles)).build();
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .put(SETTING_CREATION_DATE, System.currentTimeMillis());
+        Settings.Builder settingsBuilder = indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+            SETTING_CREATION_DATE,
+            System.currentTimeMillis()
+        );
 
         if (dataTierPrefs.length > 1) {
             StringBuilder tierBuilder = new StringBuilder(dataTierPrefs[0]);
@@ -766,7 +757,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
                 IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
                 indexStats.computeIfAbsent(shardId.getIndex(), k -> new ArrayList<>()).add(shardStats);
             }
-            NodeIndicesStats nodeIndexStats = new NodeIndicesStats(new CommonStats(), indexStats);
+            NodeIndicesStats nodeIndexStats = new NodeIndicesStats(new CommonStats(), Collections.emptyMap(), indexStats);
             nodeStatsList.add(mockNodeStats(node, nodeIndexStats));
         }
         return nodeStatsList;
@@ -783,7 +774,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         Path fakePath = PathUtils.get("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
         ShardPath fakeShardPath = new ShardPath(false, fakePath, fakePath, routing.shardId());
 
-        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null);
+        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null, false, 0);
     }
 
     private static NodeStats mockNodeStats(DiscoveryNode node, NodeIndicesStats indexStats) {

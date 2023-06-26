@@ -44,11 +44,11 @@ public class CompositeRoleMapper implements UserRoleMapper {
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         GroupedActionListener<Set<String>> groupListener = new GroupedActionListener<>(
+            delegates.size(),
             ActionListener.wrap(
                 composite -> listener.onResponse(composite.stream().flatMap(Set::stream).collect(Collectors.toSet())),
                 listener::onFailure
-            ),
-            delegates.size()
+            )
         );
         this.delegates.forEach(mapper -> mapper.resolveRoles(user, groupListener));
     }

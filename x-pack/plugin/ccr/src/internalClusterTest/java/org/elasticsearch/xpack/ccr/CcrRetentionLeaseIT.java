@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -66,7 +66,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -140,7 +139,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         logger.info("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -177,8 +176,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
         // ensure that a retention lease has been put in place on each shard
         assertBusy(() -> {
@@ -236,8 +234,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 senderNode.getName()
             );
             senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (ClearCcrRestoreSessionAction.NAME.equals(action)
-                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.NAME).equals(action)) {
+                if (ClearCcrRestoreSessionAction.INTERNAL_NAME.equals(action)
+                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.INTERNAL_NAME).equals(action)) {
                     try {
                         latch.await();
                     } catch (final InterruptedException e) {
@@ -248,8 +246,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             });
         }
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
         try {
             assertRetentionLeaseRenewal(numberOfShards, numberOfReplicas, followerIndex, leaderIndex);
@@ -293,10 +290,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-
-        final RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
         final long start = System.nanoTime();
 
         /*
@@ -465,10 +459,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                             final IndexShard primary = getLeaderCluster().getInstance(IndicesService.class, primaryShardNodeName)
                                 .getShardOrNull(removeRequest.getShardId());
                             final CountDownLatch latch = new CountDownLatch(1);
-                            primary.removeRetentionLease(
-                                retentionLeaseId,
-                                ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()))
-                            );
+                            primary.removeRetentionLease(retentionLeaseId, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
                             try {
                                 latch.await();
                             } catch (final InterruptedException e) {
@@ -636,7 +627,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfDocuments = randomIntBetween(128, 2048);
         logger.debug("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -885,7 +876,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                 logger.info("--> removing retention lease [{}] on the leader", retentionLeaseId);
                                 primary.removeRetentionLease(
                                     retentionLeaseId,
-                                    ActionListener.wrap(r -> innerLatch.countDown(), e -> fail(e.toString()))
+                                    ActionTestUtils.assertNoFailureListener(r -> innerLatch.countDown())
                                 );
                                 logger.info(
                                     "--> waiting for the removed retention lease [{}] to be synced on the leader",

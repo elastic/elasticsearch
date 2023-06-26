@@ -9,9 +9,6 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CharFilter;
-import org.apache.lucene.analysis.TokenFilter;
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -19,7 +16,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -38,7 +34,10 @@ import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.indices.analysis.lucene.AppendCharFilter;
+import org.elasticsearch.indices.analysis.lucene.AppendTokenFilter;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -48,9 +47,6 @@ import org.hamcrest.MatcherAssert;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Reader;
-import java.io.StringReader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -92,7 +88,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
                     return AnalysisPlugin.super.getCharFilters();
                 }
-            })).getAnalysisRegistry();
+            }), new StablePluginsRegistry()).getAnalysisRegistry();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -260,7 +256,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
+            }),
+            new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
@@ -277,7 +274,10 @@ public class AnalysisModuleTests extends ESTestCase {
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
-        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] { "test" + version.luceneVersion });
+        assertTokenStreamContents(
+            analyzers.get("lucene_version").tokenStream("", "test"),
+            new String[] { "test" + version.luceneVersion() }
+        );
         assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] { "test" + version });
 
         assertEquals(
@@ -285,7 +285,7 @@ public class AnalysisModuleTests extends ESTestCase {
             analyzers.get("no_version").normalize("", "test").utf8ToString()
         );
         assertEquals(
-            "test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+            "test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion().toString() : ""),
             analyzers.get("lucene_version").normalize("", "test").utf8ToString()
         );
         assertEquals(
@@ -325,7 +325,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
+            }),
+            new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
@@ -342,7 +343,10 @@ public class AnalysisModuleTests extends ESTestCase {
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
-        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] { "test" + version.luceneVersion });
+        assertTokenStreamContents(
+            analyzers.get("lucene_version").tokenStream("", "test"),
+            new String[] { "test" + version.luceneVersion() }
+        );
         assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] { "test" + version });
 
         assertEquals(
@@ -350,7 +354,7 @@ public class AnalysisModuleTests extends ESTestCase {
             analyzers.get("no_version").normalize("", "test").utf8ToString()
         );
         assertEquals(
-            "test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+            "test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion().toString() : ""),
             analyzers.get("lucene_version").normalize("", "test").utf8ToString()
         );
         assertEquals(
@@ -411,7 +415,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
+            }),
+            new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
@@ -427,7 +432,7 @@ public class AnalysisModuleTests extends ESTestCase {
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "no_version" });
         assertTokenStreamContents(
             analyzers.get("lucene_version").tokenStream("", "test"),
-            new String[] { version.luceneVersion.toString() }
+            new String[] { version.luceneVersion().toString() }
         );
         assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] { version.toString() });
 
@@ -457,70 +462,8 @@ public class AnalysisModuleTests extends ESTestCase {
             public Map<String, Dictionary> getHunspellDictionaries() {
                 return singletonMap("foo", dictionary);
             }
-        }));
+        }), new StablePluginsRegistry());
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
-    }
-
-    // Simple char filter that appends text to the term
-    public static class AppendCharFilter extends CharFilter {
-
-        static Reader append(Reader input, String appendMe) {
-            try {
-                return new StringReader(Streams.copyToString(input) + appendMe);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        public AppendCharFilter(Reader input, String appendMe) {
-            super(append(input, appendMe));
-        }
-
-        @Override
-        protected int correct(int currentOff) {
-            return currentOff;
-        }
-
-        @Override
-        public int read(char[] cbuf, int off, int len) throws IOException {
-            return input.read(cbuf, off, len);
-        }
-    }
-
-    // Simple token filter that appends text to the term
-    private static class AppendTokenFilter extends TokenFilter {
-        public static TokenFilterFactory factoryForSuffix(String suffix) {
-            return new TokenFilterFactory() {
-                @Override
-                public String name() {
-                    return suffix;
-                }
-
-                @Override
-                public TokenStream create(TokenStream tokenStream) {
-                    return new AppendTokenFilter(tokenStream, suffix);
-                }
-            };
-        }
-
-        private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
-        private final char[] appendMe;
-
-        protected AppendTokenFilter(TokenStream input, String appendMe) {
-            super(input);
-            this.appendMe = appendMe.toCharArray();
-        }
-
-        @Override
-        public boolean incrementToken() throws IOException {
-            if (false == input.incrementToken()) {
-                return false;
-            }
-            term.resizeBuffer(term.length() + appendMe.length);
-            System.arraycopy(appendMe, 0, term.buffer(), term.length(), appendMe.length);
-            term.setLength(term.length() + appendMe.length);
-            return true;
-        }
     }
 
 }

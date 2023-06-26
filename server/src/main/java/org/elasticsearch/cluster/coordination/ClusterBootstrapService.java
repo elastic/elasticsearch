@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,12 +43,10 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
-public class ClusterBootstrapService {
+public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
 
-    public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.stringListSetting(
         "cluster.initial_master_nodes",
-        emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -70,6 +68,7 @@ public class ClusterBootstrapService {
     private final BooleanSupplier isBootstrappedSupplier;
     private final Consumer<VotingConfiguration> votingConfigurationConsumer;
     private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);
+    private final boolean singleNodeDiscovery;
 
     public ClusterBootstrapService(
         Settings settings,
@@ -78,7 +77,8 @@ public class ClusterBootstrapService {
         BooleanSupplier isBootstrappedSupplier,
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
-        if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
+        singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
+        if (singleNodeDiscovery) {
             if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
                 throw new IllegalArgumentException(
                     "setting ["
@@ -126,17 +126,12 @@ public class ClusterBootstrapService {
     void logBootstrapState(Metadata metadata) {
         if (metadata.clusterUUIDCommitted()) {
             final var clusterUUID = metadata.clusterUUID();
-            if (bootstrapRequirements.isEmpty()) {
+            if (singleNodeDiscovery || bootstrapRequirements.isEmpty()) {
                 logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
             } else {
-                logger.warn(
-                    """
-                        this node is locked into cluster UUID [{}] but [{}] is set to {}; \
-                        remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts""",
-                    clusterUUID,
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
-                    bootstrapRequirements
-                );
+                transportService.getThreadPool()
+                    .scheduleWithFixedDelay(() -> logRemovalWarning(clusterUUID), TimeValue.timeValueHours(12), Names.SAME);
+                logRemovalWarning(clusterUUID);
             }
         } else {
             logger.info(
@@ -147,7 +142,21 @@ public class ClusterBootstrapService {
         }
     }
 
-    void onFoundPeersUpdated() {
+    private void logRemovalWarning(String clusterUUID) {
+        logger.warn(
+            """
+                this node is locked into cluster UUID [{}] but [{}] is set to {}; \
+                remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; \
+                for further information see {}""",
+            clusterUUID,
+            INITIAL_MASTER_NODES_SETTING.getKey(),
+            bootstrapRequirements,
+            ReferenceDocs.INITIAL_MASTER_NODES
+        );
+    }
+
+    @Override
+    public void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()
             && transportService.getLocalNode().isMasterNode()

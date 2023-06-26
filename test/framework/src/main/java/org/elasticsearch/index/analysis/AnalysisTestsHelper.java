@@ -15,6 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -54,8 +55,11 @@ public class AnalysisTestsHelper {
             actualSettings = settings;
         }
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", actualSettings);
-        final AnalysisRegistry analysisRegistry = new AnalysisModule(new Environment(actualSettings, configPath), Arrays.asList(plugins))
-            .getAnalysisRegistry();
+        final AnalysisRegistry analysisRegistry = new AnalysisModule(
+            new Environment(actualSettings, configPath),
+            Arrays.asList(plugins),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
         return new ESTestCase.TestAnalysis(
             analysisRegistry.build(indexSettings),
             analysisRegistry.buildTokenFilterFactories(indexSettings),

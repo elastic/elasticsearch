@@ -39,8 +39,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -108,9 +106,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleIp() throws Exception {
         createIndex("test");
 
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -140,9 +136,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testIpCidr() throws Exception {
         createIndex("test");
 
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -267,7 +261,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testRangeQueryKeyword() throws Exception {
         createIndex("test");
 
-        client().admin().indices().preparePutMapping("test").setSource("field", "type=keyword").get();
+        indicesAdmin().preparePutMapping("test").setSource("field", "type=keyword").get();
 
         client().prepareIndex("test").setId("0").setSource("field", "").get();
         client().prepareIndex("test").setId("1").setSource("field", "A").get();
@@ -310,7 +304,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleTerminateAfterCount() throws Exception {
-        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        prepareCreate("test").setSettings(indexSettings(1, 0)).get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
@@ -344,9 +338,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
-        prepareCreate("test").setSettings(
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.sort.field", "rank")
-        ).setMapping("rank", "type=integer").get();
+        prepareCreate("test").setSettings(indexSettings(1, 0).put("index.sort.field", "rank")).setMapping("rank", "type=integer").get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
@@ -431,18 +423,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeFromAndSizeOkByDynamicSetting() throws Exception {
         createIndex("idx");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("idx")
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
-                            IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2
-                        )
-                )
-                .get()
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2),
+            "idx"
         );
         indexRandom(true, client().prepareIndex("idx").setSource("{}", XContentType.JSON));
 
@@ -512,13 +496,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testTooLargeRescoreOkByDynamicSetting() throws Exception {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
         createIndex("idx");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("idx")
-                .setSettings(Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
-                .get()
-        );
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2), "idx");
         indexRandom(true, client().prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(
@@ -530,15 +508,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testTooLargeRescoreOkByDynamicResultWindowSetting() throws Exception {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
         createIndex("idx");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("idx")
-                .setSettings(
-                    // Note that this is the RESULT window
-                    Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), defaultMaxWindow * 2)
-                )
-                .get()
+        updateIndexSettings(
+            // Note that this is the RESULT window
+            Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), defaultMaxWindow * 2),
+            "idx"
         );
         indexRandom(true, client().prepareIndex("idx").setSource("{}", XContentType.JSON));
 

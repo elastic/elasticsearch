@@ -1,6 +1,0 @@
-pr: 88013
-summary: Periodic warning for 1-node cluster w/ seed hosts
-area: Cluster Coordination
-type: enhancement
-issues:
- - 85222

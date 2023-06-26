@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
 
 public class TransformTaskParamsTests extends AbstractSerializingTransformTestCase<TransformTaskParams> {
 
@@ -21,6 +22,7 @@ public class TransformTaskParamsTests extends AbstractSerializingTransformTestCa
         return new TransformTaskParams(
             randomAlphaOfLengthBetween(1, 10),
             randomBoolean() ? VersionUtils.randomVersion(random()) : null,
+            randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L)) : null,
             randomBoolean() ? TimeValue.timeValueSeconds(randomLongBetween(1, 24 * 60 * 60)) : null,
             randomBoolean()
         );
@@ -34,6 +36,11 @@ public class TransformTaskParamsTests extends AbstractSerializingTransformTestCa
     @Override
     protected TransformTaskParams createTestInstance() {
         return randomTransformTaskParams();
+    }
+
+    @Override
+    protected TransformTaskParams mutateInstance(TransformTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

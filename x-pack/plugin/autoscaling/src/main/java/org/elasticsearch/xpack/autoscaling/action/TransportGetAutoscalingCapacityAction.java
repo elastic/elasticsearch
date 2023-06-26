@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
@@ -58,7 +57,6 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final ClusterInfoService clusterInfoService,
         final SnapshotsInfoService snapshotsInfoService,
         final AutoscalingNodeInfoService nodeInfoService,
-        final AllocationDeciders allocationDeciders,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
         super(
@@ -74,7 +72,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         );
         this.snapshotsInfoService = snapshotsInfoService;
         this.nodeInfoService = nodeInfoService;
-        this.capacityService = capacityServiceHolder.get(allocationDeciders);
+        this.capacityService = capacityServiceHolder.get();
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
         assert this.capacityService != null;

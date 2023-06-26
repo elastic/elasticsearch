@@ -45,8 +45,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch conversion = new Batch("Mapping", new JoinMapper(), new SimpleExecMapper());
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var conversion = new Batch<>("Mapping", new JoinMapper(), new SimpleExecMapper());
 
         return Arrays.asList(conversion);
     }
@@ -136,7 +136,6 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         }
 
         @SuppressWarnings("unchecked")
-        @Override
         protected final PhysicalPlan rule(UnplannedExec plan) {
             LogicalPlan subPlan = plan.plan();
             if (subPlanToken.isInstance(subPlan)) {

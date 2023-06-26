@@ -36,10 +36,9 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
-        IndexableField[] lengthFields = doc.rootDoc().getFields("message_length");
-        assertEquals(2, lengthFields.length);
-        assertEquals("LongPoint <message_length:17>", lengthFields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<message_length:17>", lengthFields[1].toString());
+        List<IndexableField> lengthFields = doc.rootDoc().getFields("message_length");
+        assertEquals(1, lengthFields.size());
+        assertEquals("LongField <message_length:17>", lengthFields.get(0).toString());
     }
 
     public void testDocAccess() throws IOException {
@@ -65,7 +64,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("double_field", 4.5)));
-        assertEquals(doc.rootDoc().getField("double_field_plus_two").numericValue(), 6.5);
+        assertEquals(doc.rootDoc().getField("double_field_plus_two").toString(), "DoubleField <double_field_plus_two:6.5>");
     }
 
     public void testCrossReferences() throws IOException {
@@ -85,9 +84,9 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.endObject();
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is a message")));
-        assertEquals(doc.rootDoc().getField("message_length_plus_two").numericValue(), 19L);
-        assertEquals(doc.rootDoc().getField("message_length").numericValue(), 17L);
-        assertEquals(doc.rootDoc().getField("message_length_plus_four").numericValue(), 21d);
+        assertEquals(doc.rootDoc().getField("message_length_plus_two").toString(), "LongField <message_length_plus_two:19>");
+        assertEquals(doc.rootDoc().getField("message_length").toString(), "LongField <message_length:17>");
+        assertEquals(doc.rootDoc().getField("message_length_plus_four").toString(), "DoubleField <message_length_plus_four:21.0>");
     }
 
     public void testLoopDetection() throws IOException {
@@ -96,7 +95,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.startObject("field2").field("type", "long").field("script", "field1_plus_two").endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [field1]", e.getMessage());
 
         Throwable root = e.getCause();
@@ -119,7 +118,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [index-field]", e.getMessage());
         assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
     }
@@ -128,7 +127,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context.factoryClazz == LongFieldScript.Factory.class) {
-            return (T) (LongFieldScript.Factory) (n, p, l) -> ctx -> new TestLongFieldScript(
+            return (T) (LongFieldScript.Factory) (n, p, l, onScriptError) -> ctx -> new TestLongFieldScript(
                 n,
                 p,
                 l,
@@ -137,7 +136,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             );
         }
         if (context.factoryClazz == DoubleFieldScript.Factory.class) {
-            return (T) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new TestDoubleFieldScript(
+            return (T) (DoubleFieldScript.Factory) (n, p, l, onScriptError) -> ctx -> new TestDoubleFieldScript(
                 n,
                 p,
                 l,
@@ -195,7 +194,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             LeafReaderContext ctx,
             Consumer<TestLongFieldScript> executor
         ) {
-            super(fieldName, params, searchLookup, ctx);
+            super(fieldName, params, searchLookup, OnScriptError.FAIL, ctx);
             this.executor = executor;
         }
 
@@ -224,7 +223,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             LeafReaderContext ctx,
             Consumer<TestDoubleFieldScript> executor
         ) {
-            super(fieldName, params, searchLookup, ctx);
+            super(fieldName, params, searchLookup, OnScriptError.FAIL, ctx);
             this.executor = executor;
         }
 

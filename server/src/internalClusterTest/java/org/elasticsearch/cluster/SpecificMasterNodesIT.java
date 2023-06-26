@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
@@ -37,15 +36,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
+                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId(),
                 nullValue()
             );
             fail("should not be able to find master");
@@ -87,15 +78,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
 
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
+                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId(),
                 nullValue()
             );
             fail("should not be able to find master");
@@ -141,15 +124,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
+                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId(),
                 nullValue()
             );
             fail("should not be able to find master");
@@ -258,7 +233,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
                 equalTo(nextMasterEligableNodeName)
             );
         });
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodeName));
+        internalCluster().stopNode(masterNodeName);
         assertThat(
             internalCluster().nonMasterClient()
                 .admin()
@@ -311,9 +286,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
                 }
               }
             }"""));
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAlias(
                 "test",
                 "a_test",

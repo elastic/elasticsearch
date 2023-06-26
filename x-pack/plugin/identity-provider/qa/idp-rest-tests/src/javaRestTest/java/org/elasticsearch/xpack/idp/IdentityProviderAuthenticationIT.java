@@ -128,13 +128,13 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws Exception {
         final Request request = new Request("POST", "/_idp/saml/init");
         if (authnState != null && authnState.isEmpty() == false) {
-            request.setJsonEntity("""
+            request.setJsonEntity(Strings.format("""
                 {"entity_id":"%s", "acs":"%s","authn_state":%s}
-                """.formatted(entityId, acs, Strings.toString(JsonXContent.contentBuilder().map(authnState))));
+                """, entityId, acs, Strings.toString(JsonXContent.contentBuilder().map(authnState))));
         } else {
-            request.setJsonEntity("""
+            request.setJsonEntity(Strings.format("""
                 {"entity_id":"%s", "acs":"%s"}
-                """.formatted(entityId, acs));
+                """, entityId, acs));
         }
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
@@ -153,13 +153,13 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         final String encodedResponse = Base64.getEncoder().encodeToString(samlResponse.getBytes(StandardCharsets.UTF_8));
         final Request request = new Request("POST", "/_security/saml/authenticate");
         if (Strings.hasText(id)) {
-            request.setJsonEntity("""
+            request.setJsonEntity(Strings.format("""
                 {"content":"%s", "realm":"%s", "ids":["%s"]}
-                """.formatted(encodedResponse, REALM_NAME, id));
+                """, encodedResponse, REALM_NAME, id));
         } else {
-            request.setJsonEntity("""
+            request.setJsonEntity(Strings.format("""
                 {"content":"%s", "realm":"%s"}
-                """.formatted(encodedResponse, REALM_NAME));
+                """, encodedResponse, REALM_NAME));
         }
         final String accessToken;
         try (RestClient kibanaClient = restClientAsKibanaSystem()) {

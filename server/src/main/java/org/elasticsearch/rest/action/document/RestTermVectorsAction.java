@@ -15,6 +15,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,8 +33,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * This class parses the json request and translates it into a
  * TermVectorsRequest.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestTermVectorsAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in term vector requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {

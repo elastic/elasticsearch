@@ -11,12 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -39,14 +39,13 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 
 class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
@@ -55,19 +54,24 @@ class IndexLifecycleRunner {
     private final PolicyStepsRegistry stepRegistry;
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
+    private final MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> masterServiceTaskQueue;
 
     @SuppressWarnings("Convert2Lambda") // can't SuppressForbidden on a lambda
     private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR =
         new ClusterStateTaskExecutor<>() {
             @Override
             @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-            public ClusterState execute(ClusterState currentState, List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts) {
-                ClusterState state = currentState;
-                for (final var taskContext : taskContexts) {
+            public ClusterState execute(BatchExecutionContext<IndexLifecycleClusterStateUpdateTask> batchExecutionContext) {
+                ClusterState state = batchExecutionContext.initialState();
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     try {
                         final var task = taskContext.getTask();
-                        state = task.execute(state);
-                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                        try (var ignored = taskContext.captureResponseHeaders()) {
+                            state = task.execute(state);
+                        }
+                        taskContext.success(
+                            publishedState -> task.clusterStateProcessed(batchExecutionContext.initialState(), publishedState)
+                        );
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
@@ -88,6 +92,7 @@ class IndexLifecycleRunner {
         this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
         this.threadPool = threadPool;
+        this.masterServiceTaskQueue = clusterService.createTaskQueue("ilm-runner", Priority.NORMAL, ILM_TASK_EXECUTOR);
     }
 
     /**
@@ -139,16 +144,16 @@ class IndexLifecycleRunner {
         }
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();
-        final long ageMillis = now - lifecycleDate;
-        final TimeValue age;
-        if (ageMillis >= 0) {
-            age = new TimeValue(ageMillis);
-        } else if (ageMillis == Long.MIN_VALUE) {
-            age = new TimeValue(Long.MAX_VALUE);
-        } else {
-            age = new TimeValue(-ageMillis);
-        }
         if (logger.isTraceEnabled()) {
+            final long ageMillis = now - lifecycleDate;
+            final TimeValue age;
+            if (ageMillis >= 0) {
+                age = new TimeValue(ageMillis);
+            } else if (ageMillis == Long.MIN_VALUE) {
+                age = new TimeValue(Long.MAX_VALUE);
+            } else {
+                age = new TimeValue(-ageMillis);
+            }
             logger.trace(
                 "[{}] checking for index age to be at least [{}] before performing actions in "
                     + "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}{}/{}s]",
@@ -217,12 +222,12 @@ class IndexLifecycleRunner {
                 logger.debug(
                     "[{}] stopping in the current phase ({}) as there are no more steps in the policy",
                     index,
-                    currentStep.getKey().getPhase()
+                    currentStep.getKey().phase()
                 );
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().phase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof AsyncWaitStep) {
@@ -428,12 +433,12 @@ class IndexLifecycleRunner {
                 logger.debug(
                     "[{}] stopping in the current phase ({}) as there are no more steps in the policy",
                     index,
-                    currentStep.getKey().getPhase()
+                    currentStep.getKey().phase()
                 );
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().phase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
@@ -616,8 +621,6 @@ class IndexLifecycleRunner {
      */
     private final Set<Tuple<Index, StepKey>> busyIndices = Collections.synchronizedSet(new HashSet<>());
 
-    static final ClusterStateTaskConfig ILM_TASK_CONFIG = ClusterStateTaskConfig.build(Priority.NORMAL);
-
     /**
      * Tracks already executing {@link IndexLifecycleClusterStateUpdateTask} tasks in {@link #executingTasks} to prevent queueing up
      * duplicate cluster state updates.
@@ -632,12 +635,12 @@ class IndexLifecycleRunner {
             final Tuple<Index, StepKey> dedupKey = Tuple.tuple(task.index, task.currentStepKey);
             // index+step-key combination on a best-effort basis to skip checking for more work for an index on CS application
             busyIndices.add(dedupKey);
-            task.addListener(ActionListener.wrap(() -> {
+            task.addListener(ActionListener.running(() -> {
                 final boolean removed = executingTasks.remove(task);
                 busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR);
+            masterServiceTaskQueue.submitTask(source, task, null);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }
@@ -687,7 +690,7 @@ class IndexLifecycleRunner {
 
         @Override
         protected void handleFailure(Exception e) {
-            logger.error(() -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().getName(), index), e);
+            logger.error(() -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().name(), index), e);
         }
 
         @Override

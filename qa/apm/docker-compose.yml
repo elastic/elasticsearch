@@ -1,0 +1,154 @@
+version: "2.4"
+
+networks:
+  default:
+    name: apm-integration-testing
+
+services:
+  apmserver:
+    depends_on:
+      kibana:
+        condition: service_healthy
+    environment:
+      FLEET_ELASTICSEARCH_HOST: null
+      FLEET_SERVER_ELASTICSEARCH_INSECURE: "1"
+      FLEET_SERVER_ENABLE: "1"
+      FLEET_SERVER_HOST: 0.0.0.0
+      FLEET_SERVER_INSECURE_HTTP: "1"
+      FLEET_SERVER_POLICY_ID: fleet-server-apm-policy
+      FLEET_SERVER_PORT: "8220"
+      FLEET_SERVER_SERVICE_TOKEN: AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL2VsYXN0aWMtcGFja2FnZS1mbGVldC1zZXJ2ZXItdG9rZW46bmgtcFhoQzRRQ2FXbms2U0JySGlWQQ
+      KIBANA_FLEET_HOST: null
+      KIBANA_FLEET_SERVICE_TOKEN: AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL2VsYXN0aWMtcGFja2FnZS1mbGVldC1zZXJ2ZXItdG9rZW46bmgtcFhoQzRRQ2FXbms2U0JySGlWQQ
+      KIBANA_FLEET_SETUP: "1"
+    healthcheck:
+      test: /bin/true
+    image: docker.elastic.co/beats/elastic-agent:${STACK_VERSION}
+    labels:
+      - co.elastic.apm.stack-version=${STACK_VERSION}
+    logging:
+      driver: json-file
+      options:
+        max-file: "5"
+        max-size: 2m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/tls/apmserver/cert.crt:/usr/share/apmserver/config/certs/tls.crt
+      - ./scripts/tls/apmserver/key.pem:/usr/share/apmserver/config/certs/tls.key
+
+  elasticsearch:
+    environment:
+      - action.destructive_requires_name=false
+      - bootstrap.memory_lock=true
+      - cluster.name=docker-cluster
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - indices.id_field_data.enabled=true
+      - ingest.geoip.downloader.enabled=false
+      - path.repo=/usr/share/elasticsearch/data/backups
+      - xpack.license.self_generated.type=trial
+      - xpack.monitoring.collection.enabled=true
+      - xpack.security.authc.anonymous.roles=remote_monitoring_collector
+      - xpack.security.authc.api_key.enabled=true
+      - xpack.security.authc.realms.file.file1.order=0
+      - xpack.security.authc.realms.native.native1.order=1
+      - xpack.security.authc.token.enabled=true
+      - xpack.security.enabled=true
+      # APM specific settings. We don't configure `secret_key` because Kibana is configured with a blank key
+      - tracing.apm.enabled=true
+      - tracing.apm.agent.server_url=http://apmserver:8200
+      # Send traces to APM server aggressively
+      - tracing.apm.agent.metrics_interval=1s
+      # Record everything
+      - tracing.apm.agent.transaction_sample_rate=1
+      - tracing.apm.agent.log_level=debug
+    healthcheck:
+      interval: 20s
+      retries: 10
+      test: curl -s -k http://localhost:9200/_cluster/health | grep -vq '"status":"red"'
+    image: elasticsearch:test
+    labels:
+      - co.elastic.apm.stack-version=${STACK_VERSION}
+      - co.elastic.metrics/module=elasticsearch
+      - co.elastic.metrics/metricsets=node,node_stats
+      - co.elastic.metrics/hosts=http://$${data.host}:9200
+    logging:
+      driver: json-file
+      options:
+        max-file: "5"
+        max-size: 2m
+    ports:
+      # - 127.0.0.1:9200:9200
+      - "9200"
+    ulimits:
+      memlock:
+        hard: -1
+        soft: -1
+    volumes:
+      - ./config/elasticsearch/roles.yml:/usr/share/elasticsearch/config/roles.yml
+      - ./config/elasticsearch/users:/usr/share/elasticsearch/config/users
+      - ./config/elasticsearch/users_roles:/usr/share/elasticsearch/config/users_roles
+      - ./config/elasticsearch/service_tokens:/usr/share/elasticsearch/config/service_tokens
+
+  kibana:
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_PASSWORD: changeme
+      ELASTICSEARCH_USERNAME: kibana_system_user
+      ELASTIC_APM_SECRET_TOKEN: ""
+      ELASTIC_APM_SERVER_URL: http://apmserver:8200
+      ELASTIC_APM_TLS: "false"
+      SERVER_HOST: 0.0.0.0
+      SERVER_NAME: kibana.example.org
+      STATUS_ALLOWANONYMOUS: "true"
+      TELEMETRY_ENABLED: "false"
+      XPACK_APM_SERVICEMAPENABLED: "true"
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: fhjskloppd678ehkdfdlliverpoolfcr
+      XPACK_FLEET_AGENTS_ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      # XPACK_FLEET_REGISTRYURL: https://epr-snapshot.elastic.co
+      XPACK_MONITORING_ENABLED: "true"
+      XPACK_REPORTING_ROLES_ENABLED: "false"
+      XPACK_SECURITY_ENCRYPTIONKEY: fhjskloppd678ehkdfdlliverpoolfcr
+      XPACK_SECURITY_LOGINASSISTANCEMESSAGE: Login&#32;details:&#32;`admin/changeme`.&#32;Further&#32;details&#32;[here](https://github.com/elastic/apm-integration-testing#logging-in).
+      XPACK_SECURITY_SESSION_IDLETIMEOUT: 1M
+      XPACK_SECURITY_SESSION_LIFESPAN: 3M
+      XPACK_XPACK_MAIN_TELEMETRY_ENABLED: "false"
+    healthcheck:
+      interval: 10s
+      retries: 30
+      start_period: 10s
+      test: curl -s -k http://kibana:5601/api/status | grep -q 'All services are available'
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    labels:
+      - co.elastic.apm.stack-version=${STACK_VERSION}
+    logging:
+      driver: json-file
+      options:
+        max-file: "5"
+        max-size: 2m
+    # ports:
+    #   - 127.0.0.1:5601:5601
+    volumes:
+      - ./config/kibana/kibana-8.yml:/usr/share/kibana/config/kibana.yml
+
+  # Rather than mess aroud with threads in the test, just run `curl` in a
+  # loop to generate traces with a known path
+  tracegenerator:
+    depends_on:
+      apmserver:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    # Official curl image
+    image: curlimages/curl
+    command: /bin/sh -c "while true; do curl -s -k -u admin:changeme http://elasticsearch:9200/_nodes/stats >/dev/null ; sleep 3; done"
+
+volumes:
+  esdata:
+    driver: local

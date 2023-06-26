@@ -17,8 +17,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -72,5 +74,14 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
             }
         }
         return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
+    }
+
+    @Override
+    protected GetIndexResponse mutateInstance(GetIndexResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    public void testChunking() throws IOException {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> response.getIndices().length + 2);
     }
 }

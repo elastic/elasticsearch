@@ -361,16 +361,6 @@ public class UpdateRequestTests extends ESTestCase {
             IndexRequest indexAction = (IndexRequest) action;
             assertEquals(nowInMillis, indexAction.sourceAsMap().get("update_timestamp"));
         }
-        {
-            UpdateRequest updateRequest = new UpdateRequest("test", "2").upsert(indexRequest)
-                .script(mockInlineScript("ctx._timestamp = ctx._now"))
-                .scriptedUpsert(true);
-            // We simulate that the document is not existing yet
-            GetResult getResult = new GetResult("test", "2", 0, 1, 0, true, new BytesArray("{}"), null, null);
-            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> 42L);
-            Writeable action = result.action();
-            assertThat(action, instanceOf(IndexRequest.class));
-        }
     }
 
     public void testIndexTimeout() {

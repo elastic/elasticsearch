@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuilder<AB>> extends AbstractBuilderTestCase {
@@ -54,6 +56,15 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);
         assertEquals(testAgg.hashCode(), newAgg.hashCode());
+    }
+
+    public void testSupportsConcurrentExecution() {
+        AB builder = createTestAggregatorBuilder();
+        boolean supportsConcurrency = builder.supportsConcurrentExecution();
+        AggregationBuilder bucketBuilder = new HistogramAggregationBuilder("test");
+        assertThat(bucketBuilder.supportsConcurrentExecution(), equalTo(true));
+        bucketBuilder.subAggregation(builder);
+        assertThat(bucketBuilder.supportsConcurrentExecution(), equalTo(supportsConcurrency));
     }
 
     /**

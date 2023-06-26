@@ -32,6 +32,16 @@ expected_event_ids  = [1,2,3]
 join_keys = ["1234"]
 
 [[queries]]
+name = "byDate"
+query = '''
+  sequence by date_tags
+    [ process where true ]
+    [ process where true ]
+'''
+expected_event_ids  = [10, 12]
+join_keys = ["1970-01-01T00:00:00.000Z"]
+
+[[queries]]
 name = "optionalNoDocsFieldNullEquality"
 query = '''
   OPTIONAL where ?optional_field_mapping_only == null
@@ -271,3 +281,145 @@ query = '''
 '''
 expected_event_ids  = [18, 19]
 join_keys = ["1.5.0"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_OneToMany"
+query = '''
+  sequence by tags
+    [ REQUEST where true ]
+    [ ERROR where true ]
+'''
+expected_event_ids  = [1, 2]
+join_keys = ["tag1"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_ManyToOne"
+query = '''
+  sequence by tags
+    [ process where true ]
+    [ process where true ]
+'''
+expected_event_ids  = [10, 11]
+join_keys = ["tag6"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_ManyToMany"
+query = '''
+  sequence by tags
+    [ REQUEST where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [1, 23, 4, 23, 4, 23]
+join_keys = ["tag1", "tag3", "tag4"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_CartesianProduct"
+query = '''
+  sequence by tags, items
+    [ REQUEST where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [4, 23, 4, 23, 4, 23, 4, 23]
+join_keys = ["tag3", "item1", "tag3", "item2", "tag4", "item1", "tag4", "item2"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_Duplicates"
+query = '''
+  sequence by tags_with_duplicates
+    [ process where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [12, 13, 12, 13]
+join_keys = ["tag1", "tag2"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_RandomOrder"
+query = '''
+  sequence by tags_unordered
+    [ file where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [14, 15, 14, 15]
+join_keys = ["tag1", "tag5"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_NullValues"
+query = '''
+  sequence by tags_with_null
+    [ file where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [16, 19, 16, 20]
+join_keys = ["tag1", "tag2"]
+
+[[queries]]
+name = "sequenceWithMultivalue_DateValues"
+query = '''
+  sequence by date_tags
+    [ file where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [20, 21, 21, 22]
+join_keys = [ "1970-01-01T00:00:00.000Z", "1970-01-02T00:00:00.000Z" ]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_simple"
+query = '''
+  sequence by ?optional_tags
+    [ process where true ]
+    [ process where true ]
+'''
+expected_event_ids  = [11, 12]
+join_keys = [null]
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_perQuery"
+query = '''
+  sequence
+    [ process where true ] by ?optional_tags
+    [ process where true ] by ?optional_tags
+'''
+expected_event_ids  = [11, 12]
+join_keys = [null]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_multiPlusOptional"
+query = '''
+  sequence by tags, ?optional_tags
+    [ REQUEST where true ]
+    [ ERROR where true ]
+'''
+expected_event_ids  = [1, 2]
+join_keys = ["tag1", null]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_optionalPlusMulti"
+query = '''
+  sequence by ?optional_tags, tags
+    [ REQUEST where true ]
+    [ ERROR where true ]
+'''
+expected_event_ids  = [1, 2]
+join_keys = [null, "tag1"]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_twoOptionals"
+query = '''
+  sequence by ?optional_tags, ?tags
+    [ REQUEST where true ]
+    [ ERROR where true ]
+'''
+expected_event_ids  = [1, 2]
+join_keys = [null, "tag1"]
+

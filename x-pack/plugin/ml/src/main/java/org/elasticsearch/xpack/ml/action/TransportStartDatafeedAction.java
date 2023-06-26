@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -356,7 +355,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy) -> {}),
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
@@ -407,7 +406,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
-                        new ElasticsearchException("Starting datafeed [" + params.getDatafeedId() + "] timed out after [" + timeout + "]")
+                        new ElasticsearchStatusException(
+                            "Starting datafeed [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
+                            params.getDatafeedId(),
+                            timeout
+                        )
                     );
                 }
             }

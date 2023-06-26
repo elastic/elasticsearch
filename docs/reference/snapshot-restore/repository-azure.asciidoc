@@ -1,8 +1,7 @@
 [[repository-azure]]
 === Azure repository
 
-You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
-{ref}/modules-snapshots.html[Snapshot/Restore].
+You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for <<snapshot-restore,Snapshot/Restore>>.
 
 [[repository-azure-usage]]
 ==== Setup
@@ -139,6 +138,12 @@ stored in the keystore are marked as "secure"; the other settings belong in the
   https://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
   set by the Azure client (known as 5 minutes). This setting can be defined
   globally, per account, or both.
+
+`endpoint`::
+  The Azure endpoint to connect to. It must include the protocol used to connect to Azure.
+
+`secondary_endpoint`::
+  The Azure secondary endpoint to connect to. It must include the protocol used to connect to Azure.
 
 [[repository-azure-repository-settings]]
 ==== Repository settings

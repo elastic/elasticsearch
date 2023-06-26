@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -32,8 +32,10 @@ public class FailBeforeCurrentVersionQueryBuilder extends DummyQueryBuilder {
 
     @Override
     protected void doWriteTo(StreamOutput out) {
-        if (out.getVersion().before(Version.CURRENT)) {
-            throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
+        if (out.getTransportVersion().before(TransportVersion.current())) {
+            throw new IllegalArgumentException(
+                "This query isn't serializable with transport versions before " + TransportVersion.current()
+            );
         }
     }
 

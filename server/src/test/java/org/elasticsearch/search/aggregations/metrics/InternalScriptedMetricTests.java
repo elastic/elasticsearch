@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -247,7 +247,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     @Override
-    protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) throws IOException {
+    protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) {
         String name = instance.getName();
         List<Object> aggregationsList = instance.aggregationsList();
         Script reduceScript = instance.reduceScript;
@@ -281,7 +281,11 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             original,
             getNamedWriteableRegistry(),
             InternalAggregation.class,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.V_7_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_8_0)
+            )
         );
         assertThat(roundTripped, equalTo(original));
 
@@ -293,7 +297,11 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 unreduced,
                 getNamedWriteableRegistry(),
                 InternalAggregation.class,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
+                TransportVersionUtils.randomVersionBetween(
+                    random(),
+                    TransportVersion.V_7_0_0,
+                    TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_8_0)
+                )
             )
         );
         assertThat(e.getMessage(), equalTo("scripted_metric doesn't support cross cluster search until 7.8.0"));

@@ -8,18 +8,18 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.CoreMatchers;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -29,14 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DissectProcessorTests extends ESTestCase {
 
     public void testMatch() {
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_id",
-            1,
-            null,
-            null,
-            Collections.singletonMap("message", "foo,bar,baz")
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("message", "foo,bar,baz"));
         DissectProcessor dissectProcessor = new DissectProcessor("", null, "message", "%{a},%{b},%{c}", "", true);
         dissectProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("a", String.class), equalTo("foo"));
@@ -51,7 +44,7 @@ public class DissectProcessorTests extends ESTestCase {
             1,
             null,
             null,
-            MapBuilder.<String, Object>newMapBuilder().put("message", "foo,bar,baz").put("a", "willgetstompped").map()
+            Map.of("message", "foo,bar,baz", "a", "willgetstompped")
         );
         assertThat(ingestDocument.getFieldValue("a", String.class), equalTo("willgetstompped"));
         DissectProcessor dissectProcessor = new DissectProcessor("", null, "message", "%{a},%{b},%{c}", "", true);
@@ -68,7 +61,7 @@ public class DissectProcessorTests extends ESTestCase {
             1,
             null,
             null,
-            Collections.singletonMap("message", "foo       bar,,,,,,,baz nope:notagain 😊 🐇 🙃")
+            Map.of("message", "foo       bar,,,,,,,baz nope:notagain 😊 🐇 🙃")
         );
         DissectProcessor dissectProcessor = new DissectProcessor(
             "",
@@ -87,17 +80,10 @@ public class DissectProcessorTests extends ESTestCase {
     }
 
     public void testMiss() {
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_id",
-            1,
-            null,
-            null,
-            Collections.singletonMap("message", "foo:bar,baz")
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("message", "foo:bar,baz"));
         DissectProcessor dissectProcessor = new DissectProcessor("", null, "message", "%{a},%{b},%{c}", "", true);
         DissectException e = expectThrows(DissectException.class, () -> dissectProcessor.execute(ingestDocument));
-        assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
+        assertThat(e.getMessage(), containsString("Unable to find match for dissect pattern"));
     }
 
     public void testNonStringValueWithIgnoreMissing() {

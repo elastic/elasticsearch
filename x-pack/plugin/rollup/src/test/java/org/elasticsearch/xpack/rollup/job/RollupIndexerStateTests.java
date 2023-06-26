@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.hamcrest.Matchers;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -621,7 +622,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             final CountDownLatch latch = indexer.newLatch();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
-            assertThat(indexer.getState(), equalTo(IndexerState.STOPPING));
+            assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());

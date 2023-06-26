@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -46,7 +47,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
@@ -167,11 +167,7 @@ public class FieldSortIT extends ESIntegTestCase {
                             "foo",
                             "bar",
                             "timeUpdated",
-                            "2014/07/"
-                                + String.format(Locale.ROOT, "%02d", i + 1)
-                                + " "
-                                + String.format(Locale.ROOT, "%02d", j + 1)
-                                + ":00:00"
+                            "2014/07/" + Strings.format("%02d", i + 1) + " " + Strings.format("%02d", j + 1) + ":00:00"
                         )
                 );
             }
@@ -196,10 +192,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("foo", "bar"))
-                        .must(
-                            QueryBuilders.rangeQuery("timeUpdated")
-                                .gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01")
-                        )
+                        .must(QueryBuilders.rangeQuery("timeUpdated").gte("2014/" + Strings.format("%02d", randomIntBetween(1, 7)) + "/01"))
                 )
                 .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                 .setSize(scaledRandomIntBetween(1, docs))
@@ -217,7 +210,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testTrackScores() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("svalue", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("svalue", "type=keyword").get());
         ensureGreen();
         index(
             "test",
@@ -328,7 +321,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void test3078() {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field", "type=keyword").get());
         ensureGreen();
 
         for (int i = 1; i < 101; i++) {
@@ -466,7 +459,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testIssue2986() {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=keyword").get());
 
         client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
         client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
@@ -486,11 +479,11 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testIssue2991() {
         for (int i = 1; i < 4; i++) {
             try {
-                client().admin().indices().prepareDelete("test").get();
+                indicesAdmin().prepareDelete("test").get();
             } catch (Exception e) {
                 // ignore
             }
-            assertAcked(client().admin().indices().prepareCreate("test").setMapping("tag", "type=keyword").get());
+            assertAcked(indicesAdmin().prepareCreate("test").setMapping("tag", "type=keyword").get());
             ensureGreen();
             client().prepareIndex("test").setId("1").setSource("tag", "alpha").get();
             refresh();
@@ -589,7 +582,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 if (random.nextInt(5) != 0) {
                     refresh();
                 } else {
-                    client().admin().indices().prepareFlush().get();
+                    indicesAdmin().prepareFlush().get();
                 }
             }
 
@@ -1545,11 +1538,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMetaField() throws Exception {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
-            .get();
+        updateClusterSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true));
         try {
             createIndex("test");
             ensureGreen();
@@ -1579,11 +1568,7 @@ public class FieldSortIT extends ESIntegTestCase {
             // assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
         } finally {
             // unset cluster setting
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
-                .get();
+            updateClusterSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         }
     }
 

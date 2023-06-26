@@ -14,6 +14,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequestBuilder;
@@ -29,6 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest endpoint to retrieve a Role from the security index
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetRolesAction extends SecurityBaseRestHandler {
 
     public RestGetRolesAction(Settings settings, XPackLicenseState licenseState) {

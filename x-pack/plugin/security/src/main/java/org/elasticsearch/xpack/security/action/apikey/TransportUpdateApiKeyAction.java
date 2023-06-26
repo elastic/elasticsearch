@@ -9,22 +9,22 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
+public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
-    private final SecurityContext securityContext;
     private final ApiKeyService apiKeyService;
     private final ApiKeyUserRoleDescriptorResolver resolver;
 
@@ -37,29 +37,30 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry
     ) {
-        super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new);
-        this.securityContext = context;
+        super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new, context);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }
 
     @Override
-    protected void doExecute(Task task, UpdateApiKeyRequest request, ActionListener<UpdateApiKeyResponse> listener) {
-        final var authentication = securityContext.getAuthentication();
-        if (authentication == null) {
-            listener.onFailure(new IllegalStateException("authentication is required"));
-            return;
-        } else if (authentication.isApiKey()) {
-            listener.onFailure(
-                new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
-            );
-            return;
-        }
-
+    void doExecuteUpdate(
+        final Task task,
+        final UpdateApiKeyRequest request,
+        final Authentication authentication,
+        final ActionListener<UpdateApiKeyResponse> listener
+    ) {
         resolver.resolveUserRoleDescriptors(
             authentication,
             ActionListener.wrap(
-                roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),
+                roleDescriptors -> apiKeyService.updateApiKeys(
+                    authentication,
+                    BulkUpdateApiKeyRequest.wrap(request),
+                    roleDescriptors,
+                    ActionListener.wrap(
+                        bulkResponse -> listener.onResponse(toSingleResponse(request.getId(), bulkResponse)),
+                        listener::onFailure
+                    )
+                ),
                 listener::onFailure
             )
         );

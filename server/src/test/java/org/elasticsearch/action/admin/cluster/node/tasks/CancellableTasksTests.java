@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -408,7 +408,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 threadPool,
                 "test",
                 randomNonNegativeLong(),
-                Version.CURRENT
+                TransportVersion.current()
             )
         );
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");

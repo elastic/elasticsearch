@@ -18,20 +18,30 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.TestRankBuilder;
+import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class DfsQueryPhaseTests extends ESTestCase {
@@ -39,6 +49,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
     private static DfsSearchResult newSearchResult(int shardIndex, ShardSearchContextId contextId, SearchShardTarget target) {
         DfsSearchResult result = new DfsSearchResult(contextId, target, null);
         result.setShardIndex(shardIndex);
+        result.setShardSearchRequest(new ShardSearchRequest(target.getShardId(), System.currentTimeMillis(), AliasFilter.EMPTY));
         return result;
     }
 
@@ -111,7 +122,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
                 responseRef.set(response.results);
@@ -189,7 +200,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
                 responseRef.set(response.results);
@@ -269,7 +280,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
                 responseRef.set(response.results);
@@ -278,6 +289,38 @@ public class DfsQueryPhaseTests extends ESTestCase {
         assertEquals("dfs_query", phase.getName());
         expectThrows(UncheckedIOException.class, phase::run);
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty()); // phase execution will clean up on the contexts
+    }
+
+    public void testRewriteShardSearchRequestWithRank() {
+        List<DfsKnnResults> dkrs = List.of(
+            new DfsKnnResults(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1), new ScoreDoc(7, 0.1f, 2) }),
+            new DfsKnnResults(
+                new ScoreDoc[] { new ScoreDoc(2, 1.75f, 2), new ScoreDoc(1, 2.0f, 1), new ScoreDoc(3, 0.25f, 2), new ScoreDoc(6, 2.5f, 2) }
+            )
+        );
+        MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
+        mspc.searchTransport = new SearchTransportService(null, null, null);
+        DfsQueryPhase dqp = new DfsQueryPhase(null, null, dkrs, null, null, mspc);
+
+        QueryBuilder bm25 = new TermQueryBuilder("field", "term");
+        SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
+            .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null)))
+            .rankBuilder(new TestRankBuilder(100));
+        SearchRequest sr = new SearchRequest().allowPartialSearchResults(true).source(ssb);
+        ShardSearchRequest ssr = new ShardSearchRequest(null, sr, new ShardId("test", "testuuid", 1), 1, 1, null, 1.0f, 0, null);
+
+        dqp.rewriteShardSearchRequest(ssr);
+
+        KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) });
+        KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) });
+        assertEquals(
+            List.of(bm25, ksdqb0, ksdqb1),
+            List.of(
+                ssr.source().subSearches().get(0).getQueryBuilder(),
+                ssr.source().subSearches().get(1).getQueryBuilder(),
+                ssr.source().subSearches().get(2).getQueryBuilder()
+            )
+        );
     }
 
     private SearchPhaseController searchPhaseController() {

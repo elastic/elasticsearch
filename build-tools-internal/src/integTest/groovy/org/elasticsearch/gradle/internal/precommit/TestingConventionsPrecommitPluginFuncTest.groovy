@@ -174,12 +174,12 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         given:
         clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
         buildFile << """
-        apply plugin:'elasticsearch.internal-yaml-rest-test'
-        
+        apply plugin:'elasticsearch.legacy-yaml-rest-test'
+
         dependencies {
             yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
             yamlRestTestImplementation "org.junit:junit:4.42"
-        }    
+        }
         """
 
         clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase") {
@@ -216,11 +216,11 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         buildFile << """
         import org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask
         apply plugin:'$pluginName'
-        
+
         dependencies {
             ${sourceSetName}Implementation "org.apache.lucene:tests.util:1.0"
             ${sourceSetName}Implementation "org.junit:junit:4.42"
-        }    
+        }
         tasks.withType(TestingConventionsCheckTask).configureEach {
             suffix 'IT'
             suffix 'Tests'
@@ -252,19 +252,19 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         )
 
         where:
-        pluginName                              | taskName                                | sourceSetName
-        "elasticsearch.internal-java-rest-test" | ":javaRestTestTestingConventions"       | "javaRestTest"
+        pluginName                              | taskName                                 | sourceSetName
+        "elasticsearch.legacy-java-rest-test"   | ":javaRestTestTestingConventions"        | "javaRestTest"
         "elasticsearch.internal-cluster-test"   | ":internalClusterTestTestingConventions" | "internalClusterTest"
     }
 
     private void simpleJavaBuild() {
         buildFile << """
         apply plugin:'java'
-                
+
         dependencies {
             testImplementation "org.apache.lucene:tests.util:1.0"
             testImplementation "org.junit:junit:4.42"
-        }    
+        }
         """
     }
 }

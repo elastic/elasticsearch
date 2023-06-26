@@ -22,13 +22,16 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingParserContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -71,7 +74,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
-                indexMode = dataStream.getIndexMode();
+                indexMode = timeSeries ? dataStream.getIndexMode() : null;
             } else if (timeSeries) {
                 indexMode = IndexMode.TIME_SERIES;
             } else {
@@ -84,8 +87,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     final Instant start;
                     final Instant end;
                     if (dataStream == null || migrating) {
-                        start = resolvedAt.minusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
-                        end = resolvedAt.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
+                        start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookAheadTime.getMillis()));
+                        end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
                     } else {
                         IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
@@ -100,9 +103,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         }
                         start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
                         if (start.isAfter(resolvedAt)) {
-                            end = start.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
+                            end = DataStream.getCanonicalTimestampBound(start.plusMillis(lookAheadTime.getMillis()));
                         } else {
-                            end = resolvedAt.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
+                            end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
                         }
                     }
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
@@ -112,7 +115,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
                         List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
-                        if (routingPaths != null) {
+                        if (routingPaths.isEmpty() == false) {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
                     }
@@ -159,20 +162,47 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
             }
 
-            List<String> routingPaths = null;
+            List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                if (fieldMapper instanceof KeywordFieldMapper keywordFieldMapper) {
-                    if (keywordFieldMapper.fieldType().isDimension()) {
-                        if (routingPaths == null) {
-                            routingPaths = new ArrayList<>();
-                        }
-                        routingPaths.add(keywordFieldMapper.name());
-                    }
+                extractPath(routingPaths, fieldMapper);
+            }
+            for (var template : mapperService.getAllDynamicTemplates()) {
+                if (template.pathMatch().isEmpty()) {
+                    continue;
+                }
+
+                var templateName = "__dynamic__" + template.name();
+                var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+                String mappingSnippetType = (String) mappingSnippet.get("type");
+                if (mappingSnippetType == null) {
+                    continue;
+                }
+
+                MappingParserContext parserContext = mapperService.parserContext();
+                for (String pathMatch : template.pathMatch()) {
+                    var mapper = parserContext.typeParser(mappingSnippetType)
+                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
+                        // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
+                        // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
+                        .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
+                        .build(MapperBuilderContext.root(false));
+                    extractPath(routingPaths, mapper);
                 }
             }
             return routingPaths;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Helper method that adds the name of the mapper to the provided list if it is a keyword dimension field.
+     */
+    private static void extractPath(List<String> routingPaths, Mapper mapper) {
+        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+            if (keywordFieldMapper.fieldType().isDimension()) {
+                routingPaths.add(mapper.name());
+            }
         }
     }
 

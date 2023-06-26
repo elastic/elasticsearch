@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ql.util;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 
 import java.sql.Timestamp;
@@ -57,6 +58,8 @@ public class DateUtils {
         .appendFraction(NANO_OF_SECOND, 3, 9, true)
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
+
+    public static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
 
     public static final int SECONDS_PER_MINUTE = 60;
     public static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -87,6 +87,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRoleDescriptorValidation() {
+        final String[] unknownWorkflows = randomArray(1, 2, String[]::new, () -> randomAlphaOfLengthBetween(4, 10));
         final CreateApiKeyRequest request1 = new CreateApiKeyRequest(
             randomAlphaOfLength(5),
             List.of(
@@ -104,7 +105,9 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
-                    null
+                    null,
+                    null,
+                    new RoleDescriptor.Restriction(unknownWorkflows)
                 )
             ),
             null
@@ -116,6 +119,9 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        for (int i = 0; i < unknownWorkflows.length; i++) {
+            assertThat(ve1.validationErrors().get(5 + i), containsStringIgnoringCase("unknown workflow [" + unknownWorkflows[i] + "]"));
+        }
     }
 
     public void testSerialization() throws IOException {
@@ -149,12 +155,12 @@ public class CreateApiKeyRequestTests extends ESTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             if (testV710Bwc) {
-                out.setVersion(Version.V_7_9_0); // a version before 7.10
+                out.setTransportVersion(TransportVersion.V_7_9_0); // a version before 7.10
             }
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 if (testV710Bwc) {
-                    in.setVersion(Version.V_7_9_0);
+                    in.setTransportVersion(TransportVersion.V_7_9_0);
                 }
                 final CreateApiKeyRequest serialized = new CreateApiKeyRequest(in);
                 assertEquals(name, serialized.getName());

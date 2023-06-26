@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.lucene.RegExp;
+
+import java.util.Objects;
 
 public class RLikePattern extends AbstractStringPattern {
 
@@ -18,12 +20,25 @@ public class RLikePattern extends AbstractStringPattern {
     }
 
     @Override
-    Automaton createAutomaton() {
+    public Automaton createAutomaton() {
         return new RegExp(regexpPattern).toAutomaton();
     }
 
     @Override
     public String asJavaRegex() {
         return regexpPattern;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RLikePattern that = (RLikePattern) o;
+        return Objects.equals(regexpPattern, that.regexpPattern);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(regexpPattern);
     }
 }

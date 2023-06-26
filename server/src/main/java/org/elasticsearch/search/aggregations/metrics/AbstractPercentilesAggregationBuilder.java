@@ -7,14 +7,13 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
  * as well as algorithm-specific settings via a {@link PercentilesConfig} object
  */
 public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>> extends
-    ValuesSourceAggregationBuilder.MetricsAggregationBuilder<ValuesSource, T> {
+    ValuesSourceAggregationBuilder.MetricsAggregationBuilder<T> {
 
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
     private final ParseField valuesField;
@@ -147,7 +146,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = valuesField;
         values = in.readDoubleArray();
         keyed = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             percentilesConfig = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
         } else {
             int numberOfSignificantValueDigits = in.readVInt();
@@ -166,7 +165,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(values);
         out.writeBoolean(keyed);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             out.writeOptionalWriteable(percentilesConfig);
         } else {
             // Legacy method serialized both SigFigs and compression, even though we only need one. So we need

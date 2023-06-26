@@ -1,6 +1,0 @@
-pr: 88271
-summary: "Fix: extract matrix stats using `bucket_selector` `buckets_path`"
-area: Aggregations
-type: bug
-issues:
- - 87454

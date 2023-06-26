@@ -14,45 +14,31 @@ import org.elasticsearch.script.Metadata;
 
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 class IngestDocMetadata extends Metadata {
-    private static final FieldProperty<String> UPDATABLE_STRING = new FieldProperty<>(String.class, true, true, null);
+
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        UPDATABLE_STRING,
+        StringField.withWritable().withNullable(),
         ID,
-        UPDATABLE_STRING,
+        StringField.withWritable().withNullable(),
         ROUTING,
-        UPDATABLE_STRING,
+        StringField.withWritable().withNullable(),
         VERSION_TYPE,
-        new FieldProperty<>(String.class, true, true, (k, v) -> {
-            try {
-                VersionType.fromString(v);
-                return;
-            } catch (IllegalArgumentException ignored) {}
-            throw new IllegalArgumentException(
-                k
-                    + " must be a null or one of ["
-                    + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
-                    + "] but was ["
-                    + v
-                    + "] with type ["
-                    + v.getClass().getName()
-                    + "]"
-            );
-        }),
+        StringField.withWritable().withNullable().withValidation(IngestDocMetadata::versionTypeValidator),
         VERSION,
-        new FieldProperty<>(Number.class, false, true, FieldProperty.LONGABLE_NUMBER),
+        LongField.withWritable(),
         TYPE,
-        new FieldProperty<>(String.class, true, false, null),
+        StringField.withNullable(),
         IF_SEQ_NO,
-        new FieldProperty<>(Number.class, true, true, FieldProperty.LONGABLE_NUMBER),
+        LongField.withWritable().withNullable(),
         IF_PRIMARY_TERM,
-        new FieldProperty<>(Number.class, true, true, FieldProperty.LONGABLE_NUMBER),
+        LongField.withWritable().withNullable(),
         DYNAMIC_TEMPLATES,
-        new FieldProperty<>(Map.class, true, true, null)
+        new FieldProperty<>(Map.class).withWritable().withNullable()
     );
 
     protected final ZonedDateTime timestamp;
@@ -62,7 +48,11 @@ class IngestDocMetadata extends Metadata {
     }
 
     IngestDocMetadata(Map<String, Object> metadata, ZonedDateTime timestamp) {
-        super(metadata, PROPERTIES);
+        this(metadata, PROPERTIES, timestamp);
+    }
+
+    IngestDocMetadata(Map<String, Object> metadata, Map<String, FieldProperty<?>> properties, ZonedDateTime timestamp) {
+        super(metadata, properties);
         this.timestamp = timestamp;
     }
 
@@ -84,7 +74,29 @@ class IngestDocMetadata extends Metadata {
     }
 
     @Override
-    public ZonedDateTime getTimestamp() {
+    public ZonedDateTime getNow() {
         return timestamp;
+    }
+
+    @Override
+    public IngestDocMetadata clone() {
+        return new IngestDocMetadata(new HashMap<>(map), timestamp);
+    }
+
+    private static void versionTypeValidator(String key, String value) {
+        try {
+            VersionType.fromString(value);
+            return;
+        } catch (IllegalArgumentException ignored) {}
+        throw new IllegalArgumentException(
+            key
+                + " must be a null or one of ["
+                + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
+                + "] but was ["
+                + value
+                + "] with type ["
+                + value.getClass().getName()
+                + "]"
+        );
     }
 }

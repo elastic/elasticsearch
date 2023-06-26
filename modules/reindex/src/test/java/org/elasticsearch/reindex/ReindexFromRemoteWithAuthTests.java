@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,10 +41,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -67,7 +70,12 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(Netty4Plugin.class, ReindexFromRemoteWithAuthTests.TestPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(
+            Netty4Plugin.class,
+            ReindexFromRemoteWithAuthTests.TestPlugin.class,
+            ReindexPlugin.class,
+            MainRestPlugin.class
+        );
     }
 
     @Override
@@ -91,7 +99,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void fetchTransportAddress() {
-        NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
+        NodeInfo nodeInfo = clusterAdmin().prepareNodesInfo().get().getNodes().get(0);
         address = nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress();
     }
 
@@ -166,7 +174,9 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationService allocationService
         ) {
             testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(threadPool));
             return Collections.emptyList();

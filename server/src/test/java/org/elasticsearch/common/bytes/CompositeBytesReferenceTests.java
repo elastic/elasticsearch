@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.util.ByteUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -148,5 +149,71 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
             expectThrows(IllegalArgumentException.class, () -> CompositeBytesReference.of(referenceArray)).getMessage(),
             equalTo("CompositeBytesReference cannot hold more than 2GB")
         );
+    }
+
+    public void testGetIntLE() {
+        BytesReference[] refs = new BytesReference[] {
+            new BytesArray(new byte[] { 0x12, 0x10, 0x12, 0x00 }),
+            new BytesArray(new byte[] { 0x01, 0x02, 0x03, 0x04 }) };
+        BytesReference comp = CompositeBytesReference.of(refs);
+        assertThat(comp.getIntLE(0), equalTo(0x00121012));
+        assertThat(comp.getIntLE(1), equalTo(0x01001210));
+        assertThat(comp.getIntLE(2), equalTo(0x02010012));
+        assertThat(comp.getIntLE(3), equalTo(0x03020100));
+        assertThat(comp.getIntLE(4), equalTo(0x04030201));
+        // The jvm can optimize throwing ArrayIndexOutOfBoundsException by reusing the same exception,
+        // but these reused exceptions have no message or stack trace. This sometimes happens when running this test case.
+        // We can assert the exception message if -XX:-OmitStackTraceInFastThrow is set in gradle test task.
+        expectThrows(ArrayIndexOutOfBoundsException.class, () -> comp.getIntLE(5));
+    }
+
+    public void testGetDoubleLE() {
+        // first double = 1.2, second double = 1.4, third double = 1.6
+        // tag::noformat
+        byte[] data = new byte[] {
+            0x33, 0x33, 0x33, 0x33, 0x33, 0x33, -0xD, 0x3F,
+            0x66, 0x66, 0x66, 0x66, 0x66, 0x66, -0xA, 0x3F,
+            -0x66, -0x67, -0x67, -0x67, -0x67, -0x67, -0x7, 0x3F};
+        // end::noformat
+
+        List<BytesReference> refs = new ArrayList<>();
+        int bytesPerChunk = randomFrom(4, 16);
+        for (int offset = 0; offset < data.length; offset += bytesPerChunk) {
+            int length = Math.min(bytesPerChunk, data.length - offset);
+            refs.add(new BytesArray(data, offset, length));
+        }
+        BytesReference comp = CompositeBytesReference.of(refs.toArray(BytesReference[]::new));
+        assertThat(comp.getDoubleLE(0), equalTo(1.2));
+        assertThat(comp.getDoubleLE(8), equalTo(1.4));
+        assertThat(comp.getDoubleLE(16), equalTo(1.6));
+        // The jvm can optimize throwing ArrayIndexOutOfBoundsException by reusing the same exception,
+        // but these reused exceptions have no message or stack trace. This sometimes happens when running this test case.
+        // We can assert the exception message if -XX:-OmitStackTraceInFastThrow is set in gradle test task.
+        expectThrows(IndexOutOfBoundsException.class, () -> comp.getDoubleLE(17));
+    }
+
+    public void testGetLongLE() {
+        // first long = 2, second long = 44, third long = 512
+        // tag::noformat
+        byte[] data = new byte[] {
+            0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x2C, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+        // end::noformat
+
+        byte[] d = new byte[8];
+        ByteUtils.writeLongLE(2, d, 0);
+
+        List<BytesReference> refs = new ArrayList<>();
+        int bytesPerChunk = randomFrom(4, 16);
+        for (int offset = 0; offset < data.length; offset += bytesPerChunk) {
+            int length = Math.min(bytesPerChunk, data.length - offset);
+            refs.add(new BytesArray(data, offset, length));
+        }
+        BytesReference comp = CompositeBytesReference.of(refs.toArray(BytesReference[]::new));
+        assertThat(comp.getLongLE(0), equalTo(2L));
+        assertThat(comp.getLongLE(8), equalTo(44L));
+        assertThat(comp.getLongLE(16), equalTo(512L));
+        expectThrows(IndexOutOfBoundsException.class, () -> comp.getLongLE(17));
     }
 }

@@ -10,14 +10,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Collections;
@@ -36,7 +38,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             b.field("someparam", "value");
             b.endObject();
         });
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping);
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping);
         assertThat(service.fieldType("myfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
         assertEquals(Strings.toString(mapping), Strings.toString(service.documentMapper().mapping()));
 
@@ -53,7 +55,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testFetchValue() throws Exception {
-        MapperService mapperService = createMapperService(Version.fromString("5.0.0"), fieldMapping(b -> b.field("type", "unknown")));
+        MapperService mapperService = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> b.field("type", "unknown")));
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(
                 createMapperService(fieldMapping(b -> b.field("type", "keyword"))).documentMapper()
@@ -61,7 +63,11 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
                     .rootDoc()
             );
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchLookup lookup = new SearchLookup(
+                mapperService::fieldType,
+                fieldDataLookup(mapperService),
+                SourceProvider.fromStoredFields()
+            );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             FieldFetcher fieldFetcher = FieldFetcher.create(
                 searchExecutionContext,
@@ -69,8 +75,8 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(lookup.source());
+            Source source = lookup.getSource(context, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
             assertEquals(1, fields.size());
             assertEquals(List.of("value"), fields.get("field").getValues());
         });

@@ -44,21 +44,45 @@ public class Metadata {
     protected static final String VERSION_TYPE = "_version_type";
     protected static final String VERSION = "_version";
     protected static final String TYPE = "_type"; // type is deprecated, so it's supported in the map but not available as a getter
-    protected static final String TIMESTAMP = "_now";
+    protected static final String NOW = "_now";
     protected static final String OP = "op";
     protected static final String IF_SEQ_NO = "_if_seq_no";
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
 
+    public static FieldProperty<Object> ObjectField = new FieldProperty<>(Object.class);
+    public static FieldProperty<String> StringField = new FieldProperty<>(String.class);
+    public static FieldProperty<Number> LongField = new FieldProperty<>(Number.class).withValidation(FieldProperty.LONGABLE_NUMBER);
+
     protected final Map<String, Object> map;
-    protected final Map<String, FieldProperty<?>> properties;
+    private final Map<String, FieldProperty<?>> properties;
     protected static final FieldProperty<?> BAD_KEY = new FieldProperty<>(null, false, false, null);
 
-    public Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
+    /**
+     * Constructs a new Metadata object represented by the given map and properties.
+     * <p>
+     * The passed-in map is used directly -- subsequent modifications to it outside the methods of this class may result in
+     * undefined behavior. Note also that mutation-like methods (e.g. setters, etc) on this class rely on the map being mutable,
+     * which is the expected use for this class.
+     * <p>
+     * The properties map is used directly as well, but we verify at runtime that it <b>must</b> be an immutable map (i.e. constructed
+     * via a call to {@link Map#of()} (or similar) in production, or via {@link Map#copyOf(Map)}} in tests). Since it must be an
+     * immutable map, subsequent modifications are not possible.
+     *
+     * @param map the backing map for this metadata instance
+     * @param properties the immutable map of defined properties for the type of metadata represented by this instance
+     */
+    protected Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
-        this.properties = Collections.unmodifiableMap(properties);
+        // we can't tell the compiler that properties must be a java.util.ImmutableCollections.AbstractImmutableMap, but
+        // we can use this copyOf + assert to verify that at runtime.
+        this.properties = Map.copyOf(properties);
+        assert this.properties == properties : "properties map must be constructed via Map.of(...) or Map.copyOf(...)";
         validateMetadata();
     }
+
+    // a 'not found' sentinel value for use in validateMetadata below
+    private static final Object NOT_FOUND = new Object();
 
     /**
      * Check that all metadata map contains only valid metadata and no extraneous keys
@@ -67,10 +91,14 @@ public class Metadata {
         int numMetadata = 0;
         for (Map.Entry<String, FieldProperty<?>> entry : properties.entrySet()) {
             String key = entry.getKey();
-            if (map.containsKey(key)) {
+            Object value = map.getOrDefault(key, NOT_FOUND); // getOrDefault is faster than containsKey + get
+            if (value == NOT_FOUND) {
+                // check whether it's permissible to *not* have a value for the property
+                entry.getValue().check(MapOperation.INIT, key, null);
+            } else {
                 numMetadata++;
+                entry.getValue().check(MapOperation.INIT, key, value);
             }
-            entry.getValue().check(MapOperation.INIT, key, map.get(key));
         }
         if (numMetadata < map.size()) {
             Set<String> keys = new HashSet<>(map.keySet());
@@ -122,8 +150,8 @@ public class Metadata {
         put(VERSION, version);
     }
 
-    public ZonedDateTime getTimestamp() {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(getNumber(TIMESTAMP).longValue()), ZoneOffset.UTC);
+    public ZonedDateTime getNow() {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(getNumber(NOW).longValue()), ZoneOffset.UTC);
     }
 
     public String getOp() {
@@ -235,7 +263,7 @@ public class Metadata {
 
     @Override
     public Metadata clone() {
-        // properties is an UnmodifiableMap, no need to create a copy
+        // properties is an unmodifiable map, no need to create a copy here
         return new Metadata(new HashMap<>(map), properties);
     }
 
@@ -278,7 +306,32 @@ public class Metadata {
      * @param writable - can the field be updated after the initial set
      * @param extendedValidation - value validation after type checking, may be used for values that may be one of a set
      */
-    public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
+    public record FieldProperty<T>(Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
+
+        public FieldProperty(Class<T> type) {
+            this(type, false, false, null);
+        }
+
+        public FieldProperty<T> withNullable() {
+            if (nullable) {
+                return this;
+            }
+            return new FieldProperty<>(type, true, writable, extendedValidation);
+        }
+
+        public FieldProperty<T> withWritable() {
+            if (writable) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, true, extendedValidation);
+        }
+
+        public FieldProperty<T> withValidation(BiConsumer<String, T> extendedValidation) {
+            if (this.extendedValidation == extendedValidation) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, writable, extendedValidation);
+        }
 
         public static BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {
             long version = v.longValue();
@@ -345,5 +398,15 @@ public class Metadata {
                 extendedValidation.accept(key, (T) value);
             }
         }
+    }
+
+    public static BiConsumer<String, String> stringSetValidator(Set<String> valid) {
+        return (k, v) -> {
+            if (valid.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
+                );
+            }
+        };
     }
 }

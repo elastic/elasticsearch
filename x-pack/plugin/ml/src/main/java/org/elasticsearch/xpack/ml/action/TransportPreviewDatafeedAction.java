@@ -140,7 +140,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 job,
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
-                new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy) -> {}),
+                new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
                 listener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewDatafeedConfig,

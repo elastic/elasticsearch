@@ -28,8 +28,6 @@ import java.util.Collections;
  * </p>
  */
 public interface ReservedClusterStateHandler<T> {
-    String CONTENT = "content";
-
     /**
      * Unique identifier for the handler.
      *
@@ -76,6 +74,20 @@ public interface ReservedClusterStateHandler<T> {
      * @return a collection of reserved state handler names
      */
     default Collection<String> dependencies() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * List of optional dependent handler names for this handler.
+     *
+     * <p>
+     * These are dependent handlers which may or may not exist for this handler to be
+     * processed. If the optional dependency exists, then they are simply ordered to be
+     * merged into the cluster state before this handler.
+     *
+     * @return a collection of optional reserved state handler names
+     */
+    default Collection<String> optionalDependencies() {
         return Collections.emptyList();
     }
 

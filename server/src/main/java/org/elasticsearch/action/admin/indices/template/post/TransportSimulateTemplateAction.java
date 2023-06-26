@@ -15,12 +15,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
@@ -52,6 +54,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final IndicesService indicesService;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportSimulateTemplateAction(
@@ -82,6 +85,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indicesService = indicesService;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override
@@ -162,7 +166,17 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             systemIndices,
             indexSettingProviders
         );
-        listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        if (request.includeDefaults() && DataLifecycle.isEnabled()) {
+            listener.onResponse(
+                new SimulateIndexTemplateResponse(
+                    template,
+                    overlapping,
+                    clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                )
+            );
+        } else {
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        }
     }
 
     @Override

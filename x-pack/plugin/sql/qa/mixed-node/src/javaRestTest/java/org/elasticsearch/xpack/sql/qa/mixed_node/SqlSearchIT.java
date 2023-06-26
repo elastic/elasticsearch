@@ -57,7 +57,7 @@ public class SqlSearchIT extends ESRestTestCase {
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
-        bwcVersion = nodes.getBWCNodes().get(0).getVersion();
+        bwcVersion = nodes.getBWCNodes().get(0).version();
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(
@@ -188,7 +188,11 @@ public class SqlSearchIT extends ESRestTestCase {
             builder.append("\"boolean_field\":" + fieldValues.computeIfAbsent("boolean_field", v -> randomBoolean()) + ",");
             builder.append("\"ip_field\":\"" + fieldValues.computeIfAbsent("ip_field", v -> "123.123.123.123") + "\",");
             if (bwcVersion.onOrAfter(VERSION_FIELD_QL_INTRODUCTION)) {
-                columns.add(columnInfo("version_field", "2.11.4"));
+                builder.append(
+                    "\"version_field\":\""
+                        + fieldValues.computeIfAbsent("version_field", v -> randomInt() + "." + randomInt() + "." + randomInt())
+                        + "\","
+                );
             }
             builder.append("\"text_field\": \"" + fieldValues.computeIfAbsent("text_field", v -> randomAlphaOfLength(5)) + "\",");
             builder.append("\"keyword_field\": \"" + fieldValues.computeIfAbsent("keyword_field", v -> randomAlphaOfLength(5)) + "\",");
@@ -225,10 +229,7 @@ public class SqlSearchIT extends ESRestTestCase {
 
     private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
@@ -246,7 +247,7 @@ public class SqlSearchIT extends ESRestTestCase {
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
 
             Request request = new Request("POST", "_sql");
-            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
+            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query));
             assertBusy(() -> { assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request))); });
         }
     }

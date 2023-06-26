@@ -19,12 +19,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -35,13 +37,20 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -51,10 +60,13 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -65,7 +77,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -79,11 +90,16 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
+import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.operator.OperatorPrivilegesViolation;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -101,6 +117,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -110,8 +128,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -119,6 +140,7 @@ public class SecurityTests extends ESTestCase {
 
     private Security security = null;
     private ThreadContext threadContext = null;
+    private SecurityContext securityContext = null;
     private TestUtils.UpdatableLicenseState licenseState;
 
     public static class DummyExtension implements SecurityExtension {
@@ -134,22 +156,40 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private Collection<Object> createComponentsUtil(Settings settings, SecurityExtension... extensions) throws Exception {
+    public static class DummyOperatorOnlyRegistry implements OperatorOnlyRegistry {
+        @Override
+        public OperatorPrivilegesViolation check(String action, TransportRequest request) {
+            throw new RuntimeException("boom");
+        }
+
+        @Override
+        public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {
+            throw new RuntimeException("boom");
+        }
+    }
+
+    private void constructNewSecurityObject(Settings settings, SecurityExtension... extensions) {
         Environment env = TestEnvironment.newEnvironment(settings);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, Version.CURRENT);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(env);
-        security = new Security(settings, Arrays.asList(extensions)) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return licenseState;
-            }
+        if (security == null) {
+            security = new Security(settings, Arrays.asList(extensions)) {
+                @Override
+                protected XPackLicenseState getLicenseState() {
+                    return licenseState;
+                }
 
-            @Override
-            protected SSLService getSslService() {
-                return sslService;
-            }
-        };
+                @Override
+                protected SSLService getSslService() {
+                    return sslService;
+                }
+            };
+        }
+    }
+
+    private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, IndexVersion.CURRENT);
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
@@ -160,6 +200,7 @@ public class SecurityTests extends ESTestCase {
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
@@ -185,7 +226,8 @@ public class SecurityTests extends ESTestCase {
             .put(testSettings)
             .put("path.home", createTempDir())
             .build();
-        return createComponentsUtil(settings, extensions);
+        constructNewSecurityObject(settings, extensions);
+        return createComponentsUtil(settings);
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -222,14 +264,14 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(0).name());
+        assertThat(service.getAuditTrail(), notNullValue());
+        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrail().name());
     }
 
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
         AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
-        assertEquals(0, auditTrailService.getAuditTrails().size());
+        assertThat(auditTrailService.getAuditTrail(), nullValue());
     }
 
     public void testHttpSettingDefaults() throws Exception {
@@ -337,6 +379,8 @@ public class SecurityTests extends ESTestCase {
             "truststore.password",
             "truststore.path",
             "truststore.algorithm",
+            "trust_restrictions.path",
+            "trust_restrictions.x509_fields",
             "keystore.key_password"
         ).forEach(suffix -> {
 
@@ -358,30 +402,34 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
+            .version(VersionUtils.randomVersionBetween(random(), null, Version.CURRENT))
+            .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
             randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM, License.OperationMode.TRIAL).toString(),
             TimeValue.timeValueHours(24)
         );
         TestUtils.putLicense(builder, license);
+        LicenseService licenseService;
+        if (randomBoolean()) {
+            licenseService = mock(ClusterStateLicenseService.class);
+            when(((ClusterStateLicenseService) licenseService).getLicense(any())).thenReturn(license);
+        } else {
+            licenseService = mock(LicenseService.class);
+            when(licenseService.getLicense()).thenReturn(license);
+        }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
-        new Security.ValidateLicenseForFIPS(true).accept(node, state);
+        new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state);
         // no exception thrown
     }
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
+            .version(VersionUtils.randomVersionBetween(random(), null, Version.CURRENT))
+            .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(
             List.of(License.OperationMode.values())
@@ -392,11 +440,13 @@ public class SecurityTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
+        when(licenseService.getLicense(any())).thenReturn(license);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> new Security.ValidateLicenseForFIPS(true).accept(node, state)
+            () -> new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state)
         );
         assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
 
@@ -406,14 +456,14 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create("bar");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -427,13 +477,13 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.builder("bar").version(version).build();
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -446,12 +496,10 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode existingOtherNode = new DiscoveryNode(
-            "bar",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.builder("bar")
+            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .build();
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
         joinValidator.accept(node, clusterState);
@@ -467,34 +515,23 @@ public class SecurityTests extends ESTestCase {
             new FieldPermissionsDefinition(new String[] { "field_granted" }, Strings.EMPTY_ARRAY)
         );
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(
-            true,
             permissions,
             DocumentPermissions.allowAll()
         );
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-            false,
-            FieldPermissions.DEFAULT,
-            DocumentPermissions.allowAll()
+            randomFrom(FieldPermissions.DEFAULT, null),
+            randomFrom(DocumentPermissions.allowAll(), null)
         );
-        permissionsMap.put("index_not_granted", indexAccessControl);
-        IndicesAccessControl.IndexAccessControl nullFieldPermissions = new IndicesAccessControl.IndexAccessControl(
-            true,
-            null,
-            DocumentPermissions.allowAll()
-        );
-        permissionsMap.put("index_null", nullFieldPermissions);
-        IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);
+        permissionsMap.put("index_granted_all_permissions", indexAccessControl);
+        IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
+        securityContext.putIndicesAccessControl(indicesAccessControl);
 
         assertTrue(fieldFilter.apply("index_granted").test("field_granted"));
         assertFalse(fieldFilter.apply("index_granted").test(randomAlphaOfLengthBetween(3, 10)));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test("field_granted"));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 10)));
-        expectThrows(IllegalStateException.class, () -> fieldFilter.apply("index_not_granted"));
-        assertTrue(fieldFilter.apply("index_null").test(randomAlphaOfLengthBetween(3, 6)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_null"));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
+        assertTrue(fieldFilter.apply("index_granted_all_permissions").test(randomAlphaOfLengthBetween(3, 10)));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
     }
 
     public void testGetFieldFilterSecurityDisabled() throws Exception {
@@ -507,9 +544,11 @@ public class SecurityTests extends ESTestCase {
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
-            true,
-            null
+            new XPackLicenseStatus(
+                randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
+                true,
+                null
+            )
         );
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
@@ -710,16 +749,27 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         RestRequest request = new FakeRestRequest();
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "Negotiate", "ApiKey");
-        }));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
+                verifyHasAuthenticationHeaderValue(
+                    e,
+                    "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"",
+                    "Negotiate",
+                    "ApiKey"
+                );
+            })
+        );
         threadContext.stashContext();
-        licenseState.update(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
-        }));
+        licenseState.update(new XPackLicenseStatus(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
+                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+            })
+        );
         if (completed.get()) {
             fail("authentication succeeded but it shouldn't");
         }
@@ -778,7 +828,10 @@ public class SecurityTests extends ESTestCase {
                 null,
                 null,
                 usageService,
-                null
+                null,
+                Tracer.NOOP,
+                mock(ClusterService.class),
+                List.of()
             );
             actionModule.initRestHandlers(null);
 
@@ -820,6 +873,166 @@ public class SecurityTests extends ESTestCase {
             appender.stop();
             Loggers.removeAppender(mockLogger, appender);
         }
+    }
+
+    public void testSecurityMustBeEnableToConnectRemoteClusterWithCredentials() {
+        // Security on, no remote cluster with credentials
+        final Settings.Builder builder1 = Settings.builder();
+        if (randomBoolean()) {
+            builder1.put("xpack.security.enabled", "true");
+        }
+        try {
+            new Security(builder1.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, no remote cluster with credentials
+        final Settings.Builder builder2 = Settings.builder().put("xpack.security.enabled", "false");
+        try {
+            new Security(builder2.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security on, remote cluster with credentials
+        final Settings.Builder builder3 = Settings.builder();
+        final MockSecureSettings secureSettings3 = new MockSecureSettings();
+        final String clusterCredentials3 = randomAlphaOfLength(20);
+        secureSettings3.setString("cluster.remote.my1.credentials", clusterCredentials3);
+        builder3.setSecureSettings(secureSettings3);
+        if (randomBoolean()) {
+            builder3.put("xpack.security.enabled", "true");
+        }
+        final Settings settings3 = builder3.build();
+        try {
+            new Security(settings3);
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, remote cluster with credentials
+        final Settings.Builder builder4 = Settings.builder();
+        final MockSecureSettings secureSettings4 = new MockSecureSettings();
+        secureSettings4.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings4.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        builder4.setSecureSettings(secureSettings4);
+        final Settings settings4 = builder4.put("xpack.security.enabled", "false").build();
+        final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> new Security(settings4));
+        assertThat(
+            e4.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
+    }
+
+    public void testLoadExtensions() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("path.home", createTempDir())
+            .put(OPERATOR_PRIVILEGES_ENABLED.getKey(), true)
+            .build();
+        constructNewSecurityObject(settings);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                List<Object> extensions = new ArrayList<>();
+                if (extensionPointType == OperatorOnlyRegistry.class) {
+                    extensions.add(new DummyOperatorOnlyRegistry());
+                }
+                return (List<T>) extensions;
+            }
+        });
+        createComponentsUtil(settings);
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
+        assertThat(operatorPrivilegesService, instanceOf(OperatorPrivileges.DefaultOperatorPrivilegesService.class));
+        OperatorOnlyRegistry registry = ((OperatorPrivileges.DefaultOperatorPrivilegesService) operatorPrivilegesService)
+            .getOperatorOnlyRegistry();
+        assertThat(registry, instanceOf(DummyOperatorOnlyRegistry.class));
+    }
+
+    public void testLoadNoExtensions() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("path.home", createTempDir())
+            .put(OPERATOR_PRIVILEGES_ENABLED.getKey(), true)
+            .build();
+        constructNewSecurityObject(settings);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return new ArrayList<>();
+            }
+        });
+        createComponentsUtil(settings);
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
+        assertThat(operatorPrivilegesService, instanceOf(OperatorPrivileges.DefaultOperatorPrivilegesService.class));
+        OperatorOnlyRegistry registry = ((OperatorPrivileges.DefaultOperatorPrivilegesService) operatorPrivilegesService)
+            .getOperatorOnlyRegistry();
+        assertThat(registry, instanceOf(DefaultOperatorOnlyRegistry.class));
+
+    }
+
+    public void testLoadExtensionsWhenOperatorPrivsAreDisabled() throws Exception {
+        assumeFalse("feature flag for serverless is expected to be false", DiscoveryNode.isServerless());
+        Settings.Builder settingsBuilder = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir());
+
+        if (randomBoolean()) {
+            settingsBuilder.put(OPERATOR_PRIVILEGES_ENABLED.getKey(), false); // doesn't matter if explicit or implicitly disabled
+        }
+
+        Settings settings = settingsBuilder.build();
+        constructNewSecurityObject(settings);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                List<Object> extensions = new ArrayList<>();
+                if (extensionPointType == OperatorOnlyRegistry.class) {
+                    if (randomBoolean()) {
+                        extensions.add(new DummyOperatorOnlyRegistry()); // won't ever be used
+                    }
+                }
+                return (List<T>) extensions;
+            }
+        });
+        createComponentsUtil(settings);
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
+        assertThat(operatorPrivilegesService, is(NOOP_OPERATOR_PRIVILEGES_SERVICE));
+    }
+
+    public void testLoadExtensionsWhenOperatorPrivsAreDisabledAndServerless() throws Exception {
+        assumeTrue("feature flag for serverless is expected to be true", DiscoveryNode.isServerless());
+        Settings.Builder settingsBuilder = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir());
+
+        if (randomBoolean()) {
+            settingsBuilder.put(OPERATOR_PRIVILEGES_ENABLED.getKey(), false); // doesn't matter if explicit or implicitly disabled
+        }
+
+        Settings settings = settingsBuilder.build();
+        constructNewSecurityObject(settings);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                List<Object> extensions = new ArrayList<>();
+                if (extensionPointType == OperatorOnlyRegistry.class) {
+                    if (randomBoolean()) {
+                        extensions.add(new DummyOperatorOnlyRegistry()); // will be used
+                    }
+                }
+                return (List<T>) extensions;
+            }
+        });
+        createComponentsUtil(settings);
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
+        OperatorOnlyRegistry registry = ((OperatorPrivileges.DefaultOperatorPrivilegesService) operatorPrivilegesService)
+            .getOperatorOnlyRegistry();
+        assertThat(registry, instanceOf(DummyOperatorOnlyRegistry.class));
     }
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {

@@ -27,9 +27,9 @@ There are several thread pools, but the important ones include:
 `# of allocated processors`>>`) / 2)`, and queue_size of `1000`.
 
 `get`::
-    For get operations. Thread pool type is `fixed`
-    with a size of <<node.processors, `# of allocated processors`>>,
-    queue_size of `1000`.
+    For get operations. Thread pool type is
+    `fixed` with a size of `int((`<<node.processors,
+    `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
 
 `analyze`::
     For analyze requests. Thread pool type is `fixed` with a size of `1`, queue
@@ -43,8 +43,10 @@ There are several thread pools, but the important ones include:
 
 `snapshot`::
     For snapshot/restore operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(5, (`<<node.processors,
-    `# of allocated processors`>>`) / 2)`.
+    keep-alive of `5m`. On nodes with at least 750MB of heap the maximum size
+    of this pool is `10` by default. On nodes with less than 750MB of heap the
+    maximum size of this pool is `min(5, (`<<node.processors,
+    `# of allocated processors`>>`) / 2)` by default.
 
 `snapshot_meta`::
     For snapshot repository metadata read operations. Thread pool type is `scaling` with a
@@ -177,7 +179,10 @@ thread_pool:
 The number of processors is automatically detected, and the thread pool settings
 are automatically set based on it. In some cases it can be useful to override
 the number of detected processors. This can be done by explicitly setting the
-`node.processors` setting.
+`node.processors` setting. This setting is bounded by the number of available
+processors and accepts floating point numbers, which can be useful in environments
+where the {es} nodes are configured to run with CPU limits, such as cpu
+shares or quota under `Cgroups`.
 
 [source,yaml]
 --------------------------------------------------

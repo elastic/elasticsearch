@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsActionResponseTe
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -63,7 +63,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         var modified = TransportGetDeploymentStatsAction.addFailedRoutes(emptyResponse, badRoutes, nodes);
         List<AssignmentStats> results = modified.getStats().results();
         assertThat(results, hasSize(2));
-        assertEquals("model1", results.get(0).getModelId());
+        assertEquals("model1", results.get(0).getDeploymentId());
         assertThat(results.get(0).getNodeStats(), hasSize(2));
         assertEquals("nodeA", results.get(0).getNodeStats().get(0).getNode().getId());
         assertEquals("nodeB", results.get(0).getNodeStats().get(1).getNode().getId());
@@ -80,12 +80,14 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         var model1 = new AssignmentStats(
             "model1",
+            "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
-            nodeStatsList
+            nodeStatsList,
+            randomFrom(Priority.values())
         );
 
         Map<TrainedModelAssignment, Map<String, RoutingInfo>> badRoutes = new HashMap<>();
@@ -116,12 +118,14 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         var model1 = new AssignmentStats(
             "model1",
+            "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
-            nodeStatsList
+            nodeStatsList,
+            randomFrom(Priority.values())
         );
         var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
 
@@ -147,14 +151,14 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         int port = 9200;
         for (String nodeId : nodeIds) {
-            builder.add(new DiscoveryNode(nodeId, new TransportAddress(inetAddress, port++), Version.CURRENT));
+            builder.add(DiscoveryNodeUtils.create(nodeId, new TransportAddress(inetAddress, port++)));
         }
         return builder.build();
     }
 
     private static TrainedModelAssignment createAssignment(String modelId) {
         return TrainedModelAssignment.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024))
+            new StartTrainedModelDeploymentAction.TaskParams(modelId, modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024), Priority.NORMAL)
         ).build();
     }
 }

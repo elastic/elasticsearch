@@ -10,7 +10,7 @@ intersect a bounding box.
 [discrete]
 [[geo-bounding-box-query-ex]]
 ==== Example
-Assume the following the following documents are indexed:
+Assume the following documents are indexed:
 
 [source,console]
 --------------------------------------------------

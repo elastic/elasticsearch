@@ -85,17 +85,17 @@ bin/kibana
 --
 [NOTE]
 ====
-{kib} won't enter interactive mode if it detects existing credentials for {es} 
-(`elasticsearch.username` and `elasticsearch.password`) or an existing URL for 
+{kib} won't enter interactive mode if it detects existing credentials for {es}
+(`elasticsearch.username` and `elasticsearch.password`) or an existing URL for
 `elasticsearch.hosts`.
 ====
 --
 
   * *Detached mode* (non-browser)
 +
-Run the `kibana-setup` tool and pass the generated enrollment token with the 
+Run the `kibana-setup` tool and pass the generated enrollment token with the
 `--enrollment-token` parameter.
-+  
++
 ["source","sh",subs="attributes"]
 ----
 bin/kibana-setup --enrollment-token <enrollment-token>
@@ -132,7 +132,7 @@ Certificate Authority (CA) for the HTTP layer.
 === Cases when security auto configuration is skipped
 When you start {es} for the first time, the node startup process tries to
 automatically configure security for you. The process runs some checks to
-determine: 
+determine:
 
 * If this is the first time that the node is starting
 * Whether security is already configured
@@ -141,24 +141,29 @@ determine:
 If any of those checks fail, there's a good indication that you
 <<manually-configure-security,manually configured security>>, or don't want
 security to be configured automatically. In these cases, the node starts
-normally using the existing configuration. 
+normally using the existing configuration.
+
+IMPORTANT: If you redirect {es} output to a file, security autoconfiguration is skipped.
+Autoconfigured credentials can only be viewed on the terminal the first time you start {es}.
+If you need to redirect output to a file, start {es} without redirection the first time
+and use redirection on all subsequent starts.
 
 [discrete]
 [[stack-existing-environment-detected]]
 ==== Existing environment detected
 If certain directories already exist, there's a strong indication that the node
-was started previously. Similarly, if certain files _don't_ exist, or we can't 
-read or write to specific files or directories, then we're likely not running as 
-the user who installed {es} or an administrator imposed restrictions. If any of 
-the following environment checks are true, security isn't configured 
+was started previously. Similarly, if certain files _don't_ exist, or we can't
+read or write to specific files or directories, then we're likely not running as
+the user who installed {es} or an administrator imposed restrictions. If any of
+the following environment checks are true, security isn't configured
 automatically.
 
 The {es} `/data` directory exists and isn't empty::
-The existence of this directory is a strong indicator that the node was started 
+The existence of this directory is a strong indicator that the node was started
 previously, and might already be part of a cluster.
 
 The `elasticsearch.yml` file doesn't exist (or isn't readable), or the `elasticsearch.keystore` isn't readable::
-If either of these files aren't readable, we can't determine whether {es} security 
+If either of these files aren't readable, we can't determine whether {es} security
 features are already enabled. This state can also indicate that the node startup
 process isn't running as a user with sufficient privileges to modify the
 node configuration.
@@ -179,13 +184,13 @@ node can't be elected as `master`, or if the node can't hold data
 * {ref}/security-settings.html#general-security-settings[`xpack.security.autoconfiguration.enabled`] is set to `false`
 * {ref}/security-settings.html#general-security-settings[`xpack.security.enabled`] has a value set
 * Any of the
-{ref}/security-settings.html#transport-tls-ssl-settings[`xpack.security.transport.ssl.*`] or 
+{ref}/security-settings.html#transport-tls-ssl-settings[`xpack.security.transport.ssl.*`] or
 {ref}/security-settings.html#http-tls-ssl-settings[`xpack.security.http.ssl.*`]
 settings have a value set in the `elasticsearch.yml` configuration file or in
 the `elasticsearch.keystore`
 * Any of the `discovery.type`, `discovery.seed_hosts`, or
 `cluster.initial_master_nodes`
-{ref}/modules-discovery-settings.html[discovery and cluster formation settings] 
+{ref}/modules-discovery-settings.html[discovery and cluster formation settings]
 have a value set
 +
 --

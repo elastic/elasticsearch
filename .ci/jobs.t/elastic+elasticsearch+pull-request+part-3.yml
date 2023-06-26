@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+pull-request+par-3"
-    display-name: "elastic / elasticsearch - pull request part 3"
+    name: "elastic+elasticsearch+pull-request+part-3"
+    display-name: "elastic / elasticsearch - pull request part-3"
     description: "Testing of Elasticsearch pull requests - part 3"
     workspace: "/dev/shm/elastic+elasticsearch+pull-request+part-3"
     scm:
@@ -18,14 +18,18 @@
           github-hooks: true
           status-context: elasticsearch-ci/part-3
           cancel-builds-on-update: true
-          white-list-labels:
-            - 'test-part-3'
+          excluded-regions:
+            - ^docs/.*
+          black-list-labels:
+            - '>test-mute'
+          black-list-target-branches:
+            - 6.8
+            - 7.17
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA8_HOME=$HOME/.java/java8
             JAVA11_HOME=$HOME/.java/java11
       - shell: |

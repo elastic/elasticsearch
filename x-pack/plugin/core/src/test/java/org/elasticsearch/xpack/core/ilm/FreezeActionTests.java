@@ -28,6 +28,11 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
     }
 
     @Override
+    protected FreezeAction mutateInstance(FreezeAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<FreezeAction> instanceReader() {
         return in -> FreezeAction.INSTANCE;
     }

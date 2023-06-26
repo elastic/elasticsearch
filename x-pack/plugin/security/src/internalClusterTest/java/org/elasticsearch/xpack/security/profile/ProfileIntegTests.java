@@ -8,20 +8,29 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.common.ResultsAndErrors;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
@@ -33,6 +42,10 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAct
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
@@ -45,18 +58,23 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -74,6 +92,7 @@ import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -85,7 +104,14 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // This setting tests that the setting is registered
         builder.put("xpack.security.authc.domains.my_domain.realms", "file");
+        // enable anonymous
+        builder.putList(AnonymousUser.ROLES_SETTING.getKey(), RAC_ROLE);
         return builder.build();
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     public void testProfileIndexAutoCreation() {
@@ -200,6 +226,42 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(getProfile(profile5.uid(), Set.of()), equalTo(profile5));
         // Re-activate should not change application data
         assertThat(getProfile(profile5.uid(), Set.of("my_app")).applicationData(), equalTo(Map.of("my_app", Map.of("theme", "default"))));
+    }
+
+    public void testGetProfiles() {
+        final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
+        final List<String> allUids = new ArrayList<>();
+        // Activate a few profiles
+        IntStream.range(0, 5).forEach(i -> {
+            final Authentication authentication = AuthenticationTestHelper.builder()
+                .user(new User(randomAlphaOfLengthBetween(3, 8) + i))
+                .realm(false)
+                .build();
+            final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+            profileService.activateProfile(authentication, future);
+            allUids.add(future.actionGet().uid());
+        });
+
+        final List<String> requestedUids = new ArrayList<>(randomNonEmptySubsetOf(allUids));
+        String nonExistingUid = null;
+        if (randomBoolean()) {
+            // request a non-existing uid
+            nonExistingUid = randomValueOtherThanMany(allUids::contains, () -> randomAlphaOfLength(20));
+            requestedUids.add(nonExistingUid);
+        }
+        final PlainActionFuture<GetProfilesResponse> future = new PlainActionFuture<>();
+        client().execute(GetProfilesAction.INSTANCE, new GetProfilesRequest(requestedUids, Set.of()), future);
+        final GetProfilesResponse getProfilesResponse = future.actionGet();
+        final List<Profile> profiles = getProfilesResponse.getProfiles();
+        if (nonExistingUid == null) {
+            assertThat(getProfilesResponse.getErrors(), anEmptyMap());
+            assertThat(profiles.stream().map(Profile::uid).toList(), equalTo(requestedUids));
+        } else {
+            assertThat(getProfilesResponse.getErrors().keySet(), equalTo(Set.of(nonExistingUid)));
+            final Exception e = getProfilesResponse.getErrors().get(nonExistingUid);
+            assertThat(e, instanceOf(ResourceNotFoundException.class));
+            assertThat(profiles.stream().map(Profile::uid).toList(), equalTo(requestedUids.subList(0, requestedUids.size() - 1)));
+        }
     }
 
     public void testUpdateProfileData() {
@@ -427,9 +489,9 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                 future2
             );
             assertThat(future2.actionGet().isAcknowledged(), is(true));
-            final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
-            profileService.getProfile(profile.uid(), Set.of(), future3);
-            return future3.actionGet();
+            final PlainActionFuture<ResultsAndErrors<Profile>> future3 = new PlainActionFuture<>();
+            profileService.getProfiles(List.of(profile.uid()), Set.of(), future3);
+            return future3.actionGet().results().iterator().next();
         }).toList();
 
         // Default order of last synchronized timestamp
@@ -514,10 +576,10 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
         // Get Profile by ID returns empty result
         final GetProfilesResponse getProfilesResponse = client().execute(
-            GetProfileAction.INSTANCE,
-            new GetProfileRequest(randomAlphaOfLength(20), Set.of())
+            GetProfilesAction.INSTANCE,
+            new GetProfilesRequest(randomAlphaOfLength(20), Set.of())
         ).actionGet();
-        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(0));
+        assertThat(getProfilesResponse.getProfiles(), empty());
 
         // Ensure index does not exist
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
@@ -545,7 +607,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             )
         ).actionGet();
         assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
-        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
+        assertThat(profileHasPrivilegesResponse.errors(), anEmptyMap());
 
         // Ensure index does not exist
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
@@ -609,7 +671,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             )
         ).actionGet();
         assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
-        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
+        assertThat(profileHasPrivilegesResponse.errors(), anEmptyMap());
 
         // Enable again for search
         final SetProfileEnabledRequest setProfileEnabledRequest2 = new SetProfileEnabledRequest(
@@ -712,6 +774,64 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             final HasPrivilegesResponse hasPrivilegesResponse = checkPrivileges(privilegesToCheck2);
             assertThat(hasPrivilegesResponse.toString(), hasPrivilegesResponse.isCompleteMatch(), is(false));
         }
+    }
+
+    public void testGetUsersWithProfileUid() throws IOException {
+        new ChangePasswordRequestBuilder(client()).username(ElasticUser.NAME)
+            .password(TEST_PASSWORD_SECURE_STRING.clone().getChars(), Hasher.BCRYPT)
+            .execute()
+            .actionGet();
+
+        final Profile elasticUserProfile = doActivateProfile(ElasticUser.NAME, TEST_PASSWORD_SECURE_STRING);
+        final Profile nativeRacUserProfile = doActivateProfile(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD);
+        if (randomBoolean()) {
+            // Disabled profile still works for retrieving profile uid for users
+            final SetProfileEnabledRequest setProfileEnabledRequest = new SetProfileEnabledRequest(
+                nativeRacUserProfile.uid(),
+                false,
+                WriteRequest.RefreshPolicy.IMMEDIATE
+            );
+            client().execute(SetProfileEnabledAction.INSTANCE, setProfileEnabledRequest).actionGet();
+        }
+
+        // activate profile for anonymous user
+        final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
+        createTokenRequest.setJsonEntity("{\"grant_type\": \"client_credentials\"}");
+        final Response createTokenResponse = getRestClient().performRequest(createTokenRequest);
+        assertThat(createTokenResponse.getStatusLine().getStatusCode(), equalTo(200));
+        final String accessToken = XContentTestUtils.createJsonMapView(createTokenResponse.getEntity().getContent()).get("access_token");
+
+        final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
+        activateProfileRequest.getGrant().setType("access_token");
+        activateProfileRequest.getGrant().setAccessToken(new SecureString(accessToken.toCharArray()));
+        final ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
+            .actionGet();
+        final Profile anonymousUserProfile = activateProfileResponse.getProfile();
+
+        final GetUsersRequest getUsersRequest = new GetUsersRequest();
+        getUsersRequest.setWithProfileUid(true);
+        if (randomBoolean()) {
+            getUsersRequest.usernames(ElasticUser.NAME, RAC_USER_NAME, AnonymousUser.DEFAULT_ANONYMOUS_USERNAME);
+        }
+        final GetUsersResponse getUsersResponse = client().execute(GetUsersAction.INSTANCE, getUsersRequest).actionGet();
+
+        assertThat(
+            Arrays.stream(getUsersResponse.users()).map(User::principal).toList(),
+            hasItems(ElasticUser.NAME, RAC_USER_NAME, AnonymousUser.DEFAULT_ANONYMOUS_USERNAME)
+        );
+        assertThat(
+            getUsersResponse.getProfileUidLookup(),
+            equalTo(
+                Map.of(
+                    ElasticUser.NAME,
+                    elasticUserProfile.uid(),
+                    RAC_USER_NAME,
+                    nativeRacUserProfile.uid(),
+                    AnonymousUser.DEFAULT_ANONYMOUS_USERNAME,
+                    anonymousUserProfile.uid()
+                )
+            )
+        );
     }
 
     private SuggestProfilesResponse.ProfileHit[] doSuggest(String name) {

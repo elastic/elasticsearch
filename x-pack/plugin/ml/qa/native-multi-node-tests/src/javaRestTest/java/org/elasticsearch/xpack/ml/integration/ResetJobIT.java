@@ -69,7 +69,7 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
 
         List<String> auditMessages = fetchAllAuditMessages(job.getId());
         assertThat(auditMessages.isEmpty(), is(false));
-        assertThat(auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
+        assertThat("Audit messages: " + auditMessages, auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
     }
 
     private Job.Builder createJob(String jobId, TimeValue bucketSpan) {

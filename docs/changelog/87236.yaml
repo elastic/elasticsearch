@@ -1,5 +1,0 @@
-pr: 87236
-summary: JvmService use SingleObjectCache
-area: Monitoring
-type: enhancement
-issues: []

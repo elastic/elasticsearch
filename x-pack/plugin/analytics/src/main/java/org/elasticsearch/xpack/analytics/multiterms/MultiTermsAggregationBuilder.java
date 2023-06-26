@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -47,12 +47,8 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        1,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(1, 0, 10, -1);
 
     public static final ObjectParser<MultiTermsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -64,7 +60,8 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
             true,
             true,
             false,
-            true
+            true,
+            false
         );
 
         PARSER.declareBoolean(MultiTermsAggregationBuilder::showTermDocCountError, MultiTermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);
@@ -153,6 +150,11 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     @Override
     public boolean supportsSampling() {
         return true;
+    }
+
+    @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
     }
 
     /**
@@ -435,7 +437,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_12_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_12_0;
     }
 }

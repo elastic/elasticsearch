@@ -15,7 +15,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -44,12 +47,10 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.junit.After;
 import org.junit.Before;
@@ -69,9 +70,9 @@ import java.util.SortedSet;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
+import static org.elasticsearch.blobcache.shared.SharedBytes.pageAligned;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.PAGE_SIZE;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
 
@@ -135,27 +136,37 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     /**
-     * @return a new {@link FrozenCacheService} instance configured with default settings
+     * @return a new {@link SharedBlobCacheService} instance configured with default settings
      */
-    protected FrozenCacheService defaultFrozenCacheService() {
-        return new FrozenCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
+    protected SharedBlobCacheService<CacheKey> defaultFrozenCacheService() {
+        return new SharedBlobCacheService<>(
+            nodeEnvironment,
+            Settings.EMPTY,
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+        );
     }
 
-    protected FrozenCacheService randomFrozenCacheService() {
+    protected SharedBlobCacheService<CacheKey> randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
-        return new FrozenCacheService(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
+        return new SharedBlobCacheService<>(
+            singlePathNodeEnvironment,
+            cacheSettings.build(),
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+        );
     }
 
     /**
@@ -170,14 +181,15 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         );
     }
 
-    protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
-        return new FrozenCacheService(
+    protected SharedBlobCacheService<CacheKey> createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
+        return new SharedBlobCacheService<>(
             singlePathNodeEnvironment,
             Settings.builder()
-                .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
-            threadPool
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
         );
     }
 
@@ -197,7 +209,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static ByteSizeValue randomFrozenCacheSize() {
-        return new ByteSizeValue(randomLongBetween(0, 10_000_000));
+        return ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000));
     }
 
     /**
@@ -208,14 +220,14 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
+        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), ByteSizeValue.ofBytes(Integer.MAX_VALUE));
     }
 
     private static ByteSizeValue pageAlignedBetween(ByteSizeValue min, ByteSizeValue max) {
-        ByteSizeValue aligned = pageAligned(new ByteSizeValue(randomLongBetween(min.getBytes(), max.getBytes())));
+        ByteSizeValue aligned = pageAligned(ByteSizeValue.ofBytes(randomLongBetween(min.getBytes(), max.getBytes())));
         if (aligned.compareTo(max) > 0) {
             // minus one page in case page alignment moved us past the max setting value
-            return new ByteSizeValue(aligned.getBytes() - PAGE_SIZE);
+            return ByteSizeValue.ofBytes(aligned.getBytes() - PAGE_SIZE);
         }
         return aligned;
     }
@@ -233,7 +245,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 new IndexId("some_index", UUIDs.randomBase64UUID(random()))
             )
         );
-        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
         SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
 
         recoveryState.setStage(RecoveryState.Stage.INIT)
@@ -253,8 +265,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected static void assertThreadPoolNotBusy(ThreadPool threadPool) throws Exception {
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : threadPool.stats()) {
-                assertEquals(stat.getActive(), 0);
-                assertEquals(stat.getQueue(), 0);
+                assertEquals(stat.active(), 0);
+                assertEquals(stat.queue(), 0);
             }
         }, 30L, TimeUnit.SECONDS);
     }

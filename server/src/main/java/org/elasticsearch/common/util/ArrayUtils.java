@@ -74,4 +74,44 @@ public class ArrayUtils {
         System.arraycopy(other, 0, target, one.length, other.length);
         return target;
     }
+
+    /**
+     * Concat a string to a string array.
+     */
+    public static String[] append(String[] array, String added) {
+        final String[] updated = new String[array.length + 1];
+        System.arraycopy(array, 0, updated, 0, array.length);
+        updated[array.length] = added;
+        return updated;
+    }
+
+    /**
+     * Reverse the {@code length} values on the array starting from {@code offset}.
+     */
+    public static void reverseSubArray(double[] array, int offset, int length) {
+        int start = offset;
+        int end = offset + length;
+        while (end > start) {
+            final double scratch = array[start];
+            array[start] = array[end - 1];
+            array[end - 1] = scratch;
+            start++;
+            end--;
+        }
+    }
+
+    /**
+     * Reverse the {@code length} values on the array starting from {@code offset}.
+     */
+    public static void reverseSubArray(long[] array, int offset, int length) {
+        int start = offset;
+        int end = offset + length;
+        while (end > start) {
+            final long scratch = array[start];
+            array[start] = array[end - 1];
+            array[end - 1] = scratch;
+            start++;
+            end--;
+        }
+    }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcess
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME;
@@ -71,34 +70,36 @@ public class DeploymentManagerTests extends ESTestCase {
         when(task.getId()).thenReturn(taskId);
         when(task.isStopped()).thenReturn(Boolean.FALSE);
         when(task.getModelId()).thenReturn("test-rejected");
+        when(task.getDeploymentId()).thenReturn("test-rejected-deployment");
 
         DeploymentManager deploymentManager = new DeploymentManager(
             mock(Client.class),
             mock(NamedXContentRegistry.class),
             tp,
-            mock(PyTorchProcessFactory.class)
+            mock(PyTorchProcessFactory.class),
+            10
         );
 
-        PriorityProcessWorkerExecutorService executorService = new PriorityProcessWorkerExecutorService(
+        PriorityProcessWorkerExecutorService priorityExecutorService = new PriorityProcessWorkerExecutorService(
             tp.getThreadContext(),
             "test reject",
             10
         );
-        executorService.shutdown();
+        priorityExecutorService.shutdown();
 
         AtomicInteger rejectedCount = new AtomicInteger();
 
         DeploymentManager.ProcessContext context = mock(DeploymentManager.ProcessContext.class);
         PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
         when(context.getResultProcessor()).thenReturn(resultProcessor);
-        when(context.getExecutorService()).thenReturn(executorService);
+        when(context.getPriorityProcessWorker()).thenReturn(priorityExecutorService);
         when(context.getRejectedExecutionCount()).thenReturn(rejectedCount);
 
         deploymentManager.addProcessContext(taskId, context);
         deploymentManager.infer(
             task,
             mock(InferenceConfig.class),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             false,
             TimeValue.timeValueMinutes(1),
             null,

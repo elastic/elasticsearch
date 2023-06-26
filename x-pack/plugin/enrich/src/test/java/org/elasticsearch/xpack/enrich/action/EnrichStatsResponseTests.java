@@ -51,6 +51,11 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
     }
 
     @Override
+    protected EnrichStatsAction.Response mutateInstance(EnrichStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<EnrichStatsAction.Response> instanceReader() {
         return EnrichStatsAction.Response::new;
     }

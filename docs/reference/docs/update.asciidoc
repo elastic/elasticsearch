@@ -219,7 +219,7 @@ the `tags` field contains `green`, otherwise it does nothing (`noop`):
 POST test/_update/1
 {
   "script": {
-    "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+    "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'noop' }",
     "lang": "painless",
     "params": {
       "tag": "green"

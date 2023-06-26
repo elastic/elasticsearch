@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
@@ -114,7 +115,10 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         this.initialIndexerState = initialState;
         this.initialPosition = initialPosition;
 
-        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, this);
+        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, transform.from(), this);
+        if (state != null) {
+            this.context.setAuthState(state.getAuthState());
+        }
     }
 
     public ParentTaskAssigningClient getParentTaskClient() {
@@ -147,7 +151,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 context.getStateReason(),
                 null,
                 null,
-                false
+                false,
+                context.getAuthState()
             );
         } else {
             return new TransformState(
@@ -158,7 +163,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 context.getStateReason(),
                 getIndexer().getProgress(),
                 null,
-                context.shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint(),
+                context.getAuthState()
             );
         }
     }
@@ -209,7 +215,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     /**
      * Starts the transform and schedules it to be triggered in the future.
-     *
      *
      * @param startingCheckpoint The starting checkpoint, could null. Null indicates that there is no starting checkpoint
      * @param listener The listener to alert once started
@@ -265,7 +270,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 null,
                 getIndexer().getProgress(),
                 null,
-                context.shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint(),
+                context.getAuthState()
             );
 
             logger.info("[{}] updating state for transform to [{}].", transform.getId(), state.toString());
@@ -380,6 +386,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     public void applyNewSettings(SettingsConfig newSettings) {
         synchronized (context) {
             getIndexer().applyNewSettings(newSettings);
+        }
+    }
+
+    public void applyNewAuthState(AuthorizationState authState) {
+        synchronized (context) {
+            context.setAuthState(authState);
         }
     }
 
@@ -541,16 +553,17 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         return this;
     }
 
+    TransformTask setAuthState(AuthorizationState authState) {
+        context.setAuthState(authState);
+        return this;
+    }
+
     void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
         indexer.set(indexerBuilder.build(getThreadPool(), context));
     }
 
     ThreadPool getThreadPool() {
         return threadPool;
-    }
-
-    TransformTaskState getTaskState() {
-        return context.getTaskState();
     }
 
     public static PersistentTask<?> getTransformTask(String transformId, ClusterState clusterState) {
@@ -586,6 +599,11 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return Regex.simpleMatch(transformIdPattern, transformParams.getId());
             };
         return findTransformTasks(taskMatcher, clusterState);
+    }
+
+    // used for {@link TransformHealthChecker}
+    public TransformContext getContext() {
+        return context;
     }
 
     private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {

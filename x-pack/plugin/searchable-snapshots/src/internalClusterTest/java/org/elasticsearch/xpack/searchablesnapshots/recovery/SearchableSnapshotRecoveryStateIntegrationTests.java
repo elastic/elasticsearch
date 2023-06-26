@@ -77,14 +77,12 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .get()
@@ -105,6 +103,8 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         assertThat("Physical cache size doesn't match with recovery state data", physicalCacheSize, equalTo(recoveredBytes));
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
+        assertThat(recoveryState.getIndex().recoveredFromSnapshotBytes(), equalTo(recoveredBytes));
+        assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(recoveredBytes));
     }
 
     public void testFilesStoredInThePersistentCacheAreMarkedAsReusedInRecoveryState() throws Exception {
@@ -131,7 +131,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
@@ -144,9 +144,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         internalCluster().restartRandomDataNode();
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .get()
@@ -198,6 +196,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         assertThat(physicalCacheSize, equalTo(expectedPhysicalCacheSize));
         assertThat(physicalCacheSize + inMemoryCacheSize, equalTo(recoveryState.getIndex().reusedBytes()));
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
+        assertThat(recoveryState.getIndex().recoveredFromSnapshotBytes(), equalTo(0L));
 
         for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
             assertThat(fileDetail.name() + " wasn't mark as reused", fileDetail.reused(), equalTo(true));
@@ -205,7 +204,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
     }
 
     private RecoveryState getRecoveryState(String indexName) {
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+        final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
         Map<String, List<RecoveryState>> shardRecoveries = recoveryResponse.shardRecoveryStates();
         assertThat(shardRecoveries.containsKey(indexName), equalTo(true));
         List<RecoveryState> recoveryStates = shardRecoveries.get(indexName);

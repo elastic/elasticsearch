@@ -11,12 +11,13 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<DesiredNode> {
+public class DesiredNodeSerializationTests extends AbstractXContentSerializingTestCase<DesiredNode> {
     @Override
     protected DesiredNode doParseInstance(XContentParser parser) throws IOException {
         return DesiredNode.fromXContent(parser);
@@ -33,7 +34,7 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
     }
 
     @Override
-    protected DesiredNode mutateInstance(DesiredNode instance) throws IOException {
+    protected DesiredNode mutateInstance(DesiredNode instance) {
         return mutateDesiredNode(instance);
     }
 
@@ -50,7 +51,8 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
             );
             case 1 -> new DesiredNode(
                 instance.settings(),
-                randomValueOtherThan(instance.processors(), () -> randomFloat() + randomIntBetween(1, 128)),
+                randomValueOtherThan(instance.processors(), () -> Processors.of(randomDouble() + randomIntBetween(1, 128))),
+                null,
                 instance.memory(),
                 instance.storage(),
                 instance.version()

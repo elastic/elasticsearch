@@ -1,6 +1,0 @@
-pr: 88273
-summary: Fix potential circuit breaker leak on `InternalGeoGrid`
-area: Geo
-type: bug
-issues:
- - 88261

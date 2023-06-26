@@ -124,23 +124,26 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                     return;
                 }
 
-                final GroupedActionListener<ActionResponse.Empty> groupListener = new GroupedActionListener<>(new ActionListener<>() {
+                final GroupedActionListener<ActionResponse.Empty> groupListener = new GroupedActionListener<>(
+                    numberOfShards,
+                    new ActionListener<>() {
 
-                    @Override
-                    public void onResponse(final Collection<ActionResponse.Empty> responses) {
-                        logger.trace(
-                            "[{}] removed retention lease [{}] on all leader primary shards",
-                            indexMetadata.getIndex(),
-                            retentionLeaseId
-                        );
-                        listener.onResponse(AcknowledgedResponse.TRUE);
-                    }
+                        @Override
+                        public void onResponse(final Collection<ActionResponse.Empty> responses) {
+                            logger.trace(
+                                "[{}] removed retention lease [{}] on all leader primary shards",
+                                indexMetadata.getIndex(),
+                                retentionLeaseId
+                            );
+                            listener.onResponse(AcknowledgedResponse.TRUE);
+                        }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
+                        @Override
+                        public void onFailure(final Exception e) {
+                            onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
+                        }
                     }
-                }, numberOfShards);
+                );
                 for (int i = 0; i < numberOfShards; i++) {
                     final ShardId followerShardId = new ShardId(indexMetadata.getIndex(), i);
                     final ShardId leaderShardId = new ShardId(leaderIndex, i);

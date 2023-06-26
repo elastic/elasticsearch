@@ -45,8 +45,8 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
-        client().admin().indices().prepareDelete("test").get();
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
+        indicesAdmin().prepareDelete("test").get();
+        assertEquals(1, clusterAdmin().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -64,15 +64,15 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         assertThat(terminal.getOutput(), containsString("index-graveyard"));
 
         internalCluster().startNode(dataPathSettings);
-        assertEquals(0, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
+        assertEquals(0, clusterAdmin().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
     }
 
     public void testCustomDoesNotMatch() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
-        client().admin().indices().prepareDelete("test").get();
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
+        indicesAdmin().prepareDelete("test").get();
+        assertEquals(1, clusterAdmin().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -84,10 +84,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
             UserException.class,
             () -> removeCustoms(environment, false, new String[] { "index-greveyard-with-typos" })
         );
-        assertThat(
-            ex.getMessage(),
-            containsString("No custom metadata matching [index-greveyard-with-typos] were " + "found on this node")
-        );
+        assertThat(ex.getMessage(), containsString("No custom metadata matching [index-greveyard-with-typos] were found on this node"));
     }
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort, String... args)

@@ -120,6 +120,7 @@ public class InitialNodeSecurityAutoConfiguration {
                         }
                         final String httpsCaFingerprint = fingerprint;
                         GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(
+                            3,
                             ActionListener.wrap(results -> {
                                 final Map<String, String> allResultsMap = new HashMap<>();
                                 for (Map<String, String> result : results) {
@@ -135,8 +136,7 @@ public class InitialNodeSecurityAutoConfiguration {
                                     httpsCaFingerprint,
                                     console
                                 );
-                            }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e)),
-                            3
+                            }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e))
                         );
                         // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the
                         // first time a node starts it will form a cluster by itself and can hold the .security index (which we assume

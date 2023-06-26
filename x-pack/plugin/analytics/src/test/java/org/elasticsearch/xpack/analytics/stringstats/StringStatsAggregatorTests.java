@@ -10,7 +10,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -116,7 +114,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissing() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field(fieldType.name())
@@ -192,7 +190,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47469")
     public void testSingleValuedFieldWithFormatter() throws IOException {
-        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         fieldType.setFielddata(true);
 
         StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text")
@@ -218,7 +216,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     public void testNestedAggregation() throws IOException {
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        TextFieldMapper.TextFieldType textFieldType = new TextFieldMapper.TextFieldType("text");
+        TextFieldMapper.TextFieldType textFieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         textFieldType.setFielddata(true);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
@@ -236,15 +234,10 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, numericFieldType, textFieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        Terms terms = (Terms) aggregator.buildTopLevel();
+        Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, numericFieldType, textFieldType));
         assertNotNull(terms);
         List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertNotNull(buckets);
@@ -273,7 +266,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScriptSingleValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field(fieldType.name())
@@ -295,7 +288,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScriptMultiValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field(fieldType.name())
@@ -322,7 +315,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldScriptSingleValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").script(
@@ -345,7 +338,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldScriptMultiValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").script(
@@ -377,7 +370,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalStringStats> verify
     ) throws IOException {
-        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         fieldType.setFielddata(true);
 
         AggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text");
@@ -391,7 +384,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         Consumer<InternalStringStats> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     @Override

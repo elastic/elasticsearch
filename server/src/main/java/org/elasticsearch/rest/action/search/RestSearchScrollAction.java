@@ -12,7 +12,9 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.xcontent.XContentParseException;
 
@@ -25,6 +27,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSearchScrollAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
@@ -63,7 +66,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             }
         });
-        return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.searchScroll(searchScrollRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     @Override

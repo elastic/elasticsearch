@@ -61,7 +61,6 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestRepositoryPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95994")
     public void testRecoveryStateRecoveredBytesMatchPhysicalCacheState() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

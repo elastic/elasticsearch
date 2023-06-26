@@ -14,10 +14,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.search.SearchApplication;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
+
+import java.util.Map;
 
 public class TransportGetSearchApplicationAction extends HandledTransportAction<
     GetSearchApplicationAction.Request,
@@ -44,6 +48,30 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
         GetSearchApplicationAction.Request request,
         ActionListener<GetSearchApplicationAction.Response> listener
     ) {
-        systemIndexService.getSearchApplication(request.getName(), listener.map(GetSearchApplicationAction.Response::new));
+        systemIndexService.getSearchApplication(request.getName(), new ActionListener<>() {
+                @Override
+                public void onResponse(SearchApplication searchApplication) {
+                    systemIndexService.checkAliasConsistency(searchApplication, new ActionListener<>() {
+                        @Override
+                        public void onResponse(Map<String, String> inconsistentIndices) {
+                            for (String key : inconsistentIndices.keySet()) {
+                                HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
+                            }
+                            listener.onResponse(new GetSearchApplicationAction.Response(searchApplication));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        );
     }
 }

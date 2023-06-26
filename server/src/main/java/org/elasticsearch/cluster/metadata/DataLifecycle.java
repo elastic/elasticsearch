@@ -338,6 +338,11 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
         public Downsampling {
             if (rounds != null) {
+                if (rounds.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Downsampling configuration should have at least one round configured."
+                    );
+                }
                 Round previous = null;
                 for (Round round : rounds) {
                     if (previous == null) {

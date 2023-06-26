@@ -213,5 +213,15 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 equalTo("A downsampling round must have a larger 'fixed_interval' value than the proceeding, 2m is not larger than 2h.")
             );
         }
+        {
+            IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> new DataLifecycle.Downsampling(List.of())
+            );
+            assertThat(
+                    exception.getMessage(),
+                    equalTo("Downsampling configuration should have at least one round configured.")
+            );
+        }
     }
 }

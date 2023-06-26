@@ -469,8 +469,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         this.indexSnapshotDetails = Map.copyOf(indexSnapshotDetails);
     }
 
-    public SnapshotInfo withoutIndices() {
-        if (indices.isEmpty()) {
+    public SnapshotInfo maybeWithoutIndices(boolean retainIndices) {
+        if (retainIndices || indices.isEmpty()) {
             return this;
         }
         return new SnapshotInfo(
@@ -497,25 +497,25 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      */
     public static SnapshotInfo readFrom(final StreamInput in) throws IOException {
         final Snapshot snapshot;
-        if (in.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
             snapshot = new Snapshot(in);
         } else {
             snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
         }
-        final List<String> indices = in.readStringList();
+        final List<String> indices = in.readImmutableStringList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
         final long startTime = in.readVLong();
         final long endTime = in.readVLong();
         final int totalShards = in.readVInt();
         final int successfulShards = in.readVInt();
-        final List<SnapshotShardFailure> shardFailures = in.readList(SnapshotShardFailure::new);
+        final List<SnapshotShardFailure> shardFailures = in.readImmutableList(SnapshotShardFailure::new);
         final Version version = in.readBoolean() ? Version.readVersion(in) : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
         final Map<String, Object> userMetadata = in.readMap();
-        final List<String> dataStreams = in.readStringList();
-        final List<SnapshotFeatureInfo> featureStates = in.readList(SnapshotFeatureInfo::new);
-        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readMap(StreamInput::readString, IndexSnapshotDetails::new);
+        final List<String> dataStreams = in.readImmutableStringList();
+        final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
+        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);
         return new SnapshotInfo(
             snapshot,
             indices,
@@ -1015,7 +1015,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
             snapshot.writeTo(out);
         } else {
             snapshot.getSnapshotId().writeTo(out);
@@ -1133,7 +1133,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         public IndexSnapshotDetails(StreamInput in) throws IOException {
             shardCount = in.readVInt();
-            size = new ByteSizeValue(in);
+            size = ByteSizeValue.readFrom(in);
             maxSegmentsPerShard = in.readVInt();
         }
 

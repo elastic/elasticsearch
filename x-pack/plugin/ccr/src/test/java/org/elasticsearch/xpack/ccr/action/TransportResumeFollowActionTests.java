@@ -324,12 +324,16 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING);
+        replicatedSettings.add(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING);
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
+        replicatedSettings.add(IndexSettings.PREFER_ILM_SETTING);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
-            if (setting.isDynamic()) {
+            // removed settings have no effect, they are only there for BWC
+            if (setting.isDynamic() && setting.isDeprecatedAndRemoved() == false) {
                 boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
                 boolean replicated = replicatedSettings.contains(setting);
                 assertThat(

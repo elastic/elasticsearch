@@ -41,7 +41,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     public static final String NAME = "master_is_stable";
     public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
-    public static final Diagnosis CONTACT_SUPPORT_USER_ACTION = new Diagnosis(
+    public static final Diagnosis CONTACT_SUPPORT = new Diagnosis(
         new Diagnosis.Definition(
             NAME,
             "contact_support",
@@ -70,10 +70,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     // Impacts of having an unstable master:
     private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
         + "insert or update documents.";
-    private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not "
-        + "work. The _cat APIs will not work.";
-    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work. Searchable snapshots cannot be "
-        + "mounted.";
+    private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, Index Lifecycle "
+        + "Management, and Snapshot Lifecycle Management will not work. The _cat APIs will not work.";
+    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work, your data will not be backed up. "
+        + "Searchable snapshots cannot be mounted.";
 
     /**
      * This is the list of the impacts to be reported when the master node is determined to be unstable.
@@ -104,10 +104,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult = coordinationDiagnosticsService
-            .diagnoseMasterStability(explain);
-        return getHealthIndicatorResult(coordinationDiagnosticsResult, explain);
+            .diagnoseMasterStability(verbose);
+        return getHealthIndicatorResult(coordinationDiagnosticsResult, verbose);
     }
 
     /**
@@ -218,7 +218,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     private List<Diagnosis> getContactSupportUserActions(boolean explain) {
         if (explain) {
-            return List.of(CONTACT_SUPPORT_USER_ACTION);
+            return List.of(CONTACT_SUPPORT);
         } else {
             return List.of();
         }

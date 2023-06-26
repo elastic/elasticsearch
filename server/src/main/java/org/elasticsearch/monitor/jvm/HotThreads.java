@@ -307,13 +307,15 @@ public class HotThreads {
                     String.format(
                         Locale.ROOT,
                         "%n%s memory allocated by thread '%s'%n",
-                        new ByteSizeValue(topThread.getAllocatedBytes()),
+                        ByteSizeValue.ofBytes(topThread.getAllocatedBytes()),
                         threadName
                     )
                 );
                 case CPU -> {
                     double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
-                    double percentOther = getTimeSharePercentage(topThread.getOtherTime());
+                    double percentOther = Transports.isTransportThread(threadName) && topThread.getCpuTime() == 0L
+                        ? 100.0
+                        : getTimeSharePercentage(topThread.getOtherTime());
                     double percentTotal = (Transports.isTransportThread(threadName)) ? percentCpu : percentOther + percentCpu;
                     String otherLabel = (Transports.isTransportThread(threadName)) ? "idle" : "other";
                     sb.append(

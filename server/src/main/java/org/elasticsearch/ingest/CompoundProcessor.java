@@ -8,17 +8,12 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -33,8 +28,6 @@ public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
     public static final String ON_FAILURE_PIPELINE_FIELD = "on_failure_pipeline";
 
-    private static final Logger logger = LogManager.getLogger(CompoundProcessor.class);
-
     private final boolean ignoreFailure;
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
@@ -42,12 +35,8 @@ public class CompoundProcessor implements Processor {
     private final LongSupplier relativeTimeProvider;
     private final boolean isAsync;
 
-    CompoundProcessor(LongSupplier relativeTimeProvider, boolean ignoreFailure, Processor... processor) {
-        this(ignoreFailure, Arrays.asList(processor), Collections.emptyList(), relativeTimeProvider);
-    }
-
-    public CompoundProcessor(Processor... processor) {
-        this(false, Arrays.asList(processor), Collections.emptyList());
+    public CompoundProcessor(Processor... processors) {
+        this(false, List.of(processors), List.of());
     }
 
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
@@ -60,14 +49,12 @@ public class CompoundProcessor implements Processor {
         List<Processor> onFailureProcessors,
         LongSupplier relativeTimeProvider
     ) {
-        super();
         this.ignoreFailure = ignoreFailure;
-        this.processors = processors;
-        this.onFailureProcessors = onFailureProcessors;
+        this.processors = List.copyOf(processors);
+        this.onFailureProcessors = List.copyOf(onFailureProcessors);
         this.relativeTimeProvider = relativeTimeProvider;
-        this.processorsWithMetrics = new ArrayList<>(processors.size());
+        this.processorsWithMetrics = List.copyOf(processors.stream().map(p -> new Tuple<>(p, new IngestMetric())).toList());
         this.isAsync = flattenProcessors().stream().anyMatch(Processor::isAsync);
-        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
     }
 
     List<Tuple<Processor, IngestMetric>> getProcessorsWithMetrics() {
@@ -152,8 +139,9 @@ public class CompoundProcessor implements Processor {
         innerExecute(0, ingestDocument, handler);
     }
 
-    void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        if (currentProcessor == processorsWithMetrics.size()) {
+    void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
             handler.accept(ingestDocument, null);
             return;
         }
@@ -161,15 +149,16 @@ public class CompoundProcessor implements Processor {
         Tuple<Processor, IngestMetric> processorWithMetric;
         Processor processor;
         IngestMetric metric;
-        long startTimeInNanos = 0;
         // iteratively execute any sync processors
-        while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
+        while (currentProcessor < processorsWithMetrics.size()
+            && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false
+            && ingestDocument.isReroute() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();
             metric = processorWithMetric.v2();
-            startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
 
+            final long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 ingestDocument = processor.execute(ingestDocument);
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
@@ -179,7 +168,8 @@ public class CompoundProcessor implements Processor {
                     return;
                 }
             } catch (Exception e) {
-                metric.postIngest(relativeTimeProvider.getAsLong() - startTimeInNanos);
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
                 executeOnFailureOuter(currentProcessor, ingestDocument, handler, processor, metric, e);
                 return;
             }
@@ -187,54 +177,38 @@ public class CompoundProcessor implements Processor {
             currentProcessor++;
         }
 
-        if (currentProcessor >= processorsWithMetrics.size()) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
             handler.accept(ingestDocument, null);
-        } else {
-            final int finalCurrentProcessor = currentProcessor + 1;
-            final int nextProcessor = currentProcessor + 1;
-            final long finalStartTimeInNanos = startTimeInNanos;
-            final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
-            final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
-            final IngestDocument finalIngestDocument = ingestDocument;
-            /*
-             * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
-             * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
-             * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
-             * is only executed once.
-             */
-            final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
-            finalMetric.preIngest();
-            final AtomicBoolean postIngestHasBeenCalled = new AtomicBoolean(false);
-            try {
-                finalProcessor.execute(ingestDocument, (result, e) -> {
-                    if (listenerHasBeenCalled.getAndSet(true)) {
-                        logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
-                        assert false : "A listener was unexpectedly called more than once";
-                    } else {
-                        long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
-                        finalMetric.postIngest(ingestTimeInNanos);
-                        postIngestHasBeenCalled.set(true);
-                        if (e != null) {
-                            executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
-                        } else {
-                            if (result != null) {
-                                innerExecute(nextProcessor, result, handler);
-                            } else {
-                                handler.accept(null, null);
-                            }
-                        }
-                    }
-                });
-            } catch (Exception e) {
+            return;
+        }
+
+        // n.b. read 'final' on these variable names as hungarian notation -- we need final variables because of the lambda
+        final int finalCurrentProcessor = currentProcessor;
+        final int nextProcessor = currentProcessor + 1;
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
+        final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
+        final IngestDocument finalIngestDocument = ingestDocument;
+        finalMetric.preIngest();
+        try {
+            finalProcessor.execute(ingestDocument, (result, e) -> {
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-                if (postIngestHasBeenCalled.get()) {
-                    logger.warn("Preventing postIngest from being called more than once", new RuntimeException());
-                    assert false : "Attempt to call postIngest more than once";
+                finalMetric.postIngest(ingestTimeInNanos);
+                if (e != null) {
+                    executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
                 } else {
-                    finalMetric.postIngest(ingestTimeInNanos);
+                    if (result != null) {
+                        innerExecute(nextProcessor, result, handler);
+                    } else {
+                        handler.accept(null, null);
+                    }
                 }
-                executeOnFailureOuter(currentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
-            }
+            });
+        } catch (Exception e) {
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            finalMetric.postIngest(ingestTimeInNanos);
+            executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
         }
     }
 

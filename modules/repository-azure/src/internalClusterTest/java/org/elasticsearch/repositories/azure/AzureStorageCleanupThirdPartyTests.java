@@ -8,6 +8,8 @@
 
 package org.elasticsearch.repositories.azure;
 
+import fixture.azure.AzureHttpFixture;
+
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobStorageException;
@@ -23,9 +25,11 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
 import java.net.HttpURLConnection;
@@ -36,6 +40,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
+
+    @ClassRule
+    public static AzureHttpFixture fixture = new AzureHttpFixture(
+        USE_FIXTURE,
+        System.getProperty("test.azure.account"),
+        System.getProperty("test.azure.container")
+    );
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -44,8 +56,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected Settings nodeSettings() {
-        final String endpoint = System.getProperty("test.azure.endpoint_suffix");
-        if (Strings.hasText(endpoint)) {
+        if (USE_FIXTURE) {
+            final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress();
             return Settings.builder().put(super.nodeSettings()).put("azure.client.default.endpoint_suffix", endpoint).build();
         }
         return super.nodeSettings();
@@ -75,14 +87,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository(repoName)
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
             .setType("azure")
             .setSettings(
                 Settings.builder()
                     .put("container", System.getProperty("test.azure.container"))
-                    .put("base_path", System.getProperty("test.azure.base"))
+                    .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
                     .put("max_single_part_upload_size", new ByteSizeValue(1, ByteSizeUnit.MB))
             )
             .get();

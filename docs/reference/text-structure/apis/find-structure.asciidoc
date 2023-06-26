@@ -219,6 +219,11 @@ structure finder does not consider by default.
 If this parameter is not specified, the structure finder chooses the best
 format from a built-in set.
 
+If the special value `null` is specified the structure finder will not look
+for a primary timestamp in the text. When the format is semi-structured text
+this will result in the structure finder treating the text as single-line
+messages.
+
 The following table provides the appropriate `timeformat` values for some example timestamps:
 
 |===

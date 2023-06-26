@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
@@ -58,8 +58,8 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_2_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_2_0;
     }
 
     @Override

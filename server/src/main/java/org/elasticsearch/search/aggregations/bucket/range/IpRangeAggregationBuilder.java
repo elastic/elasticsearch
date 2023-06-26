@@ -9,7 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -128,8 +128,8 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
             byte upper[] = address.getAddress();
             for (int i = prefixLength; i < 8 * lower.length; i++) {
                 int m = 1 << (7 - (i & 7));
-                lower[i >> 3] &= ~m;
-                upper[i >> 3] |= m;
+                lower[i >> 3] &= (byte) ~m;
+                upper[i >> 3] |= (byte) m;
             }
             this.key = key;
             try {
@@ -426,7 +426,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

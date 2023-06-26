@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -28,8 +27,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 public class FilterRepository implements Repository {
 
@@ -143,15 +140,6 @@ public class FilterRepository implements Repository {
     @Override
     public void updateState(ClusterState state) {
         in.updateState(state);
-    }
-
-    @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
     }
 
     @Override

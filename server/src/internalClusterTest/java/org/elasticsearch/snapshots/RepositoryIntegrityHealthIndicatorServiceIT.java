@@ -67,7 +67,7 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
     }
 
     private void assertSnapshotRepositoryHealth(String message, Client client, HealthStatus status) {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean())).actionGet();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean(), 1000)).actionGet();
         assertThat(message, response.findIndicator(NAME).status(), equalTo(status));
     }
 

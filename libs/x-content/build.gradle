@@ -69,12 +69,12 @@ tasks.named("dependencyLicenses").configure {
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateProviderManifest = tasks.register("generateProviderManifest") {
   File manifestFile = new File(generatedResourcesDir, "LISTING.TXT")
-  inputs.property('jars', configurations.providerImpl)
+  inputs.files('jars', configurations.providerImpl).withPathSensitivity(PathSensitivity.RELATIVE)
   outputs.file(manifestFile)
   doLast {
     manifestFile.parentFile.mkdirs()
     manifestFile.setText(configurations.providerImpl.files.stream()
-      .map(f -> f.name).collect(Collectors.joining('\n')), 'UTF-8')
+      .map(f -> f.name).sorted().collect(Collectors.joining('\n')), 'UTF-8')
   }
 }
 

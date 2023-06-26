@@ -122,11 +122,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             Files.createDirectories(dataPath);
         }
 
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
@@ -137,8 +133,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         Condition<?> rolloverCondition = randomFrom(
             new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
             new MaxDocsCondition(randomNonNegativeLong()),
-            new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+            new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
             new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
         );
 
@@ -174,7 +170,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 null,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             ),

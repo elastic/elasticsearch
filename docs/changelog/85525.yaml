@@ -1,6 +1,0 @@
-pr: 85525
-summary: Capture deprecation warnings in batched master tasks
-area: Cluster Coordination
-type: bug
-issues:
- - 85506

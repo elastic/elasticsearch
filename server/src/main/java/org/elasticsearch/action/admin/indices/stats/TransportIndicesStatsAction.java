@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -35,7 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
@@ -85,22 +82,19 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected IndicesStatsResponse newResponse(
-        IndicesStatsRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<ShardStats> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
-    ) {
-        return new IndicesStatsResponse(
-            responses.toArray(new ShardStats[responses.size()]),
+    protected ResponseFactory<IndicesStatsResponse, ShardStats> getResponseFactory(IndicesStatsRequest request, ClusterState clusterState) {
+        // NB avoid capture of full cluster state
+        final var metadata = clusterState.getMetadata();
+        final var routingTable = clusterState.routingTable();
+
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new IndicesStatsResponse(
+            responses.toArray(new ShardStats[0]),
             totalShards,
             successfulShards,
             failedShards,
             shardFailures,
-            clusterState
+            metadata,
+            routingTable
         );
     }
 
@@ -115,11 +109,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-            if (indexShard.routingEntry() == null) {
-                throw new ShardNotFoundException(indexShard.shardId());
-            }
-
             CommonStats commonStats = CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
             CommitStats commitStats;
             SeqNoStats seqNoStats;
@@ -140,7 +129,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 commonStats,
                 commitStats,
                 seqNoStats,
-                retentionLeaseStats
+                retentionLeaseStats,
+                indexShard.isSearchIdle(),
+                indexShard.searchIdleTime()
             );
         });
     }

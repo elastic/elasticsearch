@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,11 +37,11 @@ public class MultiFieldsSerializationTests extends ESTestCase {
         sortedNames.sort(Comparator.naturalOrder());
 
         for (String name : names) {
-            builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, Version.CURRENT));
+            builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.CURRENT));
         }
 
-        Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, Version.CURRENT);
-        FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.ROOT);
+        Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, false, IndexVersion.CURRENT);
+        FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.root(false));
 
         String serialized = Strings.toString(multiFields);
         int lastStart = 0;

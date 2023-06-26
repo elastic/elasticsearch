@@ -4,18 +4,14 @@
 <titleabbrev>Health</titleabbrev>
 ++++
 
-An experimental API that returns the health status of an {es} cluster.
-
-This API is currently experimental for internal use by Elastic software only.
-
-NOTE: {cloud-only}
+An API that reports the health status of an {es} cluster.
 
 [[health-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/_health` +
+`GET /_health_report` +
 
-`GET /_internal/_health/<indicator>` +
+`GET /_health_report/<indicator>` +
 
 [[health-api-prereqs]]
 ==== {api-prereq-title}
@@ -26,8 +22,8 @@ NOTE: {cloud-only}
 [[health-api-desc]]
 ==== {api-description-title}
 
-The health API returns the health status of an Elasticsearch cluster. It
-returns a list of indicators that compose Elasticsearch functionality.
+The health API returns a report with the health status of an Elasticsearch cluster. The report
+contains a list of indicators that compose Elasticsearch functionality.
 
 Each indicator has a health status of: `green`, `unknown`, `yellow` or `red`. The indicator will
 provide an explanation and metadata describing the reason for its current health status.
@@ -44,7 +40,11 @@ steps that can be performed in order to improve the health of the system. The ro
 steps are encapsulated in a `diagnosis`.
 A diagnosis contains a cause detailing a root cause analysis, an action containing a brief description
 of the steps to take to fix the problem, the list of affected resources (if applicable), and a detailed
-step by step troubleshooting guide to fix the diagnosed problem.
+step-by-step troubleshooting guide to fix the diagnosed problem.
+
+NOTE: The health indicators perform root cause analysis of non-green health statuses. This can
+be computationally expensive when called frequently. When setting up automated polling of the API
+for health status set `verbose` to `false` to disable the more expensive analysis logic.
 
 [[health-api-path-params]]
 ==== {api-path-parms-title}
@@ -78,19 +78,25 @@ step by step troubleshooting guide to fix the diagnosed problem.
   `slm`::
       Reports health issues related to
       Snapshot Lifecycle Management.
+
+  `shards_capacity`::
+      Reports health issues related to the shards
+      capacity of the cluster.
 --
 
 [[health-api-query-params]]
 ==== {api-query-parms-title}
 
-`explain`::
+`verbose`::
     (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
     These details include additional troubleshooting metrics and sometimes a root cause analysis of a health status.
     Defaults to `true`.
 
-NOTE: Some health indicators perform root cause analysis of non-green health statuses. This can
-be computationally expensive when called frequently. When setting up automated polling of the API
-for health status set `explain` to `false` to disable the more expensive analysis logic.
+`size`::
+    (Optional, integer) The maximum number of affected resources to return.
+    As a diagnosis can return multiple types of affected resources this parameter will limit the number of resources returned for each type to the configured value (e.g. a diagnosis could return
+    `1000` affected indices and `1000` affected nodes).
+    Defaults to `1000`.
 
 [role="child_attributes"]
 [[health-api-response-body]]
@@ -152,7 +158,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
     (Optional, object) An object that contains additional information about the cluster that
     has lead to the current health status result. This data is unstructured, and each
     indicator returns <<health-api-response-details, a unique set of details>>. Details will not be calculated if the
-    `explain` property is set to false.
+    `verbose` property is set to false.
 
 `impacts`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
@@ -184,7 +190,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 `diagnosis`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
     diagnosis that encapsulate the cause of the health issue and an action to take in order to remediate the problem.
-    The diagnosis will not be calculated if the `explain` property is false.
+    The diagnosis will not be calculated if the `verbose` property is false.
 +
 .Properties of `diagnosis`
 [%collapsible%open]
@@ -194,7 +200,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 
 `action`::
     (string) A brief description the steps that should be taken to remediate the problem.
-    A more detailed step by step guide to remediate the problem is provided by the
+    A more detailed step-by-step guide to remediate the problem is provided by the
     `help_url` field.
 
 `affected_resources`::
@@ -203,7 +209,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
     diagnosis is applicable for.
 
 `help_url`::
-    (string) A link to the troubleshooting guide that'll fix the healh problem.
+    (string) A link to the troubleshooting guide that'll fix the health problem.
 ========
 =======
 ====
@@ -212,7 +218,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 [[health-api-response-details]]
 ==== Indicator Details
 
-Each health indicator in the health api returns a set of details that further explains the state of the system. The
+Each health indicator in the health API returns a set of details that further explains the state of the system. The
 details have contents and a structure that is unique to each indicator.
 
 [[health-api-response-details-master-is-stable]]
@@ -375,12 +381,42 @@ watermark threshold>>.
     The `invocations_since_last_success` key will report a map where the unhealthy policy
     name is the key and it's corresponding number of failed invocations is the value.
 
+[[health-api-response-details-shards-capacity]]
+===== shards_capacity
+`data`::
+(map) A view with information about the current capacity of shards for data nodes that do not belong to the frozen tier.
++
+.Properties of `data`
+[%collapsible%open]
+=====
+`max_shards_in_cluster`::
+(int) Indicates the maximum number of shards that the cluster can hold.
+
+`current_used_shards`::
+(optional, int) The total number of shards hold by the cluster. Only displayed in the case the indicator's status is `red` or `yellow`.
+
+=====
+
+`frozen`::
+(map) A view with information about the current capacity of shards for data nodes that belong to the frozen tier.
++
+.Properties of `frozen`
+[%collapsible%open]
+=====
+`max_shards_in_cluster`::
+(int) Indicates the maximum number of shards the cluster can hold for the partially mounted indices.
+
+`current_used_shards`::
+(optional, int) The total number of shards the partially mounted indices have in the cluster. Only displayed in the case the indicator's status is `red` or `yellow`.
+
+=====
+
 [[health-api-example]]
 ==== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health
+GET _health_report
 --------------------------------------------------
 
 The API returns a response with all the indicators regardless
@@ -388,14 +424,14 @@ of current status.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health/shards_availability
+GET _health_report/shards_availability
 --------------------------------------------------
 
 The API returns a response for just the shard availability indicator.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health?explain=false
+GET _health_report?verbose=false
 --------------------------------------------------
 
 The API returns a response with all health indicators but will

@@ -16,14 +16,13 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 
 public final class HttpTransportSettings {
 
@@ -43,7 +42,13 @@ public final class HttpTransportSettings {
     );
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = new Setting<>(
         "http.cors.allow-headers",
-        "X-Requested-With,Content-Type,Content-Length",
+        "X-Requested-With,Content-Type,Content-Length,Authorization,Accept,User-Agent,X-Elastic-Client-Meta",
+        (value) -> value,
+        Property.NodeScope
+    );
+    public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = new Setting<>(
+        "http.cors.expose-headers",
+        "X-elastic-product",
         (value) -> value,
         Property.NodeScope
     );
@@ -61,12 +66,7 @@ public final class HttpTransportSettings {
     // we intentionally use a different compression level as Netty here as our benchmarks have shown that a compression level of 3 is the
     // best compromise between reduction in network traffic and added latency. For more details please check #7309.
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL = intSetting("http.compression_level", 3, Property.NodeScope);
-    public static final Setting<List<String>> SETTING_HTTP_HOST = listSetting(
-        "http.host",
-        emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> SETTING_HTTP_HOST = stringListSetting("http.host", Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST = listSetting(
         "http.publish_host",
         SETTING_HTTP_HOST,
@@ -95,8 +95,8 @@ public final class HttpTransportSettings {
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
         "http.max_content_length",
         new ByteSizeValue(100, ByteSizeUnit.MB),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(
@@ -117,7 +117,7 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_WARNING_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_warning_header_size",
-        new ByteSizeValue(-1),
+        ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH = Setting.byteSizeSetting(
@@ -125,6 +125,13 @@ public final class HttpTransportSettings {
         new ByteSizeValue(4, ByteSizeUnit.KB),
         Property.NodeScope
     );
+
+    public static final Setting<TimeValue> SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD = Setting.positiveTimeSetting(
+        "http.shutdown_grace_period",
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
     // don't reset cookies by default, since I don't think we really need to
     // note, parsing cookies was fixed in netty 3.5.1 regarding stack allocation, but still, currently, we don't need cookies
     public static final Setting<Boolean> SETTING_HTTP_RESET_COOKIES = Setting.boolSetting("http.reset_cookies", false, Property.NodeScope);
@@ -185,17 +192,13 @@ public final class HttpTransportSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_INCLUDE = Setting.listSetting(
+    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_INCLUDE = Setting.stringListSetting(
         "http.tracer.include",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_EXCLUDE = Setting.listSetting(
+    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_EXCLUDE = Setting.stringListSetting(
         "http.tracer.exclude",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

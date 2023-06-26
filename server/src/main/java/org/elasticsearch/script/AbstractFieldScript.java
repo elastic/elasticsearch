@@ -10,14 +10,16 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
@@ -61,25 +63,36 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         );
     }
 
+    @SuppressWarnings("unchecked")
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
         "_source",
-        value -> ((SourceLookup) value).source()
+        value -> ((Supplier<Source>) value).get().source()
     );
 
     protected final String fieldName;
-    protected final SourceLookup sourceLookup;
+    protected final Supplier<Source> source;
     private final Map<String, Object> params;
+    private final OnScriptError onScriptError;
 
-    public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(new DocValuesDocReader(searchLookup, ctx));
+    public AbstractFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        LeafReaderContext ctx,
+        OnScriptError onScriptError
+    ) {
+        this(fieldName, params, new DocValuesDocReader(searchLookup, ctx), onScriptError);
+    }
 
+    private AbstractFieldScript(String fieldName, Map<String, Object> params, DocReader docReader, OnScriptError onScriptError) {
+        super(docReader);
         this.fieldName = fieldName;
-        Map<String, Object> docAsMap = docAsMap();
-        this.sourceLookup = (SourceLookup) docAsMap.get("_source");
+        this.source = docReader.source();
         params = new HashMap<>(params);
-        params.put("_source", sourceLookup);
-        params.put("_fields", docAsMap.get("_fields"));
+        params.put("_source", this.source);
+        params.put("_fields", docReader.docAsMap().get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
+        this.onScriptError = onScriptError;
     }
 
     /**
@@ -90,7 +103,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     protected List<Object> extractFromSource(String path) {
-        return XContentMapValues.extractRawValues(path, sourceLookup.source());
+        return XContentMapValues.extractRawValues(path, source.get().source());
     }
 
     protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {
@@ -130,6 +143,25 @@ public abstract class AbstractFieldScript extends DocBasedScript {
                     MAX_VALUES
                 )
             );
+        }
+    }
+
+    protected abstract void prepareExecute();
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     */
+    public final void runForDoc(int docId) {
+        prepareExecute();
+        setDocument(docId);
+        try {
+            execute();
+        } catch (Exception e) {
+            if (onScriptError == OnScriptError.CONTINUE) {
+                // ignore
+            } else {
+                throw e;
+            }
         }
     }
 

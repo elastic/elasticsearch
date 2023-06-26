@@ -10,7 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,7 +25,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -71,11 +72,13 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 documentFields = GetResultTests.randomDocumentFields(xContentType, false).v2();
             }
         }
-
-        SearchHit hit = new SearchHit(internalId, uid, nestedIdentity, documentFields, metaFields);
+        SearchHit hit = new SearchHit(internalId, uid, nestedIdentity);
+        hit.addDocumentFields(documentFields, metaFields);
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
+            } else if (rarely()) {
+                hit.setRank(randomInt());
             } else {
                 hit.score(randomFloat());
             }
@@ -105,9 +108,9 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
-            String[] matchedQueries = new String[size];
+            Map<String, Float> matchedQueries = new LinkedHashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = randomAlphaOfLength(5);
+                matchedQueries.put(randomAlphaOfLength(5), Float.NaN);
             }
             hit.matchedQueries(matchedQueries);
         }
@@ -146,6 +149,11 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     @Override
     protected SearchHit createTestInstance() {
         return createTestItem(randomFrom(XContentType.values()).canonical(), randomBoolean(), randomBoolean());
+    }
+
+    @Override
+    protected SearchHit mutateInstance(SearchHit instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testFromXContent() throws IOException {
@@ -212,7 +220,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public void testToXContent() throws IOException {
-        SearchHit searchHit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
+        SearchHit searchHit = new SearchHit(1, "id1");
         searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -220,35 +228,44 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             {"_id":"id1","_score":1.5}""", Strings.toString(builder));
     }
 
+    public void testRankToXContent() throws IOException {
+        SearchHit searchHit = new SearchHit(1, "id1");
+        searchHit.setRank(1);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"_id":"id1","_score":null,"_rank":1}""", Strings.toString(builder));
+    }
+
     public void testSerializeShardTarget() throws Exception {
         String clusterAlias = randomBoolean() ? null : "cluster_alias";
         SearchShardTarget target = new SearchShardTarget("_node_id", new ShardId(new Index("_index", "_na_"), 0), clusterAlias);
 
         Map<String, SearchHits> innerHits = new HashMap<>();
-        SearchHit innerHit1 = new SearchHit(0, "_id", null, null);
+        SearchHit innerHit1 = new SearchHit(0, "_id");
         innerHit1.shard(target);
-        SearchHit innerInnerHit2 = new SearchHit(0, "_id", null, null);
+        SearchHit innerInnerHit2 = new SearchHit(0, "_id");
         innerInnerHit2.shard(target);
         innerHits.put("1", new SearchHits(new SearchHit[] { innerInnerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         innerHit1.setInnerHits(innerHits);
-        SearchHit innerHit2 = new SearchHit(0, "_id", null, null);
+        SearchHit innerHit2 = new SearchHit(0, "_id");
         innerHit2.shard(target);
-        SearchHit innerHit3 = new SearchHit(0, "_id", null, null);
+        SearchHit innerHit3 = new SearchHit(0, "_id");
         innerHit3.shard(target);
 
         innerHits = new HashMap<>();
-        SearchHit hit1 = new SearchHit(0, "_id", null, null);
+        SearchHit hit1 = new SearchHit(0, "_id");
         innerHits.put("1", new SearchHits(new SearchHit[] { innerHit1, innerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         innerHits.put("2", new SearchHits(new SearchHit[] { innerHit3 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         hit1.shard(target);
         hit1.setInnerHits(innerHits);
 
-        SearchHit hit2 = new SearchHit(0, "_id", null, null);
+        SearchHit hit2 = new SearchHit(0, "_id");
         hit2.shard(target);
 
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
 
-        Version version = VersionUtils.randomVersion(random());
+        TransportVersion version = TransportVersionUtils.randomVersion(random());
         SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
         SearchShardTarget deserializedTarget = results.getAt(0).getShard();
         assertThat(deserializedTarget, equalTo(target));
@@ -270,7 +287,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public void testNullSource() {
-        SearchHit searchHit = new SearchHit(0, "_id", null, null);
+        SearchHit searchHit = new SearchHit(0, "_id");
 
         assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
@@ -359,7 +376,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put("foo", new DocumentField("foo", Collections.emptyList()));
         fields.put("bar", new DocumentField("bar", Collections.emptyList()));
-        SearchHit hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        SearchHit hit = new SearchHit(0, "_id");
+        hit.addDocumentFields(fields, Map.of());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             // checks that the fields section is completely omitted in the rendering.
@@ -377,7 +395,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         fields = new HashMap<>();
         fields.put("foo", new DocumentField("foo", Collections.emptyList()));
         fields.put("bar", new DocumentField("bar", Collections.singletonList("value")));
-        hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        hit = new SearchHit(0, "_id");
+        hit.addDocumentFields(fields, Collections.emptyMap());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             final SearchHit parsed;
@@ -393,7 +412,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
         Map<String, DocumentField> metadata = new HashMap<>();
         metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
-        hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        hit = new SearchHit(0, "_id");
+        hit.addDocumentFields(fields, Collections.emptyMap());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             final SearchHit parsed;

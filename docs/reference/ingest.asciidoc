@@ -447,6 +447,14 @@ you can specify the `pipeline` policy setting in your `elastic-agent.yml`
 configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install standalone {agent}s].
 
 [discrete]
+[[pipelines-in-enterprise-search]]
+=== Pipelines in Enterprise Search
+
+When you create Elasticsearch indices for {enterprise-search-ref}/index.html[Enterprise Search^] use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines. 
+These processors help optimize your content for search.
+Refer to the {enterprise-search-ref}/ingest-pipelines.html[Enterprise Search documentation^] for more information.
+
+[discrete]
 [[access-source-fields]]
 === Access source fields in a processor
 
@@ -853,7 +861,7 @@ PUT _ingest/pipeline/my-pipeline
 }
 ----
 
-You can also specify a <<modules-scripting-stored-scripts,stored script>> as the
+You can also specify a <<script-stored-scripts,stored script>> as the
 `if` condition.
 
 [source,console]

@@ -27,12 +27,14 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ThreadContextTests extends ESTestCase {
@@ -56,6 +58,54 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
+    public void testStashContextPreservesDefaultHeadersToCopy() {
+        for (String header : HEADERS_TO_COPY) {
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(header, "bar");
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                assertEquals("bar", threadContext.getHeader(header));
+            }
+        }
+    }
+
+    public void testStashContextPreservingRequestHeaders() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putHeader("bar", "foo");
+        threadContext.putTransient("ctx.foo", 1);
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders("foo", "ctx.foo", "missing")) {
+            assertEquals("bar", threadContext.getHeader("foo"));
+            // only request headers preserved, not transient
+            assertNull(threadContext.getTransient("ctx.foo"));
+            assertNull(threadContext.getHeader("bar"));
+            assertEquals("1", threadContext.getHeader("default"));
+            assertNull(threadContext.getHeader("missing"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals("foo", threadContext.getHeader("bar"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testStashContextPreservingHeadersWithDefaultHeadersToCopy() {
+        for (String header : HEADERS_TO_COPY) {
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(header, "bar");
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders()) {
+                assertEquals("bar", threadContext.getHeader(header));
+            }
+            // Also works if we pass it explicitly
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(header)) {
+                assertEquals("bar", threadContext.getHeader(header));
+            }
+        }
+    }
+
     public void testNewContextWithClearedTransients() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putTransient("foo", "bar");
@@ -73,7 +123,8 @@ public class ThreadContextTests extends ESTestCase {
         // foo is the only existing transient header that is cleared
         try (
             ThreadContext.StoredContext stashed = threadContext.newStoredContext(
-                randomFrom(List.of("foo", "foo"), List.of("foo"), List.of("foo", "acme"))
+                randomFrom(List.of("foo", "foo"), List.of("foo"), List.of("foo", "acme")),
+                List.of()
             )
         ) {
             // only the requested transient header is cleared
@@ -113,13 +164,292 @@ public class ThreadContextTests extends ESTestCase {
         // test stashed missing header stays missing
         try (
             ThreadContext.StoredContext stashed = threadContext.newStoredContext(
-                randomFrom(Arrays.asList("acme", "acme"), Arrays.asList("acme"))
+                randomFrom(Arrays.asList("acme", "acme"), Arrays.asList("acme")),
+                List.of()
             )
         ) {
             assertNull(threadContext.getTransient("acme"));
             threadContext.putTransient("acme", "foo");
         }
         assertNull(threadContext.getTransient("acme"));
+    }
+
+    public void testNewContextWithClearedRequestHeaders() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final Map<String, String> requestHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry(Task.X_OPAQUE_ID_HTTP_HEADER, randomAlphaOfLength(10)),
+            Map.entry(Task.TRACE_ID, randomAlphaOfLength(20)),
+            Map.entry("_username", "elastic-admin")
+        );
+        threadContext.putHeader(requestHeaders);
+
+        final Map<String, Object> transientHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_random", randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_map", Map.of("key", new Object())),
+            Map.entry("_address", "125.124.123.122"),
+            Map.entry("_object", new Object()),
+            Map.entry("_number", 42)
+        );
+        transientHeaders.forEach((k, v) -> threadContext.putTransient(k, v));
+
+        final Map<String, String> responseHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_response_message", "All good."),
+            Map.entry("Warning", "Some warning!")
+        );
+        responseHeaders.forEach((k, v) -> threadContext.addResponseHeader(k, v));
+
+        // this is missing or null
+        if (randomBoolean()) {
+            threadContext.putHeader("_missing_or_null", null);
+        }
+
+        // mark as system context
+        boolean setSystemContext = randomBoolean();
+        if (setSystemContext) {
+            threadContext.markAsSystemContext();
+        }
+
+        // adding password header here to simplify assertions
+        threadContext.putHeader("_password", "elastic-password");
+
+        // password is the only request header that should be cleared
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
+                List.of(),
+                randomFrom(List.of("_password", "_password"), List.of("_password"), List.of("_password", "_missing_or_null"))
+            )
+        ) {
+            // only the requested header is cleared
+            assertThat(threadContext.getHeader("_password"), nullValue());
+            // system context boolean is preserved
+            assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
+            // missing header is still missing
+            assertThat(threadContext.getHeader("_missing_or_null"), nullValue());
+            // other headers are preserved
+            requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+            transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+            responseHeaders.forEach((k, v) -> assertThat(threadContext.getResponseHeaders().get(k).get(0), equalTo(v)));
+            // warning header count is still equal to 1
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(1));
+
+            // try override stashed header
+            threadContext.putHeader("_password", "new-password");
+            assertThat(threadContext.getHeader("_password"), equalTo("new-password"));
+            // add new headers
+            threadContext.addResponseHeader("_new_response_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.putTransient("_new_transient_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.putHeader("_new_request_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.addResponseHeader("Warning", randomAlphaOfLengthBetween(3, 8));
+            // warning header is now equal to 2
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(2));
+        }
+
+        // original "password" header is restored (it is not overridden)
+        assertThat(threadContext.getHeader("_password"), equalTo("elastic-password"));
+        // headers added inside the stash are NOT preserved
+        assertThat(threadContext.getResponseHeaders().get("_new_response_header"), nullValue());
+        assertThat(threadContext.getTransient("_new_transient_header"), nullValue());
+        assertThat(threadContext.getHeader("_new_request_header"), nullValue());
+        // warning header is restored to 1
+        assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(1));
+        assertThat(threadContext.getResponseHeaders().get("Warning").get(0), equalTo("Some warning!"));
+        // original headers are restored
+        requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+        transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+        responseHeaders.forEach((k, v) -> assertThat(threadContext.getResponseHeaders().get(k).get(0), equalTo(v)));
+        // system context boolean is unchanged
+        assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
+
+        // test stashed missing header stays missing
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
+                randomFrom(Arrays.asList("_missing_or_null", "_missing_or_null"), Arrays.asList("_missing_or_null")),
+                List.of()
+            )
+        ) {
+            assertThat(threadContext.getHeader("_missing_or_null"), nullValue());
+            threadContext.putHeader("_missing_or_null", "not_null");
+        }
+        assertThat(threadContext.getHeader("_missing_or_null"), nullValue());
+    }
+
+    public void testNewContextWithoutClearingTransientAndRequestHeaders() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final Map<String, String> requestHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry(Task.X_OPAQUE_ID_HTTP_HEADER, randomAlphaOfLength(10)),
+            Map.entry(Task.TRACE_ID, randomAlphaOfLength(20)),
+            Map.entry("_username", "elastic-admin")
+        );
+        threadContext.putHeader(requestHeaders);
+
+        final Map<String, Object> transientHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_random", randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_map", Map.of("key", new Object())),
+            Map.entry("_address", "125.124.123.122"),
+            Map.entry("_object", new Object()),
+            Map.entry("_number", 42)
+        );
+        transientHeaders.forEach((k, v) -> threadContext.putTransient(k, v));
+
+        final Map<String, String> responseHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_response_message", "All good."),
+            Map.entry("Warning", "Some warning!")
+        );
+        responseHeaders.forEach((k, v) -> threadContext.addResponseHeader(k, v));
+
+        // mark as system context
+        boolean setSystemContext = randomBoolean();
+        if (setSystemContext) {
+            threadContext.markAsSystemContext();
+        }
+
+        // test nothing is cleared when empty collections are passed
+        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(List.of(), List.of())) {
+            // system context boolean is preserved
+            assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
+            // other headers are preserved
+            assertThat(threadContext.getHeaders().size(), equalTo(requestHeaders.size()));
+            assertThat(threadContext.getResponseHeaders().size(), equalTo(responseHeaders.size()));
+            assertThat(threadContext.getTransientHeaders().size(), equalTo(transientHeaders.size()));
+            requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+            transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+            responseHeaders.forEach((k, v) -> assertThat(threadContext.getResponseHeaders().get(k).get(0), equalTo(v)));
+            // warning header count is still equal to 1
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(1));
+            // add new headers
+            threadContext.addResponseHeader("_new_response_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.putTransient("_new_transient_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.putHeader("_new_request_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.addResponseHeader("Warning", randomAlphaOfLengthBetween(3, 8));
+            // warning header is now equal to 2
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(2));
+        }
+
+        // headers added inside the stash are NOT preserved
+        assertThat(threadContext.getResponseHeaders().get("_new_response_header"), nullValue());
+        assertThat(threadContext.getTransient("_new_transient_header"), nullValue());
+        assertThat(threadContext.getHeader("_new_request_header"), nullValue());
+        // original headers are unchanged
+        assertThat(threadContext.getHeaders().size(), equalTo(requestHeaders.size()));
+        assertThat(threadContext.getResponseHeaders().size(), equalTo(responseHeaders.size()));
+        assertThat(threadContext.getTransientHeaders().size(), equalTo(transientHeaders.size()));
+        requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+        transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+        responseHeaders.forEach((k, v) -> assertThat(threadContext.getResponseHeaders().get(k).get(0), equalTo(v)));
+        // system context boolean is unchanged
+        assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
+        // warning header is unchanged
+        assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(1));
+        assertThat(threadContext.getResponseHeaders().get("Warning").get(0), equalTo("Some warning!"));
+    }
+
+    public void testNewContextPreservingResponseHeadersWithClearedTransientAndRequestHeaders() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final Map<String, String> requestHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry(Task.X_OPAQUE_ID_HTTP_HEADER, randomAlphaOfLength(10)),
+            Map.entry(Task.TRACE_ID, randomAlphaOfLength(20)),
+            Map.entry("_username", "elastic-admin")
+        );
+        threadContext.putHeader(requestHeaders);
+
+        final Map<String, Object> transientHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_random", randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_map", Map.of("key", new Object())),
+            Map.entry("_address", "125.124.123.122"),
+            Map.entry("_object", new Object()),
+            Map.entry("_number", 42)
+        );
+        transientHeaders.forEach((k, v) -> threadContext.putTransient(k, v));
+
+        final Map<String, String> responseHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_response_message", "All good."),
+            Map.entry("Warning", "Some warning!")
+        );
+        responseHeaders.forEach((k, v) -> threadContext.addResponseHeader(k, v));
+
+        // this is missing or null
+        if (randomBoolean()) {
+            threadContext.putHeader("_missing_or_null", null);
+            threadContext.putTransient("_missing_or_null", null);
+        }
+
+        // mark as system context
+        boolean setSystemContext = randomBoolean();
+        if (setSystemContext) {
+            threadContext.markAsSystemContext();
+        }
+
+        // adding request and transient headers to be cleared later
+        threadContext.putHeader("_password", "elastic-password");
+        threadContext.putTransient("_transient_to_be_cleared", "original-transient-value");
+
+        // password is the only request header that should be cleared
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContextPreservingResponseHeaders(
+                randomFrom(
+                    List.of("_transient_to_be_cleared"),
+                    List.of("_transient_to_be_cleared", "_transient_to_be_cleared"),
+                    List.of("_transient_to_be_cleared", "_missing_or_null")
+                ),
+                randomFrom(List.of("_password", "_password"), List.of("_password"), List.of("_password", "_missing_or_null"))
+            )
+        ) {
+            // only the requested headers are cleared
+            assertThat(threadContext.getHeader("_password"), nullValue());
+            assertThat(threadContext.getTransient("_transient_to_be_cleared"), nullValue());
+            // system context boolean is preserved
+            assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
+            // missing header is still missing
+            assertThat(threadContext.getHeader("_missing_or_null"), nullValue());
+            assertThat(threadContext.getTransient("_missing_or_null"), nullValue());
+            // other headers are preserved
+            requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+            transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+            responseHeaders.forEach((k, v) -> assertThat(threadContext.getResponseHeaders().get(k).get(0), equalTo(v)));
+            // warning header count is still equal to 1
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(1));
+
+            // try override stashed headers
+            threadContext.putHeader("_password", "new-password");
+            threadContext.putTransient("_transient_to_be_cleared", "new-transient-value");
+            assertThat(threadContext.getHeader("_password"), equalTo("new-password"));
+            assertThat(threadContext.getTransient("_transient_to_be_cleared"), equalTo("new-transient-value"));
+            // add new headers
+            threadContext.addResponseHeader("_new_response_header", "value-which-should-be-preserved");
+            threadContext.putTransient("_new_transient_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.putHeader("_new_request_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.addResponseHeader("Warning", "Another warning!");
+            // warning header is now equal to 2
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(2));
+        }
+
+        // originally cleared headers should be restored (and not overridden)
+        assertThat(threadContext.getHeader("_password"), equalTo("elastic-password"));
+        assertThat(threadContext.getTransient("_transient_to_be_cleared"), equalTo("original-transient-value"));
+        requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+        transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+        // headers added inside the stash are NOT preserved
+        assertThat(threadContext.getTransient("_new_transient_header"), nullValue());
+        assertThat(threadContext.getHeader("_new_request_header"), nullValue());
+        // except for response headers which should be preserved
+        assertThat(threadContext.getResponseHeaders().get("_new_response_header").get(0), equalTo("value-which-should-be-preserved"));
+        assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(2));
+        assertThat(threadContext.getResponseHeaders().get("Warning").get(0), equalTo("Some warning!"));
+        assertThat(threadContext.getResponseHeaders().get("Warning").get(1), equalTo("Another warning!"));
+        // system context boolean is unchanged
+        assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
     }
 
     public void testStashWithOrigin() {
@@ -716,7 +1046,7 @@ public class ThreadContextTests extends ESTestCase {
             headers.forEach(header -> threadContext.putHeader(header, randomAsciiLettersOfLengthBetween(1, 10)));
 
             Set<Tuple<String, String>> additionalHeaders = IntStream.range(0, randomInt(10))
-                .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10), randomAsciiLettersOfLengthBetween(1, 10)))
+                .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10) + i, randomAsciiLettersOfLengthBetween(1, 10)))
                 .collect(Collectors.toSet());
             additionalHeaders.forEach(t -> threadContext.putHeader(t.v1(), t.v2()));
             Set<String> requestHeaders = threadContext.getHeaders().keySet();

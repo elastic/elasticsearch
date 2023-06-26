@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -50,7 +51,7 @@ public class RoutingAllocation {
 
     private final ClusterState clusterState;
 
-    private final ClusterInfo clusterInfo;
+    private ClusterInfo clusterInfo;
 
     private final SnapshotShardSizeInfo shardSizeInfo;
 
@@ -63,6 +64,8 @@ public class RoutingAllocation {
     private boolean hasPendingAsyncFetch = false;
 
     private final long currentNanoTime;
+    private final boolean isSimulating;
+    private boolean isReconciling;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
@@ -76,8 +79,6 @@ public class RoutingAllocation {
     );
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
-
-    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
 
     @Nullable
     private final DesiredNodes desiredNodes;
@@ -112,22 +113,46 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+    }
+
+    /**
+     * Creates a new {@link RoutingAllocation}
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
+     * @param clusterState cluster state before rerouting
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     */
+    private RoutingAllocation(
+        AllocationDeciders deciders,
+        @Nullable RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime,
+        boolean isSimulating
+    ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
-        this.nodeShutdowns = clusterState.metadata().nodeShutdowns();
-        Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
-        for (SingleNodeShutdownMetadata shutdown : nodeShutdowns.values()) {
+        this.isSimulating = isSimulating;
+        this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
+        this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+    }
+
+    private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
+        Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
+        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().getAll().values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
-                targetNameToShutdown.put(shutdown.getTargetNodeName(), shutdown);
+                nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
             }
         }
-        this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
-        this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
-        unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+        return Map.copyOf(nodeReplacementTargets);
     }
 
     private static Map<String, Long> unaccountedSearchableSnapshotSizes(ClusterState clusterState, ClusterInfo clusterInfo) {
@@ -201,6 +226,10 @@ public class RoutingAllocation {
         return clusterState.nodes();
     }
 
+    public ClusterState getClusterState() {
+        return clusterState;
+    }
+
     public ClusterInfo clusterInfo() {
         return clusterInfo;
     }
@@ -215,26 +244,10 @@ public class RoutingAllocation {
     }
 
     /**
-     * Returns the map of node id to shutdown metadata currently in the cluster
-     */
-    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return nodeShutdowns;
-    }
-
-    /**
      * Returns a map of target node name to replacement shutdown
      */
     public Map<String, SingleNodeShutdownMetadata> replacementTargetShutdowns() {
         return this.nodeReplacementTargets;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends ClusterState.Custom> T custom(String key) {
-        return (T) clusterState.customs().get(key);
-    }
-
-    public Map<String, ClusterState.Custom> getCustoms() {
-        return clusterState.getCustoms();
     }
 
     public void ignoreDisable(boolean ignoreDisable) {
@@ -371,6 +384,62 @@ public class RoutingAllocation {
      */
     public long unaccountedSearchableSnapshotSize(RoutingNode routingNode) {
         return unaccountedSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
+    }
+
+    /**
+     * @return {@code true} if this allocation computation is trying to simulate the final allocation and therefore "transient" allocation
+     *                      blockers should be ignored.
+     */
+    public boolean isSimulating() {
+        return isSimulating;
+    }
+
+    /**
+     * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
+     *                      path-dependent allocation blockers should be ignored.
+     */
+    public boolean isReconciling() {
+        return isReconciling;
+    }
+
+    /**
+     * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
+     */
+    public Releasable withReconcilingFlag() {
+        assert isReconciling == false : "already reconciling";
+        isReconciling = true;
+        return () -> isReconciling = false;
+    }
+
+    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
+        assert isSimulating : "Should be called only while simulating";
+        this.clusterInfo = clusterInfo;
+    }
+
+    public RoutingAllocation immutableClone() {
+        return new RoutingAllocation(
+            deciders,
+            routingNodesChanged()
+                ? ClusterState.builder(clusterState)
+                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
+                    .build()
+                : clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime
+        );
+    }
+
+    public RoutingAllocation mutableCloneForSimulation() {
+        return new RoutingAllocation(
+            deciders,
+            clusterState.mutableRoutingNodes(),
+            clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime,
+            true
+        );
     }
 
     public enum DebugMode {

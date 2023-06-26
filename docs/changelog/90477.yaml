@@ -1,6 +1,0 @@
-pr: 90477
-summary: Fix overcounting recovered bytes after network disconnect
-area: Recovery
-type: bug
-issues:
- - 90441

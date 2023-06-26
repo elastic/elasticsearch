@@ -16,27 +16,26 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,40 +52,49 @@ import static org.elasticsearch.index.IndexSettings.same;
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
-    private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
-    private final ClusterStateTaskExecutor<UpdateSettingsTask> executor;
+    private final MasterServiceTaskQueue<UpdateSettingsTask> taskQueue;
 
     public MetadataUpdateSettingsService(
         ClusterService clusterService,
         AllocationService allocationService,
         IndexScopedSettings indexScopedSettings,
         IndicesService indicesService,
-        ShardLimitValidator shardLimitValidator
+        ShardLimitValidator shardLimitValidator,
+        ThreadPool threadPool
     ) {
-        this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
-            @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateSettingsTask task, ClusterState clusterState) {
-                return Tuple.tuple(task.execute(clusterState), task.getAckListener());
-            }
-
-            @Override
-            public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
-                if (clusterStateChanged) {
-                    // reroute in case things change that require it (like number of replicas)
-                    return allocationService.reroute(clusterState, "settings update");
+        this.taskQueue = clusterService.createTaskQueue("update-settings", Priority.URGENT, batchExecutionContext -> {
+            var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try {
+                    final var task = taskContext.getTask();
+                    try (var ignored = taskContext.captureResponseHeaders()) {
+                        state = task.execute(state);
+                    }
+                    taskContext.success(task.getAckListener(listener));
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
                 }
-                return clusterState;
+
             }
-        };
+            if (state != batchExecutionContext.initialState()) {
+                // reroute in case things change that require it (like number of replicas)
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, "settings update", listener.reroute());
+                }
+            } else {
+                listener.noRerouteNeeded();
+            }
+            return state;
+        });
     }
 
     private final class UpdateSettingsTask implements ClusterStateTaskListener {
@@ -98,7 +106,7 @@ public class MetadataUpdateSettingsService {
             this.listener = listener;
         }
 
-        private ClusterStateAckListener getAckListener() {
+        private ClusterStateAckListener getAckListener(AllocationActionMultiListener<AcknowledgedResponse> multiListener) {
             return new ClusterStateAckListener() {
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -107,17 +115,17 @@ public class MetadataUpdateSettingsService {
 
                 @Override
                 public void onAllNodesAcked() {
-                    listener.onResponse(AcknowledgedResponse.of(true));
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(true));
                 }
 
                 @Override
                 public void onAckFailure(Exception e) {
-                    listener.onFailure(e);
+                    multiListener.delay(listener).onFailure(e);
                 }
 
                 @Override
                 public void onAckTimeout() {
-                    listener.onResponse(AcknowledgedResponse.of(false));
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(false));
                 }
 
                 @Override
@@ -175,6 +183,7 @@ public class MetadataUpdateSettingsService {
                 Index index = request.indices()[i];
                 actualIndices[i] = index.getName();
                 final IndexMetadata metadata = currentState.metadata().getIndexSafe(index);
+
                 if (metadata.getState() == IndexMetadata.State.OPEN) {
                     openIndices.add(index);
                 } else {
@@ -200,7 +209,10 @@ public class MetadataUpdateSettingsService {
                      *
                      * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                      */
-                    routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+                    routingTableBuilder = RoutingTable.builder(
+                        allocationService.getShardRoutingRoleStrategy(),
+                        currentState.routingTable()
+                    );
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
@@ -290,14 +302,18 @@ public class MetadataUpdateSettingsService {
 
             return updatedState;
         }
+
+        @Override
+        public String toString() {
+            return request.toString();
+        }
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "update-settings " + Arrays.toString(request.indices()),
             new UpdateSettingsTask(request, listener),
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-            this.executor
+            request.masterNodeTimeout()
         );
     }
 
@@ -310,6 +326,8 @@ public class MetadataUpdateSettingsService {
     ) {
         for (Index index : indices) {
             IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
+            // We validate the settings for removed deprecated settings, since we have the indexMetadata now.
+            indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
             Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
             if (settingUpdater.apply(index, indexSettings)) {
                 if (preserveExisting) {

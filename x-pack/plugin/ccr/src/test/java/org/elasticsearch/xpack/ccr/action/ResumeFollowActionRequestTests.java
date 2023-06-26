@@ -40,6 +40,11 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected ResumeFollowAction.Request mutateInstance(ResumeFollowAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected ResumeFollowAction.Request createXContextTestInstance(XContentType type) {
         // follower index parameter is not part of the request body and is provided in the url path.
         // So this field cannot be used for creating a test instance for xcontent testing.
@@ -78,10 +83,10 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
             followParameters.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            followParameters.setMaxWriteRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            followParameters.setMaxWriteBufferSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             followParameters.setMaxRetryDelay(TimeValue.timeValueMillis(500));

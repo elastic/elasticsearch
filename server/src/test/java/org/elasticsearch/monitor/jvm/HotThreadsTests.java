@@ -9,6 +9,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentMatchers;
@@ -46,7 +47,7 @@ public class HotThreadsTests extends ESTestCase {
             try {
                 new HotThreads().type(HotThreads.ReportType.of(type));
             } catch (IllegalArgumentException e) {
-                fail(formatted("IllegalArgumentException called when creating HotThreads for supported type [%s]", type));
+                fail(Strings.format("IllegalArgumentException called when creating HotThreads for supported type [%s]", type));
             }
         }
     }
@@ -219,7 +220,7 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.getThreadCpuTime(threadId)).thenReturn(0L).thenReturn(threadId * cpuMultiplier);
         ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
         when(mockedMXBean.getThreadInfo(eq(threadId), anyInt())).thenReturn(mockedThreadInfo);
-        when(mockedThreadInfo.getThreadName()).thenReturn(String.format(Locale.ROOT, "%s %d", threadPrefix, threadId));
+        when(mockedThreadInfo.getThreadName()).thenReturn(Strings.format("%s %d", threadPrefix, threadId));
 
         // We create some variability for the blocked and waited times. Odd and even.
         when(mockedThreadInfo.getBlockedCount()).thenReturn(0L).thenReturn(threadId % 2);
@@ -234,7 +235,7 @@ public class HotThreadsTests extends ESTestCase {
 
         StackTraceElement[] stack = makeThreadStackHelper(
             List.of(
-                new String[] { "org.elasticsearch.monitor.test", formatted("method_%d", (threadId) % 2) },
+                new String[] { "org.elasticsearch.monitor.test", Strings.format("method_%d", (threadId) % 2) },
                 new String[] { "org.elasticsearch.monitor.testOther", "methodFinal" }
             )
         ).toArray(new StackTraceElement[0]);
@@ -891,19 +892,19 @@ public class HotThreadsTests extends ESTestCase {
 
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 1'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 1'")
         );
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 2'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 2'")
         );
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 3'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 3'")
         );
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 4'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 4'")
         );
 
         // Test with the legacy sort order

@@ -149,7 +149,7 @@ The following parameters are accepted by `keyword` fields:
     Accepts `true` or `false` (default).
 
 `time_series_dimension`::
-preview:[] (Optional, Boolean)
+    (Optional, Boolean)
 +
 --
 // tag::dimension[]
@@ -170,7 +170,15 @@ Dimension fields have the following constraints:
 --
 
 [[keyword-synthetic-source]]
-==== Synthetic `_source` preview:[]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
 `keyword` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 a <<normalizer,`normalizer`>> or <<copy-to,`copy_to`>>.

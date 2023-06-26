@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +32,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.parseRequest(null, parser);
+        return Request.parseRequest(null, null, parser);
     }
 
     @Override
@@ -44,8 +45,15 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         return createRandom();
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Request createRandom() {
-        Request request = new Request(randomAlphaOfLength(10));
+        boolean deploymemtIdSameAsModelId = randomBoolean();
+        String modelId = randomAlphaOfLength(10);
+        Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10));
         if (randomBoolean()) {
             request.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), Request.TIMEOUT.getPreferredName()));
         }
@@ -60,6 +68,12 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         }
         if (randomBoolean()) {
             request.setQueueCapacity(randomIntBetween(1, 1000000));
+        }
+        if (randomBoolean()) {
+            request.setPriority(randomFrom(Priority.values()).toString());
+            if (request.getNumberOfAllocations() > 1 || request.getThreadsPerAllocation() > 1) {
+                request.setPriority(Priority.NORMAL.toString());
+            }
         }
         return request;
     }
@@ -102,6 +116,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
     public void testValidate_GivenThreadsPerAllocationIsValid() {
         for (int n : List.of(1, 2, 4, 8, 16, 32)) {
             Request request = createRandom();
+            request.setPriority(Priority.NORMAL.toString());
             request.setThreadsPerAllocation(n);
 
             ActionRequestValidationException e = request.validate();
@@ -189,9 +204,31 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e.getMessage(), containsString("[timeout] must be positive"));
     }
 
+    public void testValidate_GivenLowPriorityAndMultipleThreadsPerAllocation() {
+        Request request = createRandom();
+        request.setPriority(Priority.LOW.toString());
+        request.setThreadsPerAllocation(randomFrom(2, 4, 8, 16, 32));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[threads_per_allocation] must be 1 when [priority] is low"));
+    }
+
+    public void testValidate_GivenLowPriorityAndMultipleAllocations() {
+        Request request = createRandom();
+        request.setPriority(Priority.LOW.toString());
+        request.setNumberOfAllocations(randomIntBetween(2, 32));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[number_of_allocations] must be 1 when [priority] is low"));
+    }
+
     public void testDefaults() {
-        Request request = new Request(randomAlphaOfLength(10));
-        assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(20)));
+        Request request = new Request(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));
         assertThat(request.getWaitForState(), equalTo(AllocationStatus.State.STARTED));
         assertThat(request.getNumberOfAllocations(), equalTo(1));
         assertThat(request.getThreadsPerAllocation(), equalTo(1));

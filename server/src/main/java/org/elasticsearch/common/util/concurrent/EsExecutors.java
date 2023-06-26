@@ -85,20 +85,9 @@ public class EsExecutors {
         String name,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        ScheduledExecutorService timer,
-        PrioritizedEsThreadPoolExecutor.StarvationWatcher starvationWatcher
+        ScheduledExecutorService timer
     ) {
-        return new PrioritizedEsThreadPoolExecutor(
-            name,
-            1,
-            1,
-            0L,
-            TimeUnit.MILLISECONDS,
-            threadFactory,
-            contextHolder,
-            timer,
-            starvationWatcher
-        );
+        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
     public static EsThreadPoolExecutor newScaling(
@@ -133,7 +122,7 @@ public class EsExecutors {
         int queueCapacity,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        boolean trackEWMA
+        boolean trackExecutionTime
     ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
@@ -141,8 +130,8 @@ public class EsExecutors {
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        if (trackEWMA) {
-            return new EWMATrackingEsThreadPoolExecutor(
+        if (trackExecutionTime) {
+            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
                 size,

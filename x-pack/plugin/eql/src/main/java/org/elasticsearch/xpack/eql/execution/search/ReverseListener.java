@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.xpack.eql.execution.payload.ReversePayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 
-public class ReverseListener extends ActionListener.Delegating<Payload, Payload> {
+public class ReverseListener extends DelegatingActionListener<Payload, Payload> {
 
     public ReverseListener(ActionListener<Payload> delegate) {
         super(delegate);

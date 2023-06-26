@@ -10,15 +10,15 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
@@ -67,7 +67,7 @@ public class SearchCancellationTests extends ESTestCase {
             Document doc = new Document();
             doc.add(new StringField(STRING_FIELD_NAME, "a".repeat(i), Field.Store.NO));
             doc.add(new IntPoint(POINT_FIELD_NAME, i, i + 1));
-            doc.add(new KnnVectorField(KNN_FIELD_NAME, new float[] { 1.0f, 0.5f, 42.0f }));
+            doc.add(new KnnFloatVectorField(KNN_FIELD_NAME, new float[] { 1.0f, 0.5f, 42.0f }));
             w.addDocument(doc);
         }
     }
@@ -197,26 +197,24 @@ public class SearchCancellationTests extends ESTestCase {
         );
         searcher.addQueryCancellation(cancellation);
         final LeafReader leaf = searcher.getIndexReader().leaves().get(0).reader();
-        expectThrows(TaskCancelledException.class, () -> leaf.getVectorValues(KNN_FIELD_NAME));
+        expectThrows(TaskCancelledException.class, () -> leaf.getFloatVectorValues(KNN_FIELD_NAME));
         expectThrows(
             TaskCancelledException.class,
             () -> leaf.searchNearestVectors(KNN_FIELD_NAME, new float[] { 1f, 1f, 1f }, 2, leaf.getLiveDocs(), Integer.MAX_VALUE)
         );
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
-        VectorValues vectorValues = searcher.getIndexReader().leaves().get(0).reader().getVectorValues(KNN_FIELD_NAME);
+        FloatVectorValues vectorValues = searcher.getIndexReader().leaves().get(0).reader().getFloatVectorValues(KNN_FIELD_NAME);
         cancelled.set(true);
+        // On the first doc when already canceled, it throws
         expectThrows(TaskCancelledException.class, vectorValues::nextDoc);
-        expectThrows(TaskCancelledException.class, vectorValues::vectorValue);
-        expectThrows(TaskCancelledException.class, vectorValues::binaryValue);
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
-        VectorValues uncancelledVectorValues = searcher.getIndexReader().leaves().get(0).reader().getVectorValues(KNN_FIELD_NAME);
+        FloatVectorValues uncancelledVectorValues = searcher.getIndexReader().leaves().get(0).reader().getFloatVectorValues(KNN_FIELD_NAME);
         cancelled.set(true);
         searcher.removeQueryCancellation(cancellation);
+        // On the first doc when already canceled, it throws, but with the cancellation removed, it should not
         uncancelledVectorValues.nextDoc();
-        uncancelledVectorValues.vectorValue();
-        uncancelledVectorValues.binaryValue();
     }
 
     private static class PointValuesIntersectVisitor implements PointValues.IntersectVisitor {

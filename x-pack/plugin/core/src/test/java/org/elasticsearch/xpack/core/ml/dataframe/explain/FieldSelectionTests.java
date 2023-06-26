@@ -30,6 +30,11 @@ public class FieldSelectionTests extends AbstractXContentSerializingTestCase<Fie
     }
 
     @Override
+    protected FieldSelection mutateInstance(FieldSelection instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected FieldSelection doParseInstance(XContentParser parser) throws IOException {
         return FieldSelection.PARSER.apply(parser, null);
     }

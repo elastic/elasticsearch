@@ -1,0 +1,124 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              rtf:
+                type: composite
+                on_script_error: continue
+                script:
+                  source: |
+                    if (doc["message"].value.equals("fail")) throw new Exception("error");
+                    emit('msg', doc['message'].value);
+                fields:
+                  msg:
+                    type: keyword
+              rtf_strict:
+                type: composite
+                on_script_error: fail
+                script:
+                  source: |
+                    if (doc["message"].value.equals("fail")) throw new Exception("error");
+                    emit('msg', doc['message'].value);
+                fields:
+                  msg:
+                    type: keyword
+            properties:
+              timestamp:
+                type: date
+              message:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:17-05:00", "message" : "this is okay"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:53-05:00", "message" : "fail"}
+
+---
+"query with continue on error":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              rtf.msg: "this is okay"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.message: "this is okay"}
+
+---
+"query with fail on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: test
+        body:
+          query:
+            term:
+              rtf_strict.msg: "this is okay"
+
+---
+"query with search time field":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              rtf_search.msg: "this is okay"
+          runtime_mappings:
+            rtf_search:
+              type: composite
+              on_script_error: continue
+              script:
+                source: |
+                  if (doc["message"].value.equals("fail")) throw new Exception("error");
+                  emit('msg', doc['message'].value);
+              fields:
+                msg:
+                  type: keyword
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.message: "this is okay"}
+
+---
+fetch:
+  - do:
+      search:
+        index: test
+        body:
+          sort: timestamp
+          fields:
+            - message
+            - rtf.msg
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0.fields.message: ["this is okay"] }
+  - match: {hits.hits.0.fields.rtf\.msg: ["this is okay"] }
+  - match: {hits.hits.1.fields.message: ["fail"] }
+  - is_false: hits.hits.1.fields.rtf.msg
+
+---
+"terms agg":
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            messages:
+              terms:
+                field: rtf.msg
+  - match: { hits.total.value: 2}
+  - length: { aggregations.messages.buckets: 1 }
+  - match: { aggregations.messages.buckets.0.key: "this is okay" }
+  - match: { aggregations.messages.buckets.0.doc_count: 1 }

@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -316,14 +315,14 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
-        public static void toXContentWithTypes(
+        public static XContentBuilder toXContentWithTypes(
             IndexTemplateMetadata indexTemplateMetadata,
             XContentBuilder builder,
             ToXContent.Params params
         ) throws IOException {
             builder.startObject(indexTemplateMetadata.name());
             toInnerXContent(indexTemplateMetadata, builder, params, true);
-            builder.endObject();
+            return builder.endObject();
         }
 
         /**
@@ -440,11 +439,10 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
-                                    .put(mappingType, parser.mapOrdered())
-                                    .map();
-                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
+                                builder.putMapping(
+                                    currentFieldName,
+                                    Strings.toString(XContentFactory.jsonBuilder().map(Map.of(currentFieldName, parser.mapOrdered())))
+                                );
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {

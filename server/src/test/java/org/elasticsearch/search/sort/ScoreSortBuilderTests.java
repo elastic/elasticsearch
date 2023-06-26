@@ -9,6 +9,7 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -47,7 +48,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
      */
     public void testParseOrder() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String scoreSortString = formatted("""
+        String scoreSortString = Strings.format("""
             { "_score": { "order": "%s" }}
             """, order.toString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);

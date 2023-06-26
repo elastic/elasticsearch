@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_0.dtd">
+<Configure id="Server" class="org.eclipse.jetty.server.Server">
+  <!-- ============================================================= -->
+  <!-- TLS context factory without client auth                       -->
+  <!-- ============================================================= -->
+  <New id="sslContextFactory" class="org.eclipse.jetty.util.ssl.SslContextFactory">
+    <Set name="KeyStorePath"><Property name="jetty.sslContext.keyStorePath" /></Set>
+    <Set name="KeyStoreType"><Property name="jetty.sslContext.keyStoreType" /></Set>
+    <Set name="KeyStorePassword"><Property name="jetty.sslContext.keyStorePassword" /></Set>
+    <!-- This is a tweak to work around a bug in Jetty when using the PKCS12 keystore type. -->
+    <Set name="TrustStoreType"><Property name="jetty.sslContext.keyStoreType" /></Set>
+    <Set name="EndpointIdentificationAlgorithm"></Set>
+    <Set name="NeedClientAuth"><Property name="jetty.sslContext.needClientAuth" default="false"/></Set>
+    <Set name="WantClientAuth"><Property name="jetty.sslContext.wantClientAuth" default="false"/></Set>
+    <Set name="useCipherSuitesOrder"><Property name="jetty.sslContext.useCipherSuitesOrder" default="true"/></Set>
+    <Set name="renegotiationAllowed">false</Set>
+    <Set name="excludeProtocols">
+      <Array type="String">
+        <Item>SSL</Item>
+        <Item>SSLv2</Item>
+        <Item>SSLv3</Item>
+      </Array>
+    </Set>
+    <Set name="IncludeCipherSuites">
+      <Array type="String">
+        <Item>TLS_ECDHE.*</Item>
+        <Item>TLS_RSA.*</Item>
+      </Array>
+    </Set>
+    <Set name="ExcludeCipherSuites">
+      <Array type="String">
+        <Item>.*NULL.*</Item>
+        <Item>.*RC4.*</Item>
+        <Item>.*MD5.*</Item>
+        <Item>.*DES.*</Item>
+        <Item>.*DSS.*</Item>
+      </Array>
+    </Set>
+ </New>
+</Configure>

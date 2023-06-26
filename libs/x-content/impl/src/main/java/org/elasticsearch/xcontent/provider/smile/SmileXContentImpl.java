@@ -52,6 +52,7 @@ public final class SmileXContentImpl implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        smileFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         smileXContent = new SmileXContentImpl();
     }
 

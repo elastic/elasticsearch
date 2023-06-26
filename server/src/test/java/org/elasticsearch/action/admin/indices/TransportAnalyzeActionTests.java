@@ -32,7 +32,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
+import org.elasticsearch.indices.analysis.lucene.AppendCharFilter;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -322,10 +322,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
     public void testGetFieldAnalyzerWithoutIndexAnalyzers() {
         AnalyzeAction.Request req = new AnalyzeAction.Request().field("field").text("text");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount);
+        });
         assertEquals(e.getMessage(), "analysis based on a specific field requires an index");
     }
 

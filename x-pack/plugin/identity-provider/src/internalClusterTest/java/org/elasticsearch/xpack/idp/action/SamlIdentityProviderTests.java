@@ -97,7 +97,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             )
             .build();
         // This role has "editor" on the deployment itself, and "viewer" for the organization that owns the deployment
-        createRole(roleName, formatted("""
+        createRole(roleName, Strings.format("""
             {
               "cluster": [ "manage_own_api_key" ],
               "applications": [
@@ -205,7 +205,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity(formatted("""
+        initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s","acs":"%s","authn_state":%s}
             """, entityId, serviceProvider.get("acs"), Strings.toString(authnStateBuilder)));
         Response initResponse = getRestClient().performRequest(initRequest);
@@ -271,7 +271,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity(formatted("""
+        initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s", "acs":"%s","authn_state":%s}
             """, entityId, acsUrl, Strings.toString(authnStateBuilder)));
         Response initResponse = getRestClient().performRequest(initRequest);
@@ -468,7 +468,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
 
     private void createUser(String userName, SecureString password, String roleName, RequestOptions options) throws IOException {
         final Request req = new Request("PUT", "/_security/user/" + userName);
-        final String body = formatted("""
+        final String body = Strings.format("""
             {
               "username": "%s",
               "full_name": "Test User (%s)",
@@ -557,7 +557,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void assertContainsAttributeWithValues(String message, String attribute, String... values) {
-        final String startAttribute = formatted("""
+        final String startAttribute = Strings.format("""
             <saml2:Attribute FriendlyName="%s" Name="https://saml.elasticsearch.org/attributes/%s" \
             NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">""", attribute, attribute);
         assertThat(message, containsString(startAttribute));

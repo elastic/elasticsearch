@@ -8,11 +8,13 @@
 
 package org.elasticsearch.gradle.jarhell;
 
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -21,7 +23,14 @@ public class JarHellPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        TaskProvider<? extends Task> jarHellTask = createTask(project);
+        Configuration jarHellConfig = project.getConfigurations().create("jarHell");
+        DependencyHandler dependencyHandler = project.getDependencies();
+        jarHellConfig.defaultDependencies(
+            deps -> deps.add(dependencyHandler.create("org.elasticsearch:elasticsearch-core:" + VersionProperties.getElasticsearch()))
+        );
+
+        TaskProvider<? extends Task> jarHellTask = createTask(jarHellConfig, project);
+
         project.getPluginManager()
             .withPlugin(
                 "lifecycle-base",
@@ -29,23 +38,18 @@ public class JarHellPlugin implements Plugin<Project> {
             );
     }
 
-    private TaskProvider<? extends Task> createTask(Project project) {
-        Configuration jarHellConfig = project.getConfigurations().create("jarHell");
+    private TaskProvider<? extends Task> createTask(Configuration jarHellConfig, Project project) {
         TaskProvider<JarHellTask> jarHell = project.getTasks().register("jarHell", JarHellTask.class);
-        jarHell.configure(t -> {
-            SourceSet testSourceSet = getJavaTestSourceSet(project);
-            t.setClasspath(testSourceSet.getRuntimeClasspath());
-            t.setJarHellRuntimeClasspath(jarHellConfig);
+
+        project.getPluginManager().withPlugin("java", p -> {
+            jarHell.configure(t -> {
+                SourceSet testSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME);
+                t.setClasspath(testSourceSet.getRuntimeClasspath());
+            });
         });
+        jarHell.configure(t -> { t.setJarHellRuntimeClasspath(jarHellConfig); });
 
         return jarHell;
-    }
-
-    /**
-     * @param project The project to look for test Java resources.
-     */
-    private static SourceSet getJavaTestSourceSet(Project project) {
-        return GradleUtils.getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME);
     }
 
 }

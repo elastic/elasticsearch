@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -312,27 +312,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
     }
 
-    public void testEmptyName() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        // Empty name not allowed in index created after 5.0
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
-    }
-
     public void testUnknownLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", "unknown");
             b.field("unknown_setting", 5);
@@ -342,7 +323,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.field("unknown_setting", 5);
@@ -424,17 +405,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
-        MapperService mapperService = createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
-            {
-                b.startObject("metrics.service.time");
-                b.field("type", "long");
-                b.endObject();
-                b.startObject("metrics.service.time.max");
-                b.field("type", "long");
-                b.endObject();
-            }
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service.time");
+            b.field("type", "long");
+            b.endObject();
+            b.startObject("metrics.service.time.max");
+            b.field("type", "long");
             b.endObject();
         }));
         assertNotNull(mapperService.fieldType("metrics.service.time"));
@@ -447,18 +423,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRootWithInnerObject() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service.time");
             {
-                b.startObject("metrics.service.time");
+                b.startObject("properties");
                 {
-                    b.startObject("properties");
-                    {
-                        b.startObject("max");
-                        b.field("type", "long");
-                        b.endObject();
-                    }
+                    b.startObject("max");
+                    b.field("type", "long");
                     b.endObject();
                 }
                 b.endObject();
@@ -472,14 +443,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRootWithInnerNested() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
-            {
-                b.startObject("metrics.service");
-                b.field("type", "nested");
-                b.endObject();
-            }
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service");
+            b.field("type", "nested");
             b.endObject();
         })));
         assertEquals(
@@ -507,10 +473,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })))
-        );
+        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+            b.field("subobjects", true);
+        }))));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)

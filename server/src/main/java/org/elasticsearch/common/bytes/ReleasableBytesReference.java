@@ -111,6 +111,18 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     @Override
+    public long getLongLE(int index) {
+        assert hasReferences();
+        return delegate.getLongLE(index);
+    }
+
+    @Override
+    public double getDoubleLE(int index) {
+        assert hasReferences();
+        return delegate.getDoubleLE(index);
+    }
+
+    @Override
     public int indexOf(byte marker, int from) {
         assert hasReferences();
         return delegate.indexOf(marker, from);
@@ -136,14 +148,28 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     public StreamInput streamInput() throws IOException {
         assert hasReferences();
         return new BytesReferenceStreamInput(this) {
-            @Override
-            public ReleasableBytesReference readReleasableBytesReference() throws IOException {
-                final int len = readArraySize();
+            private ReleasableBytesReference retainAndSkip(int len) throws IOException {
                 // instead of reading the bytes from a stream we just create a slice of the underlying bytes
                 final ReleasableBytesReference result = retainedSlice(offset(), len);
                 // move the stream manually since creating the slice didn't move it
                 skip(len);
                 return result;
+            }
+
+            @Override
+            public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+                final int len = readArraySize();
+                return retainAndSkip(len);
+            }
+
+            @Override
+            public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+                return retainAndSkip(length() - offset());
+            }
+
+            @Override
+            public boolean supportReadAllToReleasableBytesReference() {
+                return true;
             }
         };
     }

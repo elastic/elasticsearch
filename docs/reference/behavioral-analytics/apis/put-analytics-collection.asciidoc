@@ -1,0 +1,45 @@
+[role="xpack"]
+[[put-analytics-collection]]
+=== Put Analytics Collection
+
+beta::[]
+
+++++
+<titleabbrev>Put Analytics Collection</titleabbrev>
+++++
+
+Creates an Analytics Collection.
+
+[[put-analytics-collection-request]]
+==== {api-request-title}
+
+`PUT _application/analytics/<name>`
+
+[[put-analytics-collection-path-params]]
+==== {api-path-parms-title}
+
+`<name>`::
+(Required, string)
+
+[[put-analytics-collection-prereqs]]
+==== {api-prereq-title}
+
+Requires the `manage_behavioral_analytics` cluster privilege.
+
+[[put-analytics-collection-response-codes]]
+==== {api-response-codes-title}
+
+`400`::
+Analytics Collection `<name>` exists.
+
+[[put-analytics-collection-example]]
+==== {api-examples-title}
+
+The following example creates a new Analytics Collection called `my_analytics_collection`:
+
+[source,console]
+----
+PUT _application/analytics/my_analytics_collection
+
+----
+// TEST[skip:TBD]

@@ -14,15 +14,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,6 +63,11 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+
+            @Override
             public void process(HitContext hit) throws IOException {
                 boolean singlePercolateQuery = percolateQueries.size() == 1;
                 for (PercolateQuery percolateQuery : percolateQueries) {
@@ -79,18 +87,22 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             continue;
                         }
 
+                        SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields());
+                        FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);
+                        StoredFieldLoader storedFields = StoredFieldLoader.fromSpec(processor.storedFieldsSpec());
+                        LeafStoredFieldLoader leafStoredFields = storedFields.getLoader(percolatorLeafReaderContext, null);
+
                         for (Object matchedSlot : field.getValues()) {
                             int slot = (int) matchedSlot;
                             BytesReference document = percolateQuery.getDocuments().get(slot);
+                            leafStoredFields.advanceTo(slot);
                             HitContext subContext = new HitContext(
-                                new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
+                                new SearchHit(slot, "unknown"),
                                 percolatorLeafReaderContext,
-                                slot
+                                slot,
+                                leafStoredFields.storedFields(),
+                                Source.fromBytes(document)
                             );
-                            subContext.sourceLookup().setSourceProvider(new SourceLookup.BytesSourceProvider(document));
-                            // force source because MemoryIndex does not store fields
-                            SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), true);
-                            FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);
                             processor.process(subContext);
                             for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
                                 if (percolateQuery.getDocuments().size() == 1) {

@@ -139,7 +139,9 @@ org.apache.logging.log4j.LogManager#getLogger()
 
 # This is permitted in test code, where we have a Checkstyle rule to guard
 # against unsafe uses. This leniency does not extend to server code.
-java.lang.String#formatted(java.lang.Object[]) @ Uses default locale - use String#format(Locale, String, Object...) instead
+@defaultMessage Uses default locale - use org.elasticsearch.common.Strings#format(String, Object...) instead
+java.lang.String#formatted(java.lang.Object[])
+java.lang.String#format(java.lang.String,java.lang.Object[])
 
 @defaultMessage Unbatched cluster state tasks are a source of performance and stability bugs. Implement the update logic in a executor which is reused across tasks instead.
 org.elasticsearch.cluster.service.MasterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)

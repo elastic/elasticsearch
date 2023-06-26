@@ -13,9 +13,10 @@ thread is chosen when the channel is opened and remains the same for the
 lifetime of the channel.
 
 Each `transport_worker` thread has sole responsibility for sending and
-receiving data over the channels it owns. One of the `transport_worker` threads
-is also responsible for accepting new incoming transport connections, and one
-is responsible for accepting new HTTP connections.
+receiving data over the channels it owns. Additionally, each http and transport
+server socket is assigned to one of the `transport_worker` threads. That worker
+has the responsibility of accepting new incoming connections to the server
+socket it owns.
 
 If a thread in {es} wants to send data over a particular channel, it passes the
 data to the owning `transport_worker` thread for the actual transmission.
@@ -62,7 +63,7 @@ reported like this:
 
 [source,text]
 ----
-   100.0% [cpu=0.0%, other=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000004][transport_worker][T#1]'
+   0.0% [cpu=0.0%, idle=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000004][transport_worker][T#1]'
      10/10 snapshots sharing following 9 elements
        java.base@17.0.2/sun.nio.ch.EPoll.wait(Native Method)
        java.base@17.0.2/sun.nio.ch.EPollSelectorImpl.doSelect(EPollSelectorImpl.java:118)
@@ -76,11 +77,9 @@ reported like this:
 ----
 
 Note that `transport_worker` threads should always be in state `RUNNABLE`, even
-when waiting for input, because they block in the native `EPoll#wait` method.
-This means the hot threads API will report these threads at 100% overall
-utilisation. This is normal, and the breakdown of time into `cpu=` and `other=`
-fractions shows how much time the thread spent running and waiting for input
-respectively.
+when waiting for input, because they block in the native `EPoll#wait` method. The `idle=`
+time reports the proportion of time the thread spent waiting for input, whereas the `cpu=` time
+reports the proportion of time the thread spent processing input it has received.
 
 If a `transport_worker` thread is not frequently idle, it may build up a
 backlog of work. This can cause delays in processing messages on the channels

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -23,13 +23,12 @@ import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction;
 import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction.Request;
 import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.ExceptionsHelper.convertToElastic;
 
 public class TransportClearDeploymentCacheAction extends TransportTasksAction<TrainedModelDeploymentTask, Request, Response, Response> {
 
@@ -59,9 +58,9 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
         List<FailedNodeException> failedNodeExceptions
     ) {
         if (taskOperationFailures.isEmpty() == false) {
-            throw convertToElastic(taskOperationFailures.get(0).getCause());
+            throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw convertToElastic(failedNodeExceptions.get(0));
+            throw failedNodeExceptions.get(0);
         }
         return new Response(true);
     }
@@ -70,9 +69,9 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         final TrainedModelAssignmentMetadata assignment = TrainedModelAssignmentMetadata.fromState(clusterState);
-        TrainedModelAssignment trainedModelAssignment = assignment.getModelAssignment(request.getDeploymentId());
+        TrainedModelAssignment trainedModelAssignment = assignment.getDeploymentAssignment(request.getDeploymentId());
         if (trainedModelAssignment == null) {
-            listener.onFailure(new ResourceNotFoundException("assignment for model with id [{}] not found", request.getDeploymentId()));
+            listener.onFailure(ExceptionsHelper.missingModelDeployment(request.getDeploymentId()));
             return;
         }
         String[] nodes = trainedModelAssignment.getNodeRoutingTable()
@@ -91,7 +90,12 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TrainedModelDeploymentTask task, ActionListener<Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TrainedModelDeploymentTask task,
+        ActionListener<Response> listener
+    ) {
         task.clearCache(ActionListener.wrap(r -> listener.onResponse(new Response(true)), listener::onFailure));
     }
 }

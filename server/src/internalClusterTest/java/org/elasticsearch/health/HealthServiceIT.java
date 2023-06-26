@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -92,7 +92,7 @@ public class HealthServiceIT extends ESIntegTestCase {
                         throw new RuntimeException(e);
                     }
                 };
-                healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, listener);
+                healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, 1000, listener);
                 assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
             }
         }
@@ -136,7 +136,7 @@ public class HealthServiceIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService
         ) {
             healthIndicatorServices.add(new TestHealthIndicatorService());
             return new ArrayList<>(healthIndicatorServices);
@@ -158,7 +158,7 @@ public class HealthServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
             assertThat(healthInfo.diskInfoByNode().size(), equalTo(internalCluster().getNodeNames().length));
             for (DiskHealthInfo diskHealthInfo : healthInfo.diskInfoByNode().values()) {
                 assertThat(diskHealthInfo.healthStatus(), equalTo(HealthStatus.GREEN));

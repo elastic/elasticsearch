@@ -585,6 +585,135 @@ _source filtering:
   - is_false: fields
 
 ---
+_doc_count:
+  - skip:
+      version: " - 8.5.99"
+      reason: introduced in 8.6.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+
+  # with _doc_count
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          _doc_count: 3
+          foo: bar
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        _doc_count: 3
+        foo: bar
+  - is_false: fields
+
+  # without _doc_count
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          foo: baz
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        foo: baz
+  - is_false: fields
+
+  # without immediately refreshing with _doc_count
+  - do:
+      index:
+        index:   test
+        id:      3
+        body:
+          _doc_count: 3
+          foo: qux
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        _doc_count: 3
+        foo: qux
+  - is_false: fields
+
+  # without immediately refreshing without _doc_count
+  - do:
+      index:
+        index:   test
+        id:      4
+        body:
+          foo: quux
+  - do:
+      get:
+        index: test
+        id:    4
+  - match: {_index: "test"}
+  - match: {_id: "4"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        foo: quux
+  - is_false: fields
+
+  # refresh all at once
+  - do:
+      indices.refresh: {}
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        _doc_count: 3
+        foo: qux
+  - is_false: fields
+  - do:
+      get:
+        index: test
+        id:    4
+  - match: {_index: "test"}
+  - match: {_id: "4"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        foo: quux
+  - is_false: fields
+
+---
 ip with ignore_malformed:
   - skip:
       version: " - 8.5.99"
@@ -678,4 +807,166 @@ ip with ignore_malformed:
           - 192.8.1.2
           - hot garbage # fields saved by ignore_malformed are sorted after doc values
           - 7
+  - is_false: fields
+
+
+---
+flattened field:
+  - skip:
+      version: " - 8.7.99"
+      reason: support for synthetic source on flattened fields added in 8.8.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              flattened:
+                type: flattened
+              flattened_object_array:
+                type: flattened
+              empty_flattened:
+                type: flattened
+              single_flattened:
+                type: flattened
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          flattened:
+            top1: "876"
+            dict1:
+              abc: def
+              opq: rst
+              hij: lmn
+              uvx: wyz
+              z:
+                first: one
+                second: two
+                third: [ 1, 2, 3 ]
+            list1: [ "789", "1011", "1213", "1213" ]
+          single_flattened:
+            field: value
+          flattened_object_array:
+            - 1:
+                id: 1
+                code: 1234
+            - 2:
+                id: 2
+                code: 1243
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: { _index: "test" }
+  - match: { _id: "1" }
+  - match: { _version: 1 }
+  - match: { found: true }
+  - match:
+      _source:
+        flattened:
+          top1: "876"
+          dict1:
+            abc: def
+            opq: rst
+            hij: lmn
+            uvx: wyz
+            z:
+              first: one
+              second: two
+              # NOTE 1: synthetic source always returns de-duplicated keywords
+              third: [ "1", "2", "3" ]
+          # NOTE 2: the missing '1213' value below is not a mistake.
+          # Flattened fields use SortedSetDocValues, which means they discard duplicate key/value pairs
+          # like `flattened.list1` => `1213` which exists twice in the input document.
+          # NOTE 3: watch out for string vs numeric sorting
+          list1: [ "1011", "1213", "789" ]
+        single_flattened:
+          field: value
+        # NOTE 3: this field is returned as nasted objects instead of an array of objects. We have no
+        # way to distinguish if field is an array of objects or a set of nested objects.
+        flattened_object_array:
+          1:
+            id: "1"
+            code: "1234"
+          2:
+            id: "2"
+            code: "1243"
+
+  - is_false: fields
+
+---
+flattened field no doc values:
+  - skip:
+      version: " - 8.7.99"
+      reason: support for synthetic source on flattened fields added in 8.8.0
+
+  - do:
+      catch: /field \[flattened\] of type \[flattened\] doesn't support synthetic source because it doesn't have doc values/
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              flattened:
+                type: flattened
+                doc_values: false
+
+---
+flattened field with ignore_above:
+  - skip:
+      version: " - 8.7.99"
+      reason: support for synthetic source on flattened fields added in 8.8.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              field:
+                type: flattened
+                ignore_above: 10
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          field:
+            key1:
+              key2: "key2"
+              key3: "key3_ignored"
+            key4: "key4_ignored"
+            key5:
+              key6: "key6_ignored"
+            key7: "key7"
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: { _index: "test" }
+  - match: { _id: "1" }
+  - match: { _version: 1 }
+  - match: { found: true }
+  - match:
+      _source:
+        field:
+          key1:
+            key2: "key2"
+          key7: "key7"
+
   - is_false: fields

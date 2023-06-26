@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
@@ -42,8 +42,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             )
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
-                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()))
+                    .add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()))
             )
             .build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
@@ -65,8 +65,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             )
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
-                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()))
+                    .add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()))
             )
             .build();
 

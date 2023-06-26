@@ -1,8 +1,8 @@
 [[repository-hdfs]]
-=== Hadoop HDFS Repository Plugin
+=== Hadoop HDFS repository plugin
 
 The HDFS repository plugin adds support for using HDFS File System as a repository for
-{ref}/modules-snapshots.html[Snapshot/Restore].
+{ref}/snapshot-restore.html[Snapshot/Restore].
 
 :plugin_name: repository-hdfs
 include::install_remove.asciidoc[]
@@ -20,10 +20,10 @@ Using Apache Hadoop on Windows is problematic and thus it is not recommended. Fo
 plugin folder and point `HADOOP_HOME` variable to it; this should minimize the amount of permissions Hadoop requires (though one would still have to add some more).
 
 [[repository-hdfs-config]]
-==== Configuration Properties
+==== Configuration properties
 
 Once installed, define the configuration for the `hdfs` repository through the
-{ref}/modules-snapshots.html[REST API]:
+{ref}/snapshot-restore.html[REST API]:
 
 [source,console]
 ----
@@ -79,7 +79,7 @@ include::repository-shared-settings.asciidoc[]
 
 [[repository-hdfs-availability]]
 [discrete]
-===== A Note on HDFS Availability
+===== A note on HDFS availability
 When you initialize a repository, its settings are persisted in the cluster state. When a node comes online, it will
 attempt to initialize all repositories for which it has settings. If your cluster has an HDFS repository configured, then
 all nodes in the cluster must be able to reach HDFS when starting. If not, then the node will fail to initialize the
@@ -87,9 +87,9 @@ repository at start up and the repository will be unusable. If this happens, you
 repository or restart the offending node.
 
 [[repository-hdfs-security]]
-==== Hadoop Security
+==== Hadoop security
 
-The HDFS Repository Plugin integrates seamlessly with Hadoop's authentication model. The following authentication
+The HDFS repository plugin integrates seamlessly with Hadoop's authentication model. The following authentication
 methods are supported by the plugin:
 
 [horizontal]
@@ -107,7 +107,7 @@ methods are supported by the plugin:
 
 [[repository-hdfs-security-keytabs]]
 [discrete]
-===== Principals and Keytabs
+===== Principals and keytabs
 Before attempting to connect to a secured HDFS cluster, provision the Kerberos principals and keytabs that the
 Elasticsearch nodes will use for authenticating to Kerberos. For maximum security and to avoid tripping up the Kerberos
 replay protection, you should create a service principal per node, following the pattern of
@@ -138,7 +138,7 @@ host!
 // Setup at runtime (principal name)
 [[repository-hdfs-security-runtime]]
 [discrete]
-===== Creating the Secure Repository
+===== Creating the secure repository
 Once your keytab files are in place and your cluster is started, creating a secured HDFS repository is simple. Just
 add the name of the principal that you will be authenticating as in the repository settings under the
 `security.principal` option:

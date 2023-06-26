@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 
@@ -23,4 +25,6 @@ public interface QueryClient {
     default void close(ActionListener<Boolean> closed) {}
 
     void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener);
+
+    default void multiQuery(List<SearchRequest> searches, ActionListener<MultiSearchResponse> listener) {}
 }

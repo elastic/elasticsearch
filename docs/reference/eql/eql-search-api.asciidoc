@@ -48,7 +48,7 @@ or alias.
 * See <<eql-required-fields>>.
 
 * experimental:[] For cross-cluster search, the local and remote clusters must
-use the same {es} version. For security, see <<remote-clusters-security>>.
+use the same {es} version if they have versions prior to 7.17.7 (included) or prior to 8.5.1 (included). For security, see <<remote-clusters-security>>.
 
 [[eql-search-api-limitations]]
 ===== Limitations
@@ -73,7 +73,7 @@ See <<run-eql-search-across-clusters>>.
 (Optional, Boolean)
 +
 NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
-used in other <<multi-index,multi-target APIs>>.
+used in other <<api-multi-index,multi-target APIs>>.
 +
 If `false`, the request returns an error if any wildcard pattern, alias, or
 `_all` value targets only missing or closed indices. This behavior applies even

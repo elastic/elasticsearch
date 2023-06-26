@@ -61,7 +61,7 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ByteSizeValue multiply(ByteSizeValue bytes, int nodes) {
-        return bytes == null ? null : new ByteSizeValue(bytes.getBytes() * nodes);
+        return bytes == null ? null : ByteSizeValue.ofBytes(bytes.getBytes() * nodes);
     }
 
     private Processors multiply(Processors processors, int nodes) {

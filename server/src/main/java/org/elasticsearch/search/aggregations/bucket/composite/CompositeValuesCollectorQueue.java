@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.util.PriorityQueue;
@@ -48,6 +49,11 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         }
     }
 
+    @FunctionalInterface
+    private interface CompetitiveBoundsChangedListener {
+        void boundsChanged(int topSlot) throws IOException;
+    }
+
     // the slot for the current candidate
     private static final int CANDIDATE_SLOT = Integer.MAX_VALUE;
 
@@ -55,6 +61,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     private final int maxSize;
     private final Map<Slot, Integer> map;
     private final SingleDimensionValuesSource<?>[] arrays;
+    private final CompetitiveBoundsChangedListener competitiveBoundsChangedListener;
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
@@ -62,16 +69,81 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     /**
      * Constructs a composite queue with the specified size and sources.
      *
-     * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
-     * @param size The number of composite buckets to keep.
+     * @param sources     The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
+     * @param size        The number of composite buckets to keep.
+     * @param indexReader
      */
-    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size) {
+    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, IndexReader indexReader) {
         super(size);
         this.bigArrays = bigArrays;
         this.maxSize = size;
         this.arrays = sources;
+
+        // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
+        // tracking the highest competitive value.
+        if (arrays[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+            if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size, indexReader)) {
+                competitiveBoundsChangedListener = topSlot -> globalOrdinalValuesSource.updateHighestCompetitiveValue(topSlot);
+            } else {
+                competitiveBoundsChangedListener = null;
+            }
+        } else {
+            competitiveBoundsChangedListener = null;
+        }
+
         this.map = Maps.newMapWithExpectedSize(size);
         this.docCounts = bigArrays.newLongArray(1, false);
+    }
+
+    private static boolean shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(
+        SingleDimensionValuesSource<?>[] sources,
+        int size,
+        IndexReader indexReader
+    ) {
+        if (sources.length == 0) {
+            return false;
+        }
+        if (sources[0] instanceof GlobalOrdinalValuesSource firstSource) {
+            if (firstSource.mayDynamicallyPrune(indexReader) == false) {
+                return false;
+            }
+
+            long approximateTotalNumberOfBuckets = firstSource.getUniqueValueCount();
+            if (sources.length > 1) {
+                // When there are multiple sources, it's hard to guess how many
+                // unique buckets there might be. Let's be conservative and
+                // assume that other sources increase the number of buckets by
+                // 3x.
+                approximateTotalNumberOfBuckets *= 3L;
+            }
+            // If the size is not significantly less than the total number of
+            // buckets then dynamic pruning can't help much.
+            if (size >= approximateTotalNumberOfBuckets / 8) {
+                return false;
+            }
+
+            // Try to estimate the width of the ordinal range that might be
+            // returned on each page. Since not all ordinals might match the
+            // query, we're increasing `size` by 25%.
+            long rangeWidthPerPage = size + (size / 4);
+            if (sources.length > 1) {
+                // Again assume other sources bump the number of buckets by 3x
+                rangeWidthPerPage /= 3;
+            }
+            if (rangeWidthPerPage > GlobalOrdinalValuesSource.MAX_TERMS_FOR_DYNAMIC_PRUNING) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Return true if this queue produces a {@link LeafBucketCollector} that may
+     * dynamically prune hits that are not competitive.
+     */
+    public boolean mayDynamicallyPrune() {
+        return competitiveBoundsChangedListener != null;
     }
 
     /**
@@ -221,7 +293,14 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * The provided collector <code>in</code> is called on each composite bucket.
      */
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector in) throws IOException {
-        return getLeafCollector(null, context, in);
+        LeafBucketCollector leafBucketCollector = getLeafCollector(null, context, in);
+
+        // As we are starting to collect from a new segment we need to update the topChangedListener if present
+        // and if the queue is full.
+        if (competitiveBoundsChangedListener != null && size() >= maxSize) {
+            competitiveBoundsChangedListener.boundsChanged(top());
+        }
+        return leafBucketCollector;
     }
 
     /**
@@ -249,7 +328,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * Check if the current candidate should be added in the queue.
      * @return <code>true</code> if the candidate is competitive (added or already in the queue).
      */
-    boolean addIfCompetitive(long inc) {
+    boolean addIfCompetitive(long inc) throws IOException {
         return addIfCompetitive(0, inc);
     }
 
@@ -263,7 +342,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      *
      * @throws CollectionTerminatedException if the current collection can be terminated early due to index sorting.
      */
-    boolean addIfCompetitive(int indexSortSourcePrefix, long inc) {
+    boolean addIfCompetitive(int indexSortSourcePrefix, long inc) throws IOException {
         // checks if the candidate key is competitive
         Integer topSlot = compareCurrent();
         if (topSlot != null) {
@@ -312,6 +391,10 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         copyCurrent(newSlot, inc);
         map.put(new Slot(newSlot), newSlot);
         add(newSlot);
+
+        if (competitiveBoundsChangedListener != null && size() >= maxSize) {
+            competitiveBoundsChangedListener.boundsChanged(top());
+        }
         return true;
     }
 

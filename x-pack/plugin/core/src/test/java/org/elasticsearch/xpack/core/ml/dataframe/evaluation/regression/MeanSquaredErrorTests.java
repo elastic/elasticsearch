@@ -33,6 +33,11 @@ public class MeanSquaredErrorTests extends AbstractXContentSerializingTestCase<M
     }
 
     @Override
+    protected MeanSquaredError mutateInstance(MeanSquaredError instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<MeanSquaredError> instanceReader() {
         return MeanSquaredError::new;
     }

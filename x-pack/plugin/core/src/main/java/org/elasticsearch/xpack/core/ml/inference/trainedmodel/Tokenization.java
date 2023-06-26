@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
@@ -27,7 +28,16 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     public enum Truncate {
         FIRST,
         SECOND,
-        NONE;
+        NONE {
+            @Override
+            public boolean isInCompatibleWithSpan() {
+                return false;
+            }
+        };
+
+        public boolean isInCompatibleWithSpan() {
+            return true;
+        }
 
         public static Truncate fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
@@ -50,7 +60,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
     private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;
-    private static final int DEFAULT_SPAN = -1;
+    private static final int UNSET_SPAN_VALUE = -1;
 
     static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);
@@ -61,7 +71,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     }
 
     public static BertTokenization createDefault() {
-        return new BertTokenization(null, null, null, Tokenization.DEFAULT_TRUNCATION, DEFAULT_SPAN);
+        return new BertTokenization(null, null, null, Tokenization.DEFAULT_TRUNCATION, UNSET_SPAN_VALUE);
     }
 
     protected final boolean doLowerCase;
@@ -84,10 +94,14 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = Optional.ofNullable(withSpecialTokens).orElse(DEFAULT_WITH_SPECIAL_TOKENS);
         this.maxSequenceLength = Optional.ofNullable(maxSequenceLength).orElse(DEFAULT_MAX_SEQUENCE_LENGTH);
         this.truncate = Optional.ofNullable(truncate).orElse(DEFAULT_TRUNCATION);
-        this.span = Optional.ofNullable(span).orElse(DEFAULT_SPAN);
-        if (this.span < 0 && this.span != -1) {
+        this.span = Optional.ofNullable(span).orElse(UNSET_SPAN_VALUE);
+        if (this.span < 0 && this.span != UNSET_SPAN_VALUE) {
             throw new IllegalArgumentException(
-                "[" + SPAN.getPreferredName() + "] must be non-negative to indicate span length or -1 to indicate no windowing should occur"
+                "["
+                    + SPAN.getPreferredName()
+                    + "] must be non-negative to indicate span length or ["
+                    + UNSET_SPAN_VALUE
+                    + "] to indicate no windowing should occur"
             );
         }
         if (this.span > this.maxSequenceLength) {
@@ -103,17 +117,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
                     + "]"
             );
         }
-        if (this.span != -1 && truncate != Truncate.NONE) {
-            throw new IllegalArgumentException(
-                "["
-                    + SPAN.getPreferredName()
-                    + "] must not be provided when ["
-                    + TRUNCATE.getPreferredName()
-                    + "] is not ["
-                    + Truncate.NONE
-                    + "]"
-            );
-        }
+        validateSpanAndTruncate(truncate, span);
     }
 
     public Tokenization(StreamInput in) throws IOException {
@@ -121,10 +125,10 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = in.readBoolean();
         this.maxSequenceLength = in.readVInt();
         this.truncate = in.readEnum(Truncate.class);
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             this.span = in.readInt();
         } else {
-            this.span = -1;
+            this.span = UNSET_SPAN_VALUE;
         }
     }
 
@@ -134,7 +138,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         out.writeBoolean(withSpecialTokens);
         out.writeVInt(maxSequenceLength);
         out.writeEnum(truncate);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeInt(span);
         }
     }
@@ -152,6 +156,14 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         builder = doXContentBody(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public static void validateSpanAndTruncate(@Nullable Truncate truncate, @Nullable Integer span) {
+        if ((span != null && span != UNSET_SPAN_VALUE) && (truncate != null && truncate.isInCompatibleWithSpan())) {
+            throw new IllegalArgumentException(
+                "[" + SPAN.getPreferredName() + "] must not be provided when [" + TRUNCATE.getPreferredName() + "] is [" + truncate + "]"
+            );
+        }
     }
 
     @Override
@@ -189,5 +201,9 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
 
     public int getSpan() {
         return span;
+    }
+
+    public void validateVocabulary(PutTrainedModelVocabularyAction.Request request) {
+
     }
 }

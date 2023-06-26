@@ -62,6 +62,11 @@ public class ModelSizeStatsTests extends AbstractXContentSerializingTestCase<Mod
         return createRandomized();
     }
 
+    @Override
+    protected ModelSizeStats mutateInstance(ModelSizeStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ModelSizeStats createRandomized() {
         ModelSizeStats.Builder stats = new ModelSizeStats.Builder("foo");
         if (randomBoolean()) {

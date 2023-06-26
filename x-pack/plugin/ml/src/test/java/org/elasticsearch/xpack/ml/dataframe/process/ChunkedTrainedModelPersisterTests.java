@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureIm
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
@@ -135,7 +135,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
         assertThat(storedModel.getVersion(), equalTo(Version.CURRENT));
-        assertThat(storedModel.getCreatedBy(), equalTo(XPackUser.NAME));
+        assertThat(storedModel.getCreatedBy(), equalTo(InternalUsers.XPACK_USER.principal()));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), is(nullValue()));

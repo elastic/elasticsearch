@@ -16,11 +16,10 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -37,7 +36,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.synonyms.SynonymsAPI;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -49,12 +50,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -115,9 +118,17 @@ public class SystemIndices {
     /**
      * This is the source for non-plugin system features.
      */
-    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
-        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
-    ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
+    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS;
+
+    static {
+        Collection<Feature> indicesFeatures = new ArrayList<>();
+        indicesFeatures.add(new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)));
+        if (SynonymsAPI.isEnabled()) {
+            indicesFeatures.add(new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)));
+        }
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS = indicesFeatures.stream()
+            .collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
+    }
 
     /**
      * The node's full list of system features is stored here. The map is keyed
@@ -906,55 +917,52 @@ public class SystemIndices {
         ) {
             Metadata metadata = clusterService.state().getMetadata();
 
-            List<String> associatedIndices = associatedIndexDescriptors.stream()
-                .map(descriptor -> descriptor.getMatchingIndices(metadata))
-                .flatMap(List::stream)
-                .toList();
-
-            final int taskCount = ((associatedIndices.size() > 0) ? 1 : 0) + (int) indexDescriptors.stream()
-                .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
-                .count();
-
-            // check if there's nothing to do and take an early out
-            if (taskCount == 0) {
-                listener.onResponse(ResetFeatureStateStatus.success(name));
-                return;
-            }
-
-            GroupedActionListener<ResetFeatureStateStatus> groupedListener = new GroupedActionListener<>(
-                ActionListener.wrap(listenerResults -> {
-                    List<ResetFeatureStateStatus> errors = listenerResults.stream()
-                        .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
-                        .collect(Collectors.toList());
-
-                    if (errors.isEmpty()) {
-                        listener.onResponse(ResetFeatureStateStatus.success(name));
-                    } else {
-                        StringBuilder exceptions = new StringBuilder("[");
-                        exceptions.append(errors.stream().map(e -> e.getException().getMessage()).collect(Collectors.joining(", ")));
-                        exceptions.append(']');
-                        errors.forEach(e -> logger.warn(() -> "error while resetting feature [" + name + "]", e.getException()));
-                        listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
+            final List<Exception> exceptions = new ArrayList<>();
+            final Consumer<ResetFeatureStateStatus> handleResponse = resetFeatureStateStatus -> {
+                if (resetFeatureStateStatus.getStatus() == ResetFeatureStateStatus.Status.FAILURE) {
+                    synchronized (exceptions) {
+                        exceptions.add(resetFeatureStateStatus.getException());
                     }
-                }, listener::onFailure),
-                taskCount
-            );
+                }
+            };
 
-            // Send cleanup for the associated indices, they don't need special origin since they are not protected
-            if (associatedIndices.isEmpty() == false) {
-                cleanUpFeatureForIndices(name, client, associatedIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
-            }
+            try (var listeners = new RefCountingListener(listener.map(ignored -> {
+                if (exceptions.isEmpty()) {
+                    return ResetFeatureStateStatus.success(name);
+                } else {
+                    for (final var exception : exceptions) {
+                        logger.warn(() -> "error while resetting feature [" + name + "]", exception);
+                    }
+                    return ResetFeatureStateStatus.failure(
+                        name,
+                        new Exception(exceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", ", "[", "]")))
+                    );
+                }
+            }))) {
 
-            // One descriptor at a time, create an originating client and clean up the feature
-            for (var indexDescriptor : indexDescriptors) {
-                List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
+                // Send cleanup for the associated indices, they don't need special origin since they are not protected
+                String[] associatedIndices = associatedIndexDescriptors.stream()
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream())
+                    .toArray(String[]::new);
+                if (associatedIndices.length > 0) {
+                    cleanUpFeatureForIndices(name, client, associatedIndices, listeners.acquire(handleResponse));
+                }
 
-                if (matchingIndices.isEmpty() == false) {
-                    final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
-                        ? client
-                        : new OriginSettingClient(client, indexDescriptor.getOrigin());
+                // One descriptor at a time, create an originating client and clean up the feature
+                for (final var indexDescriptor : indexDescriptors) {
+                    List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
+                    if (matchingIndices.isEmpty() == false) {
+                        final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
+                            ? client
+                            : new OriginSettingClient(client, indexDescriptor.getOrigin());
 
-                    cleanUpFeatureForIndices(name, clientWithOrigin, matchingIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
+                        cleanUpFeatureForIndices(
+                            name,
+                            clientWithOrigin,
+                            matchingIndices.toArray(Strings.EMPTY_ARRAY),
+                            listeners.acquire(handleResponse)
+                        );
+                    }
                 }
             }
         }

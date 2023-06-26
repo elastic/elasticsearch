@@ -357,7 +357,7 @@ public class PrimaryReplicaSyncer {
                     "{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])",
                     shardId,
                     operations.size(),
-                    new ByteSizeValue(size),
+                    ByteSizeValue.ofBytes(size),
                     totalSentOps.get(),
                     totalSkippedOps.get()
                 );

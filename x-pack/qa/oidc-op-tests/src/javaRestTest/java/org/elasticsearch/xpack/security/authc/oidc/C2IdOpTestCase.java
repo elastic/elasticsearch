@@ -33,11 +33,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -47,6 +52,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,21 +61,134 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
 
     // URLs for accessing the C2id OP
     private static final String C2OP_PORT = getEphemeralTcpPortFromProperty("oidc-provider", "8080");
-    private static final String C2ID_LOGIN_API = "http://127.0.0.1:" + C2OP_PORT + "/c2id-login/api/";
-    private static final String C2ID_REGISTRATION_URL = "http://127.0.0.1:" + C2OP_PORT + "/c2id/clients";
-    protected static final String C2ID_AUTH_ENDPOINT = "http://127.0.0.1:" + C2OP_PORT + "/c2id-login";
+    private static final String C2ID_HOST = "http://127.0.0.1:" + C2OP_PORT;
+    protected static final String C2ID_ISSUER = C2ID_HOST + "/c2id";
+    private static final String PROXY_PORT = getEphemeralTcpPortFromProperty("http-proxy", "8888");
+    private static final String C2ID_LOGIN_API = C2ID_HOST + "/c2id-login/api/";
+    private static final String C2ID_REGISTRATION_URL = C2ID_HOST + "/c2id/clients";
+    protected static final String C2ID_AUTH_ENDPOINT = C2ID_HOST + "/c2id-login";
 
-    private static final String ES_PORT = getEphemeralTcpPortFromProperty("elasticsearch-node", "9200");
     // SHA256 of this is defined in x-pack/test/idp-fixture/oidc/override.properties
     private static final String OP_API_BEARER_TOKEN = "811fa888f3e0fdc9e01d4201bfeee46a";
 
     private static Path HTTP_TRUSTED_CERT;
 
+    private static final String CLIENT_SECRET = "b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2";
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(1)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.keystore.path", "testnode.jks")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.realms.file.file.order", "0")
+        .setting("xpack.security.authc.realms.native.native.order", "1")
+        .setting("xpack.security.authc.realms.oidc.c2id.order", "2")
+        .setting("xpack.security.authc.realms.oidc.c2id.op.issuer", C2ID_ISSUER)
+        .setting("xpack.security.authc.realms.oidc.c2id.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
+        .setting("xpack.security.authc.realms.oidc.c2id.op.token_endpoint", C2ID_HOST + "/c2id/token")
+        .setting("xpack.security.authc.realms.oidc.c2id.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
+        .setting("xpack.security.authc.realms.oidc.c2id.op.jwkset_path", "op-jwks.json")
+        .setting("xpack.security.authc.realms.oidc.c2id.rp.redirect_uri", "https://my.fantastic.rp/cb")
+        .setting("xpack.security.authc.realms.oidc.c2id.rp.client_id", "https://my.elasticsearch.org/rp")
+        .setting("xpack.security.authc.realms.oidc.c2id.rp.response_type", "code")
+        .setting("xpack.security.authc.realms.oidc.c2id.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.oidc.c2id.claims.name", "name")
+        .setting("xpack.security.authc.realms.oidc.c2id.claims.mail", "email")
+        .setting("xpack.security.authc.realms.oidc.c2id.claims.groups", "groups")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.order", "3")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.issuer", C2ID_ISSUER)
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.token_endpoint", C2ID_HOST + "/c2id/token")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.jwkset_path", "op-jwks.json")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.rp.redirect_uri", "https://my.fantastic.rp/cb")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.rp.client_id", "elasticsearch-rp")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.rp.response_type", "id_token token")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.claims.name", "name")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.claims.mail", "email")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.claims.groups", "groups")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.order", "4")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.issuer", C2ID_ISSUER)
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.token_endpoint", C2ID_HOST + "/c2id/token")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.jwkset_path", "op-jwks.json")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.rp.redirect_uri", "https://my.fantastic.rp/cb")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.rp.client_id", "https://my.elasticsearch.org/rp")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.rp.response_type", "code")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.claims.name", "name")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.claims.mail", "email")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.claims.groups", "groups")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.host", "127.0.0.1")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.port", PROXY_PORT)
+        .setting("xpack.security.authc.realms.oidc.c2id-post.order", "5")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.op.issuer", C2ID_ISSUER)
+        .setting("xpack.security.authc.realms.oidc.c2id-post.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.op.token_endpoint", C2ID_HOST + "/c2id/token")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.op.jwkset_path", "op-jwks.json")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.rp.redirect_uri", "https://my.fantastic.rp/cb")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.rp.client_id", "elasticsearch-post")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.rp.client_auth_method", "client_secret_post")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.rp.response_type", "code")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.claims.name", "name")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.claims.mail", "email")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.claims.groups", "groups")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.order", "6")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.issuer", C2ID_ISSUER)
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.token_endpoint", C2ID_HOST + "/c2id/token")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.jwkset_path", "op-jwks.json")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.rp.redirect_uri", "https://my.fantastic.rp/cb")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.rp.client_id", "elasticsearch-post-jwt")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.rp.client_auth_method", "client_secret_jwt")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.rp.response_type", "code")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.name", "name")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.mail", "email")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.groups", "groups")
+        .setting("xpack.security.authc.realms.jwt.op-jwt.order", "7")
+        .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_issuer", C2ID_ISSUER)
+        .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_audiences", "elasticsearch-jwt1,elasticsearch-jwt2")
+        .setting("xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path", "op-jwks.json")
+        .setting("xpack.security.authc.realms.jwt.op-jwt.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.jwt.op-jwt.claims.groups", "groups")
+        .setting("xpack.security.authc.realms.jwt.op-jwt.client_authentication.type", "shared_secret")
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .keystore("xpack.security.http.ssl.keystore.secure_password", "testnode")
+        .keystore("xpack.security.authc.realms.oidc.c2id.rp.client_secret", CLIENT_SECRET)
+        .keystore("xpack.security.authc.realms.oidc.c2id-implicit.rp.client_secret", CLIENT_SECRET)
+        .keystore("xpack.security.authc.realms.oidc.c2id-proxy.rp.client_secret", CLIENT_SECRET)
+        .keystore("xpack.security.authc.realms.oidc.c2id-post.rp.client_secret", CLIENT_SECRET)
+        .keystore("xpack.security.authc.realms.oidc.c2id-jwt.rp.client_secret", CLIENT_SECRET)
+        .keystore("xpack.security.authc.realms.jwt.op-jwt.client_authentication.shared_secret", "jwt-realm-shared-secret")
+        .configFile("testnode.jks", Resource.fromClasspath("ssl/testnode.jks"))
+        .configFile("op-jwks.json", Resource.fromClasspath("op-jwks.json"))
+        .user("x_pack_rest_user", "x-pack-test-password", "superuser")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected String getProtocol() {
+        return "https";
+    }
+
     @BeforeClass
     public static void readTrustedCert() throws Exception {
-        final URL resource = OpenIdConnectAuthIT.class.getResource("/testnode_ec.crt");
+        final URL resource = OpenIdConnectAuthIT.class.getResource("/ssl/testnode_ec.crt");
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /testnode_ec.crt");
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/testnode_ec.crt");
         }
         HTTP_TRUSTED_CERT = PathUtils.get(resource.toURI());
     }
@@ -102,7 +221,9 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             SocketAccess.doPrivileged(() -> {
                 for (HttpPost httpPost : requests) {
                     try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {
-                        assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
+                        assertBusy(() -> assertThat(response.getStatusLine().getStatusCode(), equalTo(201)), 30, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        fail("Encountered exception while registering client: " + e);
                     }
                 }
             });
@@ -125,7 +246,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             final BasicHttpContext context = new BasicHttpContext();
             // Initiate the authentication process
             HttpPost httpPost = new HttpPost(C2ID_LOGIN_API + "initAuthRequest");
-            String initJson = formatted("""
+            String initJson = Strings.format("""
                 {"qs":"%s"}
                 """, opAuthUri.getRawQuery());
             configureJsonRequest(httpPost, initJson);
@@ -206,7 +327,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
     }
 
     protected RestClient getElasticsearchClient() throws IOException {
-        return buildClient(restAdminSettings(), new HttpHost[] { new HttpHost("localhost", Integer.parseInt(ES_PORT), "https") });
+        return buildClient(restAdminSettings(), getClusterHosts().toArray(new HttpHost[0]));
     }
 
     protected Map<String, Object> callAuthenticateApiUsingBearerToken(String accessToken) throws Exception {

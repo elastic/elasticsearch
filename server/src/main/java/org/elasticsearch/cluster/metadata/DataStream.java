@@ -11,27 +11,40 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -44,8 +57,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject {
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
+
+public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
@@ -82,6 +101,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean system;
     private final boolean allowCustomRouting;
     private final IndexMode indexMode;
+    @Nullable
+    private final DataLifecycle lifecycle;
 
     public DataStream(
         String name,
@@ -92,9 +113,22 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean replicated,
         boolean system,
         boolean allowCustomRouting,
-        IndexMode indexMode
+        IndexMode indexMode,
+        DataLifecycle lifecycle
     ) {
-        this(name, indices, generation, metadata, hidden, replicated, system, System::currentTimeMillis, allowCustomRouting, indexMode);
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     // visible for testing
@@ -108,7 +142,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean system,
         LongSupplier timeProvider,
         boolean allowCustomRouting,
-        IndexMode indexMode
+        IndexMode indexMode,
+        DataLifecycle lifecycle
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -121,7 +156,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        this.lifecycle = DataLifecycle.isEnabled() ? lifecycle : null;
         assert assertConsistent(this.indices);
+    }
+
+    // mainly available for testing
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode
+    ) {
+        this(name, indices, generation, metadata, hidden, replicated, system, allowCustomRouting, indexMode, null);
     }
 
     private static boolean assertConsistent(List<Index> indices) {
@@ -134,8 +185,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return true;
     }
 
+    @Override
+    public Type getType() {
+        return Type.DATA_STREAM;
+    }
+
+    @Override
     public String getName() {
         return name;
+    }
+
+    @Override
+    public boolean isDataStreamRelated() {
+        return true;
     }
 
     public TimestampField getTimeStampField() {
@@ -143,6 +205,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return TIMESTAMP_FIELD;
     }
 
+    @Override
     public List<Index> getIndices() {
         return indices;
     }
@@ -151,6 +214,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return generation;
     }
 
+    @Override
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
     }
@@ -246,13 +310,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return metadata;
     }
 
+    @Override
     public boolean isHidden() {
         return hidden;
     }
 
     /**
      * Determines whether this data stream is replicated from elsewhere,
-     * for example a remote cluster.
+     * for example a remote cluster
      *
      * @return Whether this data stream is replicated.
      */
@@ -260,6 +325,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return replicated;
     }
 
+    @Override
     public boolean isSystem() {
         return system;
     }
@@ -271,6 +337,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Nullable
     public IndexMode getIndexMode() {
         return indexMode;
+    }
+
+    @Nullable
+    public DataLifecycle getLifecycle() {
+        return lifecycle;
     }
 
     /**
@@ -294,15 +365,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries) {
         IndexMode indexMode = this.indexMode;
-        // This allows for migrating a data stream to be a tsdb data stream:
-        // (only if index_mode=null|standard then allow it to be set to time_series)
         if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
+            // This allows for migrating a data stream to be a tsdb data stream:
+            // (only if index_mode=null|standard then allow it to be set to time_series)
             indexMode = IndexMode.TIME_SERIES;
+        } else if (indexMode == IndexMode.TIME_SERIES && timeSeries == false) {
+            // Allow downgrading a time series data stream to a regular data stream
+            indexMode = null;
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode);
+        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode, lifecycle);
     }
 
     /**
@@ -367,7 +441,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     /**
@@ -399,7 +484,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     /**
@@ -414,7 +510,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // validate that index is not part of another data stream
         final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
-            if (parentDataStream.getDataStream().equals(this)) {
+            if (parentDataStream.equals(this)) {
                 return this;
             } else {
                 throw new IllegalArgumentException(
@@ -446,11 +542,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     public DataStream promoteDataStream() {
-        return new DataStream(name, indices, getGeneration(), metadata, hidden, false, system, timeProvider, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            indices,
+            getGeneration(),
+            metadata,
+            hidden,
+            false,
+            system,
+            timeProvider,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     /**
@@ -482,8 +601,120 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             replicated,
             system,
             allowCustomRouting,
-            indexMode
+            indexMode,
+            lifecycle
         );
+    }
+
+    /**
+     * Iterate over the backing indices and return the ones that are managed by DLM and past the configured
+     * retention in their lifecycle.
+     * NOTE that this specifically does not return the write index of the data stream as usually retention
+     * is treated differently for the write index (i.e. they first need to be rolled over)
+     */
+    public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
+        if (lifecycle == null || lifecycle.getEffectiveDataRetention() == null) {
+            return List.of();
+        }
+
+        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
+            lifecycle.getEffectiveDataRetention(),
+            indexMetadataSupplier,
+            this::isIndexManagedByDLM,
+            nowSupplier
+        );
+        return indicesPastRetention;
+    }
+
+    /**
+     * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
+     * The index age is calculated from the rollover or index creation date (or the origination date if present).
+     * If an indices predicate is provided the returned list of indices will be filtered
+     * according to the predicate definition. This is useful for things like "return only
+     * the backing indices that are managed by DLM".
+     */
+    public List<Index> getNonWriteIndicesOlderThan(
+        TimeValue age,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        @Nullable Predicate<IndexMetadata> indicesPredicate,
+        LongSupplier nowSupplier
+    ) {
+        List<Index> olderIndices = new ArrayList<>();
+        for (Index index : indices) {
+            IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+            if (indexMetadata == null) {
+                // we would normally throw exception in a situation like this however, this is meant to be a helper method
+                // so let's ignore deleted indices
+                continue;
+            }
+            TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
+            if (indexLifecycleDate != null) {
+                long nowMillis = nowSupplier.getAsLong();
+                if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
+                    if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
+                        olderIndices.add(index);
+                    }
+                }
+            }
+        }
+        return olderIndices;
+    }
+
+    /**
+     * Checks if the provided backing index is managed by DLM as part of this data stream.
+     * If the index is not a backing index of this data stream, or we cannot supply its metadata
+     * we return false.
+     */
+    public boolean isIndexManagedByDLM(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+        if (indices.contains(index) == false) {
+            return false;
+        }
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null) {
+            // the index was deleted
+            return false;
+        }
+        return isIndexManagedByDLM(indexMetadata);
+    }
+
+    /**
+     * This is the raw defintion of an index being managed by DLM. An index is managed by DLM if it's part of a data stream
+     * that has a DLM lifecycle configured and depending on the value of {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     * having an ILM policy configured will play into the decision.
+     * This method also skips any validation to make sure the index is part of this data stream, hence the private
+     * access method.
+     */
+    private boolean isIndexManagedByDLM(IndexMetadata indexMetadata) {
+        boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null) {
+            // when both ILM and DLM are configured, choose depending on the configured preference for this backing index
+            return preferIlm == false;
+        }
+        return lifecycle != null;
+    }
+
+    /**
+     * Returns the generation date of the index whose metadata is passed. The generation date of the index represents the time at which the
+     * index started progressing towards the user configurable / business specific parts of the lifecycle (e.g. retention).
+     * The generation date is the origination date if it exists, or the rollover date if it exists and the origination date does not, or
+     * the creation date if neither the origination date nor the rollover date exist.
+     * If the index is the write index the generation date will be null because it is not eligible for retention or other parts of the
+     * lifecycle.
+     * @param indexMetadata The metadata of the index whose generation date is returned
+     * @return The generation date of the index, or null if this is the write index
+     */
+    @Nullable
+    public TimeValue getGenerationLifecycleDate(IndexMetadata indexMetadata) {
+        if (indexMetadata.getIndex().equals(getWriteIndex())) {
+            return null;
+        }
+        Long originationDate = indexMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
+        RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(getName());
+        if (rolloverInfo != null) {
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, rolloverInfo::getTime));
+        } else {
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, indexMetadata::getCreationDate));
+        }
     }
 
     /**
@@ -526,8 +757,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.readBoolean(),
             in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false,
-            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007) ? in.readOptionalWriteable(DataLifecycle::new) : null
         );
     }
 
@@ -550,11 +782,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeBoolean(allowCustomRouting);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            out.writeOptionalWriteable(lifecycle);
         }
     }
 
@@ -568,6 +803,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
+    public static final ParseField LIFECYCLE = new ParseField("lifecycle");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -581,7 +817,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null && (boolean) args[8],
-            args[9] != null ? IndexMode.fromString((String) args[9]) : null
+            args[9] != null ? IndexMode.fromString((String) args[9]) : null,
+            DataLifecycle.isEnabled() ? (DataLifecycle) args[10] : null
         );
     });
 
@@ -596,6 +833,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+        if (DataLifecycle.isEnabled()) {
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataLifecycle.fromXContent(p), LIFECYCLE);
+        }
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -604,6 +844,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null);
+    }
+
+    /**
+     * Converts the data stream to XContent and passes the RolloverConditions, when provided, to the lifecycle.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
+        throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), TIMESTAMP_FIELD);
@@ -619,6 +867,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);
         }
+        if (lifecycle != null) {
+            builder.field(LIFECYCLE.getPreferredName());
+            lifecycle.toXContent(builder, params, rolloverConfiguration);
+        }
         builder.endObject();
         return builder;
     }
@@ -633,14 +885,114 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && hidden == that.hidden
+            && system == that.system
             && replicated == that.replicated
             && allowCustomRouting == that.allowCustomRouting
-            && indexMode == that.indexMode;
+            && indexMode == that.indexMode
+            && Objects.equals(lifecycle, that.lifecycle);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
+        return Objects.hash(name, indices, generation, metadata, hidden, system, replicated, allowCustomRouting, indexMode, lifecycle);
+    }
+
+    @Override
+    public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+        if (request.opType() != DocWriteRequest.OpType.CREATE) {
+            return getWriteIndex();
+        }
+
+        if (getIndexMode() != IndexMode.TIME_SERIES) {
+            return getWriteIndex();
+        }
+
+        Instant timestamp;
+        Object rawTimestamp = request.getRawTimestamp();
+        if (rawTimestamp != null) {
+            timestamp = getTimeStampFromRaw(rawTimestamp);
+        } else {
+            timestamp = getTimestampFromParser(request.source(), request.getContentType());
+        }
+        timestamp = getCanonicalTimestampBound(timestamp);
+        Index result = selectTimeSeriesWriteIndex(timestamp, metadata);
+        if (result == null) {
+            String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
+            String writeableIndicesString = getIndices().stream()
+                .map(metadata::index)
+                .map(IndexMetadata::getSettings)
+                .map(
+                    settings -> "["
+                        + settings.get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+                        + ","
+                        + settings.get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+                        + "]"
+                )
+                .collect(Collectors.joining());
+            throw new IllegalArgumentException(
+                "the document timestamp ["
+                    + timestampAsString
+                    + "] is outside of ranges of currently writable indices ["
+                    + writeableIndicesString
+                    + "]"
+            );
+        }
+        return result;
+    }
+
+    @Override
+    public DataStream getParentDataStream() {
+        // a data stream cannot have a parent data stream
+        return null;
+    }
+
+    public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
+        Set.of(TimestampField.FIXED_TIMESTAMP_FIELD),
+        null,
+        false
+    );
+
+    private static final DateFormatter TIMESTAMP_FORMATTER = DateFormatter.forPattern(
+        "strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis"
+    );
+
+    private static Instant getTimeStampFromRaw(Object rawTimestamp) {
+        try {
+            if (rawTimestamp instanceof Long lTimestamp) {
+                return Instant.ofEpochMilli(lTimestamp);
+            } else if (rawTimestamp instanceof String sTimestamp) {
+                return DateFormatters.from(TIMESTAMP_FORMATTER.parse(sTimestamp), TIMESTAMP_FORMATTER.locale()).toInstant();
+            } else {
+                throw new IllegalArgumentException("timestamp [" + rawTimestamp + "] type [" + rawTimestamp.getClass() + "] error");
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error get data stream timestamp field: " + e.getMessage(), e);
+        }
+    }
+
+    private static Instant getTimestampFromParser(BytesReference source, XContentType xContentType) {
+        XContent xContent = xContentType.xContent();
+        try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, source.streamInput())) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+            return switch (parser.nextToken()) {
+                case VALUE_STRING -> DateFormatters.from(TIMESTAMP_FORMATTER.parse(parser.text()), TIMESTAMP_FORMATTER.locale())
+                    .toInstant();
+                case VALUE_NUMBER -> Instant.ofEpochMilli(parser.longValue());
+                default -> throw new ParsingException(
+                    parser.getTokenLocation(),
+                    String.format(
+                        Locale.ROOT,
+                        "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                        XContentParser.Token.VALUE_STRING,
+                        XContentParser.Token.VALUE_NUMBER,
+                        parser.currentToken()
+                    )
+                );
+            };
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+        }
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {
@@ -706,5 +1058,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         public int hashCode() {
             return Objects.hash(name);
         }
+    }
+
+    /**
+     * Modifies the passed Instant object to be used as a bound for a timestamp field in TimeSeries. It needs to be called in both backing
+     * index construction (rollover) and index selection for doc insertion. Failure to do so may lead to errors due to document timestamps
+     * exceeding the end time of the selected backing index for insertion.
+     * @param time The initial Instant object that's used to generate the canonical time
+     * @return A canonical Instant object to be used as a timestamp bound
+     */
+    public static Instant getCanonicalTimestampBound(Instant time) {
+        return time.truncatedTo(ChronoUnit.SECONDS);
     }
 }

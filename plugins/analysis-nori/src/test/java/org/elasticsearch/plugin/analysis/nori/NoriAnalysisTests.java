@@ -75,7 +75,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
     public void testNoriAnalyzerUserDict() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "nori")
-            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C샤프", "세종", "세종시 세종 시")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종시 세종 시")
             .build();
         TestAnalysis analysis = createTestAnalysis(settings);
         Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
@@ -108,7 +108,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "nori")
             .put("index.analysis.analyzer.my_analyzer.user_dictionary", "user_dict.txt")
-            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C샤프", "세종", "세종시 세종 시")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종시 세종 시")
             .build();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
         assertThat(

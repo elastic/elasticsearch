@@ -68,8 +68,6 @@ public class WatcherScheduleEngineBenchmark {
         .build();
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("es.logger.prefix", "");
-
         String[] engines = new String[] { "ticker", "scheduler" };
         int numWatches = 2000;
         int benchTime = 60000;
@@ -103,7 +101,9 @@ public class WatcherScheduleEngineBenchmark {
                     Settings.builder().put(SETTINGS).put("node.data", false).build(),
                     emptyMap(),
                     null,
-                    () -> { throw new IllegalArgumentException("settings must have [node.name]"); }
+                    () -> {
+                        throw new IllegalArgumentException("settings must have [node.name]");
+                    }
                 )
             ).start()
         ) {
@@ -209,7 +209,7 @@ public class WatcherScheduleEngineBenchmark {
                     NodesStatsResponse response = client.admin().cluster().prepareNodesStats().setThreadPool(true).get();
                     for (NodeStats nodeStats : response.getNodes()) {
                         for (ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
-                            if ("watcher".equals(threadPoolStats.getName())) {
+                            if ("watcher".equals(threadPoolStats.name())) {
                                 stats.setWatcherThreadPoolStats(threadPoolStats);
                             }
                         }
@@ -344,9 +344,9 @@ public class WatcherScheduleEngineBenchmark {
                 Locale.ENGLISH,
                 "%10s | %13s | %12d | %13d \n",
                 name,
-                new ByteSizeValue(avgHeapUsed),
-                watcherThreadPoolStats.getRejected(),
-                watcherThreadPoolStats.getCompleted()
+                ByteSizeValue.ofBytes(avgHeapUsed),
+                watcherThreadPoolStats.rejected(),
+                watcherThreadPoolStats.completed()
             );
         }
 

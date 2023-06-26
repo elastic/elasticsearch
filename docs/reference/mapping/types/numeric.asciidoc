@@ -179,7 +179,7 @@ The following parameters are accepted by numeric types:
     (default).
 
 `time_series_dimension`::
-preview:[] (Optional, Boolean)
+(Optional, Boolean)
 +
 --
 include::keyword.asciidoc[tag=dimension]
@@ -191,7 +191,7 @@ A numeric field can't be both a time series dimension and a time series metric.
 --
 
 `time_series_metric`::
-preview:[] (Optional, string)
+(Optional, string)
 // tag::time_series_metric[]
 Marks the field as a <<time-series-metric,time series metric>>. The value is the
 metric type. You can't update this parameter for existing fields.
@@ -228,7 +228,15 @@ numeric field can't be both a time series dimension and a time series metric.
     This parameter is required.
 
 [[numeric-synthetic-source]]
-==== Synthetic `_source` preview:[]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
 All numeric fields except `unsigned_long` support <<synthetic-source,synthetic
 `_source`>> in their default configuration. Synthetic `_source` cannot be used
 together with <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or

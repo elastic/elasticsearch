@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = "filter";
@@ -122,7 +122,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     public static FilterAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
-        QueryBuilder filter = parseInnerQueryBuilder(parser);
+        QueryBuilder filter = parseTopLevelQuery(parser);
         return new FilterAggregationBuilder(aggregationName, filter);
     }
 
@@ -150,8 +150,8 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     public static class FilterAggregatorFactory extends AggregatorFactory {
@@ -180,6 +180,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
                 List.of(filter),
                 false,
                 null,
+                true,
                 context,
                 parent,
                 cardinality,

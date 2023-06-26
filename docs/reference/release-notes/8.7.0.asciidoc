@@ -1,0 +1,392 @@
+[[release-notes-8.7.0]]
+== {es} version 8.7.0
+
+Also see <<breaking-changes-8.7,Breaking changes in 8.7>>.
+
+[[known-issues-8.7.0]]
+[float]
+=== Known issues
+
+include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
+
+[[breaking-8.7.0]]
+[float]
+=== Breaking changes
+
+Ingest Node::
+* Making `JsonProcessor` stricter so that it does not silently drop data {es-pull}93179[#93179] (issue: {es-issue}92898[#92898])
+
+[[bug-8.7.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Don't create a new `DoubleHistogram` instance for empty buckets {es-pull}92547[#92547]
+* Fix: do not allow map key types other than String {es-pull}88686[#88686] (issue: {es-issue}66057[#66057])
+
+Allocation::
+* Fallback to the actual shard size when forecast is not available {es-pull}93461[#93461]
+* Skip `DiskThresholdMonitor` when cluster state is not recovered {es-pull}93699[#93699]
+* Suppress response headers in `AllocationActionMultiListener` {es-pull}93777[#93777] (issue: {es-issue}93773[#93773])
+
+Authentication::
+* Correctly remove domain from realm when rewriting `Authentication` for compatibility with node versions that don't
+support domains {es-pull}93276[#93276]
+
+Authorization::
+* Fix Security's expression resolver to not remove unavailable but authorized names {es-pull}92625[#92625]
+
+CCR::
+* Deduplicate Heavy CCR Repository CS Requests {es-pull}91398[#91398]
+
+CRUD::
+* Avoid NPE in Stateless Get/mGet {es-pull}94164[#94164]
+* Do not refresh all indices in `TransportBulkAction` {es-pull}93417[#93417]
+
+Cluster Coordination::
+* Delay master task failure notifications until commit {es-pull}92693[#92693] (issue: {es-issue}92677[#92677])
+
+Data streams::
+* Allow different filters per `DataStream` in a `DataStreamAlias` {es-pull}92692[#92692] (issue: {es-issue}92050[#92050])
+
+Geo::
+* Build index qualified name in cross cluster vector tile search {es-pull}94574[#94574] (issue: {es-issue}94557[#94557])
+* Check `GeohexGrid` bounds on geopoint using spherical coordinates {es-pull}92460[#92460]
+* Fix bug when clipping Geometry collections in vector tiles {es-pull}93562[#93562]
+
+Health::
+* Take into account `max_headroom` in disk watermark calculations {es-pull}93157[#93157] (issue: {es-issue}93155[#93155])
+
+ILM+SLM::
+* Allow ILM step transition to the phase terminal step {es-pull}91754[#91754]
+* Avoiding `BulkProcessor` deadlock in ILMHistoryStore {es-pull}91238[#91238] (issues: {es-issue}68468[#68468], {es-issue}50440[#50440])
+* Fixed changing only the `forceMerge` flag in `SearchableSnapshotAction` wouldn't update the policy {es-pull}93847[#93847]
+* Preventing ILM and SLM runtime state from being stored in a snapshot {es-pull}92252[#92252]
+
+Infra/CLI::
+* Restore printing bootstrap checks as errors {es-pull}93178[#93178] (issue: {es-issue}93074[#93074])
+
+Infra/Core::
+* Add `jdk.internal.reflect` permission to es codebase {es-pull}92387[#92387] (issue: {es-issue}92356[#92356])
+* Add checks for exception loops through suppressed exceptions only {es-pull}93944[#93944] (issue: {es-issue}93943[#93943])
+* Ensure one-shot wrappers release their delegates {es-pull}92928[#92928]
+* Fix `InputStream#readAllBytes` on `InputStreamIndexInput` {es-pull}92680[#92680]
+* Fix indices resolver for datemath with colon {es-pull}92973[#92973]
+* Make `FilterStreamInput` less trappy {es-pull}92422[#92422]
+
+Infra/Plugins::
+* Ensure ordering of plugin initialization {es-pull}93882[#93882] (issue: {es-issue}93851[#93851])
+* Fix unclosed directory stream in `ClassReaders` {es-pull}92890[#92890] (issue: {es-issue}92866[#92866])
+* Update the version of asm used by plugin scanner {es-pull}92784[#92784] (issue: {es-issue}92782[#92782])
+
+Infra/REST API::
+* [Rest Api Compatibility] Format response media type with parameters {es-pull}92695[#92695]
+
+Infra/Scripting::
+* Fix NPE when method was called on an array type {es-pull}91713[#91713] (issue: {es-issue}87562[#87562])
+
+Infra/Settings::
+* Fix parse failures for ILM operator settings {es-pull}94477[#94477] (issue: {es-issue}94465[#94465])
+
+Ingest Node::
+* Better names and types for ingest stats {es-pull}93533[#93533] (issue: {es-issue}80763[#80763])
+* Correctly handle an exception case for ingest failure {es-pull}92455[#92455]
+* Disable ingest-attachment logging {es-pull}93878[#93878]
+* Download the geoip databases only when needed {es-pull}92335[#92335] (issue: {es-issue}90673[#90673])
+* Forwarding simulate calls to ingest nodes {es-pull}92171[#92171]
+* Grok returns a list of matches for repeated pattern names #92092 {es-pull}92586[#92586] (issue: {es-issue}92092[#92092])
+* Handle a default/request pipeline and a final pipeline with minimal additional overhead {es-pull}93329[#93329] (issues: {es-issue}92843[#92843], {es-issue}81244[#81244], {es-issue}93118[#93118])
+* Ingest-attachment module tika dependency versions {es-pull}93755[#93755]
+* More accurate total ingest stats {es-pull}91730[#91730] (issue: {es-issue}91358[#91358])
+* Speed up ingest geoip processors {es-pull}92372[#92372]
+* Speed up ingest set and append processors {es-pull}92395[#92395]
+
+Machine Learning::
+* Allocate trained models if zone awareness attributes not set {es-pull}94128[#94128] (issue: {es-issue}94123[#94123])
+* Fix data counts race condition when starting a datafeed {es-pull}93324[#93324] (issue: {es-issue}93298[#93298])
+* Fix tokenization bug when handling normalization in BERT and MPNet {es-pull}92329[#92329]
+* Free resources correctly when model loading is cancelled {es-pull}92204[#92204]
+* Stop the `frequent_items` aggregation reporting a subset when a superset exists {es-pull}92239[#92239]
+* Use long inference timeout at ingest {es-pull}93731[#93731]
+
+Mapping::
+* Fix dynamic mapping detection for invalid dates {es-pull}94115[#94115] (issue: {es-issue}93888[#93888])
+* No length check for source-only keyword fields {es-pull}93299[#93299] (issue: {es-issue}9304[#9304])
+
+Network::
+* Delay Connection#onRemoved while pending {es-pull}92546[#92546]
+* Fix fransport handshake starting before tls handshake completes {es-pull}90534[#90534] (issue: {es-issue}77999[#77999])
+* Protect `NodeConnectionsService` from stale conns {es-pull}92558[#92558] (issue: {es-issue}92029[#92029])
+
+Recovery::
+* Disable recovery monitor before recovery start {es-pull}93551[#93551] (issue: {es-issue}93542[#93542])
+* Fix potential leak in `RemoteRecoveryHandler` {es-pull}91802[#91802]
+* Report recovered files as recovered from snapshot for fully mounted searchable snapshots {es-pull}92976[#92976]
+
+Rollup::
+* Downsampling unmapped text fields {es-pull}94387[#94387] (issue: {es-issue}94346[#94346])
+* Propagate timestamp format and convert nanoseconds to milliseconds {es-pull}94141[#94141] (issue: {es-issue}94085[#94085])
+* Stop processing `TransportDownsampleAction` on failure {es-pull}94624[#94624]
+* Support downsampling of histogram as labels {es-pull}93445[#93445] (issue: {es-issue}93263[#93263])
+
+Search::
+* Add null check for sort fields over collapse fields {es-pull}94546[#94546] (issue: {es-issue}94407[#94407])
+* Annotated highlighter does not match when search contains both annotation and annotated term {es-pull}92920[#92920] (issue: {es-issue}91944[#91944])
+* Clear field caps index responses on cancelled {es-pull}93716[#93716] (issue: {es-issue}93029[#93029])
+* Do not include frozen indices in PIT by default {es-pull}94377[#94377]
+* Fix NPE thrown by prefix query in strange scenarios {es-pull}94369[#94369]
+* Fix _id field fetch issue. {es-pull}94528[#94528] (issue: {es-issue}94515[#94515])
+* Fix metadata `_size` when it comes to stored fields extraction {es-pull}94483[#94483] (issue: {es-issue}94468[#94468])
+* Fix missing override for matches in `ProfileWeight` {es-pull}92360[#92360]
+* Nested path info shouldn't be added during `copy_to` {es-pull}93340[#93340] (issue: {es-issue}93117[#93117])
+* Use all profiling events on startup {es-pull}92087[#92087]
+* Use keyword analyzer for untokenized fields in `TermVectorsService` {es-pull}94518[#94518]
+* [Profiling] Adjust handling of last data slice {es-pull}94283[#94283]
+* [Profiling] Ensure responses are only sent once {es-pull}93692[#93692] (issue: {es-issue}93691[#93691])
+* [Profiling] Handle response processing errors {es-pull}93860[#93860]
+
+Snapshot/Restore::
+* Fix unhandled exception when blobstore repository contains unexpected file {es-pull}93914[#93914]
+* Support for GCS proxies everywhere in the GCS API {es-pull}92192[#92192] (issue: {es-issue}91952[#91952])
+
+Stats::
+* Avoid capturing cluster state in TBbNA {es-pull}92255[#92255]
+
+TSDB::
+* Fix synthetic `_source` for sparse `_doc_count` field {es-pull}91769[#91769] (issue: {es-issue}91731[#91731])
+
+Task Management::
+* Fix context leak in list tasks API {es-pull}93431[#93431] (issue: {es-issue}93428[#93428])
+
+Transform::
+* Integrate "sourceHasChanged" call into failure handling and retry logic {es-pull}92762[#92762] (issue: {es-issue}92133[#92133])
+
+Vector Search::
+* Fix `maxScore` calculation for kNN search {es-pull}93875[#93875]
+* Fix explain for kNN search matches {es-pull}93876[#93876]
+
+[[enhancement-8.7.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Optimize composite agg with leading global ordinal value source {es-pull}92197[#92197]
+
+Allocation::
+* Add `forecasted_write_load` and `forecasted_shard_size_in_bytes` to the endpoint {es-pull}92303[#92303]
+* Expose tier balancing stats via internal endpoint {es-pull}92199[#92199]
+* Introduce ShardRouting.Role {es-pull}92668[#92668]
+* Prevalidate node removal API (pt. 2) {es-pull}91256[#91256] (issue: {es-issue}87776[#87776])
+* Simulate moves using cluster_concurrent_rebalance=2 {es-pull}93977[#93977]
+* Unpromotables skip replication and peer recovery {es-pull}93210[#93210]
+
+Authentication::
+* Add new `token_type` setting to JWT realm {es-pull}91536[#91536]
+* JWT realm - Initial support for access tokens {es-pull}91781[#91781]
+* JWT realm - Simplify token principal calculation {es-pull}92315[#92315]
+* JWT realm - add support for required claims {es-pull}92314[#92314]
+* Support custom PBKDF2 password hashes {es-pull}92871[#92871]
+
+Authorization::
+* Allowed indices matcher supports nested limited roles {es-pull}93306[#93306]
+* Extra `kibana_system` privileges for Fleet transform upgrades {es-pull}91499[#91499]
+* Pre-authorize child search transport actions {es-pull}91886[#91886]
+
+Cluster Coordination::
+* Add links to troubleshooting docs {es-pull}92755[#92755] (issue: {es-issue}92741[#92741])
+* Improve node-{join,left} logging for troubleshooting {es-pull}92742[#92742]
+* Repeat `cluster.initial_master_nodes` log warning {es-pull}92744[#92744]
+
+EQL::
+* EQL Samples: add support for multiple samples per key {es-pull}91783[#91783]
+
+Engine::
+* Add commits listener for `InternalEngine` and `CombinedDeletionPolicy` {es-pull}92017[#92017]
+* Add primary term supplier to Engine.IndexCommitListener {es-pull}92101[#92101]
+* Adjust range of allowed percentages of deletes in an index {es-pull}93188[#93188]
+* Diff the list of filenames that are added by each new commit {es-pull}92238[#92238]
+* Set a fixed compound file threshold of 1GB {es-pull}92659[#92659]
+
+Geo::
+* Add methods to H3#hexRing to prevent allocating long arrays {es-pull}92711[#92711]
+* Add methods to prevent allocating long arrays during child navigation on H3 api {es-pull}92099[#92099]
+* Add new H3 api method #h3ToNoChildrenIntersecting {es-pull}91673[#91673]
+* In H3, compute destination point from distance and azimuth using planar 3d math" {es-pull}93084[#93084]
+* Protect H3 library against integer overflow {es-pull}92829[#92829]
+* Reduce number of object allocations in H3#h3ToGeoBoundary {es-pull}91586[#91586]
+* Speed H3 library by using `FastMath` implementation for trigonometric functions {es-pull}91839[#91839]
+
+Health::
+* Expose Health Api telemetry via xpack {es-pull}91708[#91708] (issue: {es-issue}90877[#90877])
+* Health api stats {es-pull}91559[#91559]
+
+Indices APIs::
+* Add `ignore_missing_component_templates` config option {es-pull}92436[#92436] (issue: {es-issue}92426[#92426])
+
+Infra/CLI::
+* Scan stable plugins for named components upon install {es-pull}92528[#92528]
+
+Infra/Core::
+* Add log level for JVM logs {es-pull}92382[#92382]
+* Added new field `rollout_duration_seconds` to fleet-actions {es-pull}92640[#92640]
+* Bind the readiness service to the wildcard address {es-pull}91329[#91329] (issue: {es-issue}90997[#90997])
+* Provide locally mounted secure settings implementation {es-pull}93392[#93392]
+
+Infra/Plugins::
+* Check stable plugin version at install and load time {es-pull}91780[#91780]
+* Example stable plugins with settings {es-pull}92334[#92334]
+* Load stable plugins as synthetic modules {es-pull}91869[#91869]
+* Settings api for stable plugins {es-pull}91467[#91467]
+
+Infra/Scripting::
+* Script: Metadata `validateMetadata` optimization {es-pull}93333[#93333]
+* Short-circuit painless def equality {es-pull}92102[#92102]
+* Use primitive types rather than boxing/unboxing for iterating over primitive arrays from defs {es-pull}92025[#92025]
+
+Ingest Node::
+* Cache the creation of parsers within DateProcessor {es-pull}92880[#92880]
+* Make `GeoIpProcessor` backing database instance pluggable {es-pull}93285[#93285]
+
+Machine Learning::
+* Add identification of multimodal distribution to anomaly explanations {ml-pull}2440[#2440]
+* Add the ability to include and exclude values in Frequent items {es-pull}92414[#92414]
+* Better error when `aggregate_metric_double` used in scrolling datafeeds {es-pull}92232[#92232] (issue: {es-issue}90592[#90592])
+* Implement extension pruning in frequent items to improve runtime {es-pull}92322[#92322]
+* Improve `frequent_items` performance using global ordinals {es-pull}93304[#93304]
+* Improve anomaly detection results indexing speed {es-pull}92417[#92417]
+* Improve frequent items runtime {es-pull}93255[#93255]
+* Increase the default timeout for the start trained model deployment API {es-pull}92328[#92328]
+* Option to delete user-added annotations for the reset/delete job APIs {es-pull}91698[#91698] (issue: {es-issue}74310[#74310])
+* Persist data counts and datafeed timing stats asynchronously {es-pull}93000[#93000]
+* Remove the PyTorch inference work queue as now handled in Elasticsearch {ml-pull}2456[#2456]
+* Text Embedding search {es-pull}93531[#93531]
+* Upgrade PyTorch to version 1.13.1 {ml-pull}2430[#2430]
+
+
+Mapping::
+* Switch to Lucene's new `IntField/LongField/FloatField/DoubleField` {es-pull}93165[#93165]
+
+Monitoring::
+* Add kibana.stats.elasticsearch_client stats to the monitoring index templates. {es-pull}91508[#91508]
+* Add monitoring mappings for es ingest metricset {es-pull}92950[#92950]
+
+Network::
+* Deserialize responses on the handling thread-pool {es-pull}91367[#91367]
+
+Performance::
+* Add vector distance scoring to micro benchmarks {es-pull}92340[#92340]
+
+Query Languages::
+* Introduce parameterized rule and executor {es-pull}92428[#92428]
+
+Recovery::
+* Make clean up files step configurable for peer-recovery of replicas {es-pull}92490[#92490]
+
+Search::
+* Access term dictionary more efficiently {es-pull}92269[#92269]
+* Add `term` query support to `rank_features` mapped field {es-pull}93247[#93247]
+* Add new `query_vector_builder` option to knn search clause {es-pull}93331[#93331]
+* Add profiling plugin {es-pull}91640[#91640]
+* Enable profiling plugin by default {es-pull}92787[#92787]
+* Get stackframes and executables more concurrently {es-pull}93559[#93559]
+* Improve the false positive rate of the bloom filter by setting 7 hash functions {es-pull}93283[#93283]
+* Increase the number of threads of GET threadpool {es-pull}92309[#92309]
+* Instrument Weight#count in ProfileWeight {es-pull}85656[#85656] (issue: {es-issue}85203[#85203])
+* Reduce memory usage of match all bitset {es-pull}92777[#92777]
+* Runtime fields to optionally ignore script errors {es-pull}92380[#92380]
+* Speed up retrieval of data for flamegraphs {es-pull}93448[#93448]
+* Support retrieving inlined stack frames {es-pull}92863[#92863]
+* [Profiling] Reduce GC pressure {es-pull}93590[#93590]
+
+Security::
+* Configurable retention period for invalidated or expired API keys {es-pull}92219[#92219]
+* Record timestamp on API key invalidation {es-pull}91873[#91873]
+
+Snapshot/Restore::
+* Make `RecoveryPlannerService` optional {es-pull}92489[#92489]
+
+TSDB::
+* Enable bloom filter for `_id` field in tsdb indices {es-pull}92115[#92115]
+* Improve downsampling performance by removing map lookups {es-pull}92494[#92494] (issue: {es-issue}90226[#90226])
+* Minor TSDB parsing speedup {es-pull}92276[#92276]
+* Skip duplicate checks on segments that don't contain the document's timestamp {es-pull}92456[#92456]
+* Support `fields` in synthetic source in last cases {es-pull}91595[#91595]
+
+Task Management::
+* `TransportGetTaskAction:` Wait for the task asynchronously {es-pull}93375[#93375]
+* `TransportListTaskAction:` wait for tasks to finish asynchronously {es-pull}90977[#90977] (issue: {es-issue}89564[#89564])
+
+Transform::
+* Add from parameter to Transform Start API {es-pull}91116[#91116] (issue: {es-issue}88646[#88646])
+* Support "offset" parameter in `DateHistogramGroupSource` {es-pull}93203[#93203]
+* Trigger state persistence based on time {es-pull}93221[#93221]
+
+Vector Search::
+* Allow `null` to be provided for `dense_vector` field values {es-pull}93388[#93388]
+* Allow more than one KNN search clause {es-pull}92118[#92118] (issue: {es-issue}91187[#91187])
+
+Watcher::
+* Add ability for Watcher's webhook actions to send additional header {es-pull}93426[#93426]
+
+[[feature-8.7.0]]
+[float]
+=== New features
+
+Distributed::
+* Secure settings that can fall back to yml in Stateless {es-pull}91925[#91925]
+
+Geo::
+* Geohex aggregation on `geo_shape` field {es-pull}91956[#91956] (issue: {es-issue}90163[#90163])
+* Support geo_grid ingest processor {es-pull}93370[#93370] (issue: {es-issue}92473[#92473])
+
+Health::
+* The Health API is now generally available {es-pull}92879[#92879]
+* [HealthAPI] Add size parameter that controls the number of affected resources returned {es-pull}92399[#92399] (issue: {es-issue}91930[#91930])
+* [HealthAPI] Add support for the FEATURE_STATE affected resource {es-pull}92296[#92296] (issue: {es-issue}91353[#91353])
+
+Infra/Plugins::
+* [Fleet] Add files and files data index templates and ILM policies {es-pull}91413[#91413]
+
+Ingest Node::
+* Redact Ingest Processor {es-pull}92951[#92951]
+
+Machine Learning::
+* Make `frequent_item_sets` aggregation GA {es-pull}93421[#93421]
+* Make native inference generally available {es-pull}92213[#92213]
+
+TSDB::
+* Add a TSDB rate aggregation {es-pull}90447[#90447]
+* Downsampling GA {es-pull}92913[#92913]
+* Release time_series and rate (on counter fields) aggegations as tech preview {es-pull}93546[#93546]
+* Time series (TSDS) GA {es-pull}91519[#91519]
+
+Transform::
+* Transform _schedule_now API {es-pull}92948[#92948] (issue: {es-issue}44722[#44722])
+
+[[upgrade-8.7.0]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Align all usages of Jackson to be 2.14.2 {es-pull}93438[#93438]
+
+Ingest Node::
+* Upgrading tika to 2.6.0 {es-pull}92104[#92104]
+
+Network::
+* Upgrade to Netty 4.1.85 {es-pull}91846[#91846]
+* Upgrade to Netty 4.1.86 {es-pull}92587[#92587]
+
+Query Languages::
+* Upgrade antlr to 4.11.1 for ql, eql and sql {es-pull}93238[#93238]
+
+Search::
+* Upgrade to Lucene 9.5.0 {es-pull}93385[#93385]
+* Upgrade to lucene-9.5.0-snapshot-d19c3e2e0ed {es-pull}92957[#92957]
+
+Snapshot/Restore::
+* Align all usages of protobuf to be 3.21.9 {es-pull}92123[#92123]
+* Bump reactor netty version {es-pull}92457[#92457]
+* Consolidate google-oauth-client to latest version {es-pull}91722[#91722]
+
+

@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -512,6 +514,133 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testDataStreamsBackingIndicesOrdering() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final int initialNumDocs = 16;
+        int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+        final String dataStreamName = getTestName().toLowerCase(Locale.ROOT) + "-logs-syslog-prod";
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\":[\"" + dataStreamName + "*\"],\"data_stream\":{}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        // Initialize data stream prior to auto following
+        try (RestClient leaderClient = buildLeaderClient()) {
+            assertOK(leaderClient.performRequest(putComposableIndexTemplateRequest));
+
+            for (int i = 0; i < initialNumDocs; i++) {
+                Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                indexRequest.addParameter("refresh", "true");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                assertOK(leaderClient.performRequest(indexRequest));
+            }
+            verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+            verifyDocuments(leaderClient, dataStreamName, initialNumDocs);
+        }
+
+        // Create auto follow pattern
+        createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster", null);
+
+        // Rollover and ensure only second backing index is replicated:
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+            assertOK(leaderClient.performRequest(rolloverRequest));
+            verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+
+            Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+            indexRequest.addParameter("refresh", "true");
+            indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+            assertOK(leaderClient.performRequest(indexRequest));
+            verifyDocuments(leaderClient, dataStreamName, initialNumDocs + 1);
+
+            assertOK(leaderClient.performRequest(rolloverRequest));
+            assertOK(leaderClient.performRequest(indexRequest));
+            verifyDataStream(
+                leaderClient,
+                dataStreamName,
+                backingIndexName(dataStreamName, 1),
+                backingIndexName(dataStreamName, 2),
+                backingIndexName(dataStreamName, 3)
+            );
+
+        }
+
+        assertBusy(() -> assertThat(indexExists(backingIndexName(dataStreamName, 2)), is(true)));
+        assertBusy(() -> assertThat(indexExists(backingIndexName(dataStreamName, 3)), is(true)));
+
+        // Replace a backing index in the follower data stream with one that has a prefix (simulating a shrink)
+
+        String shrunkIndexName = SHRUNKEN_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+        Request indexRequest = new Request("POST", "/" + shrunkIndexName + "/_doc");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+        client().performRequest(indexRequest);
+
+        Request modifyDataStream = new Request("POST", "_data_stream/_modify");
+        modifyDataStream.setJsonEntity(
+            "{\n"
+                + "  \"actions\": [\n"
+                + "    {\n"
+                + "      \"remove_backing_index\": {\n"
+                + "        \"data_stream\": \""
+                + dataStreamName
+                + "\",\n"
+                + "        \"index\": \""
+                + DataStream.getDefaultBackingIndexName(dataStreamName, 2)
+                + "\"\n"
+                + "      }\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"add_backing_index\": {\n"
+                + "        \"data_stream\": \""
+                + dataStreamName
+                + "\",\n"
+                + "        \"index\": \""
+                + shrunkIndexName
+                + "\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}"
+        );
+        client().performRequest(modifyDataStream);
+
+        // Rollover the leader data stream so we replicate a new index to the following data stream (the 4th generation)
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+            assertOK(leaderClient.performRequest(rolloverRequest));
+            verifyDataStream(
+                leaderClient,
+                dataStreamName,
+                backingIndexName(dataStreamName, 1),
+                backingIndexName(dataStreamName, 2),
+                backingIndexName(dataStreamName, 3),
+                backingIndexName(dataStreamName, 4)
+            );
+
+            indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+            indexRequest.addParameter("refresh", "true");
+            indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+            assertOK(leaderClient.performRequest(indexRequest));
+        }
+
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_data_stream/" + dataStreamName);
+            Map<String, ?> response = toMap(client().performRequest(request));
+            List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
+            List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
+            assertThat(actualBackingIndexItems.size(), is(3));
+            Map<String, String> writeIndexMap = (Map<String, String>) actualBackingIndexItems.get(2);
+            assertThat(writeIndexMap.get("index_name"), not(shrunkIndexName));
+            assertThat(writeIndexMap.get("index_name"), is(backingIndexName(dataStreamName, 4)));
+            assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 3));
+        });
+    }
+
     public void testRolloverDataStreamInFollowClusterForbidden() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             return;
@@ -783,7 +912,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + leaderDataStreamName);
                 assertOK(leaderClient.performRequest(createDataStreamRequest));
                 Request updateAliasesRequest = new Request("POST", "/_aliases");
-                updateAliasesRequest.setJsonEntity(formatted("""
+                updateAliasesRequest.setJsonEntity(format("""
                     {
                       "actions": [ { "add": { "index": "%s", "alias": "logs-http", "is_write_index": true } } ]
                     }""", leaderDataStreamName));
@@ -808,7 +937,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + followerDataStreamName);
             assertOK(client().performRequest(createDataStreamRequest));
             Request updateAliasesRequest = new Request("POST", "/_aliases");
-            updateAliasesRequest.setJsonEntity(formatted("""
+            updateAliasesRequest.setJsonEntity(format("""
                 {
                   "actions": [ { "add": { "index": "%s", "alias": "logs-http", "is_write_index": true } } ]
                 }""", followerDataStreamName));
@@ -827,7 +956,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             // (only set the write flag to logs-http-na)
             // Create alias in follower cluster that point to leader and follower data streams:
             updateAliasesRequest = new Request("POST", "/_aliases");
-            updateAliasesRequest.setJsonEntity(formatted("""
+            updateAliasesRequest.setJsonEntity(format("""
                 {
                   "actions": [ { "add": { "index": "%s", "alias": "logs-http" } } ]
                 }""", leaderDataStreamName));
@@ -844,7 +973,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     verifyDocuments(leaderClient, followerDataStreamName, numDocs);
                 });
                 updateAliasesRequest = new Request("POST", "/_aliases");
-                updateAliasesRequest.setJsonEntity(formatted("""
+                updateAliasesRequest.setJsonEntity(format("""
                     {
                       "actions": [ { "add": { "index": "%s", "alias": "logs-http" } } ]
                     }""", followerDataStreamName));

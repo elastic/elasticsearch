@@ -13,14 +13,20 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene94.Lucene94Codec;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -31,11 +37,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMapperCodec extends Lucene94Codec {
-    private final MapperService mapperService;
+public class PerFieldMapperCodec extends Lucene95Codec {
 
+    private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
+    private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
+    private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
@@ -45,7 +52,8 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
         this.mapperService = mapperService;
-        this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
     }
 
     @Override
@@ -64,10 +72,19 @@ public class PerFieldMapperCodec extends Lucene94Codec {
         return super.getPostingsFormatForField(field);
     }
 
-    private boolean useBloomFilter(String field) {
-        return IdFieldMapper.NAME.equals(field)
-            && mapperService.mappingLookup().isDataStreamTimestampFieldEnabled() == false
-            && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(mapperService.getIndexSettings().getSettings());
+    boolean useBloomFilter(String field) {
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+            // In case for time series indices, they _id isn't randomly generated,
+            // but based on dimension fields and timestamp field, so during indexing
+            // version/seq_no/term needs to be looked up and having a bloom filter
+            // can speed this up significantly.
+            return indexSettings.getMode() == IndexMode.TIME_SERIES
+                && IdFieldMapper.NAME.equals(field)
+                && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
+        } else {
+            return IdFieldMapper.NAME.equals(field) && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
+        }
     }
 
     @Override
@@ -84,6 +101,40 @@ public class PerFieldMapperCodec extends Lucene94Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (useTSDBDocValuesFormat(field)) {
+            return tsdbDocValuesFormat;
+        }
         return docValuesFormat;
+    }
+
+    boolean useTSDBDocValuesFormat(final String field) {
+        return mapperService.getIndexSettings().isES87TSDBCodecEnabled()
+            && isTimeSeriesModeIndex()
+            && isNotSpecialField(field)
+            && (isCounterOrGaugeMetricType(field) || isTimestampField(field));
+    }
+
+    private boolean isTimeSeriesModeIndex() {
+        return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
+    }
+
+    private boolean isCounterOrGaugeMetricType(String field) {
+        if (mapperService != null) {
+            final MappingLookup mappingLookup = mapperService.mappingLookup();
+            if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
+                final MappedFieldType fieldType = mappingLookup.getFieldType(field);
+                return TimeSeriesParams.MetricType.COUNTER.equals(fieldType.getMetricType())
+                    || TimeSeriesParams.MetricType.GAUGE.equals(fieldType.getMetricType());
+            }
+        }
+        return false;
+    }
+
+    private boolean isTimestampField(String field) {
+        return "@timestamp".equals(field);
+    }
+
+    private boolean isNotSpecialField(String field) {
+        return field.startsWith("_") == false;
     }
 }

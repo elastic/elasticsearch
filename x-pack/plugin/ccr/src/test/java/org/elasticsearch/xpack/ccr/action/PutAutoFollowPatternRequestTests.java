@@ -59,6 +59,11 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     }
 
     @Override
+    protected PutAutoFollowPatternAction.Request mutateInstance(PutAutoFollowPatternAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected PutAutoFollowPatternAction.Request createXContextTestInstance(XContentType xContentType) {
         // follower index parameter is not part of the request body and is provided in the url path.
         // So this field cannot be used for creating a test instance for xcontent testing.

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.msearch;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -96,8 +96,8 @@ public class MultiSearchIT extends ESIntegTestCase {
             .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
             .add(client().prepareSearch("test").setQuery(new DummyQueryBuilder() {
                 @Override
-                public Version getMinimalSupportedVersion() {
-                    return Version.CURRENT;
+                public TransportVersion getMinimalSupportedVersion() {
+                    return TransportVersion.current();
                 }
             }))
             .get();

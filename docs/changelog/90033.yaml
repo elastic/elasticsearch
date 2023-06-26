@@ -1,6 +1,0 @@
-pr: 90033
-summary: Batch index delete cluster state updates
-area: Distributed
-type: enhancement
-issues:
- - 90022

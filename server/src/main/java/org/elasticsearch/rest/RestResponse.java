@@ -34,6 +34,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
 public class RestResponse {
 
@@ -103,6 +104,7 @@ public class RestResponse {
     }
 
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        this.status = status;
         ToXContent.Params params = paramsFromRequest(channel.request());
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             // log exception only if it is not returned in the response
@@ -118,11 +120,10 @@ public class RestResponse {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
         }
-        this.status = status;
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
-            this.responseMediaType = builder.contentType().mediaType();
+            this.responseMediaType = builder.getResponseContentTypeString();
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));
@@ -161,7 +162,7 @@ public class RestResponse {
     }
 
     protected boolean skipStackTrace() {
-        return false;
+        return status() == RestStatus.UNAUTHORIZED;
     }
 
     private static void build(
@@ -248,6 +249,14 @@ public class RestResponse {
     }
 
     public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+        if (status() == RestStatus.UNAUTHORIZED || status() == RestStatus.FORBIDDEN) {
+            if (headers.containsKey("Warning")) {
+                headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+            }
+            if (headers.containsKey(ELASTIC_PRODUCT_HTTP_HEADER)) {
+                headers = Maps.copyMapWithRemovedEntry(headers, ELASTIC_PRODUCT_HTTP_HEADER);
+            }
+        }
         return headers;
     }
 }

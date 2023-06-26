@@ -8,8 +8,9 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -25,7 +27,6 @@ import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -35,6 +36,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,8 +56,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,7 +66,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
@@ -128,7 +129,6 @@ public class NodeJoinTests extends ESTestCase {
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
         FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService(
             "test_node",
-            "test",
             fakeThreadPool,
             deterministicTaskQueue::scheduleNow
         );
@@ -226,7 +226,10 @@ public class NodeJoinTests extends ESTestCase {
             (s, p, r) -> {},
             ElectionStrategy.DEFAULT_INSTANCE,
             nodeHealthService,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new Reconfigurator(Settings.EMPTY, clusterSettings),
+            LeaderHeartbeatService.NO_OP,
+            StatefulPreVoteCollector::new
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -247,32 +250,19 @@ public class NodeJoinTests extends ESTestCase {
             roles = Set.of();
         }
         final String prefix = master ? "master_" : "data_";
-        return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(i + "").name(prefix + i).roles(roles).build();
     }
 
-    static class SimpleFuture extends BaseFuture<Void> {
-        final String description;
+    private Future<Void> joinNodeAsync(final JoinRequest joinRequest) {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>() {
+            private final String description = "join of " + joinRequest + "]";
 
-        SimpleFuture(String description) {
-            this.description = description;
-        }
+            @Override
+            public String toString() {
+                return "future [" + description + "]";
+            }
+        };
 
-        public void markAsDone() {
-            set(null);
-        }
-
-        public void markAsFailed(Throwable t) {
-            setException(t);
-        }
-
-        @Override
-        public String toString() {
-            return "future [" + description + "]";
-        }
-    }
-
-    private SimpleFuture joinNodeAsync(final JoinRequest joinRequest) {
-        final SimpleFuture future = new SimpleFuture("join of " + joinRequest + "]");
         logger.debug("starting {}", future);
         // clone the node before submitting to simulate an incoming join, which is guaranteed to have a new
         // disco node object serialized off the network
@@ -283,20 +273,20 @@ public class NodeJoinTests extends ESTestCase {
                 @Override
                 public void onResponse(TransportResponse transportResponse) {
                     logger.debug("{} completed", future);
-                    future.markAsDone();
+                    future.onResponse(null);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(() -> format("unexpected error for %s", future), e);
-                    future.markAsFailed(e);
+                    future.onFailure(e);
                 }
             };
 
             joinHandler.processMessageReceived(joinRequest, new TestTransportChannel(listener));
         } catch (Exception e) {
             logger.error(() -> format("unexpected error for %s", future), e);
-            future.markAsFailed(e);
+            future.onFailure(e);
         }
         return future;
     }
@@ -306,7 +296,7 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void joinNodeAndRun(final JoinRequest joinRequest) {
-        SimpleFuture fut = joinNodeAsync(joinRequest);
+        Future<Void> fut = joinNodeAsync(joinRequest);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(fut.isDone());
         FutureUtils.get(fut);
@@ -315,6 +305,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinWithHigherTermElectsLeader() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
+        TransportVersion version1 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -325,8 +316,8 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        SimpleFuture fut = joinNodeAsync(
-            new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+        Future<Void> fut = joinNodeAsync(
+            new JoinRequest(node1, version1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
         );
         assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
@@ -339,6 +330,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinWithHigherTermButBetterStateGetsRejected() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
+        TransportVersion version1 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -351,7 +343,9 @@ public class NodeJoinTests extends ESTestCase {
         long higherVersion = initialVersion + randomLongBetween(1, 10);
         expectThrows(
             CoordinationStateRejectedException.class,
-            () -> joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))))
+            () -> joinNodeAndRun(
+                new JoinRequest(node1, version1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion)))
+            )
         );
         assertFalse(isLocalNodeElectedMaster());
     }
@@ -369,7 +363,14 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                node1,
+                TransportVersion.current(),
+                newTerm,
+                Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))
+            )
+        );
         assertTrue(isLocalNodeElectedMaster());
     }
 
@@ -385,10 +386,24 @@ public class NodeJoinTests extends ESTestCase {
         );
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                node0,
+                TransportVersion.current(),
+                newTerm,
+                Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
+            )
+        );
         assertTrue(isLocalNodeElectedMaster());
         assertFalse(clusterStateHasNode(node1));
-        joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                node1,
+                TransportVersion.current(),
+                newTerm,
+                Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
+            )
+        );
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
     }
@@ -405,11 +420,18 @@ public class NodeJoinTests extends ESTestCase {
         );
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
-        joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                node0,
+                TransportVersion.current(),
+                newTerm,
+                Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
+            )
+        );
         assertTrue(isLocalNodeElectedMaster());
 
         long newerTerm = newTerm + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, newerTerm, Optional.empty()));
+        joinNodeAndRun(new JoinRequest(node1, TransportVersion.current(), newerTerm, Optional.empty()));
         assertThat(coordinator.getCurrentTerm(), greaterThanOrEqualTo(newerTerm));
         assertTrue(isLocalNodeElectedMaster());
     }
@@ -427,19 +449,36 @@ public class NodeJoinTests extends ESTestCase {
         );
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        SimpleFuture futNode0 = joinNodeAsync(
-            new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+        Future<Void> futNode0 = joinNodeAsync(
+            new JoinRequest(
+                node0,
+                TransportVersion.current(),
+                newTerm,
+                Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode0.isDone());
         assertFalse(isLocalNodeElectedMaster());
-        SimpleFuture futNode1 = joinNodeAsync(
-            new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+        Future<Void> futNode1 = joinNodeAsync(
+            new JoinRequest(
+                node1,
+                TransportVersion.current(),
+                newTerm,
+                Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode1.isDone());
         assertFalse(isLocalNodeElectedMaster());
-        joinNodeAndRun(new JoinRequest(node2, newTerm, Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                node2,
+                TransportVersion.current(),
+                newTerm,
+                Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))
+            )
+        );
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
         assertTrue(clusterStateHasNode(node2));
@@ -461,7 +500,14 @@ public class NodeJoinTests extends ESTestCase {
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
         long newerTerm = newTerm + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, newerTerm, Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                node1,
+                TransportVersion.current(),
+                newerTerm,
+                Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))
+            )
+        );
         assertTrue(isLocalNodeElectedMaster());
     }
 
@@ -481,33 +527,25 @@ public class NodeJoinTests extends ESTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
 
-        DiscoveryNode knownJoiningNode = new DiscoveryNode(
-            "knownNodeName",
-            "newNodeId",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        DiscoveryNode knownJoiningNode = DiscoveryNodeUtils.builder("newNodeId")
+            .name("knownNodeName")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long newerTerm = newTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(
             new JoinRequest(
                 knownJoiningNode,
+                TransportVersion.current(),
                 initialTerm,
                 Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))
             )
         );
 
-        assertTrue(
-            MasterServiceTests.discoveryState(masterService)
-                .getVotingConfigExclusions()
-                .stream()
-                .anyMatch(
-                    exclusion -> { return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId()); }
-                )
-        );
+        assertTrue(MasterServiceTests.discoveryState(masterService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+        }));
     }
 
     private ClusterState buildStateWithVotingConfigExclusion(
@@ -574,6 +612,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinFollowerFails() throws Exception {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
+        TransportVersion version1 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -585,8 +624,10 @@ public class NodeJoinTests extends ESTestCase {
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
         assertThat(
-            expectThrows(CoordinationStateRejectedException.class, () -> joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.empty())))
-                .getMessage(),
+            expectThrows(
+                CoordinationStateRejectedException.class,
+                () -> joinNodeAndRun(new JoinRequest(node1, version1, newTerm, Optional.empty()))
+            ).getMessage(),
             containsString("join target is a follower")
         );
         assertFalse(isLocalNodeElectedMaster());
@@ -595,6 +636,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testBecomeFollowerFailsPendingJoin() throws Exception {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
+        TransportVersion version0 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -603,8 +645,8 @@ public class NodeJoinTests extends ESTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        SimpleFuture fut = joinNodeAsync(
-            new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+        Future<Void> fut = joinNodeAsync(
+            new JoinRequest(node0, version0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(fut.isDone());
@@ -651,7 +693,14 @@ public class NodeJoinTests extends ESTestCase {
         logger.info("Successful voting nodes: {}", successfulNodes);
 
         List<JoinRequest> correctJoinRequests = successfulNodes.stream()
-            .map(node -> new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))))
+            .map(
+                node -> new JoinRequest(
+                    node,
+                    TransportVersion.current(),
+                    newTerm,
+                    Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
+                )
+            )
             .toList();
 
         List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(allNodes);
@@ -662,11 +711,17 @@ public class NodeJoinTests extends ESTestCase {
         List<JoinRequest> possiblyFailingJoinRequests = possiblyUnsuccessfulNodes.stream().map(node -> {
             if (randomBoolean()) {
                 // a correct request
-                return new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion)));
+                return new JoinRequest(
+                    node,
+                    TransportVersion.current(),
+                    newTerm,
+                    Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
+                );
             } else if (randomBoolean()) {
                 // term too low
                 return new JoinRequest(
                     node,
+                    TransportVersion.current(),
                     newTerm,
                     Optional.of(new Join(node, localNode, randomLongBetween(0, initialTerm), initialTerm, initialVersion))
                 );
@@ -674,6 +729,7 @@ public class NodeJoinTests extends ESTestCase {
                 // better state
                 return new JoinRequest(
                     node,
+                    TransportVersion.current(),
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion + randomLongBetween(1, 10)))
                 );
@@ -683,28 +739,21 @@ public class NodeJoinTests extends ESTestCase {
         // duplicate some requests, which will be unsuccessful
         possiblyFailingJoinRequests.addAll(randomSubsetOf(possiblyFailingJoinRequests));
 
-        CyclicBarrier barrier = new CyclicBarrier(correctJoinRequests.size() + possiblyFailingJoinRequests.size() + 1);
-        final Runnable awaitBarrier = () -> {
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new RuntimeException(e);
-            }
-        };
+        final CyclicBarrier barrier = new CyclicBarrier(correctJoinRequests.size() + possiblyFailingJoinRequests.size() + 1);
 
         final AtomicBoolean stopAsserting = new AtomicBoolean();
         final Thread assertionThread = new Thread(() -> {
-            awaitBarrier.run();
+            safeAwait(barrier);
             while (stopAsserting.get() == false) {
                 coordinator.invariant();
             }
         }, "assert invariants");
 
         final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
-            awaitBarrier.run();
+            safeAwait(barrier);
             joinNode(joinRequest);
         }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
-            awaitBarrier.run();
+            safeAwait(barrier);
             try {
                 joinNode(joinRequest);
             } catch (CoordinationStateRejectedException e) {

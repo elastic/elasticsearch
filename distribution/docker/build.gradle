@@ -14,12 +14,13 @@ import org.elasticsearch.gradle.util.GradleUtils
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
+apply plugin: 'elasticsearch.dra-artifacts'
 
 String buildId = providers.systemProperty('build.id').getOrNull()
-boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
+boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
 
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
@@ -35,55 +36,76 @@ repositories {
     metadataSources { artifact() }
     content { includeGroup 'krallin' }
   }
+}
 
-  // Cloud builds bundle some beats
-  ivy {
-    name = 'beats'
-    if (useLocalArtifacts) {
-      url "file://${buildDir}/artifacts/"
-      patternLayout {
-        artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
-      }
-    } else {
-      url "https://artifacts-snapshot.elastic.co/"
-      patternLayout {
-        if (VersionProperties.isElasticsearchSnapshot()) {
-          artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
-        } else {
-          // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
-          // Release builds are always done with a local repo.
-          artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+if(useDra == false) {
+  repositories {
+    // Cloud builds bundle some beats
+    ivy {
+      name = 'beats'
+      if (useLocalArtifacts) {
+        url "file://${buildDir}/artifacts/"
+        patternLayout {
+          artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
+        }
+      } else {
+        url "https://artifacts-snapshot.elastic.co/"
+        patternLayout {
+          if (VersionProperties.isElasticsearchSnapshot()) {
+            artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+          } else {
+            // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+            // Release builds are always done with a local repo.
+            artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+          }
         }
       }
+      metadataSources { artifact() }
+      content { includeGroup 'beats' }
     }
-    metadataSources { artifact() }
-    content { includeGroup 'beats' }
   }
 }
 
 testFixtures.useFixture()
 
 configurations {
-  aarch64DockerSource
-  dockerSource
+  aarch64DockerSource {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+  dockerSource {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+  // Iron bank images require a tarball
+  aarch64DockerSourceTar
+  dockerSourceTar
+
   log4jConfig
   tini
   allPlugins
-  filebeat
-  metricbeat
+  filebeat_aarch64
+  filebeat_x86_64
+  metricbeat_aarch64
+  metricbeat_x86_64
 }
 
-String beatsArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'x86_64'
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
-  dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
+  aarch64DockerSource project(":distribution:archives:linux-aarch64-tar")
+  aarch64DockerSourceTar project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
+  dockerSource project(":distribution:archives:linux-tar")
+  dockerSourceTar project(path: ":distribution:archives:linux-tar", configuration:"default")
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
-  filebeat "beats:filebeat:${VersionProperties.elasticsearch}:linux-${beatsArch}@tar.gz"
-  metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:linux-${beatsArch}@tar.gz"
+  filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
+  filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
+  metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -263,18 +285,18 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         // If we're performing a release build, but `build.id` hasn't been set, we can
         // infer that we're not at the Docker building stage of the build, and therefore
         // we should skip the beats part of the build.
-        String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
-        boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null
+        String buildId = providers.systemProperty('build.id').getOrNull()
+        boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
 
         if (includeBeats) {
-          from configurations.filebeat
-          from configurations.metricbeat
+          from configurations.getByName("filebeat_${architecture.classifier}")
+          from configurations.getByName("metricbeat_${architecture.classifier}")
         }
         // For some reason, the artifact name can differ depending on what repository we used.
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
       }
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   if (base == DockerBase.IRON_BANK) {
@@ -291,13 +313,18 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
 
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
-    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
+    String distributionFolderName = "elasticsearch-${VersionProperties.elasticsearch}"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
-      eachFile { FileCopyDetails details ->
-        if (details.name.equals("Dockerfile")) {
-          filter { String contents ->
-            return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
+
+      if (base != DockerBase.IRON_BANK) {
+        // iron bank always needs a COPY with the tarball file path
+        eachFile { FileCopyDetails details ->
+          if (details.name.equals("Dockerfile")) {
+            filter { String contents ->
+              return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
+                .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
+            }
           }
         }
       }
@@ -305,23 +332,20 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     into "${project.buildDir}/docker-context/${archiveName}"
 
     // Since we replaced the remote URL in the Dockerfile, copy in the required file
-    if (architecture == Architecture.AARCH64) {
-      from configurations.aarch64DockerSource
-    } else {
-      from configurations.dockerSource
-    }
-
-    if (base == DockerBase.IRON_BANK) {
+    if(base == DockerBase.IRON_BANK) {
+      from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSourceTar : configurations.dockerSourceTar)
       from (configurations.tini) {
         rename { _ -> 'tini' }
       }
+    } else {
+      from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSource : configurations.dockerSource)
     }
 
     expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
 
-    onlyIf { isArchitectureSupported(architecture) }
+    onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
   }
 
   // Register transformed context as a project artifact
@@ -393,7 +417,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
         baseImages = [base.image]
       }
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD && base != DockerBase.CLOUD_ESS) {
@@ -440,7 +464,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       tags = generateTags(base, architecture)
       platform = architecture.dockerPlatform
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   tasks.named("assemble").configure {
@@ -465,6 +489,9 @@ boolean isArchitectureSupported(Architecture architecture) {
   Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
   return serviceProvider.get().dockerAvailability.supportedArchitectures().contains(architecture)
 }
+
+def exportDockerImages = tasks.register("exportDockerImages")
+def exportCompressedDockerImages = tasks.register("exportCompressedDockerImages")
 
 /*
  * The export subprojects write out the generated Docker images to disk, so
@@ -498,7 +525,7 @@ subprojects { Project subProject ->
     final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
-    tasks.register(exportTaskName, LoggedExec) {
+    def exportTask = tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable = 'docker'
       outputs.file(tarFile)
@@ -506,9 +533,27 @@ subprojects { Project subProject ->
         "-o",
         tarFile,
         "elasticsearch${base.suffix}:${architecture.classifier}"
-
       dependsOn(parent.path + ":" + buildTaskName)
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
+    }
+
+    exportDockerImages.configure {
+      dependsOn exportTask
+    }
+
+    def compressExportTask = tasks.register(taskName("compress", architecture, base, 'DockerImageExport'), Tar) {
+      it.from(project.tarTree(tarFile))
+      archiveExtension = 'tar.gz'
+      it.setCompression(Compression.GZIP)
+      it.getArchiveBaseName().set("elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-image")
+      it.getArchiveVersion().set("")
+      it.getArchiveClassifier().set(architecture == Architecture.AARCH64 ? 'aarch64' : '')
+      it.getDestinationDirectory().set(new File(project.parent.buildDir, 'distributions'))
+      it.dependsOn(exportTask)
+    }
+
+    exportCompressedDockerImages.configure {
+      dependsOn compressExportTask
     }
 
     artifacts.add('default', file(tarFile)) {
@@ -521,5 +566,6 @@ subprojects { Project subProject ->
 
 tasks.named('resolveAllDependencies') {
   // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
-  configs = configurations.matching { it.name.endsWith('beat') == false }
+  // Also skip building Elasticsearch distributions
+  configs = configurations.matching { it.name.contains('beat') == false && it.name.toLowerCase().contains('dockersource') == false }
 }

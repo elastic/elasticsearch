@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -58,33 +59,19 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck(
-            DEFAULT_METRIC,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min"); }
-            )
-        );
+        checker.registerConflictCheck(DEFAULT_METRIC, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max"); }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> {
-                    b.field("type", CONTENT_TYPE)
-                        .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
-                        .field(DEFAULT_METRIC, "min");
-                }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
+                .field(DEFAULT_METRIC, "min");
+        }));
     }
 
     @Override
@@ -110,7 +97,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
         );
-        assertEquals(-10.1, doc.rootDoc().getField("field.min").numericValue());
+        assertEquals("DoubleField <field.min:-10.1>", doc.rootDoc().getField("field.min").toString());
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
@@ -141,7 +128,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseEmptyValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
         assertThat(
             e.getCause().getMessage(),
             containsString("Aggregate metric field [field] must contain all metrics [min, max, value_count]")
@@ -176,13 +163,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 .errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
             // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
             exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
-                .errorMatches("failed to parse field [field.value_count] of type [integer]")
+                .errorMatches("failed to parse [value_count] sub field: 77.33 cannot be converted to Integer without data loss")
         );
-    }
-
-    @Override
-    protected String[] ignoredFields() {
-        return new String[] { "field.value_count", "field.min", "field.max" };
     }
 
     /**
@@ -209,6 +191,28 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertEquals(77, doc.rootDoc().getField("field.value_count").numericValue().longValue());
     }
 
+    /**
+     * Test parsing a metric and check the min max value
+     */
+    public void testCheckMinMaxValue() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        // min > max
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(
+                source(b -> b.startObject("field").field("min", 50.0).field("max", 10.0).field("value_count", 14).endObject())
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("Aggregate metric field [field] max value cannot be smaller than min value"));
+
+        // min == max
+        mapper.parse(source(b -> b.startObject("field").field("min", 50.0).field("max", 50.0).field("value_count", 14).endObject()));
+
+        // min < max
+        mapper.parse(source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 14).endObject()));
+    }
+
     private void randomMapping(XContentBuilder b, int randomNumber) throws IOException {
         b.field("type", CONTENT_TYPE);
         switch (randomNumber) {
@@ -225,7 +229,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseArrayValue() throws Exception {
         int randomNumber = randomIntBetween(0, 3);
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> randomMapping(b, randomNumber)));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field").startObject();
             switch (randomNumber) {
                 case 0 -> b.field("min", 10.0);
@@ -483,6 +487,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             for (Metric m : storedMetrics) {
                 if (Metric.value_count == m) {
                     value.put(m.name(), randomLongBetween(1, 1_000_000));
+                } else if (Metric.max == m) {
+                    value.put(m.name(), randomDoubleBetween(100d, 1_000_000d, false));
+                } else if (Metric.min == m) {
+                    value.put(m.name(), randomDoubleBetween(-1_000_000d, 99d, false));
                 } else {
                     value.put(m.name(), randomDouble());
                 }

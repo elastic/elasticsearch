@@ -11,9 +11,6 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -29,10 +26,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TaskTransportChannel;
@@ -53,13 +50,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 
 /**
@@ -68,8 +65,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
 public class TaskManager implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
-
-    private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
     private final String[] taskHeaders;
@@ -94,6 +89,8 @@ public class TaskManager implements ClusterStateApplier {
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
+
+    private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
 
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
@@ -154,7 +151,7 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task instanceof CancellableTask) {
-            registerCancellableTask(task);
+            registerCancellableTask(task, request.getRequestId(), traceRequest);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
@@ -165,7 +162,8 @@ public class TaskManager implements ClusterStateApplier {
         return task;
     }
 
-    private void startTrace(ThreadContext threadContext, Task task) {
+    // package private for testing
+    void startTrace(ThreadContext threadContext, Task task) {
         TaskId parentTask = task.getParentTaskId();
         Map<String, Object> attributes = Map.of(
             Tracer.AttributeKeys.TASK_ID,
@@ -173,7 +171,7 @@ public class TaskManager implements ClusterStateApplier {
             Tracer.AttributeKeys.PARENT_TASK_ID,
             parentTask.toString()
         );
-        tracer.startTrace(threadContext, "task-" + task.getId(), task.getAction(), attributes);
+        tracer.startTrace(threadContext, task, task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -211,6 +209,9 @@ public class TaskManager implements ClusterStateApplier {
                 @Override
                 public void onFailure(Exception e) {
                     try {
+                        if (request.getParentTask().isSet()) {
+                            cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+                        }
                         release();
                     } finally {
                         taskListener.onFailure(e);
@@ -230,11 +231,13 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    private void registerCancellableTask(Task task) {
+    private void registerCancellableTask(Task task, long requestId, boolean traceRequest) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
-        cancellableTasks.put(task, holder);
-        startTrace(threadPool.getThreadContext(), task);
+        cancellableTasks.put(task, requestId, holder);
+        if (traceRequest) {
+            startTrace(threadPool.getThreadContext(), task);
+        }
         // Check if this task was banned before we start it.
         if (task.getParentTaskId().isSet()) {
             final Ban ban = bannedParents.get(task.getParentTaskId());
@@ -247,6 +250,16 @@ public class TaskManager implements ClusterStateApplier {
                     unregister(task);
                 }
             }
+        }
+    }
+
+    private TaskCancellationService getCancellationService() {
+        final TaskCancellationService service = cancellationService.get();
+        if (service != null) {
+            return service;
+        } else {
+            assert false : "TaskCancellationService is not initialized";
+            throw new IllegalStateException("TaskCancellationService is not initialized");
         }
     }
 
@@ -265,6 +278,40 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             listener.run();
         }
+    }
+
+    /**
+     * Cancels children tasks of the specified parent, with the request ID specified, as long as the request ID is positive.
+     *
+     * Note: There may be multiple children for the same request ID. In this edge case all these multiple children are cancelled.
+     */
+    public void cancelChildLocal(TaskId parentTaskId, long childRequestId, String reason) {
+        if (childRequestId > 0) {
+            List<CancellableTaskHolder> children = cancellableTasks.getChildrenByRequestId(parentTaskId, childRequestId).toList();
+            if (children.isEmpty() == false) {
+                for (CancellableTaskHolder child : children) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "cancelling child task [{}] of parent task [{}] and request ID [{}] with reason [{}]",
+                            child.getTask(),
+                            parentTaskId,
+                            childRequestId,
+                            reason
+                        );
+                    }
+                    child.cancel(reason);
+                }
+            }
+        }
+    }
+
+    /**
+     * Send an Action to cancel children tasks of the specified parent, with the request ID specified.
+     *
+     * Note: There may be multiple children for the same request ID. In this edge case all these multiple children are cancelled.
+     */
+    public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
+        getCancellationService().cancelChildRemote(parentTask, childRequestId, childConnection, reason);
     }
 
     /**
@@ -288,8 +335,19 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.stopTrace("task-" + task.getId());
+            tracer.stopTrace(task);
+            for (RemovedTaskListener listener : removedTaskListeners) {
+                listener.onRemoved(task);
+            }
         }
+    }
+
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.add(removedTaskListener);
+    }
+
+    public void unregisterRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.remove(removedTaskListener);
     }
 
     /**
@@ -530,23 +588,6 @@ public class TaskManager implements ClusterStateApplier {
         lastDiscoveryNodes = event.state().getNodes();
     }
 
-    /**
-     * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
-     */
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
-        while (System.nanoTime() - untilInNanos < 0) {
-            if (getTask(task.getId()) == null) {
-                return;
-            }
-            try {
-                Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
-            } catch (InterruptedException e) {
-                throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, task);
-            }
-        }
-        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
-    }
-
     private static class CancellableTaskHolder {
         private final CancellableTask task;
         private boolean finished = false;
@@ -746,7 +787,7 @@ public class TaskManager implements ClusterStateApplier {
 
         void removeTask(CancellableTask task) {
             final boolean removed = pendingTasks.remove(task);
-            assert removed : "task " + task.getId() + " is not in the pending list";
+            assert removed : "task is not in the pending list: " + task;
         }
     }
 
@@ -775,13 +816,7 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     public void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
-        final TaskCancellationService service = cancellationService.get();
-        if (service != null) {
-            service.cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
-        } else {
-            assert false : "TaskCancellationService is not initialized";
-            throw new IllegalStateException("TaskCancellationService is not initialized");
-        }
+        getCancellationService().cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
     }
 
     public List<String> getTaskHeaders() {

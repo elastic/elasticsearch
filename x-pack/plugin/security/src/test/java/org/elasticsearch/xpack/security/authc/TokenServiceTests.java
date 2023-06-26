@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -100,6 +102,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.crypto.SecretKey;
 
@@ -216,8 +219,22 @@ public class TokenServiceTests extends ESTestCase {
         // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
         // developments
         if (randomBoolean()) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
+            oldNode = addAnother7071DataNode(this.clusterService);
         }
+    }
+
+    private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {
+        Version version;
+        TransportVersion transportVersion;
+        if (randomBoolean()) {
+            version = Version.V_7_0_0;
+            transportVersion = TransportVersion.V_7_0_0;
+        } else {
+            version = Version.V_7_1_0;
+            transportVersion = TransportVersion.V_7_1_0;
+        }
+
+        return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
 
     @After
@@ -302,7 +319,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
+            oldNode = addAnother7071DataNode(this.clusterService);
         }
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -341,7 +358,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
+            oldNode = addAnother7071DataNode(this.clusterService);
         }
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -459,13 +476,13 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+        if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
             return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
         } else {
             return new RefreshTokenStatus(
                 invalidated,
-                authentication.getUser().principal(),
-                authentication.getAuthenticatedBy().getName(),
+                authentication.getEffectiveSubject().getUser().principal(),
+                authentication.getAuthenticatingSubject().getRealm().getName(),
                 refreshed,
                 refreshInstant,
                 supersedingTokens,
@@ -674,7 +691,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, generateAccessToken(tokenService, Version.V_7_1_0));
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, TransportVersion.V_7_1_0));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -693,7 +710,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, generateAccessToken(tokenService, randomFrom(Version.V_7_2_0, Version.V_7_3_2)));
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, randomFrom(TransportVersion.V_7_2_0, TransportVersion.V_7_3_2)));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -802,7 +819,7 @@ public class TokenServiceTests extends ESTestCase {
         final String newRefreshToken = UUIDs.randomBase64UUID();
         final byte[] iv = tokenService.getRandomBytes(TokenService.IV_BYTES);
         final byte[] salt = tokenService.getRandomBytes(TokenService.SALT_BYTES);
-        final Version version = tokenService.getTokenVersionCompatibility();
+        final TransportVersion version = tokenService.getTokenVersionCompatibility();
         String encryptedTokens = tokenService.encryptSupersedingTokens(newAccessToken, newRefreshToken, refrehToken, iv, salt);
         RefreshTokenStatus refreshTokenStatus = newRefreshTokenStatus(
             false,
@@ -813,7 +830,7 @@ public class TokenServiceTests extends ESTestCase {
             Base64.getEncoder().encodeToString(iv),
             Base64.getEncoder().encodeToString(salt)
         );
-        refreshTokenStatus.setVersion(version);
+        refreshTokenStatus.setTransportVersion(version);
         mockGetTokenAsyncForDecryptedToken(newAccessToken);
         tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, securityTokensIndex, authentication, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
@@ -850,7 +867,7 @@ public class TokenServiceTests extends ESTestCase {
             userTokenId
         );
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getVersion(), accessToken));
+        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getTransportVersion(), accessToken));
 
         PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(false);
@@ -895,7 +912,7 @@ public class TokenServiceTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
-            Version tokenVersion = tokenService.getTokenVersionCompatibility();
+            TransportVersion tokenVersion = tokenService.getTokenVersionCompatibility();
             final String possiblyHashedUserTokenId;
             if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
@@ -929,7 +946,7 @@ public class TokenServiceTests extends ESTestCase {
         Authentication authentication,
         Map<String, Object> metadata
     ) {
-        final Version tokenVersion = tokenService.getTokenVersionCompatibility();
+        final TransportVersion tokenVersion = tokenService.getTokenVersionCompatibility();
         final String possiblyHashedUserTokenId;
         if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
@@ -948,7 +965,7 @@ public class TokenServiceTests extends ESTestCase {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             final String possiblyHashedUserTokenId;
-            if (userToken.getVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userToken.getId());
             } else {
                 possiblyHashedUserTokenId = userToken.getId();
@@ -978,7 +995,7 @@ public class TokenServiceTests extends ESTestCase {
 
     private void mockFindTokenFromRefreshToken(String refreshToken, UserToken userToken, @Nullable RefreshTokenStatus refreshTokenStatus) {
         String storedRefreshToken;
-        if (userToken.getVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
+        if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
             storedRefreshToken = TokenService.hashTokenString(refreshToken);
         } else {
             storedRefreshToken = refreshToken;
@@ -1013,7 +1030,7 @@ public class TokenServiceTests extends ESTestCase {
                 .realmRef(realmRef)
                 .build(false);
 
-            final SearchHit hit = new SearchHit(randomInt(), "token_" + TokenService.hashTokenString(userToken.getId()), null, null);
+            final SearchHit hit = new SearchHit(randomInt(), "token_" + TokenService.hashTokenString(userToken.getId()));
             BytesReference source = TokenService.createTokenDocument(userToken, storedRefreshToken, clientAuthentication, Instant.now());
             if (refreshTokenStatus != null) {
                 var sourceAsMap = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
@@ -1047,30 +1064,33 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public static void assertAuthentication(Authentication result, Authentication expected) {
-        assertEquals(expected.getUser(), result.getUser());
-        assertEquals(expected.getAuthenticatedBy(), result.getAuthenticatedBy());
-        assertEquals(expected.getLookedUpBy(), result.getLookedUpBy());
-        assertEquals(expected.getMetadata(), result.getMetadata());
+        assertEquals(expected.getEffectiveSubject().getUser(), result.getEffectiveSubject().getUser());
+        assertEquals(expected.getAuthenticatingSubject().getRealm(), result.getAuthenticatingSubject().getRealm());
+        assertEquals(expected.isRunAs(), result.isRunAs());
+        assertEquals(expected.getEffectiveSubject().getRealm(), result.getEffectiveSubject().getRealm());
+        assertEquals(expected.getAuthenticatingSubject().getMetadata(), result.getAuthenticatingSubject().getMetadata());
     }
 
-    private DiscoveryNode addAnotherDataNodeWithVersion(ClusterService clusterService, Version version) {
+    private static DiscoveryNode addAnotherDataNodeWithVersion(
+        ClusterService clusterService,
+        Version version,
+        TransportVersion transportVersion
+    ) {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
-        final DiscoveryNode anotherDataNode = new DiscoveryNode(
-            "another_data_node#" + version,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-            version
-        );
+        final DiscoveryNode anotherDataNode = DiscoveryNodeUtils.builder("another_data_node#" + version)
+            .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+            .version(version)
+            .build();
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);
+        newStateBuilder.putTransportVersion(anotherDataNode.getId(), transportVersion);
         setState(clusterService, newStateBuilder.build());
         return anotherDataNode;
     }
 
-    private String generateAccessToken(TokenService tokenService, Version version) throws Exception {
+    private String generateAccessToken(TokenService tokenService, TransportVersion version) throws Exception {
         String accessTokenString = UUIDs.randomBase64UUID();
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             accessTokenString = TokenService.hashTokenString(accessTokenString);

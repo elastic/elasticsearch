@@ -39,7 +39,7 @@ import java.util.Objects;
  *
  * Technically this is implemented as priority queue which is implemented as heap with the last item on top.
  *
- * To get to the top-n results pop the collector until it is empty and than reverse the order.
+ * To get to the top-n results pop the collector until it is empty and then reverse the order.
  */
 public final class FrequentItemSetCollector {
 
@@ -59,7 +59,7 @@ public final class FrequentItemSetCollector {
         }
 
         public FrequentItemSet(StreamInput in) throws IOException {
-            this.fields = in.readMapOfLists(StreamInput::readString, StreamInput::readGenericValue);
+            this.fields = in.readMapOfLists(StreamInput::readGenericValue);
             this.docCount = in.readVLong();
             this.support = in.readDouble();
         }
@@ -177,6 +177,7 @@ public final class FrequentItemSetCollector {
             int pos = items.nextSetBit(0);
             while (pos > 0) {
                 Tuple<Integer, Object> item = transactionStore.getItem(topItemIds.getItemIdAt(pos - 1));
+                assert item.v1() < fields.size() : "item id exceed number of given items, did you configure eclat correctly?";
                 final Field field = fields.get(item.v1());
                 Object formattedValue = field.formatValue(item.v2());
                 String fieldName = fields.get(item.v1()).getName();
@@ -288,27 +289,42 @@ public final class FrequentItemSetCollector {
             return queue.top().getDocCount();
         }
 
-        // closed set criteria: don't add if we already store a superset
-        if (hasSuperSet(itemSet, docCount)) {
-            logger.trace("skip itemset with super set");
-            return queue.size() < size ? min : queue.top().getDocCount();
+        /**
+         * Criteria for closed sets
+         *
+         * An item set is called closed if no superset has the same support.
+         * e.g.
+         *
+         * [cat, dog, crocodile] -> 0.2
+         * [cat, dog, crocodile, river] -> 0.2
+         *
+         * [cat, dog, crocodile] gets skipped, because [cat, dog, crocodile, river] has the same support.
+         * if [cat, dog, crocodile] was added first, [cat, dog, crocodile, river] replaces [cat, dog, crocodile]
+         */
+        List<FrequentItemSetCandidate> setsThatShareSameDocCountBits = frequentItemsByCount.get(docCount);
+
+        if (setsThatShareSameDocCountBits != null) {
+            for (FrequentItemSetCandidate otherSet : setsThatShareSameDocCountBits) {
+                ItemSetBitSet.SetRelation relation = itemSet.setRelation(otherSet.getItems());
+
+                if (relation.equals(ItemSetBitSet.SetRelation.SUPER_SET)) {
+                    removeFromFrequentItemsByCount(otherSet);
+                    queue.remove(otherSet);
+                    break;
+                }
+
+                if (relation.equals(ItemSetBitSet.SetRelation.SUB_SET)) {
+                    // closed set criteria: don't add if we already store a superset
+                    return queue.size() < size ? min : queue.top().getDocCount();
+                }
+            }
         }
 
         spareSet.reset(count++, itemSet, docCount);
         FrequentItemSetCandidate newItemSet = spareSet;
         FrequentItemSetCandidate removedItemSet = queue.insertWithOverflow(spareSet);
         if (removedItemSet != null) {
-            // remove item from frequentItemsByCount
-            frequentItemsByCount.compute(removedItemSet.getDocCount(), (k, sets) -> {
-
-                // short cut, if there is only 1, it must be the one we are looking for
-                if (sets.size() == 1) {
-                    return null;
-                }
-
-                sets.remove(removedItemSet);
-                return sets;
-            });
+            removeFromFrequentItemsByCount(removedItemSet);
             spareSet = removedItemSet;
         } else {
             spareSet = new FrequentItemSetCandidate();
@@ -317,6 +333,20 @@ public final class FrequentItemSetCollector {
         frequentItemsByCount.computeIfAbsent(newItemSet.getDocCount(), (k) -> new ArrayList<>()).add(newItemSet);
         // return the minimum doc count this collector takes
         return queue.size() < size ? min : queue.top().getDocCount();
+    }
+
+    private void removeFromFrequentItemsByCount(FrequentItemSetCandidate removedItemSet) {
+        // remove item from frequentItemsByCount
+        frequentItemsByCount.compute(removedItemSet.getDocCount(), (k, sets) -> {
+
+            // short cut, if there is only 1, it must be the one we are looking for
+            if (sets.size() == 1) {
+                return null;
+            }
+
+            sets.remove(removedItemSet);
+            return sets;
+        });
     }
 
     // for unit tests
@@ -331,32 +361,4 @@ public final class FrequentItemSetCollector {
     FrequentItemSetCandidate getLastSet() {
         return queue.top();
     }
-
-    /**
-     * Criteria for closed sets
-     *
-     * A item set is called closed if no superset has the same support.
-     *
-     * E.g.
-     *
-     * [cat, dog, crocodile] -> 0.2
-     * [cat, dog, crocodile, river] -> 0.2
-     *
-     * [cat, dog, crocodile] gets skipped, because [cat, dog, crocodile, river] has the same support.
-     *
-     */
-    private boolean hasSuperSet(ItemSetBitSet itemSetBitSet, long docCount) {
-        List<FrequentItemSetCandidate> setsThatShareSameDocCountBits = frequentItemsByCount.get(docCount);
-
-        if (setsThatShareSameDocCountBits != null) {
-            for (FrequentItemSetCandidate otherSet : setsThatShareSameDocCountBits) {
-                if (itemSetBitSet.isSubset(otherSet.getItems())) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
 }

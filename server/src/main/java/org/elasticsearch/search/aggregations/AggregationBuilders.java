@@ -76,7 +76,6 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 
 import java.util.List;
 
@@ -347,13 +346,6 @@ public class AggregationBuilders {
      */
     public static CompositeAggregationBuilder composite(String name, List<CompositeValuesSourceBuilder<?>> sources) {
         return new CompositeAggregationBuilder(name, sources);
-    }
-
-    /**
-     * Create a new {@link TimeSeriesAggregationBuilder} aggregation with the given name.
-     */
-    public static TimeSeriesAggregationBuilder timeSeries(String name) {
-        return new TimeSeriesAggregationBuilder(name);
     }
 
 }

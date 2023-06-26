@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -33,7 +33,7 @@ import java.util.Objects;
 /**
  * Get snapshots response
  */
-public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContent {
+public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final int UNKNOWN_COUNT = -1;
 
@@ -93,15 +93,15 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         this.snapshots = in.readImmutableList(SnapshotInfo::readFrom);
-        if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
+        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readException);
             this.failures = Collections.unmodifiableMap(failedResponses);
             this.next = in.readOptionalString();
         } else {
             this.failures = Collections.emptyMap();
             this.next = null;
         }
-        if (in.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
             this.total = in.readVInt();
             this.remaining = in.readVInt();
         } else {
@@ -132,7 +132,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     }
 
     /**
-     * Returns true if there is a least one failed response.
+     * Returns true if there is at least one failed response.
      */
     public boolean isFailed() {
         return failures.isEmpty() == false;
@@ -149,7 +149,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(snapshots);
-        if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
             out.writeOptionalString(next);
         } else {
@@ -158,14 +158,14 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
                 throw failures.values().iterator().next();
             }
         }
-        if (out.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
             out.writeVInt(total);
             out.writeVInt(remaining);
         }
     }
 
     @Override
-    public Iterator<ToXContent> toXContentChunked() {
+    public Iterator<ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(Iterators.single((b, p) -> {
             b.startObject();
             b.startArray("snapshots");

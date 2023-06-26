@@ -8,13 +8,12 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -63,30 +62,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     @Before
     public void setup() throws Exception {
-        node1 = new DiscoveryNode(
-            "node1",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node2 = new DiscoveryNode(
-            "node2",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node3 = new DiscoveryNode(
-            "node3",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
+        node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
+        node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -94,7 +72,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainTrue() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseTrue() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
@@ -150,11 +128,10 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(1));
-        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
+        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainFalse() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
@@ -180,7 +157,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(diagnosis.size(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetHealthIndicatorResultGreenOrUnknown() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
@@ -262,6 +238,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
 
+    }
+
+    // We expose the indicator name and the diagnosis in the x-pack usage API, consequently these end up in the mapping of the telemetry
+    // index, any changes or additions that we want to track need to be added to the mapping.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(StableMasterHealthIndicatorService.NAME, equalTo("master_is_stable"));
+        assertThat(
+            StableMasterHealthIndicatorService.CONTACT_SUPPORT.definition().getUniqueId(),
+            equalTo("elasticsearch:health:master_is_stable:diagnosis:contact_support")
+        );
     }
 
     private ClusterState createClusterState(DiscoveryNode masterNode) {

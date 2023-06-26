@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -42,8 +42,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
-    public static final Version DATA_PATH_NEW_KEY_VERSION = Version.V_8_6_0;
+    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
+    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersion.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -76,32 +76,26 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
+        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
-        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
-        this.leastAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
-        this.mostAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
-        this.shardSizes = in.readImmutableMap(StreamInput::readString, StreamInput::readLong);
-        if (in.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
-        } else {
-            this.shardDataSetSizes = Map.of();
-        }
-        if (in.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
-            this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
-        } else {
-            this.dataPath = in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
-        }
-        if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
-        } else {
-            this.reservedSpace = Map.of();
-        }
+        this.leastAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
+        this.mostAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
+        this.shardSizes = in.readImmutableMap(StreamInput::readLong);
+        this.shardDataSetSizes = in.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)
+            ? in.readImmutableMap(ShardId::new, StreamInput::readLong)
+            : Map.of();
+        this.dataPath = in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)
+            ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
+            : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
+        this.reservedSpace = in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)
+            ? in.readImmutableMap(NodeAndPath::new, ReservedSpace::new)
+            : Map.of();
     }
 
     @Override
@@ -109,15 +103,15 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> o.writeLong(v == null ? -1 : v));
-        if (out.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
             out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
         }
-        if (out.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
             out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
-        if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             out.writeMap(this.reservedSpace);
         }
     }
@@ -133,7 +127,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             nodeAndShard.shardId,
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(REINITIALIZED, "fake")
+            new UnassignedInfo(REINITIALIZED, "fake"),
+            ShardRouting.Role.DEFAULT // ok, this is only used prior to DATA_PATH_NEW_KEY_VERSION which has no other roles
         ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
     }
 
@@ -165,14 +160,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         builder.startObject("shard_sizes");
         {
             for (Map.Entry<String, Long> c : this.shardSizes.entrySet()) {
-                builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), new ByteSizeValue(c.getValue()));
+                builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()));
             }
         }
         builder.endObject(); // end "shard_sizes"
         builder.startObject("shard_data_set_sizes");
         {
             for (Map.Entry<ShardId, Long> c : this.shardDataSetSizes.entrySet()) {
-                builder.humanReadableField(c.getKey() + "_bytes", c.getKey().toString(), new ByteSizeValue(c.getValue()));
+                builder.humanReadableField(c.getKey() + "_bytes", c.getKey().toString(), ByteSizeValue.ofBytes(c.getValue()));
             }
         }
         builder.endObject(); // end "shard_data_set_sizes"

@@ -52,7 +52,7 @@ subprojects {
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.internal-java-rest-test'
+    apply plugin: 'elasticsearch.legacy-java-rest-test'
 
     dependencies {
       javaRestTestImplementation(project(':x-pack:plugin:sql:qa:jdbc'))

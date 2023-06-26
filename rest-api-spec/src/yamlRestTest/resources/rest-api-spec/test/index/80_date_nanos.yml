@@ -1,6 +1,10 @@
 ---
 "date_nanos requires dates after 1970 and before 2262":
 
+  - skip:
+      version: " - 8.7.99"
+      reason: error message changed in 8.8.0
+
   - do:
       indices.create:
           index: date_ns
@@ -26,8 +30,8 @@
 
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
-  - match: { items.0.index.error.type: mapper_parsing_exception }
+  - match: { items.0.index.error.type: document_parsing_exception }
   - match: { items.0.index.error.caused_by.reason: "date[1969-10-28T12:12:12.123456789Z] is before the epoch in 1970 and cannot be stored in nanosecond resolution" }
   - match: { items.1.index.status: 400 }
-  - match: { items.1.index.error.type: mapper_parsing_exception }
+  - match: { items.1.index.error.type: document_parsing_exception }
   - match: { items.1.index.error.caused_by.reason: "date[2263-10-29T12:12:12.123456789Z] is after 2262-04-11T23:47:16.854775807 and cannot be stored in nanosecond resolution" }

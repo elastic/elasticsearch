@@ -11,14 +11,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 public class CartesianCentroidTests extends BaseAggregationTestCase<CartesianCentroidAggregationBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(LocalStateSpatialPlugin.class);
+        return List.of(LocalStateSpatialPlugin.class);
     }
 
     @Override

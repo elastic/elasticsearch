@@ -4,105 +4,33 @@
 coming::[{minor-version}]
 
 Here are the highlights of what's new and improved in {es} {minor-version}!
-ifeval::[\{release-state}\"!=\"unreleased\"]
+ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-endif::[]
 
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.4/release-highlights.html[8.4]
+{ref-bare}/8.9/release-highlights.html[8.9]
+| {ref-bare}/8.8/release-highlights.html[8.8]
+| {ref-bare}/8.7/release-highlights.html[8.7]
+| {ref-bare}/8.6/release-highlights.html[8.6]
+| {ref-bare}/8.5/release-highlights.html[8.5]
+| {ref-bare}/8.4/release-highlights.html[8.4]
 | {ref-bare}/8.3/release-highlights.html[8.3]
 | {ref-bare}/8.2/release-highlights.html[8.2]
 | {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
 
+endif::[]
+
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-
-[discrete]
-[[speed_up_sql_queries_by_not_tracking_total_hits_by_default]]
-=== Speed up SQL queries by not tracking total hits by default
-SQL query translator now explicitly sets track_total_hits to false when
-not needed.
-This has a significant impact on SQL query performance in cases where total hits
-are not needed to calculate the final result, in particular when the cost of evaluation
-of a single document is particularly high (eg. queries that involve script evaluation)
-and in queries with a small LIMIT value.
-In our tests, on some specific queries, we see a speed-up of more than 50%,
-with peaks of ~95% (from 600ms to 20ms).
-
-{es-pull}89106[#89106]
-
-[discrete]
-[[ilm_no_longer_rolls_over_empty_indices]]
-=== ILM no longer rolls over empty indices
-For both new and existing Index Lifecycle Management (ILM) policies,
-the rollover action will only execute if an index has at least one document.
-
-
-For indices with a `max_age` condition that are no longer being written
-to, this will mean that they will no longer roll over every time their
-`max_age` is reached.
-
-A policy can override this behavior, and explicitly opt in to rolling over
-empty indices, by adding a `"min_docs": 0` condition:
-
-[source,console]
-----
-PUT _ilm/policy/allow_empty_rollover_policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover" : {
-            "max_age": "7d",
-            "max_size": "100gb",
-            "min_docs": 0
-          }
-        }
-      }
-    }
-  }
-}
-----
-
-This can also be disabled on a cluster-wide basis by setting
-`indices.lifecycle.rollover.only_if_has_documents` to `false`.
-
-{es-pull}89557[#89557]
-
-[discrete]
-[[release_time_series_data_stream_tsds_functionality]]
-=== Release time series data stream (TSDS) functionality
-Elasticsearch offers support for time series data stream (TSDS) indices.
-A TSDS index is an index that contains time series metrics data as part
-of a data stream. Elasticsearch routes the incoming documents into a TSDS
-index so that all the documents for a particular time series are on the
-same shard, and then sorts the shard by time series and timestamp. This
-structure has a few advantages:
-
-1. Documents from the same time series are next to each other on the shard, and
-hence stored next to each other on the disk, so the operating system pages are
-much more homogeneous and compress better, yielding massive reduction in TCO.
-
-2. The analysis of a time series typically involves comparing each two consecutive
-docs (samples), examining the last doc in a given time window, etc., which is quite
-complex when the next doc could be on any shard, and in fact on any index. Sorting
-by time series and timestamp allows improved analysis, both in terms of performance
-and in terms of our ability to add new aggregations.
-
-Finally,  as part of the Index Lifecycle Management of metrics data time series,
-Elasticsearch enables a Downsampling action. When an index is downsampled,
-Elasticsearch keeps a single document with statistical summaries per each bucket
-of time in the time series. Supported aggregations can then be run on the data
-stream and include both downsampled indices and raw data indices, without the
-user needing to be aware of that. Downsampling of downsampled indices, to more
-coarse time resolution, is also supported.
-
-{es-pull}90116[#90116]
-
+// [discrete]
+// === Heading
+//
+// Description.
 // end::notable-highlights[]
 
 

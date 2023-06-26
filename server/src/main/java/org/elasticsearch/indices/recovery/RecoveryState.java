@@ -24,7 +24,6 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -632,7 +631,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
-            if (in.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 recoveredFromSnapshot = in.readLong();
             }
         }
@@ -643,7 +642,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
-            if (out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 out.writeLong(recoveredFromSnapshot);
             }
         }
@@ -709,13 +708,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, new ByteSizeValue(length));
+            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, ByteSizeValue.ofBytes(length));
             builder.field(Fields.REUSED, reused);
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recovered));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recovered));
             builder.humanReadableField(
                 Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
                 Fields.RECOVERED_FROM_SNAPSHOT,
-                new ByteSizeValue(recoveredFromSnapshot)
+                ByteSizeValue.ofBytes(recoveredFromSnapshot)
             );
             builder.endObject();
             return builder;
@@ -770,7 +769,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         RecoveryFilesDetails(StreamInput in) throws IOException {
             fileDetails = in.readMapValues(FileDetail::new, FileDetail::name);
-            if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 complete = in.readBoolean();
             } else {
                 // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
@@ -784,7 +783,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(values());
-            if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 out.writeBoolean(complete);
             }
         }
@@ -832,10 +831,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public int size() {
             return fileDetails.size();
-        }
-
-        public boolean isEmpty() {
-            return fileDetails.isEmpty();
         }
 
         public void clear() {
@@ -991,8 +986,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recovered / (float) total);
-                return result;
+                return 100.0f * (recovered / (float) total);
             }
         }
 
@@ -1103,13 +1097,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // stream size first, as it matters more and the files section can be long
             builder.startObject(Fields.SIZE);
-            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalBytes()));
-            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, new ByteSizeValue(reusedBytes()));
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recoveredBytes()));
+            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, ByteSizeValue.ofBytes(totalBytes()));
+            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, ByteSizeValue.ofBytes(reusedBytes()));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recoveredBytes()));
             builder.humanReadableField(
                 Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
                 Fields.RECOVERED_FROM_SNAPSHOT,
-                new ByteSizeValue(recoveredFromSnapshotBytes())
+                ByteSizeValue.ofBytes(recoveredFromSnapshotBytes())
             );
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();
@@ -1129,15 +1123,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public synchronized String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-                builder.startObject();
-                toXContent(builder, EMPTY_PARAMS);
-                builder.endObject();
-                return Strings.toString(builder);
-            } catch (IOException e) {
-                return "{ \"error\" : \"" + e.getMessage() + "\"}";
-            }
+            return Strings.toString(this);
         }
 
         public synchronized FileDetail getFileDetails(String dest) {

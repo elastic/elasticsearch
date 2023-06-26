@@ -150,11 +150,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     public void testOptOutQueryCacheNoIndicesPermissions() {
-        final Settings.Builder settings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0);
-        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 0)).build();
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final OptOutQueryCache cache = new OptOutQueryCache(indexMetadata.getIndex(), indicesQueryCache, threadContext);
@@ -166,15 +162,11 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     public void testOptOutQueryCacheIndexDoesNotHaveFieldLevelSecurity() {
-        final Settings.Builder settings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0);
-        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 0)).build();
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final IndicesAccessControl.IndexAccessControl indexAccessControl = mock(IndicesAccessControl.IndexAccessControl.class);
-        when(indexAccessControl.getFieldPermissions()).thenReturn(new FieldPermissions());
+        when(indexAccessControl.getFieldPermissions()).thenReturn(FieldPermissions.DEFAULT);
         final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         when(indicesAccessControl.isGranted()).thenReturn(true);

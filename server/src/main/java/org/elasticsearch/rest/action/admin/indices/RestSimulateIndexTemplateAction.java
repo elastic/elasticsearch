@@ -13,8 +13,11 @@ import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplat
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -22,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
     @Override
@@ -40,6 +44,9 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
         simulateIndexTemplateRequest.masterNodeTimeout(
             request.paramAsTime("master_timeout", simulateIndexTemplateRequest.masterNodeTimeout())
         );
+        if (DataLifecycle.isEnabled()) {
+            simulateIndexTemplateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
+        }
         if (request.hasContent()) {
             PutComposableIndexTemplateAction.Request indexTemplateRequest = new PutComposableIndexTemplateAction.Request(
                 "simulating_template"

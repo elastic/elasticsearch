@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.client.internal.Requests.putRepositoryRequest;
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
 /**
@@ -98,7 +97,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         Map<String, ?> source = parser.map();
 
         for (var entry : source.entrySet()) {
-            PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(entry.getKey());
+            PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(entry.getKey());
             @SuppressWarnings("unchecked")
             Map<String, ?> content = (Map<String, ?>) entry.getValue();
             try (XContentParser repoParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {

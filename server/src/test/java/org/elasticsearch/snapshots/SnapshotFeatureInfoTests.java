@@ -38,7 +38,7 @@ public class SnapshotFeatureInfoTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected SnapshotFeatureInfo mutateInstance(SnapshotFeatureInfo instance) throws IOException {
+    protected SnapshotFeatureInfo mutateInstance(SnapshotFeatureInfo instance) {
         if (randomBoolean()) {
             return new SnapshotFeatureInfo(
                 randomValueOtherThan(instance.getPluginName(), () -> randomAlphaOfLengthBetween(5, 20)),

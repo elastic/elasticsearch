@@ -110,10 +110,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     private long numberOfFailedRemoteClusterStateRequests = 0;
     private final LinkedHashMap<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
 
-    private static final class AutoFollowErrorKey {
-        private final String pattern;
-        private final String index;
-
+    private record AutoFollowErrorKey(String pattern, String index) {
         private AutoFollowErrorKey(String pattern, String index) {
             this.pattern = Objects.requireNonNull(pattern);
             this.index = index;
@@ -299,17 +296,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     final long metadataVersion,
                     final BiConsumer<ClusterStateResponse, Exception> handler
                 ) {
-                    final ClusterStateRequest request = new ClusterStateRequest();
-                    request.clear();
-                    request.metadata(true);
-                    request.routingTable(true);
-                    request.waitForMetadataVersion(metadataVersion);
-                    request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
-                        request,
+                        new ClusterStateRequest().clear()
+                            .metadata(true)
+                            .routingTable(true)
+                            .waitForMetadataVersion(metadataVersion)
+                            .waitForTimeout(waitForMetadataTimeOut),
                         e -> handler.accept(null, e),
                         remoteClusterStateResponse -> handler.accept(remoteClusterStateResponse, null)
                     );
@@ -599,11 +594,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             Consumer<AutoFollowResult> resultHandler
         ) {
             final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
-                ActionListener.wrap(
-                    rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))),
-                    e -> { throw new AssertionError("must never happen", e); }
-                ),
-                leaderIndicesToFollow.size()
+                leaderIndicesToFollow.size(),
+                ActionListener.wrap(rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))), e -> {
+                    throw new AssertionError("must never happen", e);
+                })
             );
 
             // Loop through all the as-of-yet-unfollowed indices from the leader
@@ -616,7 +610,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
                     .filter(otherPattern -> otherPattern.v2().match(indexAbstraction))
                     .map(Tuple::v1)
-                    .collect(Collectors.toList());
+                    .toList();
                 if (otherMatchingPatterns.size() != 0) {
                     groupedListener.onResponse(
                         new Tuple<>(
@@ -722,7 +716,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             // If there was a pattern specified for renaming the backing index, and this index is
             // part of a data stream, then send the new data stream name as part of the request.
             if (pattern.getFollowIndexPattern() != null && indexAbstraction.getParentDataStream() != null) {
-                String dataStreamName = indexAbstraction.getParentDataStream().getDataStream().getName();
+                String dataStreamName = indexAbstraction.getParentDataStream().getName();
                 // Send the follow index pattern as the data stream pattern, so that data streams can be
                 // renamed accordingly (not only the backing indices)
                 request.setDataStreamName(pattern.getFollowIndexPattern().replace(AUTO_FOLLOW_PATTERN_REPLACEMENT, dataStreamName));

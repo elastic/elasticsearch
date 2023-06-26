@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
@@ -226,10 +228,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -314,10 +316,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .build();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -385,10 +387,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -451,10 +453,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -554,10 +556,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -689,10 +691,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -899,8 +901,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override

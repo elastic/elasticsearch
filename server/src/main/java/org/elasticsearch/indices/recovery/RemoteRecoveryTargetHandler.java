@@ -294,7 +294,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             totalTranslogOps,
             throttleTimeInNanos
         );
-        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
 
         // Fork the actual sending onto a separate thread so we can send them concurrently even if CPU-bound (e.g. using compression).
         // The AsyncIOProcessor and MultiFileWriter both concentrate their work onto fewer threads if possible, but once we have
@@ -302,14 +301,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         threadPool.generic()
             .execute(
                 ActionRunnable.wrap(
-                    listener,
-                    l -> executeRetryableAction(
-                        action,
-                        request,
-                        fileChunkRequestOptions,
-                        ActionListener.runBefore(l.map(r -> null), request::decRef),
-                        reader
-                    )
+                    ActionListener.<TransportResponse.Empty>runBefore(listener.map(r -> null), request::decRef),
+                    l -> executeRetryableAction(action, request, fileChunkRequestOptions, l, in -> TransportResponse.Empty.INSTANCE)
                 )
             );
     }

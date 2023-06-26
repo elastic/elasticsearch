@@ -133,8 +133,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             Exception.class,
             () -> authenticateWithOidc(principal, roleMapper, false, false, REALM_NAME, claimsWithNumber)
         );
-        assertThat(e.getCause().getMessage(), containsString("expects a claim with String or a String Array value"));
-        assertThat(e2.getCause().getMessage(), containsString("expects a claim with String or a String Array value"));
+        assertThat(e.getCause().getMessage(), containsString("expects claim [groups] with String or a String Array value"));
+        assertThat(e2.getCause().getMessage(), containsString("expects claim [groups] with String or a String Array value"));
     }
 
     public void testClaimMetadataMapping() throws Exception {

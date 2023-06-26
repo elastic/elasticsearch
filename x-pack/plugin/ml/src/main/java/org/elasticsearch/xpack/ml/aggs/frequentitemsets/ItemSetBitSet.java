@@ -25,6 +25,13 @@ import java.util.Arrays;
  */
 class ItemSetBitSet implements Cloneable {
 
+    public enum SetRelation {
+        DISJOINT_OR_INTERSECT, // we don't care if disjoint or intersect
+        SUB_SET,
+        SUPER_SET,
+        EQUAL
+    }
+
     // taken from {@code BitSet}
     private static final int ADDRESS_BITS_PER_WORD = 6;
     private static final int BITS_PER_WORD = 1 << ADDRESS_BITS_PER_WORD;
@@ -110,10 +117,42 @@ class ItemSetBitSet implements Cloneable {
             return false;
         }
 
-        for (int i = wordsInUse - 1; i >= 0; i--)
-            if ((words[i] & set.words[i]) != words[i]) return false;
+        for (int i = wordsInUse - 1; i >= 0; i--) {
+            if ((words[i] & set.words[i]) != words[i]) {
+                return false;
+            }
+        }
 
         return true;
+    }
+
+    public SetRelation setRelation(ItemSetBitSet set) {
+        // this method is performance critical, change carefully
+
+        if (wordsInUse > set.wordsInUse || cardinality > set.cardinality) {
+            for (int i = set.wordsInUse - 1; i >= 0; i--) {
+                if ((set.words[i] & words[i]) != set.words[i]) {
+                    return SetRelation.DISJOINT_OR_INTERSECT;
+                }
+            }
+            return SetRelation.SUPER_SET;
+        } else if (wordsInUse < set.wordsInUse || cardinality < set.cardinality) {
+            for (int i = wordsInUse - 1; i >= 0; i--) {
+                if ((words[i] & set.words[i]) != words[i]) {
+                    return SetRelation.DISJOINT_OR_INTERSECT;
+                }
+            }
+            return SetRelation.SUB_SET;
+        }
+
+        // both bitsets have the same wordsInUse and cardinality, so they can be either equal or not
+        for (int i = wordsInUse - 1; i >= 0; i--) {
+            if ((words[i] & set.words[i]) != words[i]) {
+                return SetRelation.DISJOINT_OR_INTERSECT;
+            }
+        }
+
+        return SetRelation.EQUAL;
     }
 
     int nextSetBit(int fromIndex) {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
@@ -98,7 +99,14 @@ public class SchemaUtilTests extends ESTestCase {
         try (Client client = new FieldCapsMockClient(getTestName())) {
             // fields is null
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, null, emptyMap(), listener),
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new String[] { "index-1", "index-2" },
+                    null,
+                    emptyMap(),
+                    listener
+                ),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -109,6 +117,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] { "index-1", "index-2" },
                     new String[] {},
                     emptyMap(),
@@ -122,7 +131,14 @@ public class SchemaUtilTests extends ESTestCase {
 
             // indices is null
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, null, new String[] { "field-1", "field-2" }, emptyMap(), listener),
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    null,
+                    new String[] { "field-1", "field-2" },
+                    emptyMap(),
+                    listener
+                ),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -133,6 +149,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] {},
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
@@ -148,6 +165,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] { "index-1", "index-2" },
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
@@ -174,6 +192,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] { "index-1", "index-2" },
                     new String[] { "field-1", "field-2" },
                     runtimeMappings,
@@ -240,10 +259,10 @@ public class SchemaUtilTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));

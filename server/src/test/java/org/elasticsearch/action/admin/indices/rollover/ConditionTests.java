@@ -350,6 +350,6 @@ public class ConditionTests extends ESTestCase {
     }
 
     private static ByteSizeValue randomByteSize() {
-        return new ByteSizeValue(randomNonNegativeLong());
+        return ByteSizeValue.ofBytes(randomNonNegativeLong());
     }
 }

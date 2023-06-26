@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
@@ -48,8 +49,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -107,7 +108,10 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(rolledIndex.getIndex());
+        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            rolledIndex.getIndex()
+        );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
         );
@@ -142,7 +146,10 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(rolledIndex.getIndex());
+        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            rolledIndex.getIndex()
+        );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
         );
@@ -175,7 +182,10 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .numberOfReplicas(3)
             .build();
 
-        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(rolledIndexMeta.getIndex());
+        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            rolledIndexMeta.getIndex()
+        );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
         );
@@ -225,7 +235,10 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
-        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(rolledIndex.getIndex());
+        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            rolledIndex.getIndex()
+        );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
         );
@@ -271,7 +284,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         assertThat(
             actualResultAsString,
             containsString(
-                "[" + step.getKey().getAction() + "] lifecycle action for index [index-000000] executed but " + "index no longer exists"
+                "[" + step.getKey().action() + "] lifecycle action for index [index-000000] executed but " + "index no longer exists"
             )
         );
     }

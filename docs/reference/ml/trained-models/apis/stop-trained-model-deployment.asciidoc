@@ -8,17 +8,15 @@
 
 Stops a trained model deployment.
 
-beta::[]
-
 [[stop-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployment/_stop`
+`POST _ml/trained_models/<deployment_id>/deployment/_stop`
 
 [[stop-trained-model-deployment-prereq]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 [[stop-trained-model-deployment-desc]]
@@ -29,9 +27,9 @@ Deployment is required only for trained models that have a PyTorch `model_type`.
 [[stop-trained-model-deployment-path-params]]
 == {api-path-parms-title}
 
-`<model_id>`::
+`<deployment_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 
 [[stop-trained-model-deployment-query-params]]
@@ -42,9 +40,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-deployments]
 
 `force`::
-(Optional, Boolean) If true, the deployment is stopped even if it is referenced
-by ingest pipelines. You can't use these pipelines until you restart the model
-deployment.
+(Optional, Boolean) If true, the deployment is stopped even if it or one of its 
+model aliases is referenced by ingest pipelines. You can't use these pipelines 
+until you restart the model deployment.
 
 ////
 [role="child_attributes"]
@@ -57,7 +55,12 @@ deployment.
 == {api-response-codes-title}
 ////
 
-////
 [[stop-trained-model-deployment-example]]
 == {api-examples-title}
-////
+
+The following example stops the `my_model_for_search` deployment:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/my_model_for_search/deployment/_stop
+--------------------------------------------------

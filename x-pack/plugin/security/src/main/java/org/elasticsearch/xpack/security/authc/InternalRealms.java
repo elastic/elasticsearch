@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.jwt.JwtRealmsService;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -137,7 +137,6 @@ public final class InternalRealms {
         NativeRoleMappingStore nativeRoleMappingStore,
         SecurityIndexManager securityIndex
     ) {
-        final JwtRealmsService jwtRealmsService = new JwtRealmsService(settings); // parse shared settings needed by all JwtRealm instances
         return Map.of(
             // file realm
             FileRealmSettings.TYPE,
@@ -169,7 +168,7 @@ public final class InternalRealms {
             config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> jwtRealmsService.createJwtRealm(config, sslService, nativeRoleMappingStore)
+            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
         );
     }
 

@@ -20,9 +20,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -165,6 +167,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Constructs a new search source builder with a list of sub searches.
+     */
+    public SearchRequestBuilder setSubSearches(List<SubSearchSourceBuilder> subSearches) {
+        sourceBuilder().subSearches(subSearches);
+        return this;
+    }
+
+    /**
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
      * (not aggregations). This filter is always executed as last filtering mechanism.
      */
@@ -177,7 +187,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Defines a kNN search. If a query is also provided, the kNN hits
      * are combined with the query hits.
      */
-    public SearchRequestBuilder setKnnSearch(KnnSearchBuilder knnSearch) {
+    public SearchRequestBuilder setKnnSearch(List<KnnSearchBuilder> knnSearch) {
         sourceBuilder().knnSearch(knnSearch);
         return this;
     }
@@ -187,6 +197,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setMinScore(float minScore) {
         sourceBuilder().minScore(minScore);
+        return this;
+    }
+
+    /**
+     * Defines a rank method for ranking results.
+     */
+    public SearchRequestBuilder setRankBuilder(RankBuilder rankBuilder) {
+        sourceBuilder().rankBuilder(rankBuilder);
         return this;
     }
 

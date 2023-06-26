@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
+import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.are;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getSortedUniqueValuesString;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
@@ -81,7 +82,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
             /*
@@ -104,9 +105,9 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         return createIndicator(
             diskHealthAnalyzer.getHealthStatus(),
             diskHealthAnalyzer.getSymptom(),
-            diskHealthAnalyzer.getDetails(explain),
+            diskHealthAnalyzer.getDetails(verbose),
             diskHealthAnalyzer.getImpacts(),
-            diskHealthAnalyzer.getDiagnoses()
+            diskHealthAnalyzer.getDiagnoses(maxAffectedResourcesCount)
         );
     }
 
@@ -118,7 +119,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private void logNodesMissingHealthInfo(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
         if (logger.isDebugEnabled()) {
             String nodesMissingHealthInfo = getSortedUniqueValuesString(
-                clusterState.getNodes(),
+                clusterState.getNodes().getAllNodes(),
                 node -> diskHealthInfoMap.containsKey(node.getId()) == false,
                 HealthIndicatorDisplayValues::getNodeName
             );
@@ -150,7 +151,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         private final Set<DiscoveryNodeRole> affectedRoles = new HashSet<>();
         private final Set<String> indicesAtRisk;
         private final HealthStatus healthStatus;
-        private final HealthIndicatorDetails details;
+        private final Map<HealthStatus, Integer> healthStatusNodeCount;
 
         DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState) {
             this.clusterState = clusterState;
@@ -190,7 +191,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
             indicesAtRisk = getIndicesForNodes(dataNodes, clusterState);
             healthStatus = mostSevereStatusSoFar;
-            details = createDetails(diskHealthByNode, blockedIndices);
+            healthStatusNodeCount = countNodesByHealthStatus(diskHealthByNode, clusterState);
         }
 
         public HealthStatus getHealthStatus() {
@@ -205,7 +206,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (hasBlockedIndices()) {
                 symptom = String.format(
                     Locale.ROOT,
-                    "%d %s %s not allowed to be updated because ",
+                    "%d %s %s not allowed to be updated.",
                     blockedIndices.size(),
                     indices(blockedIndices.size()),
                     are(blockedIndices.size())
@@ -213,7 +214,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 if (hasUnhealthyDataNodes()) {
                     symptom += String.format(
                         Locale.ROOT,
-                        "%d %s %s out of disk or running low on disk space.",
+                        " %d %s %s out of disk or running low on disk space.",
                         dataNodes.size(),
                         regularNoun("node", dataNodes.size()),
                         are(dataNodes.size())
@@ -221,9 +222,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 } else {
                     // In this case the disk issue has been resolved but the index block has not been removed yet or the
                     // cluster is still moving shards away from data nodes that are over the high watermark.
-                    symptom +=
-                        ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
-                            + "within a few minutes.");
+                    symptom += " The cluster is recovering and ingest capabilities should be restored within a few minutes.";
                 }
                 if (hasUnhealthyMasterNodes() || hasUnhealthyOtherNodes()) {
                     String roles = Stream.concat(masterNodes.values().stream(), otherNodes.values().stream())
@@ -237,11 +236,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     int unhealthyNodesCount = getUnhealthyNodeSize(masterNodes) + getUnhealthyNodeSize(otherNodes);
                     symptom += String.format(
                         Locale.ROOT,
-                        " Furthermore %d node%s with roles: [%s] %s out of disk or running low on disk space.",
+                        " %d %s with roles: [%s] %s out of disk or running low on disk space.",
                         unhealthyNodesCount,
-                        unhealthyNodesCount == 1 ? "" : "s",
+                        regularNoun("node", unhealthyNodesCount),
                         roles,
-                        unhealthyNodesCount == 1 ? "is" : "are"
+                        are(unhealthyNodesCount)
                     );
                 }
             } else {
@@ -294,6 +293,26 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         )
                     );
                 }
+                // data nodes don't have space, but no indices had the write block in the cluster
+                if (hasUnhealthyDataNodes()) {
+                    impacts.add(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            IMPACT_INGEST_AT_RISK_ID,
+                            2,
+                            String.format(
+                                Locale.ROOT,
+                                "%d %s %s out of disk or running low on disk space. %s %s cannot be used to store data anymore.",
+                                dataNodes.size(),
+                                regularNoun("node", dataNodes.size()),
+                                are(dataNodes.size()),
+                                these(dataNodes.size()),
+                                regularNoun("node", dataNodes.size())
+                            ),
+                            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                        )
+                    );
+                }
             }
             if (affectedRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
                 impacts.add(
@@ -325,7 +344,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             return impacts;
         }
 
-        private List<Diagnosis> getDiagnoses() {
+        private List<Diagnosis> getDiagnoses(int size) {
             if (healthStatus == HealthStatus.GREEN) {
                 return List.of();
             }
@@ -334,7 +353,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 Set<String> affectedIndices = Sets.union(blockedIndices, indicesAtRisk);
                 List<Diagnosis.Resource> affectedResources = new ArrayList<>();
                 if (dataNodes.size() > 0) {
-                    Diagnosis.Resource nodeResources = new Diagnosis.Resource(dataNodes);
+                    Diagnosis.Resource nodeResources = new Diagnosis.Resource(limitSize(dataNodes, size));
                     affectedResources.add(nodeResources);
                 }
                 if (affectedIndices.size() > 0) {
@@ -342,71 +361,58 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         Diagnosis.Resource.Type.INDEX,
                         affectedIndices.stream()
                             .sorted(indicesComparatorByPriorityAndName(clusterState.metadata()))
+                            .limit(Math.min(affectedIndices.size(), size))
                             .collect(Collectors.toList())
                     );
                     affectedResources.add(indexResources);
                 }
-                diagnosisList.add(
-                    new Diagnosis(
-                        new Diagnosis.Definition(
-                            NAME,
-                            "add_disk_capacity_data_nodes",
-                            String.format(
-                                Locale.ROOT,
-                                "%d %s %s on nodes that have run or are likely to run out of disk space, "
-                                    + "this can temporarily disable writing on %s %s.",
-                                affectedIndices.size(),
-                                indices(affectedIndices.size()),
-                                regularVerb("reside", affectedIndices.size()),
-                                these(affectedIndices.size()),
-                                indices(affectedIndices.size())
-                            ),
-                            "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
-                                + "this. If you have already taken action please wait for the rebalancing to complete.",
-                            "https://ela.st/fix-data-disk"
-                        ),
-                        affectedResources
-                    )
-                );
+                diagnosisList.add(createDataNodeDiagnosis(affectedIndices.size(), affectedResources));
             }
             if (masterNodes.containsKey(HealthStatus.RED)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, masterNodes.get(HealthStatus.RED), true));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, masterNodes.get(HealthStatus.RED), size, true));
             }
             if (masterNodes.containsKey(HealthStatus.YELLOW)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, masterNodes.get(HealthStatus.YELLOW), true));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, masterNodes.get(HealthStatus.YELLOW), size, true));
             }
             if (otherNodes.containsKey(HealthStatus.RED)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, otherNodes.get(HealthStatus.RED), false));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, otherNodes.get(HealthStatus.RED), size, false));
             }
             if (otherNodes.containsKey(HealthStatus.YELLOW)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, otherNodes.get(HealthStatus.YELLOW), false));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, otherNodes.get(HealthStatus.YELLOW), size, false));
             }
             return diagnosisList;
         }
 
-        HealthIndicatorDetails getDetails(boolean explain) {
-            if (explain == false) {
+        HealthIndicatorDetails getDetails(boolean verbose) {
+            if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
-            }
-            return details;
-        }
-
-        private static HealthIndicatorDetails createDetails(Map<String, DiskHealthInfo> diskHealthInfoMap, Set<String> blockedIndices) {
-            Map<HealthStatus, Integer> healthNodesCount = new HashMap<>();
-            for (HealthStatus healthStatus : HealthStatus.values()) {
-                healthNodesCount.put(healthStatus, 0);
-            }
-            for (DiskHealthInfo diskHealthInfo : diskHealthInfoMap.values()) {
-                healthNodesCount.computeIfPresent(diskHealthInfo.healthStatus(), (key, oldCount) -> oldCount + 1);
             }
             return ((builder, params) -> {
                 builder.startObject();
                 builder.field(INDICES_WITH_READONLY_BLOCK, blockedIndices.size());
                 for (HealthStatus healthStatus : HealthStatus.values()) {
-                    builder.field(getDetailsDisplayKey(healthStatus), healthNodesCount.get(healthStatus));
+                    builder.field(getDetailsDisplayKey(healthStatus), healthStatusNodeCount.get(healthStatus));
                 }
                 return builder.endObject();
             });
+        }
+
+        // Visible for testing
+        static Map<HealthStatus, Integer> countNodesByHealthStatus(
+            Map<String, DiskHealthInfo> diskHealthInfoMap,
+            ClusterState clusterState
+        ) {
+            Map<HealthStatus, Integer> counts = new HashMap<>();
+            for (HealthStatus healthStatus : HealthStatus.values()) {
+                counts.put(healthStatus, 0);
+            }
+            for (DiscoveryNode node : clusterState.getNodes()) {
+                HealthStatus healthStatus = diskHealthInfoMap.containsKey(node.getId())
+                    ? diskHealthInfoMap.get(node.getId()).healthStatus()
+                    : HealthStatus.UNKNOWN;
+                counts.computeIfPresent(healthStatus, (ignored, count) -> count + 1);
+            }
+            return counts;
         }
 
         private static String getDetailsDisplayKey(HealthStatus status) {
@@ -445,7 +451,35 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 .collect(Collectors.toSet());
         }
 
-        private Diagnosis createNonDataNodeDiagnosis(HealthStatus healthStatus, Collection<DiscoveryNode> nodes, boolean isMaster) {
+        // Visible for testing
+        static Diagnosis createDataNodeDiagnosis(int numberOfAffectedIndices, List<Diagnosis.Resource> affectedResources) {
+            String message = numberOfAffectedIndices == 0
+                ? "Disk is almost full."
+                : String.format(
+                    Locale.ROOT,
+                    "%d %s %s on nodes that have run or are likely to run out of disk space, "
+                        + "this can temporarily disable writing on %s %s.",
+                    numberOfAffectedIndices,
+                    indices(numberOfAffectedIndices),
+                    regularVerb("reside", numberOfAffectedIndices),
+                    these(numberOfAffectedIndices),
+                    indices(numberOfAffectedIndices)
+                );
+            return new Diagnosis(
+                new Diagnosis.Definition(
+                    NAME,
+                    "add_disk_capacity_data_nodes",
+                    message,
+                    "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                        + "this. If you have already taken action please wait for the rebalancing to complete.",
+                    "https://ela.st/fix-data-disk"
+                ),
+                affectedResources
+            );
+        }
+
+        // Visible for testing
+        static Diagnosis createNonDataNodeDiagnosis(HealthStatus healthStatus, List<DiscoveryNode> nodes, int size, boolean isMaster) {
             return new Diagnosis(
                 new Diagnosis.Definition(
                     NAME,
@@ -454,7 +488,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                     isMaster ? "https://ela.st/fix-master-disk" : "https://ela.st/fix-disk-space"
                 ),
-                List.of(new Diagnosis.Resource(nodes))
+                List.of(new Diagnosis.Resource(limitSize(nodes, size)))
             );
         }
 

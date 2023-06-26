@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -167,9 +166,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
-            activeRealms.stream()
-                .filter(r -> licensedRealms.contains(r) == false)
-                .forEach(realm -> { handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot); });
+            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
+                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
+            });
         }
 
         activeRealms = licensedRealms;
@@ -309,18 +308,14 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
         final List<Realm> realmList = getActiveRealms().stream().filter(r -> ReservedRealm.TYPE.equals(r.type()) == false).toList();
-        final CountDown countDown = new CountDown(realmList.size());
-        final Runnable doCountDown = () -> {
-            if ((realmList.isEmpty() || countDown.countDown()) && failed.get() == false) {
+        try (var refs = new RefCountingRunnable(() -> {
+            if (failed.get() == false) {
                 // iterate over the factories so we can add enabled & available info
                 for (String type : factories.keySet()) {
                     assert ReservedRealm.TYPE.equals(type) == false;
                     realmMap.compute(type, (key, value) -> {
                         if (value == null) {
-                            return MapBuilder.<String, Object>newMapBuilder()
-                                .put("enabled", false)
-                                .put("available", isRealmTypeAvailable(licenseStateSnapshot, type))
-                                .map();
+                            return Map.of("enabled", false, "available", isRealmTypeAvailable(licenseStateSnapshot, type));
                         }
 
                         assert value instanceof Map;
@@ -333,12 +328,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 }
                 listener.onResponse(realmMap);
             }
-        };
-
-        if (realmList.isEmpty()) {
-            doCountDown.run();
-        } else {
+        })) {
             for (Realm realm : realmList) {
+                final var ref = refs.acquire();
                 realm.usageStats(ActionListener.wrap(stats -> {
                     if (failed.get() == false) {
                         synchronized (realmMap) {
@@ -352,7 +344,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                                 return value;
                             });
                         }
-                        doCountDown.run();
+                        ref.close();
                     }
                 }, e -> {
                     if (failed.compareAndSet(false, true)) {

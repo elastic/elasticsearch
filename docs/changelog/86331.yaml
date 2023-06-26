@@ -1,5 +1,0 @@
-pr: 86331
-summary: Fix over-allocation of mounted indices on a cold/frozen node
-area: Snapshot/Restore
-type: bug
-issues: []

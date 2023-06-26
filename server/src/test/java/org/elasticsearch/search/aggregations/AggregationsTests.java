@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogramTests;
@@ -58,11 +57,9 @@ import org.elasticsearch.search.aggregations.metrics.MaxTests;
 import org.elasticsearch.search.aggregations.metrics.MinTests;
 import org.elasticsearch.search.aggregations.metrics.SumTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
-import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeriesTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -108,7 +105,6 @@ public class AggregationsTests extends ESTestCase {
         new SumTests(),
         new InternalValueCountTests(),
         new InternalSimpleValueTests(),
-        new InternalDerivativeTests(),
         new InternalBucketMetricValueTests(),
         new InternalStatsTests(),
         new InternalStatsBucketTests(),
@@ -118,7 +114,6 @@ public class AggregationsTests extends ESTestCase {
         new InternalGeoCentroidTests(),
         new InternalHistogramTests(),
         new InternalDateHistogramTests(),
-        new InternalAutoDateHistogramTests(),
         new InternalVariableWidthHistogramTests(),
         new LongTermsTests(),
         new DoubleTermsTests(),
@@ -143,8 +138,7 @@ public class AggregationsTests extends ESTestCase {
         new InternalBinaryRangeTests(),
         new InternalTopHitsTests(),
         new InternalCompositeTests(),
-        new InternalMedianAbsoluteDeviationTests(),
-        new InternalTimeSeriesTests()
+        new InternalMedianAbsoluteDeviationTests()
     );
 
     @Override

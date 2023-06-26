@@ -1,24 +1,18 @@
-import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-    javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-    javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }
 
+testFixtures.useFixture ":x-pack:test:idp-fixture", "http-proxy"
 testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
-testFixtures.useFixture ":x-pack:test:idp-fixture", "elasticsearch-node"
 
-tasks.named("processJavaRestTestResources").configure {
-  from project(':x-pack:plugin:core')
-          .files(
-                  'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt'
-          )
-}
-
-tasks.named("javaRestTest").configure {
-  // OpenID Connect fixture does not support aarm64
-  onlyIf { Architecture.current() == Architecture.X64 }
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+  // test suite uses jks which is not supported in fips mode
+  BuildParams.withFipsEnabledOnly(it)
 }

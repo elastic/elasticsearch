@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -163,7 +163,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.pendingCount = in.readOptionalVInt();
             this.routingState = in.readOptionalWriteable(RoutingStateAndReason::new);
             this.startTime = in.readOptionalInstant();
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 this.threadsPerAllocation = in.readOptionalVInt();
                 this.numberOfAllocations = in.readOptionalVInt();
                 this.errorCount = in.readVInt();
@@ -176,7 +176,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 this.rejectedExecutionCount = 0;
                 this.timeoutCount = 0;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 this.peakThroughput = in.readVLong();
                 this.throughputLastPeriod = in.readVLong();
                 this.avgInferenceTimeLastPeriod = in.readOptionalDouble();
@@ -185,14 +185,14 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 this.throughputLastPeriod = 0;
                 this.avgInferenceTimeLastPeriod = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.cacheHitCount = in.readOptionalVLong();
                 this.cacheHitCountLastPeriod = in.readOptionalVLong();
             } else {
                 this.cacheHitCount = null;
                 this.cacheHitCountLastPeriod = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
                 this.avgInferenceTimeExcludingCacheHit = in.readOptionalDouble();
             } else {
                 this.avgInferenceTimeExcludingCacheHit = null;
@@ -342,23 +342,23 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             out.writeOptionalVInt(pendingCount);
             out.writeOptionalWriteable(routingState);
             out.writeOptionalInstant(startTime);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 out.writeOptionalVInt(threadsPerAllocation);
                 out.writeOptionalVInt(numberOfAllocations);
                 out.writeVInt(errorCount);
                 out.writeVInt(rejectedExecutionCount);
                 out.writeVInt(timeoutCount);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 out.writeVLong(peakThroughput);
                 out.writeVLong(throughputLastPeriod);
                 out.writeOptionalDouble(avgInferenceTimeLastPeriod);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalVLong(cacheHitCount);
                 out.writeOptionalVLong(cacheHitCountLastPeriod);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
                 out.writeOptionalDouble(avgInferenceTimeExcludingCacheHit);
             }
         }
@@ -413,6 +413,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         }
     }
 
+    private final String deploymentId;
     private final String modelId;
     private AssignmentState state;
     private AllocationStatus allocationStatus;
@@ -425,18 +426,22 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     private final Integer queueCapacity;
     @Nullable
     private final ByteSizeValue cacheSize;
+    private final Priority priority;
     private final Instant startTime;
     private final List<AssignmentStats.NodeStats> nodeStats;
 
     public AssignmentStats(
+        String deploymentId,
         String modelId,
         @Nullable Integer threadsPerAllocation,
         @Nullable Integer numberOfAllocations,
         @Nullable Integer queueCapacity,
         @Nullable ByteSizeValue cacheSize,
         Instant startTime,
-        List<AssignmentStats.NodeStats> nodeStats
+        List<AssignmentStats.NodeStats> nodeStats,
+        Priority priority
     ) {
+        this.deploymentId = deploymentId;
         this.modelId = modelId;
         this.threadsPerAllocation = threadsPerAllocation;
         this.numberOfAllocations = numberOfAllocations;
@@ -446,6 +451,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         this.cacheSize = cacheSize;
         this.state = null;
         this.reason = null;
+        this.priority = Objects.requireNonNull(priority);
     }
 
     public AssignmentStats(StreamInput in) throws IOException {
@@ -458,11 +464,25 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         state = in.readOptionalEnum(AssignmentState.class);
         reason = in.readOptionalString();
         allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            cacheSize = in.readOptionalWriteable(ByteSizeValue::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         } else {
             cacheSize = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            priority = in.readEnum(Priority.class);
+        } else {
+            priority = Priority.NORMAL;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            deploymentId = in.readString();
+        } else {
+            deploymentId = modelId;
+        }
+    }
+
+    public String getDeploymentId() {
+        return deploymentId;
     }
 
     public String getModelId() {
@@ -520,8 +540,12 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         return this;
     }
 
+    public Priority getPriority() {
+        return priority;
+    }
+
     /**
-     * @return The overall inference stats for the model assignment
+     * @return The overall inference stats for the assignment
      */
     public InferenceStats getOverallInferenceStats() {
         return new InferenceStats(
@@ -543,6 +567,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("deployment_id", deploymentId);
         builder.field("model_id", modelId);
         if (threadsPerAllocation != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.THREADS_PER_ALLOCATION.getPreferredName(), threadsPerAllocation);
@@ -565,6 +590,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (cacheSize != null) {
             builder.field("cache_size", cacheSize);
         }
+        builder.field("priority", priority);
         builder.timeField("start_time", "start_time_string", startTime.toEpochMilli());
 
         int totalErrorCount = nodeStats.stream().mapToInt(NodeStats::getErrorCount).sum();
@@ -607,15 +633,21 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeOptionalVInt(queueCapacity);
         out.writeInstant(startTime);
         out.writeList(nodeStats);
-        if (AssignmentState.FAILED.equals(state) && out.getVersion().before(Version.V_8_4_0)) {
+        if (AssignmentState.FAILED.equals(state) && out.getTransportVersion().before(TransportVersion.V_8_4_0)) {
             out.writeOptionalEnum(AssignmentState.STARTING);
         } else {
             out.writeOptionalEnum(state);
         }
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(allocationStatus);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeOptionalWriteable(cacheSize);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            out.writeEnum(priority);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeString(deploymentId);
         }
     }
 
@@ -624,7 +656,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AssignmentStats that = (AssignmentStats) o;
-        return Objects.equals(modelId, that.modelId)
+        return Objects.equals(deploymentId, that.deploymentId)
+            && Objects.equals(modelId, that.modelId)
             && Objects.equals(threadsPerAllocation, that.threadsPerAllocation)
             && Objects.equals(numberOfAllocations, that.numberOfAllocations)
             && Objects.equals(queueCapacity, that.queueCapacity)
@@ -633,12 +666,14 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             && Objects.equals(reason, that.reason)
             && Objects.equals(allocationStatus, that.allocationStatus)
             && Objects.equals(cacheSize, that.cacheSize)
-            && Objects.equals(nodeStats, that.nodeStats);
+            && Objects.equals(nodeStats, that.nodeStats)
+            && priority == that.priority;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
+            deploymentId,
             modelId,
             threadsPerAllocation,
             numberOfAllocations,
@@ -648,7 +683,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             state,
             reason,
             allocationStatus,
-            cacheSize
+            cacheSize,
+            priority
         );
     }
 

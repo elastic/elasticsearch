@@ -151,6 +151,11 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
         return createRandomized();
     }
 
+    @Override
+    protected ModelSnapshot mutateInstance(ModelSnapshot instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ModelSnapshot createRandomized() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setMinVersion(Version.CURRENT);

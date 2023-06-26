@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.java'
 
 archivesBaseName = "x-content-impl"
 
-String jacksonVersion = "2.13.2"
+String jacksonVersion = "2.15.0"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
@@ -34,6 +34,12 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
+}
+
+// workaround for (/com/fasterxml/jackson/core/JsonFactory.class): warning: Cannot find annotation method
+// 'value()' in type 'ServiceProvider': class file for aQute.bnd.annotation.spi.ServiceProvider not found
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs.add("-Xlint:-classfile")
 }
 
 // not published, so no need for javadoc

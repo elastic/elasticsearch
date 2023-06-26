@@ -48,7 +48,7 @@ public class Results {
 
     @SuppressWarnings("unchecked")
     public List<Sequence> sequences() {
-        return type == Type.SEQUENCE ? (List<Sequence>) results : null;
+        return (type == Type.SEQUENCE || type == Type.SAMPLE) ? (List<Sequence>) results : null;
     }
 
     public TimeValue tookTime() {

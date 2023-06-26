@@ -18,7 +18,6 @@ import org.elasticsearch.script.TemplateScript;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -41,8 +40,8 @@ public final class RemoveProcessor extends AbstractProcessor {
         boolean ignoreMissing
     ) {
         super(tag, description);
-        this.fieldsToRemove = new ArrayList<>(fieldsToRemove);
-        this.fieldsToKeep = new ArrayList<>(fieldsToKeep);
+        this.fieldsToRemove = List.copyOf(fieldsToRemove);
+        this.fieldsToKeep = List.copyOf(fieldsToKeep);
         this.ignoreMissing = ignoreMissing;
     }
 
@@ -58,10 +57,15 @@ public final class RemoveProcessor extends AbstractProcessor {
     }
 
     private void fieldsToRemoveProcessor(IngestDocument document) {
+        // micro-optimization note: actual for-each loops here rather than a .forEach because it happens to be ~5% faster in benchmarks
         if (ignoreMissing) {
-            fieldsToRemove.forEach(field -> removeWhenPresent(document, document.renderTemplate(field)));
+            for (TemplateScript.Factory field : fieldsToRemove) {
+                removeWhenPresent(document, document.renderTemplate(field));
+            }
         } else {
-            fieldsToRemove.forEach(document::removeField);
+            for (TemplateScript.Factory field : fieldsToRemove) {
+                document.removeField(field);
+            }
         }
     }
 
@@ -124,7 +128,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         private List<TemplateScript.Factory> getTemplates(String processorTag, Map<String, Object> config, String propertyName) {
             return getFields(processorTag, config, propertyName).stream()
                 .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, propertyName, f, scriptService))
-                .collect(Collectors.toList());
+                .toList();
         }
 
         private static List<String> getFields(String processorTag, Map<String, Object> config, String propertyName) {

@@ -27,7 +27,9 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
@@ -55,6 +57,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -432,10 +435,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue(
                 "any cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
-                    .build()
-                    .cluster()
-                    .check("cluster:admin/foo", request, authentication)
+                Role.buildFromRoleDescriptor(
+                    getRolesResponse.roles()[0],
+                    new FieldPermissionsCache(Settings.EMPTY),
+                    EMPTY_RESTRICTED_INDICES
+                ).cluster().check("cluster:admin/foo", request, authentication)
             );
 
             preparePutRole("test_role").cluster("none")
@@ -453,10 +457,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
             assertFalse(
                 "no cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
-                    .build()
-                    .cluster()
-                    .check("cluster:admin/bar", request, authentication)
+                Role.buildFromRoleDescriptor(
+                    getRolesResponse.roles()[0],
+                    new FieldPermissionsCache(Settings.EMPTY),
+                    EMPTY_RESTRICTED_INDICES
+                ).cluster().check("cluster:admin/bar", request, authentication)
             );
         }
     }
@@ -490,9 +495,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("-->  creating repository");
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -529,9 +532,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
         assertThat(getRolesResponse.roles().length, is(0));
         // restore
-        RestoreSnapshotResponse response = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap-1")
+        RestoreSnapshotResponse response = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .setIncludeAliases(randomBoolean()) // Aliases are always restored for system indices
             .setFeatureStates(SECURITY_FEATURE_NAME)
@@ -557,7 +558,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .prepareCreate("idx")
             .get();
         assertThat(createIndexResponse.isAcknowledged(), is(true));
-        assertAcked(client().admin().cluster().prepareDeleteRepository("test-repo"));
+        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo"));
     }
 
     public void testAuthenticateWithDeletedRole() {
@@ -744,10 +745,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         AuthenticateResponse authenticateResponse = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
         ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).get();
-        assertThat(authenticateResponse.authentication().getUser().principal(), is(username));
-        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("reserved"));
-        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getType(), equalTo("reserved"));
-        assertNull(authenticateResponse.authentication().getLookedUpBy());
+        assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getAuthenticatingSubject().getRealm().getName(), equalTo("reserved"));
+        assertThat(authenticateResponse.authentication().getAuthenticatingSubject().getRealm().getType(), equalTo("reserved"));
+        assertFalse(authenticateResponse.authentication().isRunAs());
     }
 
     public void testOperationsOnReservedRoles() throws Exception {
@@ -857,6 +858,35 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(usage.get("size"), is(roles));
         assertThat(usage.get("fls"), is(fls));
         assertThat(usage.get("dls"), is(dls));
+
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            final PutRoleResponse roleResponse = new PutRoleRequestBuilder(client()).source("role_remote_indices", new BytesArray("""
+                {
+                  "remote_indices": [
+                    {
+                      "names": [
+                        "shared-*"
+                      ],
+                      "privileges": [
+                        "read"
+                      ],
+                      "clusters": [
+                        "remote-*"
+                      ]
+                    }
+                  ]
+                }"""), XContentType.JSON).get();
+            assertThat(roleResponse.isCreated(), is(true));
+            roles++;
+
+            future = new PlainActionFuture<>();
+            rolesStore.usageStats(future);
+            usage = future.get();
+            assertThat(usage.get("size"), is(roles));
+            assertThat(usage.get("fls"), is(fls));
+            assertThat(usage.get("dls"), is(dls));
+            assertThat(usage.get("remote_indices"), equalTo(1L));
+        }
     }
 
     @SuppressWarnings("unchecked")

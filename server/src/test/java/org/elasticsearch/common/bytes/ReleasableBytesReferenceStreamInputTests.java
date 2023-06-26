@@ -12,7 +12,10 @@ import org.elasticsearch.common.io.stream.AbstractStreamTests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.junit.After;
 
 import java.io.IOException;
@@ -76,6 +79,63 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
 
             assertThat(in.size(), equalTo(testData.size()));
             assertThat(in.get(0), equalTo(1));
+        }
+        assertThat(ref.hasReferences(), equalTo(false));
+    }
+
+    public void testBigDoubleArrayLivesAfterReleasableIsDecremented() throws IOException {
+        DoubleArray testData = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(1, false);
+        testData.set(0, 1);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+
+        try (DoubleArray in = DoubleArray.readFrom(ref.streamInput())) {
+            ref.decRef();
+            assertThat(ref.hasReferences(), equalTo(true));
+
+            assertThat(in.size(), equalTo(testData.size()));
+            assertThat(in.get(0), equalTo(1.0));
+        }
+        assertThat(ref.hasReferences(), equalTo(false));
+    }
+
+    public void testBigLongArrayLivesAfterReleasableIsDecremented() throws IOException {
+        LongArray testData = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, false);
+        testData.set(0, 1);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+
+        try (LongArray in = LongArray.readFrom(ref.streamInput())) {
+            ref.decRef();
+            assertThat(ref.hasReferences(), equalTo(true));
+
+            assertThat(in.size(), equalTo(testData.size()));
+            assertThat(in.get(0), equalTo(1L));
+        }
+        assertThat(ref.hasReferences(), equalTo(false));
+    }
+
+    public void testBigByteArrayLivesAfterReleasableIsDecremented() throws IOException {
+        ByteArray testData = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(1, false);
+        testData.set(0L, (byte) 1);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+
+        try (ByteArray in = ByteArray.readFrom(ref.streamInput())) {
+            ref.decRef();
+            assertThat(ref.hasReferences(), equalTo(true));
+
+            assertThat(in.size(), equalTo(testData.size()));
+            assertThat(in.get(0), equalTo((byte) 1));
         }
         assertThat(ref.hasReferences(), equalTo(false));
     }

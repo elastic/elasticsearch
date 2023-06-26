@@ -46,10 +46,10 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             );
         }
         List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, true);
-        StringBuilder sb = new StringBuilder();
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }
+        StringBuilder sb = new StringBuilder();
         for (String line : ruleList) {
             sb.append(line).append(System.lineSeparator());
         }
@@ -61,12 +61,8 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     public static KoreanTokenizer.DecompoundMode getMode(Settings settings) {
-        KoreanTokenizer.DecompoundMode mode = KoreanTokenizer.DEFAULT_DECOMPOUND;
-        String modeSetting = settings.get("decompound_mode", null);
-        if (modeSetting != null) {
-            mode = KoreanTokenizer.DecompoundMode.valueOf(modeSetting.toUpperCase(Locale.ENGLISH));
-        }
-        return mode;
+        String modeSetting = settings.get("decompound_mode", KoreanTokenizer.DEFAULT_DECOMPOUND.name());
+        return KoreanTokenizer.DecompoundMode.valueOf(modeSetting.toUpperCase(Locale.ENGLISH));
     }
 
     @Override

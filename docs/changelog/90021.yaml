@@ -1,5 +1,0 @@
-pr: 90021
-summary: "Script: Write Field API `NestedDocument` support"
-area: Infra/Scripting
-type: enhancement
-issues: []

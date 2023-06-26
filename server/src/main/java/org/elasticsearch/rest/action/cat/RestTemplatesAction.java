@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -19,8 +18,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.Collections;
@@ -29,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
@@ -66,10 +69,10 @@ public class RestTemplatesAction extends AbstractCatAction {
 
         return channel -> {
 
-            final StepListener<GetIndexTemplatesResponse> getIndexTemplatesStep = new StepListener<>();
+            final ListenableFuture<GetIndexTemplatesResponse> getIndexTemplatesStep = new ListenableFuture<>();
             client.admin().indices().getTemplates(getIndexTemplatesRequest, getIndexTemplatesStep);
 
-            final StepListener<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new StepListener<>();
+            final ListenableFuture<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new ListenableFuture<>();
             client.execute(
                 GetComposableIndexTemplateAction.INSTANCE,
                 getComposableTemplatesRequest,
@@ -89,15 +92,17 @@ public class RestTemplatesAction extends AbstractCatAction {
                 }
             };
 
-            getIndexTemplatesStep.whenComplete(
-                getIndexTemplatesResponse -> getComposableTemplatesStep.whenComplete(
-                    getComposableIndexTemplatesResponse -> ActionListener.completeWith(
-                        tableListener,
-                        () -> buildTable(request, getIndexTemplatesResponse, getComposableIndexTemplatesResponse)
-                    ),
-                    tableListener::onFailure
-                ),
-                tableListener::onFailure
+            getIndexTemplatesStep.addListener(
+                tableListener.delegateFailureAndWrap(
+                    (l, getIndexTemplatesResponse) -> getComposableTemplatesStep.addListener(
+                        l.delegateFailureAndWrap(
+                            (ll, getComposableIndexTemplatesResponse) -> ActionListener.completeWith(
+                                ll,
+                                () -> buildTable(request, getIndexTemplatesResponse, getComposableIndexTemplatesResponse)
+                            )
+                        )
+                    )
+                )
             );
         };
     }

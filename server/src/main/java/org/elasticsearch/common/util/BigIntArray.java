@@ -18,6 +18,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
 
 /**
@@ -25,12 +26,6 @@ import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
  * configurable length.
  */
 final class BigIntArray extends AbstractBigArray implements IntArray {
-    static {
-        if (ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN) {
-            throw new Error("The deserialization assumes this class is written with little-endian ints.");
-        }
-    }
-
     private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
@@ -49,22 +44,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (size > Integer.MAX_VALUE / Integer.BYTES) {
-            throw new IllegalArgumentException();
-        }
-        int intSize = (int) size;
-        out.writeVInt(intSize * Integer.BYTES);
-        int lastPageEnd = intSize % INT_PAGE_SIZE;
-        if (lastPageEnd == 0) {
-            for (byte[] page : pages) {
-                out.write(page);
-            }
-            return;
-        }
-        for (int i = 0; i < pages.length - 1; i++) {
-            out.write(pages[i]);
-        }
-        out.write(pages[pages.length - 1], 0, lastPageEnd * Integer.BYTES);
+        writePages(out, (int) size, pages, Integer.BYTES, INT_PAGE_SIZE);
     }
 
     @Override

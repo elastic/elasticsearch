@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -80,7 +83,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     public ModelAliasMetadata(StreamInput in) throws IOException {
-        this.modelAliases = in.readImmutableMap(StreamInput::readString, ModelAliasEntry::new);
+        this.modelAliases = in.readImmutableMap(ModelAliasEntry::new);
     }
 
     public Map<String, ModelAliasEntry> modelAliases() {
@@ -88,13 +91,8 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MODEL_ALIASES.getPreferredName());
-        for (Map.Entry<String, ModelAliasEntry> modelAliasEntry : modelAliases.entrySet()) {
-            builder.field(modelAliasEntry.getKey(), modelAliasEntry.getValue());
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentValuesMap(MODEL_ALIASES.getPreferredName(), modelAliases);
     }
 
     @Override
@@ -113,8 +111,8 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_13_0;
     }
 
     @Override
@@ -163,8 +161,8 @@ public class ModelAliasMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_13_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.V_7_13_0;
         }
 
     }
@@ -226,6 +224,11 @@ public class ModelAliasMetadata implements Metadata.Custom {
         @Override
         public int hashCode() {
             return Objects.hash(modelId);
+        }
+
+        @Override
+        public String toString() {
+            return "ModelAliasEntry{modelId='" + modelId + "'}";
         }
     }
 }

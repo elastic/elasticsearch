@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -43,6 +44,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
@@ -156,7 +158,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         }
 
         // indexStatsSummary()
-        final String expected = stripWhitespace(formatted("""
+        final String expected = stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",
@@ -320,7 +322,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = stripWhitespace(formatted("""
+        final String expected = stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",
@@ -379,14 +381,14 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
 
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
         commonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
-        commonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        commonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null, new FieldDataStats.GlobalOrdinalsStats(0L, Map.of())));
         commonStats.getMerge().add(no, no, no, ++iota, no, no, no, no, no, no);
         commonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         commonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
         commonStats.getStore().add(new StoreStats(++iota, no, no));
         commonStats.getRefresh().add(new RefreshStats(no, ++iota, no, ++iota, (int) no));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, no, no, no, no, no, no, false, ++iota);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, no, no, no, no, no, no, false, ++iota, no, no);
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(++iota, ++iota, no, no, no, no, no, no, no, no, no, no);

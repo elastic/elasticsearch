@@ -158,6 +158,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
@@ -177,6 +178,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);

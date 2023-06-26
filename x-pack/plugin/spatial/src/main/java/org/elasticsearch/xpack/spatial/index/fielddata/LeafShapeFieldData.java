@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -15,9 +14,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
-
-import java.util.Collection;
-import java.util.Collections;
 
 /**
  * {@link LeafFieldData} specialization for geo-shapes and shapes.
@@ -40,11 +36,6 @@ public abstract class LeafShapeFieldData<T extends ShapeValues<?>> implements Le
         @Override
         public long ramBytesUsed() {
             return 0;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
         }
 
         @Override

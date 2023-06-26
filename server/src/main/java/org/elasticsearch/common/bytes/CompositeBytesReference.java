@@ -29,7 +29,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     private final BytesReference[] references;
     private final int[] offsets; // we use the offsets to seek into the right BytesReference for random access and slicing
-    private final int length;
     private final long ramBytesUsed;
 
     public static BytesReference of(BytesReference... references) {
@@ -87,6 +86,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     private CompositeBytesReference(BytesReference[] references, int[] offsets, int length, long ramBytesUsed) {
+        super(length);
         assert references != null && offsets != null;
         assert references.length > 1
             : "Should not build composite reference from less than two references but received [" + references.length + "]";
@@ -97,7 +97,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         assert ramBytesUsed > Arrays.stream(references).mapToLong(BytesReference::ramBytesUsed).sum();
         this.references = Objects.requireNonNull(references, "references must not be null");
         this.offsets = offsets;
-        this.length = length;
         this.ramBytesUsed = ramBytesUsed;
     }
 
@@ -133,11 +132,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
             }
         }
         return result;
-    }
-
-    @Override
-    public int length() {
-        return length;
     }
 
     @Override
@@ -236,5 +230,29 @@ public final class CompositeBytesReference extends AbstractBytesReference {
             return wholeIntLivesHere.getIntLE(idx);
         }
         return super.getIntLE(index);
+    }
+
+    @Override
+    public long getLongLE(int index) {
+        int i = getOffsetIndex(index);
+        int idx = index - offsets[i];
+        int end = idx + 8;
+        BytesReference wholeLongsLivesHere = references[i];
+        if (end <= wholeLongsLivesHere.length()) {
+            return wholeLongsLivesHere.getLongLE(idx);
+        }
+        return super.getLongLE(index);
+    }
+
+    @Override
+    public double getDoubleLE(int index) {
+        int i = getOffsetIndex(index);
+        int idx = index - offsets[i];
+        int end = idx + 8;
+        BytesReference wholeDoublesLivesHere = references[i];
+        if (end <= wholeDoublesLivesHere.length()) {
+            return wholeDoublesLivesHere.getDoubleLE(idx);
+        }
+        return super.getDoubleLE(index);
     }
 }

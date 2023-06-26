@@ -92,7 +92,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(realm3.realmRef()).thenReturn(new Authentication.RealmRef("realm3", "realm3", nodeName, domain3));
 
         request = randomBoolean()
-            ? mock(AuthenticationService.AuditableRestRequest.class)
+            ? mock(AuthenticationService.AuditableHttpRequest.class)
             : mock(AuthenticationService.AuditableTransportRequest.class);
         authenticationToken = mock(AuthenticationToken.class);
         username = randomAlphaOfLength(5);
@@ -161,9 +161,9 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final AuthenticationResult<Authentication> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         final Authentication authentication = result.getValue();
-        assertThat(authentication.getUser(), is(user));
+        assertThat(authentication.getEffectiveSubject().getUser(), is(user));
         assertThat(
-            authentication.getAuthenticatedBy(),
+            authentication.getAuthenticatingSubject().getRealm(),
             is(
                 new Authentication.RealmRef(
                     successfulRealm.name(),

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -29,7 +30,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,9 +40,12 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -208,23 +213,33 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                     .xContent()
                     .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)
             ) {
-                return parseInnerQueryBuilder(parser);
+                return parseTopLevelQuery(parser);
             }
         }, indexMetadata, aliasNames);
     }
 
     public void testChannelVersion() throws Exception {
         ShardSearchRequest request = createShardSearchRequest();
-        Version channelVersion = Version.CURRENT;
+        TransportVersion channelVersion = TransportVersion.current();
         assertThat(request.getChannelVersion(), equalTo(channelVersion));
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            Version version = request.isForceSyntheticSource()
-                ? VersionUtils.randomVersionBetween(random(), Version.V_8_4_0, Version.CURRENT)
-                : VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+            if (request.isForceSyntheticSource()) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.current());
+            }
+            if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.current());
+            }
+            if (request.source() != null && request.source().rankBuilder() != null) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.current());
+            }
+            if (request.source() != null && request.source().subSearches().size() >= 2) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_500_013, TransportVersion.current());
+            }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
-            channelVersion = Version.min(channelVersion, version);
+            channelVersion = TransportVersion.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
             if (randomBoolean()) {
                 request = new ShardSearchRequest(request);
@@ -245,10 +260,16 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
 
     public void testForceSyntheticUnsupported() throws IOException {
         SearchRequest request = createSearchRequest();
+        if (request.source() != null) {
+            request.source().rankBuilder(null);
+            if (request.source().subSearches().size() >= 2) {
+                request.source().subSearches(new ArrayList<>());
+            }
+        }
         request.setForceSyntheticSource(true);
         ShardSearchRequest shardRequest = createShardSearchReqest(request);
         StreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_8_3_0);
+        out.setTransportVersion(TransportVersion.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

@@ -22,8 +22,8 @@ setup:
 ---
 fetch fields:
   - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
 
   - do:
       search:
@@ -42,8 +42,9 @@ fetch fields:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 1 }
+  - length: { profile.shards.0.fetch.children: 2 }
   - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
@@ -52,8 +53,8 @@ fetch fields:
 ---
 fetch source:
   - skip:
-      version: ' - 7.99.99'
-      reason:  fetch profiling implemented in 8.0.0 to be backported to 7.16.0
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
 
   - do:
       search:
@@ -70,19 +71,20 @@ fetch source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 1 }
+  - length: { profile.shards.0.fetch.children: 2 }
   - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - match: { profile.shards.0.fetch.children.0.debug.fast_path: 1 }
+  - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
 
 ---
 fetch nested source:
   - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
 
   - do:
       indices.create:
@@ -133,7 +135,7 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 2 }
+  - length: { profile.shards.0.fetch.children: 3 }
   - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
@@ -144,6 +146,7 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.2.type: StoredFieldsPhase }
 
 ---
 disabling stored fields removes fetch sub phases:
@@ -165,8 +168,8 @@ disabling stored fields removes fetch sub phases:
 ---
 dfs knn vector profiling:
   - skip:
-      version: ' - 8.5.99'
-      reason: dfs profiling implemented in 8.6.0
+      version: ' - 8.6.99'
+      reason: multi-knn dfs profiling implemented in 8.7.0
 
   - do:
       indices.create:
@@ -202,31 +205,31 @@ dfs knn vector profiling:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.knn.query.0.type: "DocAndScoreQuery" }
-  - match: { profile.shards.0.dfs.knn.query.0.description: "DocAndScore[100]" }
-  - gt: { profile.shards.0.dfs.knn.query.0.time_in_nanos: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.set_min_competitive_score_count: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.set_min_competitive_score: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.match_count: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.match: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.shallow_advance_count: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.shallow_advance: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.next_doc_count: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.next_doc: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.score_count: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.score: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.compute_max_score_count: 0 }
-  - match: { profile.shards.0.dfs.knn.query.0.breakdown.compute_max_score: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.advance_count: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.advance: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.build_scorer_count: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.build_scorer: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.create_weight: 0 }
-  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.create_weight_count: 0 }
-  - gt: { profile.shards.0.dfs.knn.rewrite_time: 0 }
-  - match: { profile.shards.0.dfs.knn.collector.0.name: "SimpleTopScoreDocCollector" }
-  - match: { profile.shards.0.dfs.knn.collector.0.reason: "search_top_hits" }
-  - gt: { profile.shards.0.dfs.knn.collector.0.time_in_nanos: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
+  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScore[100]" }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.match_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.match: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.shallow_advance_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.shallow_advance: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.next_doc_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.next_doc: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.score_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.score: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.advance_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.advance: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.create_weight: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.create_weight_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.rewrite_time: 0 }
+  - match: { profile.shards.0.dfs.knn.0.collector.0.name: "SimpleTopScoreDocCollector" }
+  - match: { profile.shards.0.dfs.knn.0.collector.0.reason: "search_top_hits" }
+  - gt: { profile.shards.0.dfs.knn.0.collector.0.time_in_nanos: 0 }
 
 ---
 dfs profile for search with dfs_query_then_fetch:
@@ -398,3 +401,30 @@ dfs profile for search with dfs_query_then_fetch:
 
   - match: { hits.total.value: 0 }
   - is_false: profile.shards.0.dfs
+---
+composite_id_parsed:
+  - skip:
+      version: " - 8.9.99"
+      reason: node_id, shard_id, index and cluster fields added in 8.10.0
+      features: "contains"
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          profile: true
+          fields: [keyword]
+  - set:  { profile.shards.0.id: composite_id,
+            profile.shards.0.node_id: first_node_id,
+            profile.shards.0.index: first_index
+          }
+
+  - is_true: profile.shards.0.id
+  - is_true: profile.shards.0.node_id
+  - length: { profile.shards.0.node_id: 22 }
+  - gte: { profile.shards.0.shard_id: 0 }
+  - match: { profile.shards.0.index: "test" }
+  - is_true: profile.shards.0.cluster
+  - contains: { $composite_id: $first_node_id }
+  - contains: { $composite_id: $first_index }

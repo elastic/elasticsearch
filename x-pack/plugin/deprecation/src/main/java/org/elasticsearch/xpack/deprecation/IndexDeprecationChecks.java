@@ -227,7 +227,7 @@ public class IndexDeprecationChecks {
 
     private static boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {
         if ("date".equals(property.get("type")) && property.containsKey("format")) {
-            List<String> patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
+            String[] patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
             for (String pattern : patterns) {
                 LegacyFormatNames format = LegacyFormatNames.forName(pattern);
                 return format != null && format.isCamelCase(pattern);
@@ -239,7 +239,7 @@ public class IndexDeprecationChecks {
     private static String changeFormatToSnakeCase(String type, Map.Entry<?, ?> entry) {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         final String formatFieldValue = (String) value.get("format");
-        List<String> patterns = DateFormatter.splitCombinedPatterns(formatFieldValue);
+        String[] patterns = DateFormatter.splitCombinedPatterns(formatFieldValue);
         StringBuilder sb = new StringBuilder(
             "Convert [" + entry.getKey() + "] format [" + formatFieldValue + "] " + "which contains deprecated camel case to snake case. "
         );

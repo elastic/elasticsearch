@@ -64,6 +64,11 @@ public class MemoryUsageTests extends AbstractXContentSerializingTestCase<Memory
         return createRandom();
     }
 
+    @Override
+    protected MemoryUsage mutateInstance(MemoryUsage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testZeroUsage() {
         MemoryUsage memoryUsage = new MemoryUsage("zero_usage_job");
         String asJson = Strings.toString(memoryUsage);

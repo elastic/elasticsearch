@@ -8,6 +8,12 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperService;
@@ -23,8 +29,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -57,14 +65,36 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         throws IOException {
         Map<String, HighlightField> highlights = new HashMap<>();
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
+            SearchExecutionContext context = createSearchExecutionContext(
+                mapperService,
+                new IndexSearcher(new NoStoredFieldsFilterDirectoryReader(ir))
+            );
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
-            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(new SearchHit(0, "id", null, null), ir.leaves().get(0), 0);
+            Map<String, List<Object>> storedFields = storedFields(processor.storedFieldsSpec(), doc);
+            Source source = Source.fromBytes(doc.source());
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
+                new SearchHit(0, "id"),
+                ir.leaves().get(0),
+                0,
+                storedFields,
+                source
+            );
             processor.process(hitContext);
             highlights.putAll(hitContext.hit().getHighlightFields());
         });
         return highlights;
+    }
+
+    private static Map<String, List<Object>> storedFields(StoredFieldsSpec spec, ParsedDocument doc) {
+        Map<String, List<Object>> storedFields = new HashMap<>();
+        for (String field : spec.requiredStoredFields()) {
+            List<Object> values = storedFields.computeIfAbsent(field, f -> new ArrayList<>());
+            for (IndexableField f : doc.rootDoc().getFields(field)) {
+                values.add(f.stringValue());
+            }
+        }
+        return storedFields;
     }
 
     /**
@@ -84,5 +114,46 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
         when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
         return fetchContext;
+    }
+
+    // Wraps a DirectoryReader and ensures that we don't load stored fields from it. For highlighting,
+    // stored field access should all be done by the FetchPhase and the highlighter subphases should
+    // only be retrieving them from the hit context
+    private static class NoStoredFieldsFilterDirectoryReader extends FilterDirectoryReader {
+
+        NoStoredFieldsFilterDirectoryReader(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new FilterLeafReader(reader) {
+
+                        @Override
+                        public StoredFields storedFields() throws IOException {
+                            throw new AssertionError("Called Stored Fields!");
+                        }
+
+                        @Override
+                        public CacheHelper getCoreCacheHelper() {
+                            return in.getCoreCacheHelper();
+                        }
+
+                        @Override
+                        public CacheHelper getReaderCacheHelper() {
+                            return in.getReaderCacheHelper();
+                        }
+                    };
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new NoStoredFieldsFilterDirectoryReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
     }
 }

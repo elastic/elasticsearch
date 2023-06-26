@@ -87,7 +87,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
+        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
         Aggregator asRange = adaptIntoRangeOrNull(
             name,
             factories,
@@ -310,32 +310,27 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(
-            owningBucketOrds,
-            bucketOrds,
-            (bucketValue, docCount, subAggregationResults) -> {
-                return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
-            },
-            (owningBucketOrd, buckets) -> {
-                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
+            return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
+        }, (owningBucketOrd, buckets) -> {
+            // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+            CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                    ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                    : null;
-                return new InternalDateHistogram(
-                    name,
-                    buckets,
-                    order,
-                    minDocCount,
-                    rounding.offset(),
-                    emptyBucketInfo,
-                    formatter,
-                    keyed,
-                    metadata()
-                );
-            }
-        );
+            InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                : null;
+            return new InternalDateHistogram(
+                name,
+                buckets,
+                order,
+                minDocCount,
+                rounding.offset(),
+                emptyBucketInfo,
+                formatter,
+                keyed,
+                metadata()
+            );
+        });
     }
 
     @Override

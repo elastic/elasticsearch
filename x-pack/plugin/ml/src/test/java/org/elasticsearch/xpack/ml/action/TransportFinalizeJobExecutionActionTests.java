@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.Client;
@@ -72,7 +73,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
 
         FinalizeJobExecutionAction.Request request = new FinalizeJobExecutionAction.Request(new String[] { "job1", "job2" });
         AtomicReference<AcknowledgedResponse> ack = new AtomicReference<>();
-        action.masterOperation(null, request, clusterState, ActionListener.wrap(ack::set, e -> assertNull(e.getMessage())));
+        action.masterOperation(null, request, clusterState, ActionTestUtils.assertNoFailureListener(ack::set));
 
         assertTrue(ack.get().isAcknowledged());
         verify(client, times(2)).execute(eq(UpdateAction.INSTANCE), any(), any());

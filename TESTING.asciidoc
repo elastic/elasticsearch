@@ -70,7 +70,7 @@ When running Elasticsearch with `./gradlew run`, assertions are enabled by
 default. To disable them, add the following command line option:
 
 -------------------------
--Dtests.jvm.argline="-da"
+-Dtests.jvm.argline="-da -dsa"
 -------------------------
 
 ==== Distribution
@@ -392,7 +392,8 @@ port of `5007`.
 NOTE: In the case of test clusters using multiple nodes, multiple debuggers
 will need to be attached on incrementing ports. For example, for a 3 node
 cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
-debugger.
+debugger. You can use the "Debug Elasticsearch (node 2)" and "(node 3)" run
+configurations should you need to debug a multi-node cluster.
 
 You can also use a combination of both flags to debug both tests and server.
 This is only applicable to Java REST tests.
@@ -445,13 +446,15 @@ A specific test case can be run with the following command:
   -Dtests.method="test {yaml=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
+You can run a group of YAML test by using wildcards:
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest \
+  --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
+---------------------------------------------------------------------------
+
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
 
-* `tests.rest.suite`: comma separated paths of the test suites to be run
-(by default loaded from /rest-api-spec/test). It is possible to run only a subset
-of the tests providing a sub-folder or even a single yaml file (the default
-/rest-api-spec/test prefix is optional when files are loaded from classpath)
-e.g. -Dtests.rest.suite=index,get,create/10_with_id
 * `tests.rest.blacklist`: comma separated globs that identify tests that are
 blacklisted and need to be skipped
 e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*

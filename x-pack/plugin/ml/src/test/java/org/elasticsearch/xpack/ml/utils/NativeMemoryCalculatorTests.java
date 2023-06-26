@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.ml.utils;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
@@ -108,15 +108,15 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
                     NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(bytesForML, bytesForML, jvmSize);
 
                     MlMemoryAutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true, Long.MAX_VALUE, 1).build();
-                    // We don't allow node sizes below 1GB, so we will always be at least that large
+                    // We don't allow node sizes below 0.5GB, so we will always be at least that large
                     // Also, allow 1 byte off for weird rounding issues
                     assertThat(
                         capacity.nodeSize().getBytes(),
-                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
+                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofMb(512).getBytes()) - 1L)
                     );
                     assertThat(
                         capacity.tierSize().getBytes(),
-                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
+                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofMb(512).getBytes()) - 1L)
                     );
                 }
             }
@@ -531,30 +531,28 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
             if (i < numMlNodes) {
                 // ML node
                 builder.add(
-                    new DiscoveryNode(
+                    DiscoveryNodeUtils.create(
                         nodeName,
                         nodeId,
                         ta,
                         Map.of(
-                            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                            MACHINE_MEMORY_NODE_ATTR,
                             String.valueOf(mlMachineMemory),
                             MAX_JVM_SIZE_NODE_ATTR,
                             String.valueOf(mlMachineMemory / 20)
                         ),
-                        Set.of(DiscoveryNodeRole.ML_ROLE),
-                        Version.CURRENT
+                        Set.of(DiscoveryNodeRole.ML_ROLE)
                     )
                 );
             } else {
                 // Not an ML node
                 builder.add(
-                    new DiscoveryNode(
+                    DiscoveryNodeUtils.create(
                         nodeName,
                         nodeId,
                         ta,
                         Collections.emptyMap(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE),
-                        Version.CURRENT
+                        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE)
                     )
                 );
             }
@@ -586,7 +584,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         } else {
             roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
         }
-        return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles, Version.CURRENT);
+        return DiscoveryNodeUtils.create("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles);
     }
 
 }

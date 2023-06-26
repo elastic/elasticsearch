@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -198,7 +199,7 @@ public class PriorityComparatorTests extends ESTestCase {
             }
             // else sometimes just use the defaults
 
-            indices[i] = IndexMetadata.builder(formatted("idx_%04d", i))
+            indices[i] = IndexMetadata.builder(Strings.format("idx_%04d", i))
                 .system(isSystem)
                 .settings(buildSettings(creationDate, priority))
                 .build();
@@ -278,12 +279,8 @@ public class PriorityComparatorTests extends ESTestCase {
     }
 
     private static Settings buildSettings(int creationDate, int priority) {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_CREATION_DATE, creationDate)
+        return indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_CREATION_DATE, creationDate)
             .put(IndexMetadata.SETTING_PRIORITY, priority)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
     }
 }

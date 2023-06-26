@@ -361,11 +361,9 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
     /** Enables or disables the cluster disk allocation decider **/
     private void setDiskAllocationDeciderEnabled(boolean value) {
-        Settings settings = value
-            ? Settings.builder().putNull(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build()
-            : Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+        Settings.Builder settings = value
+            ? Settings.builder().putNull(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
+            : Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false);
+        updateClusterSettings(settings);
     }
 }

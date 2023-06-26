@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -69,9 +68,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorQuery() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
@@ -92,7 +89,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().endObject());
         logger.info("percolating empty doc");
@@ -151,9 +148,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorRangeQueries() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping(
                     "field1",
                     "type=long",
@@ -184,7 +179,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
         client().prepareIndex("test")
             .setId("4")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from(10).to(12)).endObject())
@@ -201,7 +196,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
         client().prepareIndex("test")
             .setId("7")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field3").from("192.168.1.0").to("192.168.1.5")).endObject())
@@ -234,7 +229,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         // Test long range:
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 12).endObject());
@@ -282,10 +277,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorGeoQueries() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping("id", "type=keyword", "field1", "type=geo_point", "query", "type=percolator")
+            indicesAdmin().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=geo_point", "query", "type=percolator")
         );
 
         client().prepareIndex("test")
@@ -340,9 +332,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorQueryExistingDocument() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
@@ -367,7 +357,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("4").setSource("{\"id\": \"4\"}", XContentType.JSON).get();
         client().prepareIndex("test").setId("5").setSource(XContentType.JSON, "id", "5", "field1", "value").get();
         client().prepareIndex("test").setId("6").setSource(XContentType.JSON, "id", "6", "field1", "value", "field2", "value").get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         logger.info("percolating empty doc");
         SearchResponse response = client().prepareSearch()
@@ -398,30 +388,25 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorQueryExistingDocumentSourceDisabled() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
         );
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject()).get();
 
         client().prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get(); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get();
+        });
         assertThat(e.getMessage(), containsString("source disabled"));
     }
 
     public void testPercolatorSpecificQueries() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
         );
 
@@ -448,7 +433,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         client().prepareIndex("test")
             .setId("3")
@@ -490,7 +475,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()
@@ -519,9 +504,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             fieldMapping.append(",index_options=offsets");
         }
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", fieldMapping.toString(), "query", "type=percolator")
         );
         client().prepareIndex("test")
@@ -549,7 +532,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .setSource(jsonBuilder().startObject().field("id", "5").field("query", termQuery("field1", "fox")).endObject())
             .execute()
             .actionGet();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         BytesReference document = BytesReference.bytes(
             jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()
@@ -764,10 +747,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testTakePositionOffsetGapIntoAccount() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping("field", "type=text,position_increment_gap=5", "query", "type=percolator")
+            indicesAdmin().prepareCreate("test").setMapping("field", "type=text,position_increment_gap=5", "query", "type=percolator")
         );
         client().prepareIndex("test")
             .setId("1")
@@ -777,7 +757,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .setId("2")
             .setSource(jsonBuilder().startObject().field("query", new MatchPhraseQueryBuilder("field", "brown fox").slop(5)).endObject())
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch()
             .setQuery(new PercolateQueryBuilder("query", new BytesArray("{\"field\" : [\"brown\", \"fox\"]}"), XContentType.JSON))
@@ -788,19 +768,13 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testManyPercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
+        assertAcked(indicesAdmin().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword"));
         assertAcked(
-            client().admin().indices().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword")
-        );
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test2")
+            indicesAdmin().prepareCreate("test2")
                 .setMapping(queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test3")
+            indicesAdmin().prepareCreate("test3")
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -825,13 +799,9 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testWithMultiplePercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
+        assertAcked(indicesAdmin().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword"));
         assertAcked(
-            client().admin().indices().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword")
-        );
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test2")
+            indicesAdmin().prepareCreate("test2")
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -868,7 +838,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field", "value").endObject());
         SearchResponse response = client().prepareSearch()
@@ -888,7 +858,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> {
             client().prepareIndex("test2")
                 .setId("1")
                 .setSource(
@@ -932,7 +902,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping));
         client().prepareIndex("test")
             .setId("q1")
             .setSource(
@@ -959,13 +929,13 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         client().prepareIndex("test")
             .setId("q3")
             .setSource(jsonBuilder().startObject().field("id", "q3").field("query", QueryBuilders.matchAllQuery()).endObject())
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch()
             .setQuery(
@@ -1091,7 +1061,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testPercolatorQueryViaMultiSearch() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=text", "query", "type=percolator"));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "query", "type=percolator"));
 
         client().prepareIndex("test")
             .setId("1")
@@ -1122,7 +1092,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .setSource(jsonBuilder().startObject().field("field1", "c").endObject())
             .execute()
             .actionGet();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(
@@ -1206,10 +1176,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
     public void testDisallowExpensiveQueries() throws IOException {
         try {
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate("test")
-                    .setMapping("id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
+                indicesAdmin().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
             );
 
             client().prepareIndex("test")
@@ -1228,9 +1195,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
 
             // Set search.allow_expensive_queries to "false" => assert failure
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
@@ -1242,24 +1207,20 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             );
 
             // Set search.allow_expensive_queries setting to "true" ==> success
-            updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
 
             response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
         } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().putNull("search.allow_expensive_queries"));
         }
     }
 
     public void testWrappedWithConstantScore() throws Exception {
 
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("d", "type=date", "q", "type=percolator"));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("d", "type=date", "q", "type=percolator"));
 
         client().prepareIndex("test")
             .setId("1")
@@ -1273,7 +1234,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(

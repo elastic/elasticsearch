@@ -15,13 +15,12 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SetProcessorFactoryTests extends ESTestCase {
 
@@ -39,9 +38,10 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
-        assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
+        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(true));
+        assertThat(setProcessor.isIgnoreEmptyValue(), equalTo(false));
     }
 
     public void testCreateWithOverride() throws Exception {
@@ -53,9 +53,23 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
-        assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
+        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(overrideEnabled));
+    }
+
+    public void testCreateWithIgnoreEmptyValue() throws Exception {
+        boolean ignoreEmptyValueEnabled = randomBoolean();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", "value1");
+        config.put("ignore_empty_value", ignoreEmptyValueEnabled);
+        String processorTag = randomAlphaOfLength(10);
+        SetProcessor setProcessor = factory.create(null, processorTag, null, config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
+        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
+        assertThat(setProcessor.isIgnoreEmptyValue(), equalTo(ignoreEmptyValueEnabled));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
@@ -113,7 +127,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(setProcessor.getCopyFrom(), equalTo("field2"));
     }
 
@@ -143,7 +157,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
 
         // invalid media type
         expectedMediaType = randomValueOtherThanMany(
-            m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            m -> List.of(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
             () -> randomAlphaOfLengthBetween(5, 9)
         );
         final Map<String, Object> config2 = new HashMap<>();

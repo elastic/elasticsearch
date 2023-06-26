@@ -1,0 +1,16 @@
+{
+  "index_patterns": ["logs-my_app-*"],
+  "priority": 200,
+  "data_stream": {},
+  "composed_of": [
+    "custom-plugin-settings",
+    "syslog@custom"
+  ],
+  "ignore_missing_component_templates": ["syslog@custom"],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "integration for my application logs",
+    "managed": true
+  },
+  "version": ${xpack.custom_plugin.template.version}
+}

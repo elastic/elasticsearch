@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -55,7 +56,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@SuppressWarnings("removal")
 public class PermissionsIT extends ESRestTestCase {
 
     private static final String jsonDoc = """
@@ -145,7 +145,9 @@ public class PermissionsIT extends ESRestTestCase {
                                 + " for user [test_ilm]"
                                 + " with effective roles [ilm]"
                                 + " on indices [not-ilm],"
-                                + " this action is granted by the index privileges [monitor,manage,all]"
+                                + " this action is granted by the index privileges [monitor,"
+                                + (TcpTransport.isUntrustedRemoteClusterEnabled() ? "cross_cluster_replication," : "")
+                                + "manage,all]"
                         )
                     );
                 }
@@ -340,7 +342,7 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexAsAdmin(String name, Settings settings, String mapping) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
              "settings": %s, "mappings" : {%s}
             }""", Strings.toString(settings), mapping));
@@ -355,7 +357,7 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexTemplate(String name, String pattern, String alias, String policy) throws IOException {
         Request request = new Request("PUT", "/_template/" + name);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
               "index_patterns": [
                 "%s"

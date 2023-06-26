@@ -22,32 +22,17 @@ import java.util.Set;
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;
-    private final boolean globalForceSource;
 
     public SearchHighlightContext(Collection<Field> fields) {
-        this(fields, false);
-    }
-
-    public SearchHighlightContext(Collection<Field> fields, boolean globalForceSource) {
         assert fields != null;
         this.fields = Maps.newLinkedHashMapWithExpectedSize(fields.size());
         for (Field field : fields) {
             this.fields.put(field.field, field);
         }
-        this.globalForceSource = globalForceSource;
     }
 
     public Collection<Field> fields() {
         return fields.values();
-    }
-
-    public boolean forceSource(Field field) {
-        if (globalForceSource) {
-            return true;
-        }
-
-        Field _field = fields.get(field.field);
-        return _field == null ? false : _field.fieldOptions.forceSource;
     }
 
     public static class Field {
@@ -94,8 +79,6 @@ public class SearchHighlightContext {
         private Integer maxAnalyzedOffset;
 
         private String highlighterType;
-
-        private Boolean forceSource;
 
         private String fragmenter;
 
@@ -260,11 +243,6 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder forceSource(boolean forceSource) {
-                fieldOptions.forceSource = forceSource;
-                return this;
-            }
-
             Builder fragmenter(String fragmenter) {
                 fieldOptions.fragmenter = fragmenter;
                 return this;
@@ -373,9 +351,6 @@ public class SearchHighlightContext {
                 }
                 if (fieldOptions.noMatchSize == -1) {
                     fieldOptions.noMatchSize = globalOptions.noMatchSize;
-                }
-                if (fieldOptions.forceSource == null) {
-                    fieldOptions.forceSource = globalOptions.forceSource;
                 }
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;

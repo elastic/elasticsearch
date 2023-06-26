@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
@@ -38,13 +39,13 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.junit.Assert;
 import org.mockito.ArgumentCaptor;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,19 +66,20 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     // These are not reserved because they're Elasticsearch keywords, not
     // field names
-    private static final List<String> KEYWORDS = Arrays.asList(
+    private static final List<String> KEYWORDS = List.of(
         ElasticsearchMappings.ANALYZER,
         ElasticsearchMappings.COPY_TO,
         ElasticsearchMappings.DYNAMIC,
         ElasticsearchMappings.ENABLED,
         ElasticsearchMappings.NESTED,
+        ElasticsearchMappings.PATH,
         ElasticsearchMappings.PROPERTIES,
         ElasticsearchMappings.TYPE,
         ElasticsearchMappings.WHITESPACE,
         SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
     );
 
-    private static final List<String> INTERNAL_FIELDS = Arrays.asList(GetResult._ID, GetResult._INDEX);
+    private static final List<String> INTERNAL_FIELDS = List.of(GetResult._ID, GetResult._INDEX);
 
     public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
@@ -197,7 +199,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             client,
             clusterState,
             MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(ok -> assertTrue(ok), e -> fail(e.toString()))
+            ActionTestUtils.assertNoFailureListener(Assert::assertTrue)
         );
 
         ArgumentCaptor<PutMappingRequest> requestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
@@ -220,12 +222,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             Object version = entry.getValue();
 
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            );
+            indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0));
 
             Map<String, Object> mapping = new HashMap<>();
             Map<String, Object> properties = new HashMap<>();

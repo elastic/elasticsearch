@@ -16,6 +16,18 @@ with the message "totalTermFreq must be at least docFreq". If you use the
 `cross_fields` scoring type, it is recommended that you skip version 8.4.2.
 This regression was fixed in version 8.4.3.
 
+* When using date range search with format that does not have all date fields (missing month or day)
+an incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
+(issue: {es-issue}90187[#90187])
+
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
 [[bug-8.4.2]]
 [float]
 === Bug fixes
@@ -78,5 +90,3 @@ Health::
 
 Packaging::
 * Update OpenJDK to 18.0.2.1 {es-pull}89535[#89535] (issue: {es-issue}89531[#89531])
-
-

@@ -507,13 +507,17 @@ blob was not overwritten.
 
 `write_throttled`::
 (string)
-The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
-while writing this blob.
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` (or
+`indices.recovery.max_bytes_per_sec` if the
+<<recovery-settings-for-managed-services,recovery settings for managed services>>
+are set) throttle while writing this blob.
 
 `write_throttled_nanos`::
 (long)
-The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
-while writing this blob, in nanoseconds.
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` (or
+`indices.recovery.max_bytes_per_sec` if the
+<<recovery-settings-for-managed-services,recovery settings for managed services>>
+are set) throttle while writing this blob, in nanoseconds.
 
 `reads`::
 (array)

@@ -14,8 +14,6 @@ public final class ContentPath {
 
     private final StringBuilder sb;
 
-    private final int offset;
-
     private int index = 0;
 
     private String[] path = new String[10];
@@ -23,33 +21,20 @@ public final class ContentPath {
     private boolean withinLeafObject = false;
 
     public ContentPath() {
-        this(0);
-    }
-
-    /**
-     * Constructs a json path with an offset. The offset will result an {@code offset}
-     * number of path elements to not be included in {@link #pathAsText(String)}.
-     */
-    public ContentPath(int offset) {
         this.sb = new StringBuilder();
-        this.offset = offset;
-        this.index = 0;
-    }
-
-    public ContentPath(String path) {
-        this.sb = new StringBuilder();
-        this.offset = 0;
-        this.index = 0;
-        add(path);
     }
 
     public void add(String name) {
         path[index++] = name;
         if (index == path.length) { // expand if needed
-            String[] newPath = new String[path.length + 10];
-            System.arraycopy(path, 0, newPath, 0, path.length);
-            path = newPath;
+            expand();
         }
+    }
+
+    private void expand() {
+        String[] newPath = new String[path.length + 10];
+        System.arraycopy(path, 0, newPath, 0, path.length);
+        path = newPath;
     }
 
     public void remove() {
@@ -66,7 +51,7 @@ public final class ContentPath {
 
     public String pathAsText(String name) {
         sb.setLength(0);
-        for (int i = offset; i < index; i++) {
+        for (int i = 0; i < index; i++) {
             sb.append(path[i]).append(DELIMITER);
         }
         sb.append(name);
@@ -75,9 +60,5 @@ public final class ContentPath {
 
     public int length() {
         return index;
-    }
-
-    public boolean atRoot() {
-        return index == 0;
     }
 }

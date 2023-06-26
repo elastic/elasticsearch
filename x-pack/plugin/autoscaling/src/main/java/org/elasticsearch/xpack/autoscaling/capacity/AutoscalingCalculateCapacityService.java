@@ -165,7 +165,9 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
             .stream()
             .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context, ensureNotCancelled)))
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> {
+                throw new UnsupportedOperationException();
+            }, TreeMap::new));
         return new AutoscalingDeciderResults(context.currentCapacity, context.currentNodes, results);
     }
 
@@ -330,8 +332,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
             Optional<AutoscalingNodeInfo> memoryAndProcessors = autoscalingNodesInfo.get(node);
             return new AutoscalingCapacity.AutoscalingResources(
-                storage == -1 ? ByteSizeValue.ZERO : new ByteSizeValue(storage),
-                memoryAndProcessors.map(AutoscalingNodeInfo::memory).map(ByteSizeValue::new).orElse(ByteSizeValue.ZERO),
+                storage == -1 ? ByteSizeValue.ZERO : ByteSizeValue.ofBytes(storage),
+                memoryAndProcessors.map(AutoscalingNodeInfo::memory).map(ByteSizeValue::ofBytes).orElse(ByteSizeValue.ZERO),
                 memoryAndProcessors.map(AutoscalingNodeInfo::processors).orElse(null)
             );
         }

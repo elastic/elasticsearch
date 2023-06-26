@@ -109,8 +109,8 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                 getSegmentName(merge),
                 merge.segments.size(),
                 totalNumDocs,
-                new ByteSizeValue(totalSizeInBytes),
-                new ByteSizeValue(merge.estimatedMergeBytes)
+                ByteSizeValue.ofBytes(totalSizeInBytes),
+                ByteSizeValue.ofBytes(merge.estimatedMergeBytes)
             );
         }
         try {

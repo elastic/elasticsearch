@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
@@ -36,7 +37,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -97,7 +97,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected String configRoles() {
-        return String.format(Locale.ROOT, """
+        return Strings.format("""
             %s%s:
               cluster: [ "manage_own_api_key" ]
               indices:
@@ -396,29 +396,21 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
                 .get()
         );
 
-        assertAcked(client.admin().indices().prepareCreate(DLS_INDEX).addAlias(new Alias("dls-alias")).get());
+        assertAcked(indicesAdmin().prepareCreate(DLS_INDEX).addAlias(new Alias("dls-alias")).get());
         client.prepareIndex(DLS_INDEX).setId("101").setSource("number", 101, "letter", "A").get();
         client.prepareIndex(DLS_INDEX).setId("102").setSource("number", 102, "letter", "B").get();
 
-        assertAcked(client.admin().indices().prepareCreate(FLS_INDEX).addAlias(new Alias("fls-alias")).get());
+        assertAcked(indicesAdmin().prepareCreate(FLS_INDEX).addAlias(new Alias("fls-alias")).get());
         client.prepareIndex(FLS_INDEX).setId("201").setSource("public", "X", "private", "x").get();
         client.prepareIndex(FLS_INDEX).setId("202").setSource("public", "Y", "private", "y").get();
 
         assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate(INDEX)
-                .addAlias(new Alias(ALIAS1))
-                .addAlias(new Alias(ALIAS2))
-                .addAlias(new Alias(ALL_ALIAS))
-                .get()
+            indicesAdmin().prepareCreate(INDEX).addAlias(new Alias(ALIAS1)).addAlias(new Alias(ALIAS2)).addAlias(new Alias(ALL_ALIAS)).get()
         );
         client.prepareIndex(INDEX).setId("1").setSource("number", 1, "letter", "a", "private", "sesame_1", "public", "door_1").get();
         client.prepareIndex(INDEX).setId("2").setSource("number", 2, "letter", "b", "private", "sesame_2", "public", "door_2").get();
 
-        assertAcked(
-            client.admin().indices().prepareCreate(DLS_TEMPLATE_ROLE_QUERY_INDEX).addAlias(new Alias(DLS_TEMPLATE_ROLE_QUERY_ALIAS)).get()
-        );
+        assertAcked(indicesAdmin().prepareCreate(DLS_TEMPLATE_ROLE_QUERY_INDEX).addAlias(new Alias(DLS_TEMPLATE_ROLE_QUERY_ALIAS)).get());
         client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("1").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_1).get();
         client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("2").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_2).get();
 
@@ -429,15 +421,14 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        final ForceMergeResponse forceMergeResponse = client.admin()
-            .indices()
-            .prepareForceMerge(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX)
-            .setFlush(true)
-            .get();
+        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(
+            DLS_INDEX,
+            FLS_INDEX,
+            INDEX,
+            DLS_TEMPLATE_ROLE_QUERY_INDEX
+        ).setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
-        final RefreshResponse refreshResponse = client.admin()
-            .indices()
-            .prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX)
+        final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX)
             .get();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         ensureGreen(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX);
@@ -488,13 +479,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
     }
 
     private void assertCacheState(String index, long expectedHits, long expectedMisses) {
-        RequestCacheStats requestCacheStats = client().admin()
-            .indices()
-            .prepareStats(index)
-            .setRequestCache(true)
-            .get()
-            .getTotal()
-            .getRequestCache();
+        RequestCacheStats requestCacheStats = indicesAdmin().prepareStats(index).setRequestCache(true).get().getTotal().getRequestCache();
         // Check the hit count and miss count together so if they are not
         // correct we can see both values
         assertEquals(

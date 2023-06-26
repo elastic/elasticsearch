@@ -1,5 +1,0 @@
-pr: 90145
-summary: "Script: Write Fields API for reindex, update, update by query"
-area: Infra/Scripting
-type: enhancement
-issues: []

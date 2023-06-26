@@ -57,8 +57,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
         boolean createSourceIndexAlias = instance.getCreateSourceIndexAlias();
         switch (between(0, 3)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> indexNameSupplier = (index, state) -> index + randomAlphaOfLength(5);
             case 3 -> createSourceIndexAlias = createSourceIndexAlias == false;
             default -> throw new AssertionError("Illegal randomisation branch");

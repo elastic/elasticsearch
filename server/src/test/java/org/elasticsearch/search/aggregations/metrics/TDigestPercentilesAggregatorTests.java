@@ -11,13 +11,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,7 +37,14 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
+        var tdigestConfig = new PercentilesConfig.TDigest();
+        if (randomBoolean()) {
+            tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
+        }
+        if (randomBoolean()) {
+            tdigestConfig.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
+        return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(tdigestConfig);
     }
 
     @Override
@@ -80,8 +83,8 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         }, tdigest -> {
             assertEquals(7L, tdigest.state.size());
             assertEquals(7L, tdigest.state.centroidCount());
-            assertEquals(4.5d, tdigest.percentile(75), 0.0d);
-            assertEquals("4.5", tdigest.percentileAsString(75));
+            assertEquals(4.0d, tdigest.percentile(75), 0.0d);
+            assertEquals("4.0", tdigest.percentileAsString(75));
             assertEquals(2.0d, tdigest.percentile(50), 0.0d);
             assertEquals("2.0", tdigest.percentileAsString(50));
             assertEquals(1.0d, tdigest.percentile(22), 0.0d);
@@ -104,14 +107,14 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(tdigest.state.centroidCount(), 7L);
             assertEquals(8.0d, tdigest.percentile(100), 0.0d);
             assertEquals("8.0", tdigest.percentileAsString(100));
-            assertEquals(6.98d, tdigest.percentile(88), 0.0d);
-            assertEquals("6.98", tdigest.percentileAsString(88));
+            assertEquals(4.0d, tdigest.percentile(75), 0.0d);
+            assertEquals("4.0", tdigest.percentileAsString(75));
             assertEquals(1.0d, tdigest.percentile(33), 0.0d);
             assertEquals("1.0", tdigest.percentileAsString(33));
             assertEquals(1.0d, tdigest.percentile(25), 0.0d);
             assertEquals("1.0", tdigest.percentileAsString(25));
-            assertEquals(0.0d, tdigest.percentile(1), 0.0d);
-            assertEquals("0.0", tdigest.percentileAsString(1));
+            assertEquals(0.06d, tdigest.percentile(1), 0.0d);
+            assertEquals("0.06", tdigest.percentileAsString(1));
             assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
@@ -132,7 +135,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(4L, tdigest.state.centroidCount());
             assertEquals(2.0d, tdigest.percentile(100), 0.0d);
             assertEquals(1.0d, tdigest.percentile(50), 0.0d);
-            assertEquals(0.5d, tdigest.percentile(25), 0.0d);
+            assertEquals(0.75d, tdigest.percentile(25), 0.0d);
             assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
 
@@ -162,30 +165,16 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalTDigestPercentiles> verify
     ) throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                buildIndex.accept(indexWriter);
-            }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                PercentilesAggregationBuilder builder;
-                // TODO this randomization path should be removed when the old settings are removed
-                if (randomBoolean()) {
-                    builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
-                } else {
-                    PercentilesConfig hdr = new PercentilesConfig.TDigest();
-                    builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
-                }
-
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-                TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator.asCollector());
-                aggregator.postCollection();
-                verify.accept((InternalTDigestPercentiles) aggregator.buildAggregation(0L));
-            }
+        PercentilesAggregationBuilder builder;
+        // TODO this randomization path should be removed when the old settings are removed
+        if (randomBoolean()) {
+            builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
+        } else {
+            PercentilesConfig hdr = new PercentilesConfig.TDigest();
+            builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
         }
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        testCase(buildIndex, verify, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 }

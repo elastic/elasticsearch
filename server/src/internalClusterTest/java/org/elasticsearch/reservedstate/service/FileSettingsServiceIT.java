@@ -34,7 +34,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
+import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,6 +59,30 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                  "cluster_settings": {
                      "indices.recovery.max_bytes_per_sec": "50mb"
                  }
+             }
+        }""";
+
+    private static String testJSON43mb = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                 "cluster_settings": {
+                     "indices.recovery.max_bytes_per_sec": "43mb"
+                 }
+             }
+        }""";
+
+    private static String testCleanupJSON = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                 "cluster_settings": {}
              }
         }""";
 
@@ -85,11 +111,34 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        logger.info("--> New file settings: [{}]", Strings.format(json, version));
+    }
+
+    private Tuple<CountDownLatch, AtomicLong> setupCleanupClusterStateListener(String node) {
+        ClusterService clusterService = internalCluster().clusterService(node);
+        CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (reservedState != null) {
+                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
+                    if (handlerMetadata != null && handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec") == false) {
+                        clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
+                        savedClusterState.countDown();
+                    }
+                }
+            }
+        });
+
+        return new Tuple<>(savedClusterState, metadataVersion);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -114,18 +163,18 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private void assertClusterStateSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion) throws Exception {
+    private void assertClusterStateSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion, String expectedBytesPerSec)
+        throws Exception {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).actionGet();
 
         assertThat(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
-            equalTo("50mb")
+            equalTo(expectedBytesPerSec)
         );
 
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
@@ -135,7 +184,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
             "java.lang.IllegalArgumentException: Failed to process request "
                 + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
                 + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]",
-            expectThrows(ExecutionException.class, () -> client().admin().cluster().updateSettings(req).get()).getMessage()
+            expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage()
         );
     }
 
@@ -158,7 +207,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertFalse(dataFileSettingsService.watching());
 
         writeJSONFile(masterNode, testJSON);
-        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
     }
 
     public void testSettingsAppliedOnStart() throws Exception {
@@ -183,7 +232,41 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
+    }
+
+    public void testReservedStatePersistsOnRestart() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        assertMasterNode(internalCluster().masterClient(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode);
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+
+        logger.info("--> write some settings");
+        writeJSONFile(masterNode, testJSON);
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
+
+        logger.info("--> restart master");
+        internalCluster().restartNode(masterNode);
+
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();
+        assertEquals(
+            1,
+            clusterStateResponse.getState()
+                .metadata()
+                .reservedStateMetadata()
+                .get(FileSettingsService.NAMESPACE)
+                .handlers()
+                .get(ReservedClusterSettingsAction.NAME)
+                .keys()
+                .size()
+        );
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
@@ -215,18 +298,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).actionGet();
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
         // This should succeed, nothing was reserved
-        client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
     }
 
     public void testErrorSaved() throws Exception {
@@ -238,7 +317,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertFalse(dataFileSettingsService.watching());
 
         logger.info("--> start master node");
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
@@ -250,4 +331,51 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(masterNode, testErrorJSON);
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
+
+    public void testSettingsAppliedOnMasterReElection() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode();
+
+        logger.info("--> start master eligible nodes, 2 more for quorum");
+        String masterNode1 = internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
+        String masterNode2 = internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
+        internalCluster().validateClusterFormed();
+        FileSettingsService master1FS = internalCluster().getInstance(FileSettingsService.class, masterNode1);
+        FileSettingsService master2FS = internalCluster().getInstance(FileSettingsService.class, masterNode2);
+
+        assertFalse(master1FS.watching());
+        assertFalse(master2FS.watching());
+
+        var savedClusterState = setupClusterStateListener(masterNode);
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+
+        writeJSONFile(masterNode, testJSON);
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
+
+        internalCluster().stopCurrentMasterNode();
+        internalCluster().validateClusterFormed();
+        ensureStableCluster(2);
+
+        FileSettingsService masterFS = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
+        assertTrue(masterFS.watching());
+        logger.info("--> start another master eligible node to form a quorum");
+        internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
+        internalCluster().validateClusterFormed();
+        ensureStableCluster(3);
+
+        savedClusterState = setupCleanupClusterStateListener(internalCluster().getMasterName());
+        writeJSONFile(internalCluster().getMasterName(), testCleanupJSON);
+
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        savedClusterState = setupClusterStateListener(internalCluster().getMasterName());
+        writeJSONFile(internalCluster().getMasterName(), testJSON43mb);
+
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
+    }
+
 }

@@ -9,20 +9,23 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 public class BinaryDenseVector implements DenseVector {
-    protected final BytesRef docVector;
-    protected final int dims;
-    protected final Version indexVersion;
 
-    protected float[] decodedDocVector;
+    private final BytesRef docVector;
 
-    public BinaryDenseVector(BytesRef docVector, int dims, Version indexVersion) {
+    private final int dims;
+    private final IndexVersion indexVersion;
+
+    private final float[] decodedDocVector;
+
+    public BinaryDenseVector(float[] decodedDocVector, BytesRef docVector, int dims, IndexVersion indexVersion) {
+        this.decodedDocVector = decodedDocVector;
         this.docVector = docVector;
         this.indexVersion = indexVersion;
         this.dims = dims;
@@ -30,82 +33,79 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public float[] getVector() {
-        if (decodedDocVector == null) {
-            decodedDocVector = new float[dims];
-            VectorEncoderDecoder.decodeDenseVector(docVector, decodedDocVector);
-        }
         return decodedDocVector;
     }
 
     @Override
     public float getMagnitude() {
-        return VectorEncoderDecoder.getMagnitude(indexVersion, docVector);
+        return VectorEncoderDecoder.getMagnitude(indexVersion, docVector, decodedDocVector);
+    }
+
+    @Override
+    public int dotProduct(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
-        double dotProduct = 0;
-        for (float v : queryVector) {
-            dotProduct += byteBuffer.getFloat() * v;
-        }
-        return dotProduct;
+        return VectorUtil.dotProduct(decodedDocVector, queryVector);
     }
 
     @Override
     public double dotProduct(List<Number> queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
         double dotProduct = 0;
         for (int i = 0; i < queryVector.size(); i++) {
-            dotProduct += byteBuffer.getFloat() * queryVector.get(i).floatValue();
+            dotProduct += decodedDocVector[i] * queryVector.get(i).floatValue();
         }
         return dotProduct;
     }
 
     @Override
-    public double l1Norm(float[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
+    public int l1Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l1Norm(float[] queryVector)] instead");
+    }
 
+    @Override
+    public double l1Norm(float[] queryVector) {
         double l1norm = 0;
-        for (float v : queryVector) {
-            l1norm += Math.abs(v - byteBuffer.getFloat());
+        for (int i = 0; i < queryVector.length; i++) {
+            l1norm += Math.abs(queryVector[i] - decodedDocVector[i]);
         }
         return l1norm;
     }
 
     @Override
     public double l1Norm(List<Number> queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
         double l1norm = 0;
         for (int i = 0; i < queryVector.size(); i++) {
-            l1norm += Math.abs(queryVector.get(i).floatValue() - byteBuffer.getFloat());
+            l1norm += Math.abs(queryVector.get(i).floatValue() - decodedDocVector[i]);
         }
         return l1norm;
     }
 
     @Override
+    public double l2Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l2Norm(float[] queryVector)] instead");
+    }
+
+    @Override
     public double l2Norm(float[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
+        return Math.sqrt(VectorUtil.squareDistance(queryVector, decodedDocVector));
+    }
+
+    @Override
+    public double l2Norm(List<Number> queryVector) {
         double l2norm = 0;
-        for (float queryValue : queryVector) {
-            double diff = byteBuffer.getFloat() - queryValue;
+        for (int i = 0; i < queryVector.size(); i++) {
+            double diff = decodedDocVector[i] - queryVector.get(i).floatValue();
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
     }
 
     @Override
-    public double l2Norm(List<Number> queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-        double l2norm = 0;
-        for (Number number : queryVector) {
-            double diff = byteBuffer.getFloat() - number.floatValue();
-            l2norm += diff * diff;
-        }
-        return Math.sqrt(l2norm);
+    public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
+        throw new UnsupportedOperationException("use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
     }
 
     @Override
@@ -134,9 +134,5 @@ public class BinaryDenseVector implements DenseVector {
     @Override
     public int getDims() {
         return dims;
-    }
-
-    private static ByteBuffer wrap(BytesRef dv) {
-        return ByteBuffer.wrap(dv.bytes, dv.offset, dv.length);
     }
 }

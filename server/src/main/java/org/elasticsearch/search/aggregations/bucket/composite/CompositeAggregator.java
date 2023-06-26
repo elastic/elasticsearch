@@ -34,6 +34,7 @@ import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
@@ -60,11 +61,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
 public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
+
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -102,7 +105,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).toList();
         this.sources = new SingleDimensionValuesSource<?>[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
-        int bucketLimit = aggCtx.multiBucketConsumer().getLimit();
+        int bucketLimit = aggCtx.maxBuckets();
         if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException(
                 "Trying to create too many buckets. Must be less than or equal"
@@ -130,7 +133,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             }
         }
         this.innerSizedBucketAggregators = dateHistogramValuesSources.toArray(new DateHistogramValuesSource[0]);
-        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size);
+        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size, aggCtx.searcher().getIndexReader());
         if (rawAfterKey != null) {
             try {
                 this.queue.setAfterKey(rawAfterKey);
@@ -153,6 +156,14 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 Releasables.close(sources);
             }
         }
+    }
+
+    @Override
+    public ScoreMode scoreMode() {
+        if (queue.mayDynamicallyPrune()) {
+            return super.scoreMode().needsScores() ? ScoreMode.TOP_DOCS_WITH_SCORES : ScoreMode.TOP_DOCS;
+        }
+        return super.scoreMode();
     }
 
     @Override
@@ -492,6 +503,15 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                         assert zeroBucket == 0L;
                         inner.collect(doc);
                     }
+
+                    @Override
+                    public DocIdSetIterator competitiveIterator() throws IOException {
+                        if (queue.mayDynamicallyPrune()) {
+                            return inner.competitiveIterator();
+                        } else {
+                            return null;
+                        }
+                    }
                 };
             }
         }
@@ -605,6 +625,14 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             );
         }
         return innerSizedBucketAggregators[0].bucketSize(unit);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        if (sources[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+            globalOrdinalValuesSource.collectDebugInfo(Strings.format("sources.%s", sourceConfigs[0].name()), add);
+        }
     }
 
     private static class Entry {

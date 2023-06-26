@@ -24,11 +24,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -342,6 +343,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
     void isolateDatafeeds(List<String> openJobs, List<String> runningDatafeedIds, ActionListener<Void> listener) {
 
         GroupedActionListener<IsolateDatafeedAction.Response> groupedListener = new GroupedActionListener<>(
+            runningDatafeedIds.size(),
             ActionListener.wrap(c -> listener.onResponse(null), e -> {
                 // This is deliberately NOT an error. The reasoning is as follows:
                 // - Isolate datafeed just sets a flag on the datafeed, so cannot fail IF it reaches the running datafeed code
@@ -363,8 +365,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 // race condition easier.
                 logger.info("could not isolate all datafeeds while force closing jobs " + openJobs, e);
                 listener.onResponse(null);
-            }),
-            runningDatafeedIds.size()
+            })
         );
 
         for (String runningDatafeedId : runningDatafeedIds) {
@@ -417,7 +418,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         CloseJobAction.Request request,
         JobTask jobTask,
         ActionListener<CloseJobAction.Response> listener
@@ -479,9 +480,9 @@ public class TransportCloseJobAction extends TransportTasksAction<
         // otherwise something went wrong
         if (request.getOpenJobIds().length != tasks.size()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+                throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+                throw failedNodeExceptions.get(0);
             } else {
                 // This can happen when the actual task in the node no longer exists,
                 // which means the job(s) have already been closed.
@@ -572,7 +573,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             return;
         }
 
-        final Set<String> movedJobs = Sets.newConcurrentHashSet();
+        final Set<String> movedJobs = ConcurrentCollections.newConcurrentSet();
 
         ActionListener<CloseJobAction.Response> intermediateListener = ActionListener.wrap(response -> {
             for (String jobId : movedJobs) {

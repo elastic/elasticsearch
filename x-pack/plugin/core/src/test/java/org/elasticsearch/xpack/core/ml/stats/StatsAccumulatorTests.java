@@ -156,6 +156,11 @@ public class StatsAccumulatorTests extends AbstractWireSerializingTestCase<Stats
     }
 
     @Override
+    protected StatsAccumulator mutateInstance(StatsAccumulator instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<StatsAccumulator> instanceReader() {
         return StatsAccumulator::new;
     }

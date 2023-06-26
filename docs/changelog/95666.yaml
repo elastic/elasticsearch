@@ -1,0 +1,5 @@
+pr: 95666
+summary: Bootstrap profiling indices at startup
+area: Indices APIs
+type: enhancement
+issues: []

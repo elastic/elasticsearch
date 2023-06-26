@@ -84,6 +84,9 @@ using metrics.
       Process statistics, memory consumption, cpu usage, open
       file descriptors.
 
+  `repositories`::
+      Statistics about snapshot repositories.
+
   `thread_pool`::
       Statistics about each thread pool, including current size, queue and
       rejected tasks.
@@ -346,6 +349,10 @@ Total time spent throttling operations.
 (integer)
 Total time in milliseconds
 spent throttling operations.
+
+`write_load`::
+(double)
+Average number of write threads used while indexing documents.
 =======
 
 `get`::
@@ -1668,6 +1675,31 @@ Total number of classes unloaded since the JVM started.
 =======
 ======
 
+[[cluster-nodes-stats-api-response-body-repositories]]
+`repositories`::
+(object)
+Statistics about snapshot repositories.
++
+.Properties of `repositories`
+[%collapsible%open]
+======
+`<repository_name>`::
+(object)
+Contains repository throttling statistics for the node.
++
+.Properties of `<repository_name>`
+[%collapsible%open]
+=======
+`total_read_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during recovery.
+
+`total_write_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during snapshotting.
+=======
+======
+
 [[cluster-nodes-stats-api-response-body-threadpool]]
 `thread_pool`::
 (object)
@@ -1856,6 +1888,13 @@ The total time in milliseconds spent performing I/O operations for the device
 since starting {es}.
 ========
 
+`total` (Linux only)::
+(object)
+The sum of the disk metrics for all devices that back an {es} data path.
++
+.Properties of `total`
+[%collapsible%open]
+========
 `operations` (Linux only)::
     (integer)
     The total number of read and write operations across all devices used by
@@ -1885,6 +1924,8 @@ since starting {es}.
     (integer)
     The total time in milliseconds spent performing I/O operations across all
     devices used by {es} since starting {es}.
+========
+
 =======
 ======
 
@@ -1944,15 +1985,25 @@ thread, represented as a histogram.
 .Properties of `inbound_handling_time_histogram`
 [%collapsible]
 =======
+`ge`::
+(string)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
 `ge_millis`::
 (integer)
-The inclusive lower bound of the bucket in milliseconds. Omitted on the first
-bucket since this bucket has no lower bound.
+The inclusive lower bound of the bucket in milliseconds. May be omitted on the
+first bucket if this bucket has no lower bound.
+
+`lt`::
+(string)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
 
 `lt_millis`::
 (integer)
-The exclusive upper bound of the bucket in milliseconds. Omitted on the last
-bucket since this bucket has no upper bound.
+The exclusive upper bound of the bucket in milliseconds. May be omitted on the
+last bucket if this bucket has no upper bound.
 
 `count`::
 (integer)
@@ -1968,21 +2019,91 @@ transport thread, represented as a histogram.
 .Properties of `outbound_handling_time_histogram`
 [%collapsible]
 =======
+`ge`::
+(string)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
 `ge_millis`::
 (integer)
-The inclusive lower bound of the bucket in milliseconds. Omitted on the first
-bucket since this bucket has no lower bound.
+The inclusive lower bound of the bucket in milliseconds. May be omitted on the
+first bucket if this bucket has no lower bound.
+
+`lt`::
+(string)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
 
 `lt_millis`::
 (integer)
-The exclusive upper bound of the bucket in milliseconds. Omitted on the last
-bucket since this bucket has no upper bound.
+The exclusive upper bound of the bucket in milliseconds. May be omitted on the
+last bucket if this bucket has no upper bound.
 
 `count`::
 (integer)
 The number of times a transport thread took a period of time within the bounds
 of this bucket to send a transport message.
 =======
+
+`actions`::
+(object)
+An action-by-action breakdown of the transport traffic handled by this node,
+showing the total amount of traffic and a histogram of message sizes for
+incoming requests and outgoing responses.
++
+.Properties of `actions.*.requests` and `actions.*.responses`
+[%collapsible]
+=======
+`count`::
+(integer)
+The total number of requests received, or responses sent, for the current
+action.
+
+`total_size`::
+(<<byte-units,byte value>>)
+The total size (as a human-readable string) of all requests received, or
+responses sent, for the current action.
+
+`total_size_in_bytes`::
+(integer)
+The total size in bytes of all requests received, or responses sent, for the
+current action.
+
+`histogram`::
+(array)
+A breakdown of the distribution of sizes of requests received, or responses
+sent, for the current action.
++
+.Properties of `histogram`
+[%collapsible]
+========
+`ge`::
+(<<byte-units,byte value>>)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
+`ge_bytes`::
+(integer)
+The inclusive lower bound of the bucket in bytes. May be omitted on the first
+bucket if this bucket has no lower bound.
+
+`lt`::
+(<<byte-units,byte value>>)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
+
+`lt_bytes`::
+(integer)
+The exclusive upper bound of the bucket in bytes. May be omitted on the last
+bucket if this bucket has no upper bound.
+
+`count`::
+(integer)
+The number of times a request was received, or a response sent, with a size
+within the bounds of this bucket.
+========
+=======
+
 ======
 
 [[cluster-nodes-stats-api-response-body-http]]
@@ -2021,11 +2142,11 @@ included in the response.
 
 `local_address`::
 (string)
-Local address for the HTTP client.
+Local address for the HTTP connection.
 
 `remote_address`::
 (string)
-Remote address for the HTTP client.
+Remote address for the HTTP connection.
 
 `last_uri`::
 (string)
@@ -2675,8 +2796,8 @@ requests.
 [[cluster-nodes-stats-api-example]]
 ==== {api-examples-title}
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-limit]
+----
 # return just indices
 GET /_nodes/stats/indices
 
@@ -2685,7 +2806,7 @@ GET /_nodes/stats/os,process
 
 # return just process for node with IP address 10.0.0.1
 GET /_nodes/10.0.0.1/stats/process
---------------------------------------------------
+----
 
 All stats can be explicitly requested via `/_nodes/stats/_all` or
 `/_nodes/stats?metric=_all`.
@@ -2693,8 +2814,8 @@ All stats can be explicitly requested via `/_nodes/stats/_all` or
 You can get information about indices stats on `node`, `indices`, or `shards`
 level.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-indices]
+----
 # Fielddata summarized by node
 GET /_nodes/stats/indices/fielddata?fields=field1,field2
 
@@ -2706,19 +2827,19 @@ GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 
 # You can use wildcards for field names
 GET /_nodes/stats/indices/fielddata?fields=field*
---------------------------------------------------
+----
 
 You can get statistics about search groups for searches executed
 on this node.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-groups]
+----
 # All groups with all stats
 GET /_nodes/stats?groups=_all
 
 # Some groups from just the indices stats
 GET /_nodes/stats/indices?groups=foo,bar
---------------------------------------------------
+----
 
 [[cluster-nodes-stats-ingest-ex]]
 ===== Retrieve ingest statistics only
@@ -2727,23 +2848,23 @@ To return only ingest-related node statistics, set the `<metric>` path
 parameter to `ingest` and use the
 <<common-options-response-filtering,`filter_path`>> query parameter.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-filter-path]
+----
 GET /_nodes/stats/ingest?filter_path=nodes.*.ingest
---------------------------------------------------
+----
 
 You can use the `metric` and `filter_path` query parameters to get the same
 response.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-metric-filter-path]
+----
 GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest
---------------------------------------------------
+----
 
 To further refine the response, change the `filter_path` value.
 For example, the following request only returns ingest pipeline statistics.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-metric-filter-path-refined]
+----
 GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest.pipelines
---------------------------------------------------
+----

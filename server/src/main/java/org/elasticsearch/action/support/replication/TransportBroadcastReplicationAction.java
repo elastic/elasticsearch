@@ -8,12 +8,13 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -25,15 +26,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -49,6 +51,7 @@ public abstract class TransportBroadcastReplicationAction<
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
+    private final String executor;
 
     public TransportBroadcastReplicationAction(
         String name,
@@ -58,66 +61,112 @@ public abstract class TransportBroadcastReplicationAction<
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ActionType<ShardResponse> replicatedBroadcastShardAction
+        ActionType<ShardResponse> replicatedBroadcastShardAction,
+        String executor
     ) {
         super(name, transportService, actionFilters, requestReader);
         this.client = client;
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.executor = executor;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        final ClusterState clusterState = clusterService.state();
-        List<ShardId> shards = shards(request, clusterState);
-        final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList<>();
-        if (shards.size() == 0) {
-            finishAndNotifyListener(listener, shardsResponses);
-        }
-        final CountDown responsesCountDown = new CountDown(shards.size());
-        for (final ShardId shardId : shards) {
-            ActionListener<ShardResponse> shardActionListener = new ActionListener<ShardResponse>() {
+        clusterService.threadPool().executor(executor).execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
+    }
+
+    private CheckedConsumer<ActionListener<Response>, Exception> createAsyncAction(Task task, Request request) {
+        return new CheckedConsumer<ActionListener<Response>, Exception>() {
+
+            private int totalShardCopyCount;
+            private int successShardCopyCount;
+            private final List<DefaultShardOperationFailedException> allFailures = new ArrayList<>();
+
+            @Override
+            public void accept(ActionListener<Response> listener) {
+                assert totalShardCopyCount == 0 && successShardCopyCount == 0 && allFailures.isEmpty() : "shouldn't call this twice";
+
+                final ClusterState clusterState = clusterService.state();
+                final List<ShardId> shards = shards(request, clusterState);
+                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().indices();
+
+                try (var refs = new RefCountingRunnable(() -> finish(listener))) {
+                    for (final ShardId shardId : shards) {
+                        // NB This sends O(#shards) requests in a tight loop; TODO add some throttling here?
+                        shardExecute(
+                            task,
+                            request,
+                            shardId,
+                            ActionListener.releaseAfter(new ReplicationResponseActionListener(shardId, indexMetadataByName), refs.acquire())
+                        );
+                    }
+                }
+            }
+
+            private synchronized void addShardResponse(int numCopies, int successful, List<DefaultShardOperationFailedException> failures) {
+                totalShardCopyCount += numCopies;
+                successShardCopyCount += successful;
+                allFailures.addAll(failures);
+            }
+
+            void finish(ActionListener<Response> listener) {
+                // no need for synchronized here, the RefCountingRunnable guarantees that all the addShardResponse calls happen-before here
+                logger.trace("{}: got all shard responses", actionName);
+                listener.onResponse(newResponse(successShardCopyCount, allFailures.size(), totalShardCopyCount, allFailures));
+            }
+
+            class ReplicationResponseActionListener implements ActionListener<ShardResponse> {
+                private final ShardId shardId;
+                private final Map<String, IndexMetadata> indexMetadataByName;
+
+                ReplicationResponseActionListener(ShardId shardId, Map<String, IndexMetadata> indexMetadataByName) {
+                    this.shardId = shardId;
+                    this.indexMetadataByName = indexMetadataByName;
+                }
+
                 @Override
                 public void onResponse(ShardResponse shardResponse) {
-                    shardsResponses.add(shardResponse);
+                    assert shardResponse != null;
                     logger.trace("{}: got response from {}", actionName, shardId);
-                    if (responsesCountDown.countDown()) {
-                        finishAndNotifyListener(listener, shardsResponses);
-                    }
+                    addShardResponse(
+                        shardResponse.getShardInfo().getTotal(),
+                        shardResponse.getShardInfo().getSuccessful(),
+                        Arrays.stream(shardResponse.getShardInfo().getFailures())
+                            .map(
+                                f -> new DefaultShardOperationFailedException(
+                                    new BroadcastShardOperationFailedException(shardId, f.getCause())
+                                )
+                            )
+                            .toList()
+                    );
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
-                    int totalNumCopies = clusterState.getMetadata().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
-                    ShardResponse shardResponse = newShardResponse();
-                    ReplicationResponse.ShardInfo.Failure[] failures;
+                    final int numCopies = indexMetadataByName.get(shardId.getIndexName()).getNumberOfReplicas() + 1;
+                    final List<DefaultShardOperationFailedException> result;
                     if (TransportActions.isShardNotAvailableException(e)) {
-                        failures = new ReplicationResponse.ShardInfo.Failure[0];
+                        result = List.of();
                     } else {
-                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(
-                            shardId,
-                            null,
-                            e,
-                            ExceptionsHelper.status(e),
-                            true
+                        final var failures = new DefaultShardOperationFailedException[numCopies];
+                        Arrays.fill(
+                            failures,
+                            new DefaultShardOperationFailedException(new BroadcastShardOperationFailedException(shardId, e))
                         );
-                        failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];
-                        Arrays.fill(failures, failure);
+                        result = Arrays.asList(failures);
                     }
-                    shardResponse.setShardInfo(new ReplicationResponse.ShardInfo(totalNumCopies, 0, failures));
-                    shardsResponses.add(shardResponse);
-                    if (responsesCountDown.countDown()) {
-                        finishAndNotifyListener(listener, shardsResponses);
-                    }
+                    addShardResponse(numCopies, 0, result);
                 }
-            };
-            shardExecute(task, request, shardId, shardActionListener);
-        }
+            }
+
+        };
     }
 
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
+        assert Transports.assertNotTransportThread("may hit all the shards");
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);
@@ -127,6 +176,7 @@ public abstract class TransportBroadcastReplicationAction<
      * @return all shard ids the request should run on
      */
     protected List<ShardId> shards(Request request, ClusterState clusterState) {
+        assert Transports.assertNotTransportThread("may hit all the shards");
         List<ShardId> shardIds = new ArrayList<>();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
@@ -141,38 +191,7 @@ public abstract class TransportBroadcastReplicationAction<
         return shardIds;
     }
 
-    protected abstract ShardResponse newShardResponse();
-
     protected abstract ShardRequest newShardRequest(Request request, ShardId shardId);
-
-    private void finishAndNotifyListener(ActionListener<Response> listener, CopyOnWriteArrayList<ShardResponse> shardsResponses) {
-        logger.trace("{}: got all shard responses", actionName);
-        int successfulShards = 0;
-        int failedShards = 0;
-        int totalNumCopies = 0;
-        List<DefaultShardOperationFailedException> shardFailures = null;
-        for (int i = 0; i < shardsResponses.size(); i++) {
-            ReplicationResponse shardResponse = shardsResponses.get(i);
-            if (shardResponse == null) {
-                // non active shard, ignore
-            } else {
-                failedShards += shardResponse.getShardInfo().getFailed();
-                successfulShards += shardResponse.getShardInfo().getSuccessful();
-                totalNumCopies += shardResponse.getShardInfo().getTotal();
-                if (shardFailures == null) {
-                    shardFailures = new ArrayList<>();
-                }
-                for (ReplicationResponse.ShardInfo.Failure failure : shardResponse.getShardInfo().getFailures()) {
-                    shardFailures.add(
-                        new DefaultShardOperationFailedException(
-                            new BroadcastShardOperationFailedException(failure.fullShardId(), failure.getCause())
-                        )
-                    );
-                }
-            }
-        }
-        listener.onResponse(newResponse(successfulShards, failedShards, totalNumCopies, shardFailures));
-    }
 
     protected abstract Response newResponse(
         int successfulShards,
@@ -180,4 +199,5 @@ public abstract class TransportBroadcastReplicationAction<
         int totalNumCopies,
         List<DefaultShardOperationFailedException> shardFailures
     );
+
 }

@@ -11,6 +11,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
@@ -37,18 +40,41 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private final String index;
     private final String query;
     private final String name;
-    private final long[] eventIds;
+    private final List<long[]> eventIds;
     /**
      * Join keys can be of multiple types, but toml is very restrictive and doesn't allow mixed types values in the same array of values
      * For now, every value will be converted to a String.
      */
     private final String[] joinKeys;
 
+    /**
+     * any negative value means undefined (ie. no "size" will be passed to the query)
+     */
+    private final int size;
+    private final int maxSamplesPerKey;
+
     @Before
     public void setup() throws Exception {
         RestClient provisioningClient = provisioningClient();
-        if (provisioningClient.performRequest(new Request("HEAD", "/" + unqualifiedIndexName())).getStatusLine().getStatusCode() == 404) {
+        boolean dataLoaded = Arrays.stream(index.split(","))
+            .anyMatch(
+                indexName -> doWithRequest(
+                    new Request("HEAD", "/" + unqualifiedIndexName(indexName)),
+                    provisioningClient,
+                    response -> response.getStatusLine().getStatusCode() == 200
+                )
+            );
+
+        if (dataLoaded == false) {
             DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
+        }
+    }
+
+    private boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
+        try {
+            return consumer.apply(client.performRequest(request));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -77,19 +103,31 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 name = "" + (counter);
             }
 
-            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys() });
+            results.add(
+                new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys(), spec.size(), spec.maxSamplesPerKey() }
+            );
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
+    BaseEqlSpecTestCase(
+        String index,
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey
+    ) {
         this.index = index;
 
         this.query = query;
         this.name = name;
         this.eventIds = eventIds;
         this.joinKeys = joinKeys;
+        this.size = size == null ? -1 : size;
+        this.maxSamplesPerKey = maxSamplesPerKey == null ? -1 : maxSamplesPerKey;
     }
 
     public void test() throws Exception {
@@ -109,7 +147,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         }
     }
 
-    private ObjectPath runQuery(String index, String query) throws Exception {
+    protected ObjectPath runQuery(String index, String query) throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("query", query);
@@ -119,9 +157,12 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (tiebreaker != null) {
             builder.field("tiebreaker_field", tiebreaker);
         }
-        builder.field("size", requestSize());
+        builder.field("size", this.size < 0 ? requestSize() : this.size);
         builder.field("fetch_size", requestFetchSize());
         builder.field("result_position", requestResultPosition());
+        if (maxSamplesPerKey > 0) {
+            builder.field("max_samples_per_key", maxSamplesPerKey);
+        }
         builder.endObject();
 
         Request request = new Request("POST", "/" + index + "/_eql/search");
@@ -149,20 +190,42 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             }
         });
 
-        long[] expected = eventIds;
         long[] actual = extractIds(events);
-        assertArrayEquals(
-            LoggerMessageFormat.format(
-                null,
-                "unexpected result for spec[{}] [{}] -> {} vs {}",
-                name,
-                query,
-                Arrays.toString(expected),
-                Arrays.toString(actual)
-            ),
-            expected,
-            actual
-        );
+        if (eventIds.size() == 1) {
+            long[] expected = eventIds.get(0);
+            assertArrayEquals(
+                LoggerMessageFormat.format(
+                    null,
+                    "unexpected result for spec[{}] [{}] -> {} vs {}",
+                    name,
+                    query,
+                    Arrays.toString(expected),
+                    Arrays.toString(actual)
+                ),
+                expected,
+                actual
+            );
+        } else {
+            boolean succeeded = false;
+            for (long[] expected : eventIds) {
+                if (Arrays.equals(expected, actual)) {
+                    succeeded = true;
+                    break;
+                }
+            }
+            if (succeeded == false) {
+                String msg = LoggerMessageFormat.format(
+                    null,
+                    "unexpected result for spec[{}] [{}]. Found: {} - Expected one of the following: {}",
+                    name,
+                    query,
+                    Arrays.toString(actual),
+                    eventIds.stream().map(Arrays::toString).collect(Collectors.joining(", "))
+                );
+                fail(msg);
+            }
+        }
+
     }
 
     private String eventsToString(List<Map<String, Object>> events) {
@@ -182,8 +245,12 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         for (int i = 0; i < len; i++) {
             Map<String, Object> event = events.get(i);
             Map<String, Object> source = (Map<String, Object>) event.get("_source");
-            Object field = source.get(tiebreaker());
-            ids[i] = ((Number) field).longValue();
+            if (source == null) {
+                ids[i] = -1;
+            } else {
+                Object field = source.get(idField());
+                ids[i] = ((Number) field).longValue();
+            }
         }
         return ids;
     }
@@ -262,6 +329,10 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return "event.category";
     }
 
+    protected String idField() {
+        return tiebreaker();
+    }
+
     protected abstract String tiebreaker();
 
     protected int requestSize() {
@@ -278,8 +349,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     // strip any qualification from the received index string
-    private String unqualifiedIndexName() {
-        int offset = index.indexOf(':');
-        return offset >= 0 ? index.substring(offset + 1) : index;
+    private static String unqualifiedIndexName(String indexName) {
+        int offset = indexName.indexOf(':');
+        return offset >= 0 ? indexName.substring(offset + 1) : indexName;
     }
 }

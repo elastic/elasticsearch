@@ -47,8 +47,8 @@ public class CartesianPointValuesSourceType implements Writeable, ValuesSourceTy
     }
 
     @Override
-    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-        if (fieldContext.indexFieldData()instanceof IndexCartesianPointFieldData pointFieldData) {
+    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+        if (fieldContext.indexFieldData() instanceof IndexCartesianPointFieldData pointFieldData) {
             return new CartesianPointValuesSource.Fielddata(pointFieldData);
         }
         throw new IllegalArgumentException(
@@ -71,7 +71,7 @@ public class CartesianPointValuesSourceType implements Writeable, ValuesSourceTy
             public SortedNumericDocValues sortedNumericDocValues(LeafReaderContext context) {
                 final long xi = XYEncodingUtils.encode((float) missing.getX());
                 final long yi = XYEncodingUtils.encode((float) missing.getY());
-                long encoded = yi | xi << 32;
+                long encoded = (yi & 0xFFFFFFFFL) | xi << 32;
                 return MissingValues.replaceMissing(pointValuesSource.sortedNumericDocValues(context), encoded);
             }
 

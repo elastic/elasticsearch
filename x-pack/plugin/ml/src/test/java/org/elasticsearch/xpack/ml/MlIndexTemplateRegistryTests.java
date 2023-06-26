@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -32,12 +32,13 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -48,7 +49,7 @@ import static org.mockito.Mockito.when;
 
 public class MlIndexTemplateRegistryTests extends ESTestCase {
 
-    private final DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+    private final DiscoveryNode node = DiscoveryNodeUtils.create("node");
     private final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
     private NamedXContentRegistry xContentRegistry;
@@ -83,35 +84,13 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         putIndexTemplateRequestCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
     }
 
-    public void testStateTemplate() {
+    public void testStatsTemplateWithIlm() {
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
             Settings.EMPTY,
             clusterService,
             threadPool,
             client,
-            xContentRegistry
-        );
-
-        registry.clusterChanged(createClusterChangedEvent(nodes));
-
-        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
-
-        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
-            .stream()
-            .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
-        ComposableIndexTemplate indexTemplate = req.indexTemplate();
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-state-write"));
-    }
-
-    public void testStatsTemplate() {
-        MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
+            true,
             xContentRegistry
         );
 
@@ -127,6 +106,30 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         ComposableIndexTemplate indexTemplate = req.indexTemplate();
         assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
         assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-stats-write"));
+    }
+
+    public void testStatsTemplateNoIlm() {
+        MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            false,
+            xContentRegistry
+        );
+
+        registry.clusterChanged(createClusterChangedEvent(nodes));
+
+        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
+
+        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
+            .stream()
+            .filter(r -> r.name().equals(MlStatsIndex.TEMPLATE_NAME))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
+        ComposableIndexTemplate indexTemplate = req.indexTemplate();
+        assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), is(nullValue()));
+        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), is(nullValue()));
     }
 
     @SuppressWarnings("unchecked")

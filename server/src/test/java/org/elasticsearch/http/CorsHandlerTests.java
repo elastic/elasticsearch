@@ -204,7 +204,15 @@ public class CorsHandlerTests extends ESTestCase {
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
         assertThat(
             headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length")
+            containsInAnyOrder(
+                "X-Requested-With",
+                "Content-Type",
+                "Content-Length",
+                "Authorization",
+                "Accept",
+                "User-Agent",
+                "X-Elastic-Client-Meta"
+            )
         );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
@@ -232,7 +240,15 @@ public class CorsHandlerTests extends ESTestCase {
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
         assertThat(
             headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length")
+            containsInAnyOrder(
+                "X-Requested-With",
+                "Content-Type",
+                "Content-Length",
+                "Authorization",
+                "Accept",
+                "User-Agent",
+                "X-Elastic-Client-Meta"
+            )
         );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
@@ -254,6 +270,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertNull(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN));
+        assertNull(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS));
     }
 
     public void testSetResponseHeadersWithWildcardOrigin() {
@@ -270,6 +287,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("*"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS), containsInAnyOrder("X-elastic-product"));
         assertNull(headers.get(CorsHandler.VARY));
     }
 
@@ -288,6 +306,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS), containsInAnyOrder("X-elastic-product"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
     }
@@ -308,6 +327,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS), containsInAnyOrder("X-elastic-product"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
         if (allowCredentials) {
             assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));

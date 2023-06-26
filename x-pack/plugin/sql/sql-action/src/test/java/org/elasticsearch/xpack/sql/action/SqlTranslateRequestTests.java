@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
@@ -85,7 +84,7 @@ public class SqlTranslateRequestTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected TestSqlTranslateRequest mutateInstance(TestSqlTranslateRequest instance) throws IOException {
+    protected TestSqlTranslateRequest mutateInstance(TestSqlTranslateRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
             request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),

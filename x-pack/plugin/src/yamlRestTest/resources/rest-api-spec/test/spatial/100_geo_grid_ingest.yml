@@ -1,0 +1,465 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test geo_grid on geotile using default target format":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geo_grid": {
+                  "field" : "geocell",
+                  "tile_type": "geotile"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "geocell": "4/8/5"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match:
+      _source:
+        geocell:
+          type: "Envelope"
+          coordinates:
+            - [ 0.0, 55.77657301866769 ]
+            - [ 22.5, 40.979898069620134 ]
+
+---
+"Test geo_grid on geotile using WKT":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geo_grid": {
+                  "field" : "geocell",
+                  "tile_type": "geotile",
+                  "target_format": "wkt"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "geocell": "4/8/5"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.geocell: "BBOX (0.0, 22.5, 55.77657301866769, 40.979898069620134)" }
+
+---
+"Test geo_grid on geohash using WKT":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geo_grid": {
+                  "field" : "geocell",
+                  "tile_type": "geohash",
+                  "target_format": "wkt"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "geocell": "u0"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.geocell: "BBOX (0.0, 11.25, 50.625, 45.0)" }
+
+---
+"Test geo_grid on geohex using WKT":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geo_grid": {
+                  "field" : "geocell",
+                  "tile_type": "geohex",
+                  "target_format": "wkt"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "geocell": "811fbffffffffff"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.geocell: "POLYGON ((1.1885095294564962 49.470279179513454, 2.0265689212828875 45.18424864858389, 7.509948452934623 43.786609335802495, 12.6773177459836 46.40695743262768, 12.345747342333198 50.55427505169064, 6.259687012061477 51.964770150370896, 3.6300085578113794 50.610463307239115, 1.1885095294564962 49.470279179513454))" }
+
+---
+"Test geo_grid on geotile with advanced pipeline and cell hierarchy using WKT":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geo_grid": {
+                  "field": "geocell",
+                  "tile_type": "geotile",
+                  "target_format": "wkt",
+                  "target_field": "shape",
+                  "parent_field": "parent",
+                  "children_field": "children",
+                  "precision_field": "precision"
+                }
+              },
+              {
+                "set": {
+                  "field": "childrenShapes",
+                  "copy_from": "children"
+                }
+              },
+              {
+                "foreach" : {
+                  "field" : "childrenShapes",
+                  "processor" : {
+                    "geo_grid": {
+                      "field": "_ingest._value",
+                      "tile_type": "geotile",
+                      "target_format": "wkt"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "geocell": "4/8/5"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match:
+      _source:
+        geocell: "4/8/5"
+        shape: "BBOX (0.0, 22.5, 55.77657301866769, 40.979898069620134)"
+        parent: "3/4/2"
+        precision: 4
+        children: [ "5/16/10", "5/17/10", "5/16/11", "5/17/11" ]
+        childrenShapes:
+          - "BBOX (0.0, 11.25, 55.77657301866769, 48.922499263758255)"
+          - "BBOX (11.25, 22.5, 55.77657301866769, 48.922499263758255)"
+          - "BBOX (0.0, 11.25, 48.922499263758255, 40.979898069620134)"
+          - "BBOX (11.25, 22.5, 48.922499263758255, 40.979898069620134)"
+
+---
+"Test geo_grid on geohash with advanced pipeline and cell hierarchy using WKT":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geo_grid": {
+                  "field": "geocell",
+                  "tile_type": "geohash",
+                  "target_format": "wkt",
+                  "target_field": "shape",
+                  "parent_field": "parent",
+                  "children_field": "children",
+                  "precision_field": "precision"
+                }
+              },
+              {
+                "set": {
+                  "field": "childrenShapes",
+                  "copy_from": "children"
+                }
+              },
+              {
+                "foreach" : {
+                  "field" : "childrenShapes",
+                  "processor" : {
+                    "geo_grid": {
+                      "field": "_ingest._value",
+                      "tile_type": "geohash",
+                      "target_format": "wkt"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "geocell": "u0"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match:
+      _source:
+        geocell: "u0"
+        shape: "BBOX (0.0, 11.25, 50.625, 45.0)"
+        parent: "u"
+        precision: 2
+        children:
+          - "u00"
+          - "u01"
+          - "u02"
+          - "u03"
+          - "u04"
+          - "u05"
+          - "u06"
+          - "u07"
+          - "u08"
+          - "u09"
+          - "u0b"
+          - "u0c"
+          - "u0d"
+          - "u0e"
+          - "u0f"
+          - "u0g"
+          - "u0h"
+          - "u0j"
+          - "u0k"
+          - "u0m"
+          - "u0n"
+          - "u0p"
+          - "u0q"
+          - "u0r"
+          - "u0s"
+          - "u0t"
+          - "u0u"
+          - "u0v"
+          - "u0w"
+          - "u0x"
+          - "u0y"
+          - "u0z"
+        childrenShapes:
+          - "BBOX (0.0, 1.40625, 46.40625, 45.0)"
+          - "BBOX (1.40625, 2.8125, 46.40625, 45.0)"
+          - "BBOX (0.0, 1.40625, 47.8125, 46.40625)"
+          - "BBOX (1.40625, 2.8125, 47.8125, 46.40625)"
+          - "BBOX (2.8125, 4.21875, 46.40625, 45.0)"
+          - "BBOX (4.21875, 5.625, 46.40625, 45.0)"
+          - "BBOX (2.8125, 4.21875, 47.8125, 46.40625)"
+          - "BBOX (4.21875, 5.625, 47.8125, 46.40625)"
+          - "BBOX (0.0, 1.40625, 49.21875, 47.8125)"
+          - "BBOX (1.40625, 2.8125, 49.21875, 47.8125)"
+          - "BBOX (0.0, 1.40625, 50.625, 49.21875)"
+          - "BBOX (1.40625, 2.8125, 50.625, 49.21875)"
+          - "BBOX (2.8125, 4.21875, 49.21875, 47.8125)"
+          - "BBOX (4.21875, 5.625, 49.21875, 47.8125)"
+          - "BBOX (2.8125, 4.21875, 50.625, 49.21875)"
+          - "BBOX (4.21875, 5.625, 50.625, 49.21875)"
+          - "BBOX (5.625, 7.03125, 46.40625, 45.0)"
+          - "BBOX (7.03125, 8.4375, 46.40625, 45.0)"
+          - "BBOX (5.625, 7.03125, 47.8125, 46.40625)"
+          - "BBOX (7.03125, 8.4375, 47.8125, 46.40625)"
+          - "BBOX (8.4375, 9.84375, 46.40625, 45.0)"
+          - "BBOX (9.84375, 11.25, 46.40625, 45.0)"
+          - "BBOX (8.4375, 9.84375, 47.8125, 46.40625)"
+          - "BBOX (9.84375, 11.25, 47.8125, 46.40625)"
+          - "BBOX (5.625, 7.03125, 49.21875, 47.8125)"
+          - "BBOX (7.03125, 8.4375, 49.21875, 47.8125)"
+          - "BBOX (5.625, 7.03125, 50.625, 49.21875)"
+          - "BBOX (7.03125, 8.4375, 50.625, 49.21875)"
+          - "BBOX (8.4375, 9.84375, 49.21875, 47.8125)"
+          - "BBOX (9.84375, 11.25, 49.21875, 47.8125)"
+          - "BBOX (8.4375, 9.84375, 50.625, 49.21875)"
+          - "BBOX (9.84375, 11.25, 50.625, 49.21875)"
+
+---
+"Test geo_grid on geohex with advanced pipeline and cell hierarchy using WKT":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geo_grid": {
+                  "field": "geocell",
+                  "tile_type": "geohex",
+                  "target_format": "wkt",
+                  "target_field": "shape",
+                  "parent_field": "parent",
+                  "children_field": "children",
+                  "non_children_field": "nonChildren",
+                  "precision_field": "precision"
+                }
+              },
+              {
+                "set": {
+                  "field": "childrenShapes",
+                  "copy_from": "children"
+                }
+              },
+              {
+                "set": {
+                  "field": "nonChildrenShapes",
+                  "copy_from": "nonChildren"
+                }
+              },
+              {
+                "foreach" : {
+                  "field" : "childrenShapes",
+                  "processor" : {
+                    "geo_grid": {
+                      "field": "_ingest._value",
+                      "tile_type": "geohex",
+                      "target_format": "wkt"
+                    }
+                  }
+                }
+              },
+              {
+                "foreach" : {
+                  "field" : "nonChildrenShapes",
+                  "processor" : {
+                    "geo_grid": {
+                      "field": "_ingest._value",
+                      "tile_type": "geohex",
+                      "target_format": "wkt"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "geocell": "811fbffffffffff"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match:
+      _source:
+        geocell: "811fbffffffffff"
+        shape: "POLYGON ((1.1885095294564962 49.470279179513454, 2.0265689212828875 45.18424864858389, 7.509948452934623 43.786609335802495, 12.6773177459836 46.40695743262768, 12.345747342333198 50.55427505169064, 6.259687012061477 51.964770150370896, 3.6300085578113794 50.610463307239115, 1.1885095294564962 49.470279179513454))"
+        parent: "801ffffffffffff"
+        precision: 1
+        children:
+          - "821f87fffffffff"
+          - "821f8ffffffffff"
+          - "821f97fffffffff"
+          - "821f9ffffffffff"
+          - "821fa7fffffffff"
+          - "821faffffffffff"
+          - "821fb7fffffffff"
+        nonChildren:
+          - "821ea7fffffffff"
+          - "82186ffffffffff"
+          - "82396ffffffffff"
+          - "821f17fffffffff"
+          - "821e37fffffffff"
+          - "82194ffffffffff"
+        nonChildrenShapes:
+          - "POLYGON ((10.343212774023414 45.92192775104195, 9.731941111385822 44.323804839514196, 11.369192842394114 43.20897659752518, 13.642238667234778 43.67433743085712, 14.337206231430173 45.273432224057615, 12.6773177459836 46.40695743262768, 10.343212774023414 45.92192775104195))"
+          - "POLYGON ((0.7640258967876434 47.907450324855745, -1.3966082129627466 47.44351194240153, -1.7527981102466583 45.828917124308646, -0.028004944324493408 44.71297777723521, 2.0265689212828875 45.18424864858389, 2.4589017033576965 46.76373050082475, 0.7640258967876434 47.907450324855745))"
+          - "POLYGON ((3.696701768785715 44.22123494558036, 3.2493495382368565 42.60479216929525, 4.868332073092461 41.58031489234418, 6.977840261533856 42.158615668304265, 7.509948452934623 43.786609335802495, 5.848476877436042 44.82546979095787, 3.696701768785715 44.22123494558036))"
+          - "POLYGON ((6.848228881135583 53.43156033195555, 6.259687012061477 51.964770150370896, 8.08863085694611 51.039695707149804, 10.549622755497694 51.56398999504745, 11.24517043121159 53.03203972522169, 9.374530809000134 53.975513661280274, 6.848228881135583 53.43156033195555))"
+          - "POLYGON ((12.345747342333198 50.55427505169064, 11.648396300151944 49.039345127530396, 13.37434759363532 47.96593840699643, 15.817383527755737 48.38812246453017, 16.606046771630645 49.899182128719985, 14.863026738166809 50.99274770356715, 12.345747342333198 50.55427505169064))"
+          - "POLYGON ((2.101313956081867 52.51713396515697, -0.21913748234510422 52.14168077800423, -0.6310947798192501 50.60191108379513, 1.1885095294564962 49.470279179513454, 3.384771505370736 49.85377031844109, 3.8811334781348705 51.36037617456168, 2.101313956081867 52.51713396515697))"
+        childrenShapes:
+          - "POLYGON ((5.163510935381055 48.943763938732445, 4.6524353697896 47.393027362413704, 6.371338488534093 46.417016638442874, 8.645314201712608 46.97706841863692, 9.251571390777826 48.53467794600874, 7.489805733785033 49.52621237374842, 5.163510935381055 48.943763938732445))"
+          - "POLYGON ((9.251571390777826 48.53467794600874, 8.645314201712608 46.97706841863692, 10.343212774023414 45.92192775104195, 12.6773177459836 46.40695743262768, 13.37434759363532 47.96593840699643, 11.648396300151944 49.039345127530396, 9.251571390777826 48.53467794600874))"
+          - "POLYGON ((2.4589017033576965 46.76373050082475, 2.0265689212828875 45.18424864858389, 3.696701768785715 44.22123494558036, 5.848476877436042 44.82546979095787, 6.371338488534093 46.417016638442874, 4.6524353697896 47.393027362413704, 2.4589017033576965 46.76373050082475))"
+          - "POLYGON ((6.371338488534093 46.417016638442874, 5.848476877436042 44.82546979095787, 7.509948452934623 43.786609335802495, 9.731941111385822 44.323804839514196, 10.343212774023414 45.92192775104195, 8.645314201712608 46.97706841863692, 6.371338488534093 46.417016638442874))"
+          - "POLYGON ((3.8811334781348705 51.36037617456168, 3.384771505370736 49.85377031844109, 5.163510935381055 48.943763938732445, 7.489805733785033 49.52621237374842, 8.08863085694611 51.039695707149804, 6.259687012061477 51.964770150370896, 3.8811334781348705 51.36037617456168))"
+          - "POLYGON ((8.08863085694611 51.039695707149804, 7.489805733785033 49.52621237374842, 9.251571390777826 48.53467794600874, 11.648396300151944 49.039345127530396, 12.345747342333198 50.55427505169064, 10.549622755497694 51.56398999504745, 8.08863085694611 51.039695707149804))"
+          - "POLYGON ((1.1885095294564962 49.470279179513454, 0.7640258967876434 47.907450324855745, 2.4589017033576965 46.76373050082475, 4.6524353697896 47.393027362413704, 5.163510935381055 48.943763938732445, 3.384771505370736 49.85377031844109, 1.1885095294564962 49.470279179513454))"

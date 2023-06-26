@@ -106,12 +106,15 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         // omit "false"/"true" here as they should still be parsed correctly
         for (String value : new String[] { "off", "no", "0", "on", "yes", "1" }) {
-            MapperParsingException ex = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
                 () -> defaultMapper.parse(source(b -> b.field("field", value)))
             );
             assertEquals(
-                "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '" + value + "'",
+                "[1:10] failed to parse field [field] of type [boolean] in document with id '1'. "
+                    + "Preview of field's value: '"
+                    + value
+                    + "'",
                 ex.getMessage()
             );
         }
@@ -119,7 +122,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     public void testParsesBooleansNestedStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.startObject("field");
             {
                 b.field("inner_field", "no");
@@ -127,7 +130,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertEquals(
-            "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '{inner_field=no}'",
+            "[1:29] failed to parse field [field] of type [boolean] in document with id '1'. "
+                + "Preview of field's value: '{inner_field=no}'",
             ex.getMessage()
         );
     }
@@ -170,16 +174,16 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }));
 
         LuceneDocument doc = parsedDoc.rootDoc();
-        IndexableField[] fields = doc.getFields("bool1");
-        assertEquals(2, fields.length);
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        List<IndexableField> fields = doc.getFields("bool1");
+        assertEquals(2, fields.size());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
         fields = doc.getFields("bool2");
-        assertEquals(1, fields.length);
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[0].fieldType().docValuesType());
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(0).fieldType().docValuesType());
         fields = doc.getFields("bool3");
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
     }
 
     @Override
@@ -203,13 +207,17 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(exampleMalformedValue("a").errorMatches("Failed to parse value [a] as only [true] or [false] are allowed."));
+    }
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
-        return false;
+        return true;
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assertFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 
@@ -239,6 +247,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
                 }
+                b.field("ignore_malformed", ignoreMalformed);
             }
 
             @Override
@@ -248,7 +257,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                         equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
                         b -> b.field("type", "boolean").field("doc_values", false)
                     )
-                // If boolean had ignore_malformed we'd fail to index here
                 );
             }
         };
@@ -258,7 +266,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected BooleanFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -266,7 +280,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
             @Override
             protected BooleanFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit(true);

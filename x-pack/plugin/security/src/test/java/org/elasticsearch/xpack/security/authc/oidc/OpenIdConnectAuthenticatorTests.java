@@ -822,10 +822,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .build()
             .toJSONObject();
 
-        final IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { OpenIdConnectAuthenticator.mergeObjects(idTokenObject, wrongTypeInfo); }
-        );
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            OpenIdConnectAuthenticator.mergeObjects(idTokenObject, wrongTypeInfo);
+        });
 
         // Userinfo Claims overwrite ID Token claims
         Map<String, Object> overwriteUserInfo = new JWTClaimsSet.Builder().claim("given_name", "Jane Doe")

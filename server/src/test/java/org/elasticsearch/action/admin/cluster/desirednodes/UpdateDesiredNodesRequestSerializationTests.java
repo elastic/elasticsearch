@@ -12,8 +12,6 @@ import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSerializingTestCase<UpdateDesiredNodesRequest> {
     @Override
     protected Writeable.Reader<UpdateDesiredNodesRequest> instanceReader() {
@@ -21,7 +19,7 @@ public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSer
     }
 
     @Override
-    protected UpdateDesiredNodesRequest mutateInstance(UpdateDesiredNodesRequest request) throws IOException {
+    protected UpdateDesiredNodesRequest mutateInstance(UpdateDesiredNodesRequest request) {
         return new UpdateDesiredNodesRequest(request.getHistoryID(), request.getVersion() + 1, request.getNodes(), request.isDryRun());
     }
 

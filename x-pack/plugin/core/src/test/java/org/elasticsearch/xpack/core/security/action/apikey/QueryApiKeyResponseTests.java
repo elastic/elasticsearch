@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,7 +37,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
     }
 
     @Override
-    protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) throws IOException {
+    protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) {
         final List<QueryApiKeyResponse.Item> items = Arrays.stream(instance.getItems()).collect(Collectors.toCollection(ArrayList::new));
         switch (randomIntBetween(0, 3)) {
             case 0:
@@ -89,6 +88,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
     private ApiKey randomApiKeyInfo() {
         final String name = randomAlphaOfLengthBetween(3, 8);
         final String id = randomAlphaOfLength(22);
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final String username = randomAlphaOfLengthBetween(3, 8);
         final String realm_name = randomAlphaOfLengthBetween(3, 8);
         final Instant creation = Instant.ofEpochMilli(randomMillisUpToYear9999());
@@ -98,6 +98,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         return new ApiKey(
             name,
             id,
+            type,
             creation,
             expiration,
             false,
@@ -105,7 +106,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
             realm_name,
             metadata,
             roleDescriptors,
-            randomUniquelyNamedRoleDescriptors(1, 3)
+            type == ApiKey.Type.CROSS_CLUSTER ? null : randomUniquelyNamedRoleDescriptors(1, 3)
         );
     }
 

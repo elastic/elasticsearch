@@ -11,11 +11,16 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.index.PointValues;
 
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.caFromTriangle;
+
 /**
- * A {@link TriangleTreeReader.Visitor} implementation for {@link Component2D} geometries.
+ * A {@link TriangleTreeDecodedVisitor} implementation for {@link Component2D} geometries.
  * It can solve spatial relationships against a serialize triangle tree.
  */
-public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisitor {
+public abstract class Component2DVisitor extends TriangleTreeDecodedVisitor {
 
     protected final Component2D component2D;
 
@@ -31,23 +36,23 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
     public abstract void reset();
 
     @Override
-    public boolean pushDecodedX(double minX) {
+    protected boolean pushDecodedX(double minX) {
         return component2D.getMaxX() >= minX;
     }
 
     @Override
-    public boolean pushDecodedY(double minY) {
+    protected boolean pushDecodedY(double minY) {
         return component2D.getMaxY() >= minY;
     }
 
     @Override
-    public boolean pushDecoded(double maxX, double maxY) {
+    protected boolean pushDecoded(double maxX, double maxY) {
         return component2D.getMinX() <= maxX && component2D.getMinY() <= maxY;
 
     }
 
     @Override
-    public boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
+    protected boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
         return pushDecoded(component2D.relate(minX, maxX, minY, maxY));
     }
 
@@ -56,7 +61,7 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
      *
      * @return if true, the visitor keeps traversing the tree, else it stops.
      * */
-    abstract boolean pushDecoded(PointValues.Relation relation);
+    protected abstract boolean pushDecoded(PointValues.Relation relation);
 
     /**
      * Creates a visitor from the provided Component2D and spatial relationship. Visitors are re-usable by
@@ -95,17 +100,17 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        void visitDecodedPoint(double x, double y) {
+        protected void visitDecodedPoint(double x, double y) {
             intersects = component2D.contains(x, y);
         }
 
         @Override
-        void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
+        protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
             intersects = component2D.intersectsLine(aX, aY, bX, bY);
         }
 
         @Override
-        void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
+        protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
             intersects = component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY);
         }
 
@@ -116,7 +121,7 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        boolean pushDecoded(PointValues.Relation relation) {
+        protected boolean pushDecoded(PointValues.Relation relation) {
             if (relation == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                 // shapes are disjoint, stop traversing the tree.
                 return false;
@@ -156,17 +161,17 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        void visitDecodedPoint(double x, double y) {
+        protected void visitDecodedPoint(double x, double y) {
             disjoint = component2D.contains(x, y) == false;
         }
 
         @Override
-        void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
+        protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
             disjoint = component2D.intersectsLine(aX, aY, bX, bY) == false;
         }
 
         @Override
-        void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
+        protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
             disjoint = component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY) == false;
         }
 
@@ -177,7 +182,7 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        boolean pushDecoded(PointValues.Relation relation) {
+        protected boolean pushDecoded(PointValues.Relation relation) {
             if (relation == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                 // shapes are disjoint, stop traversing the tree.
                 return false;
@@ -217,17 +222,17 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        void visitDecodedPoint(double x, double y) {
+        protected void visitDecodedPoint(double x, double y) {
             within = component2D.contains(x, y);
         }
 
         @Override
-        void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
+        protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
             within = component2D.containsLine(aX, aY, bX, bY);
         }
 
         @Override
-        void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
+        protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
             within = component2D.containsTriangle(aX, aY, bX, bY, cX, cY);
         }
 
@@ -238,31 +243,31 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        public boolean pushX(int minX) {
+        protected boolean pushDecodedX(double minX) {
             // if any part of the tree is skipped, then the doc value is not within the shape,
             // stop traversing the tree
-            within = super.pushX(minX);
+            within = super.pushDecodedX(minX);
             return within;
         }
 
         @Override
-        public boolean pushY(int minY) {
+        protected boolean pushDecodedY(double minY) {
             // if any part of the tree is skipped, then the doc value is not within the shape,
             // stop traversing the tree
-            within = super.pushY(minY);
+            within = super.pushDecodedY(minY);
             return within;
         }
 
         @Override
-        public boolean push(int maxX, int maxY) {
+        protected boolean pushDecoded(double maxX, double maxY) {
             // if any part of the tree is skipped, then the doc value is not within the shape,
             // stop traversing the tree
-            within = super.push(maxX, maxY);
+            within = super.pushDecoded(maxX, maxY);
             return within;
         }
 
         @Override
-        boolean pushDecoded(PointValues.Relation relation) {
+        protected boolean pushDecoded(PointValues.Relation relation) {
             if (relation == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                 // shapes are disjoint, stop traversing the tree.
                 within = false;
@@ -297,7 +302,7 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        void visitDecodedPoint(double x, double y) {
+        protected void visitDecodedPoint(double x, double y) {
             final Component2D.WithinRelation rel = component2D.withinPoint(x, y);
             if (rel != Component2D.WithinRelation.DISJOINT) {
                 // Only override relationship if different to DISJOINT
@@ -306,8 +311,8 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
-            final boolean ab = (metadata & 1 << 4) == 1 << 4;
+        protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
+            final boolean ab = abFromTriangle(metadata);
             final Component2D.WithinRelation rel = component2D.withinLine(aX, aY, ab, bX, bY);
             if (rel != Component2D.WithinRelation.DISJOINT) {
                 // Only override relationship if different to DISJOINT
@@ -316,10 +321,10 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-            final boolean ab = (metadata & 1 << 4) == 1 << 4;
-            final boolean bc = (metadata & 1 << 5) == 1 << 5;
-            final boolean ca = (metadata & 1 << 6) == 1 << 6;
+        protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
+            final boolean ab = abFromTriangle(metadata);
+            final boolean bc = bcFromTriangle(metadata);
+            final boolean ca = caFromTriangle(metadata);
             final Component2D.WithinRelation rel = component2D.withinTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
             if (rel != Component2D.WithinRelation.DISJOINT) {
                 // Only override relationship if different to DISJOINT
@@ -334,7 +339,7 @@ public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisit
         }
 
         @Override
-        boolean pushDecoded(PointValues.Relation relation) {
+        protected boolean pushDecoded(PointValues.Relation relation) {
             // Only traverse the tree if the shapes intersects.
             return relation == PointValues.Relation.CELL_CROSSES_QUERY;
         }

@@ -65,7 +65,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
         this.clusterService = clusterService;
         this.nodeClient = nodeClient;
-        this.requestToAggReduceContextBuilder = (task, request) -> searchService.aggReduceContextBuilder(task, request).forFinalReduction();
+        this.requestToAggReduceContextBuilder = (task, request) -> searchService.aggReduceContextBuilder(
+            task,
+            request.source().aggregations()
+        ).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
         this.store = new AsyncTaskIndexService<>(
@@ -207,7 +210,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             searchTask.getExecutionId().getDocId(),
             threadContext.getResponseHeaders(),
             response,
-            ActionListener.wrap(() -> {
+            ActionListener.running(() -> {
                 taskManager.unregister(searchTask);
                 nextAction.run();
             })

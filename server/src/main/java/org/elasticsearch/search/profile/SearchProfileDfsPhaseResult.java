@@ -8,10 +8,12 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,6 +23,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -28,23 +32,35 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject {
 
     private final ProfileResult dfsShardResult;
-    private final QueryProfileShardResult queryProfileShardResult;
+    private final List<QueryProfileShardResult> queryProfileShardResult;
 
     @ParserConstructor
-    public SearchProfileDfsPhaseResult(@Nullable ProfileResult dfsShardResult, @Nullable QueryProfileShardResult queryProfileShardResult) {
+    public SearchProfileDfsPhaseResult(
+        @Nullable ProfileResult dfsShardResult,
+        @Nullable List<QueryProfileShardResult> queryProfileShardResult
+    ) {
         this.dfsShardResult = dfsShardResult;
         this.queryProfileShardResult = queryProfileShardResult;
     }
 
     public SearchProfileDfsPhaseResult(StreamInput in) throws IOException {
         dfsShardResult = in.readOptionalWriteable(ProfileResult::new);
-        queryProfileShardResult = in.readOptionalWriteable(QueryProfileShardResult::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            queryProfileShardResult = in.readOptionalList(QueryProfileShardResult::new);
+        } else {
+            QueryProfileShardResult singleResult = in.readOptionalWriteable(QueryProfileShardResult::new);
+            queryProfileShardResult = singleResult != null ? List.of(singleResult) : null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(dfsShardResult);
-        out.writeOptionalWriteable(queryProfileShardResult);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeOptionalCollection(queryProfileShardResult);
+        } else {
+            out.writeOptionalWriteable(combineQueryProfileShardResults());
+        }
     }
 
     private static final ParseField STATISTICS = new ParseField("statistics");
@@ -58,7 +74,7 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
             SearchProfileDfsPhaseResult.class
         );
         parser.declareObject(optionalConstructorArg(), (p, c) -> ProfileResult.fromXContent(p), STATISTICS);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> QueryProfileShardResult.fromXContent(p), KNN);
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> QueryProfileShardResult.fromXContent(p), KNN);
         PARSER = parser.build();
     }
 
@@ -74,8 +90,11 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
             dfsShardResult.toXContent(builder, params);
         }
         if (queryProfileShardResult != null) {
-            builder.field(KNN.getPreferredName());
-            queryProfileShardResult.toXContent(builder, params);
+            builder.startArray(KNN.getPreferredName());
+            for (QueryProfileShardResult qpsr : queryProfileShardResult) {
+                qpsr.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         builder.endObject();
         return builder;
@@ -102,5 +121,34 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
             + ", queryProfileShardResult="
             + queryProfileShardResult
             + '}';
+    }
+
+    public ProfileResult getDfsShardResult() {
+        return dfsShardResult;
+    }
+
+    public List<QueryProfileShardResult> getQueryProfileShardResult() {
+        return queryProfileShardResult;
+    }
+
+    QueryProfileShardResult combineQueryProfileShardResults() {
+        if (queryProfileShardResult == null) {
+            return null;
+        }
+        List<CollectorResult> subCollectorResults = new ArrayList<>(queryProfileShardResult.size());
+        long totalRewriteTime = 0;
+        long totalCollectionTime = 0;
+        List<ProfileResult> profileResults = new ArrayList<>();
+        for (QueryProfileShardResult queryProfiler : queryProfileShardResult) {
+            totalRewriteTime += queryProfiler.getRewriteTime();
+            profileResults.addAll(queryProfiler.getQueryResults());
+            subCollectorResults.add(queryProfiler.getCollectorResult());
+            totalCollectionTime += queryProfiler.getCollectorResult().getTime();
+        }
+        return new QueryProfileShardResult(
+            profileResults,
+            totalRewriteTime,
+            new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults)
+        );
     }
 }

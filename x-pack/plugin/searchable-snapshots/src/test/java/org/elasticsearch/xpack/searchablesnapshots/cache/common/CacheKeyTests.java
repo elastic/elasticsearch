@@ -4,6 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.elasticsearch.common.UUIDs;
@@ -37,24 +38,24 @@ public class CacheKeyTests extends ESTestCase {
     }
 
     private CacheKey copy(final CacheKey origin) {
-        ShardId shardId = origin.getShardId();
+        ShardId shardId = origin.shardId();
         if (randomBoolean()) {
             shardId = new ShardId(new Index(shardId.getIndex().getName(), shardId.getIndex().getUUID()), shardId.id());
         }
-        return new CacheKey(origin.getSnapshotUUID(), origin.getSnapshotIndexName(), shardId, origin.getFileName());
+        return new CacheKey(origin.snapshotUUID(), origin.snapshotIndexName(), shardId, origin.fileName());
     }
 
     private CacheKey mutate(CacheKey origin) {
-        String snapshotUUID = origin.getSnapshotUUID();
-        String snapshotIndexName = origin.getSnapshotIndexName();
-        ShardId shardId = origin.getShardId();
-        String fileName = origin.getFileName();
+        String snapshotUUID = origin.snapshotUUID();
+        String snapshotIndexName = origin.snapshotIndexName();
+        ShardId shardId = origin.shardId();
+        String fileName = origin.fileName();
 
         switch (randomInt(3)) {
             case 0 -> snapshotUUID = randomValueOtherThan(snapshotUUID, this::randomSnapshotUUID);
             case 1 -> snapshotIndexName = randomValueOtherThan(snapshotIndexName, this::randomSnapshotIndexName);
-            case 2 -> shardId = randomValueOtherThan(origin.getShardId(), this::randomShardId);
-            case 3 -> fileName = randomValueOtherThan(origin.getFileName(), () -> randomAlphaOfLengthBetween(5, 10));
+            case 2 -> shardId = randomValueOtherThan(origin.shardId(), this::randomShardId);
+            case 3 -> fileName = randomValueOtherThan(origin.fileName(), () -> randomAlphaOfLengthBetween(5, 10));
             default -> throw new AssertionError("Unsupported mutation");
         }
         return new CacheKey(snapshotUUID, snapshotIndexName, shardId, fileName);

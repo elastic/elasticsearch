@@ -50,12 +50,16 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
 
     private static Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
         if (shardRouting.primary() == false) {
             // Only primary shards are snapshotted
             return YES_NOT_SNAPSHOTTED;
         }
 
-        SnapshotsInProgress snapshotsInProgress = allocation.custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress snapshotsInProgress = allocation.getClusterState().custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress == null || snapshotsInProgress.isEmpty()) {
             // Snapshots are not running
             return YES_NOT_RUNNING;

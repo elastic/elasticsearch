@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 
-public class EnrichMetadataTests extends AbstractXContentSerializingTestCase<EnrichMetadata> {
+public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<EnrichMetadata> {
 
     @Override
     protected EnrichMetadata doParseInstance(XContentParser parser) throws IOException {
@@ -29,6 +30,11 @@ public class EnrichMetadataTests extends AbstractXContentSerializingTestCase<Enr
     @Override
     protected EnrichMetadata createTestInstance() {
         return randomEnrichMetadata(randomFrom(XContentType.values()));
+    }
+
+    @Override
+    protected EnrichMetadata mutateInstance(EnrichMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

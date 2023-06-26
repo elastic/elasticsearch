@@ -25,6 +25,11 @@ public class MultiClusterYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String PASS = "x-pack-test-password";
 
     @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
+
+    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }

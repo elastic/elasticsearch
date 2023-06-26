@@ -9,21 +9,22 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.blobcache.BlobCacheTestUtils.FSyncTrackingFileSystemProvider;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.ShardEviction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -42,8 +43,8 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySortedSet;
+import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -117,7 +118,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 logger.trace("--> creating new cache files and randomly read/write them");
                 for (int i = 0; i < between(1, 25); i++) {
                     final ShardId shardId = new ShardId(index, randomIntBetween(0, numShards - 1));
-                    final String fileName = String.format(Locale.ROOT, "file_%d_%d", iteration, i);
+                    final String fileName = Strings.format("file_%d_%d", iteration, i);
                     final CacheKey cacheKey = new CacheKey(snapshotUUID, snapshotIndexName, shardId, fileName);
                     final CacheFile cacheFile = cacheService.get(cacheKey, randomIntBetween(0, 10_000), shardsCacheDirs[shardId.id()]);
 
@@ -154,7 +155,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                         .stream()
                         .filter(update -> update.getValue().v2() != null)
                         .filter(update -> update.getValue().v2() > 0)
-                        .anyMatch(update -> update.getKey().getShardId().equals(shardId))) {
+                        .anyMatch(update -> update.getKey().shardId().equals(shardId))) {
                         cacheDirFSyncs.put(shardCacheDir, numberOfFSyncs == null ? 1 : numberOfFSyncs + 1);
                     } else {
                         cacheDirFSyncs.put(shardCacheDir, numberOfFSyncs);
@@ -196,7 +197,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
             );
 
             final Path cacheDir = Files.createDirectories(
-                resolveSnapshotCache(randomShardPath(cacheKey.getShardId())).resolve(cacheKey.getSnapshotUUID())
+                resolveSnapshotCache(randomShardPath(cacheKey.shardId())).resolve(cacheKey.snapshotUUID())
             );
             final String cacheFileUuid = UUIDs.randomBase64UUID(random());
             final SortedSet<ByteRange> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();
@@ -252,7 +253,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         for (int i = 0; i < between(1, 3); i++) {
-            cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
         }
 
         blockingListener.waitForBlock();
@@ -276,7 +277,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
         if (randomBoolean()) {
             // mark shard as evicted after cache service is stopped should have no effect
-            cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
             assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
         }
     }
@@ -297,11 +298,11 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         assertTrue(Files.exists(randomCacheFile.getFile()));
         randomCacheFile.acquire(blockingListener);
 
-        cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+        cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
 
         final Map<CacheFile, Boolean> afterShardRecoveryCacheFiles = ConcurrentCollections.newConcurrentMap();
         final Future<?> waitForShardEvictionFuture = threadPool.generic().submit(() -> {
-            cacheService.waitForCacheFilesEvictionIfNeeded(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.waitForCacheFilesEvictionIfNeeded(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
             for (CacheFile cacheFile : cacheFilesAssociatedWithShard) {
                 afterShardRecoveryCacheFiles.put(cacheFile, Files.exists(cacheFile.getFile()));
             }
@@ -378,7 +379,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     private static Set<ShardEviction> listOfShardEvictions(List<CacheFile> cacheFiles) {
         return cacheFiles.stream()
             .map(CacheFile::getCacheKey)
-            .map(cacheKey -> new ShardEviction(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId()))
+            .map(cacheKey -> new ShardEviction(cacheKey.snapshotUUID(), cacheKey.snapshotIndexName(), cacheKey.shardId()))
             .collect(Collectors.toSet());
     }
 

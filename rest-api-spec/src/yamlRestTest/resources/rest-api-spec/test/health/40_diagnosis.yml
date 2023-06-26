@@ -1,12 +1,14 @@
 ---
 "Diagnosis":
   - skip:
-      version: "- 8.5.99"
-      reason: "diagnosis was redefined in 8.6.0"
+      version: "- 8.6.99"
+      reason: "the API path changed in 8.7"
 
   - do:
       indices.create:
         index: red_index
+        master_timeout: 1s
+        timeout: 1s
         body:
           settings:
             number_of_shards: 1
@@ -14,12 +16,12 @@
             index.routing.allocation.enable: none
 
   - do:
-      _internal.health:
+      health_report:
         feature: shards_availability
 
   - is_true: cluster_name
   - match:   { indicators.shards_availability.status: "red" }
-  - match:   { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary." }
+  - match:   { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
   - is_true: indicators.shards_availability.diagnosis
   - length:  { indicators.shards_availability.diagnosis: 1 }
   - is_true: indicators.shards_availability.diagnosis.0.affected_resources

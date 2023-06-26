@@ -77,7 +77,7 @@ The following parameters are accepted by `text` fields:
     (default). Enabling this is a good idea on fields that are frequently used for
     (significant) terms aggregations.
 
-<<fielddata,`fielddata`>>::
+<<fielddata-mapping-param,`fielddata`>>::
 
     Can the field use in-memory fielddata for sorting, aggregations,
     or scripting? Accepts `true` or `false` (default).
@@ -160,7 +160,15 @@ The following parameters are accepted by `text` fields:
     Metadata about the field.
 
 [[text-synthetic-source]]
-==== Synthetic `_source` preview:[]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
 `text` fields support <<synthetic-source,synthetic `_source`>> if they have
 a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
 `_source` or if the `text` field sets `store` to `true`. Either way, it may
@@ -258,11 +266,11 @@ Will become:
 
 `text` fields are searchable by default, but by default are not available for
 aggregations, sorting, or scripting. If you try to sort, aggregate, or access
-values from a script on a `text` field, you will see this exception:
+values from a `text` field using a script, you'll see an exception indicating
+that field data is disabled by default on text fields. To load field data in
+memory, set `fielddata=true` on your field.
 
-Fielddata is disabled on text fields by default. Set `fielddata=true` on
-`your_field_name` in order to load fielddata in memory by uninverting the
-inverted index. Note that this can however use significant memory.
+NOTE: Loading field data in memory can consume significant memory.
 
 Field data is the only way to access the analyzed tokens from a full text field
 in aggregations, sorting, or scripting. For example, a full text field like `New York`

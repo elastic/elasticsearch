@@ -8,9 +8,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,6 +23,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
@@ -30,7 +36,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,7 +44,9 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
@@ -157,6 +165,45 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         assertEquals(concreteIndexType.isAggregatable(), scriptFieldType.isAggregatable());
     }
 
+    /**
+     * Check that running query on a runtime field script that fails has the expected behaviour according to its configuration
+     */
+    public final void testOnScriptError() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                {
+                    AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.CONTINUE);
+                    SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                    Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
+                    assertEquals(0, searcher.count(query));
+                }
+                {
+                    AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.FAIL);
+                    SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                    Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
+                    expectThrows(RuntimeException.class, () -> searcher.count(query));
+                }
+            }
+        }
+    }
+
+    public final void testOnScriptErrorFail() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.FAIL);
+                SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
+                expectThrows(RuntimeException.class, () -> searcher.count(query));
+            }
+        }
+    }
+
+    protected abstract AbstractScriptFieldType<?> build(String error, Map<String, Object> emptyMap, OnScriptError onScriptError);
+
     @SuppressWarnings("unused")
     public abstract void testDocValues() throws IOException;
 
@@ -189,7 +236,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static FieldDataContext mockFielddataContext() {
-        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, MappedFieldType.FielddataOperation.SCRIPT);
+        SearchExecutionContext searchExecutionContext = mockContext();
+        return new FieldDataContext(
+            "test",
+            searchExecutionContext::lookup,
+            mockContext()::sourcePath,
+            MappedFieldType.FielddataOperation.SCRIPT
+        );
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
@@ -205,13 +258,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        return mockContext(allowExpensiveQueries, mappedFieldType, new SourceLookup.ReaderSourceProvider());
+        return mockContext(allowExpensiveQueries, mappedFieldType, SourceProvider.fromStoredFields());
     }
 
     protected static SearchExecutionContext mockContext(
         boolean allowExpensiveQueries,
         MappedFieldType mappedFieldType,
-        SourceLookup.SourceProvider sourceProvider
+        SourceProvider sourceProvider
     ) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
@@ -231,6 +284,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
+        when(context.getMatchingFieldNames(any())).thenReturn(Set.of("dummy_field"));
         return context;
     }
 
@@ -395,14 +449,5 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             return deterministicSource ? (T) GeoPointFieldScript.PARSE_FROM_SOURCE : (T) GeoPointFieldScriptTests.DUMMY;
         }
         throw new IllegalArgumentException("Unsupported context: " + context);
-    }
-
-    /**
-     * We need to make sure we don't randomize the useThreads parameter for subtests of this abstract test case
-     * because scripted fields use {@link SourceLookup} which isn't thread-safe.
-     * Also Elasticsearch doesn't support concurrent searches so far, so we don't need to test it.
-     */
-    protected IndexSearcher newUnthreadedSearcher(IndexReader reader) {
-        return newSearcher(reader, true, true, false);
     }
 }

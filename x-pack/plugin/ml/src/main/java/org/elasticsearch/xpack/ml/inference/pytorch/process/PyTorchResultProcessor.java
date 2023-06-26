@@ -48,7 +48,7 @@ public class PyTorchResultProcessor {
     static long REPORTING_PERIOD_MS = TimeValue.timeValueMinutes(1).millis();
 
     private final ConcurrentMap<String, PendingResult> pendingResults = new ConcurrentHashMap<>();
-    private final String deploymentId;
+    private final String modelId;
     private final Consumer<ThreadSettings> threadSettingsConsumer;
     private volatile boolean isStopping;
     private final LongSummaryStatistics timingStats;
@@ -65,13 +65,13 @@ public class PyTorchResultProcessor {
     private final long startTime;
     private final LongSupplier currentTimeMsSupplier;
 
-    public PyTorchResultProcessor(String deploymentId, Consumer<ThreadSettings> threadSettingsConsumer) {
-        this(deploymentId, threadSettingsConsumer, System::currentTimeMillis);
+    public PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer) {
+        this(modelId, threadSettingsConsumer, System::currentTimeMillis);
     }
 
     // for testing
-    PyTorchResultProcessor(String deploymentId, Consumer<ThreadSettings> threadSettingsConsumer, LongSupplier currentTimeSupplier) {
-        this.deploymentId = Objects.requireNonNull(deploymentId);
+    PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer, LongSupplier currentTimeSupplier) {
+        this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
         this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
@@ -119,35 +119,25 @@ public class PyTorchResultProcessor {
         } catch (Exception e) {
             // No need to report error as we're stopping
             if (isStopping == false) {
-                logger.error(() -> "[" + deploymentId + "] Error processing results", e);
+                logger.error(() -> "[" + modelId + "] Error processing results", e);
             }
-            pendingResults.forEach(
-                (id, pendingResult) -> pendingResult.listener.onResponse(
-                    new PyTorchResult(
-                        id,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ErrorResult(
-                            isStopping
-                                ? "inference canceled as process is stopping"
-                                : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
-                        )
-                    )
-                )
+            var errorResult = new ErrorResult(
+                isStopping
+                    ? "inference canceled as process is stopping"
+                    : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
             );
-            pendingResults.clear();
+            notifyAndClearPendingResults(errorResult);
         } finally {
-            pendingResults.forEach(
-                (id, pendingResult) -> pendingResult.listener.onResponse(
-                    new PyTorchResult(id, false, null, null, null, null, new ErrorResult("inference canceled as process is stopping"))
-                )
-            );
-            pendingResults.clear();
+            notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping"));
         }
-        logger.debug(() -> "[" + deploymentId + "] Results processing finished");
+        logger.debug(() -> "[" + modelId + "] Results processing finished");
+    }
+
+    private void notifyAndClearPendingResults(ErrorResult errorResult) {
+        pendingResults.forEach(
+            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
+        );
+        pendingResults.clear();
     }
 
     void processInferenceResult(PyTorchResult result) {
@@ -159,11 +149,11 @@ public class PyTorchResultProcessor {
             timeMs = 0L;
         }
 
-        logger.trace(() -> format("[%s] Parsed inference result with id [%s]", deploymentId, result.requestId()));
+        logger.trace(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
         updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> format("[%s] no pending result for inference [%s]", deploymentId, result.requestId()));
+            logger.debug(() -> format("[%s] no pending result for inference [%s]", modelId, result.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -173,10 +163,10 @@ public class PyTorchResultProcessor {
         ThreadSettings threadSettings = result.threadSettings();
         assert threadSettings != null;
 
-        logger.trace(() -> format("[%s] Parsed thread settings result with id [%s]", deploymentId, result.requestId()));
+        logger.trace(() -> format("[%s] Parsed thread settings result with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> format("[%s] no pending result for thread settings [%s]", deploymentId, result.requestId()));
+            logger.debug(() -> format("[%s] no pending result for thread settings [%s]", modelId, result.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -186,10 +176,10 @@ public class PyTorchResultProcessor {
         AckResult ack = result.ackResult();
         assert ack != null;
 
-        logger.trace(() -> format("[%s] Parsed ack result with id [%s]", deploymentId, result.requestId()));
+        logger.trace(() -> format("[%s] Parsed ack result with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> format("[%s] no pending result for ack [%s]", deploymentId, result.requestId()));
+            logger.debug(() -> format("[%s] no pending result for ack [%s]", modelId, result.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -204,10 +194,10 @@ public class PyTorchResultProcessor {
             errorCount++;
         }
 
-        logger.trace(() -> format("[%s] Parsed error with id [%s]", deploymentId, result.requestId()));
+        logger.trace(() -> format("[%s] Parsed error with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> format("[%s] no pending result for error [%s]", deploymentId, result.requestId()));
+            logger.debug(() -> format("[%s] no pending result for error [%s]", modelId, result.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }

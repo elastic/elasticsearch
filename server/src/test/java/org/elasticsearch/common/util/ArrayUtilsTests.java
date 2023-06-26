@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ArrayUtilsTests extends ESTestCase {
@@ -78,5 +79,30 @@ public class ArrayUtilsTests extends ESTestCase {
             sourceOfTruth.add(second[i]);
         }
         assertArrayEquals(sourceOfTruth.toArray(new String[0]), ArrayUtils.concat(first, second));
+    }
+
+    public void testReverseSubArray() {
+        final int length = randomIntBetween(10, 50);
+        final double[] array = new double[length];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.MAX_VALUE, true);
+        }
+        assertReverseSubArray(array, 0, array.length);
+        for (int i = 0; i < 10; i++) {
+            final int start = randomInt(length);
+            final int end = randomIntBetween(start, length);
+            assertReverseSubArray(array, start, end - start);
+        }
+    }
+
+    private void assertReverseSubArray(double[] array, int from, int length) {
+        final double[] copy = array.clone();
+        ArrayUtils.reverseSubArray(copy, from, length);
+        final int endOffset = from + length - 1;
+        for (int i = 0; i < length; i++) {
+            assertThat(copy[endOffset - i], equalTo(array[from + i]));
+        }
+        ArrayUtils.reverseSubArray(copy, from, length);
+        assertThat(copy, equalTo(array));
     }
 }

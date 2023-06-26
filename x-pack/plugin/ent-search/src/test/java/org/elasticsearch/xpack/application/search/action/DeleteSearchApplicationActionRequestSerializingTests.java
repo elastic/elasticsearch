@@ -1,0 +1,30 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.application.search.action;
+
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+public class DeleteSearchApplicationActionRequestSerializingTests extends AbstractWireSerializingTestCase<
+    DeleteSearchApplicationAction.Request> {
+
+    @Override
+    protected Writeable.Reader<DeleteSearchApplicationAction.Request> instanceReader() {
+        return DeleteSearchApplicationAction.Request::new;
+    }
+
+    @Override
+    protected DeleteSearchApplicationAction.Request createTestInstance() {
+        return new DeleteSearchApplicationAction.Request(randomAlphaOfLengthBetween(1, 10));
+    }
+
+    @Override
+    protected DeleteSearchApplicationAction.Request mutateInstance(DeleteSearchApplicationAction.Request instance) {
+        return randomValueOtherThan(instance, this::createTestInstance);
+    }
+}

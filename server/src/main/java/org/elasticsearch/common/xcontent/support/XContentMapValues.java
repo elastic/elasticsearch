@@ -252,7 +252,7 @@ public class XContentMapValues {
      * document contains {@code a.b} as a property and {@code a} is an include,
      * then {@code a.b} will be kept in the filtered map.
      */
-    public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes) {
+    public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
         return filter(includes, excludes).apply(map);
     }
 
@@ -260,7 +260,7 @@ public class XContentMapValues {
      * Returns a function that filters a document map based on the given include and exclude rules.
      * @see #filter(Map, String[], String[]) for details
      */
-    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
+    public static Function<Map<String, Object>, Map<String, Object>> filter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
 
         CharacterRunAutomaton include;

@@ -2,7 +2,11 @@
 == {es} version 8.1.0
 
 Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
+[[known-issues-8.1.0]]
+[float]
+=== Known issues
 
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
 [[breaking-8.1.0]]
 [float]
 === Breaking changes
@@ -142,6 +146,9 @@ CRUD::
 
 Cluster Coordination::
 * Remove last few mentions of Zen discovery {es-pull}80410[#80410]
+
+Search::
+* Deprecate the `indices.query.bool.max_clause_count` node setting {es-pull}81525[#81525] (issue: {es-issue}46433[#46433])
 
 SQL::
 * Deprecate `index_include_frozen` request parameter {es-pull}83943[#83943] (issue: {es-issue}81939[#81939])

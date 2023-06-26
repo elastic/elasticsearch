@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -41,10 +43,11 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -87,6 +90,11 @@ public class JoinValidationServiceTests extends ESTestCase {
                         }
 
                         @Override
+                        public TransportVersion getTransportVersion() {
+                            return TransportVersion.current();
+                        }
+
+                        @Override
                         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                             throws TransportException {
                             final var executor = threadPool.executor(
@@ -123,7 +131,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 }
             };
 
-            final var localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            final var localNode = DiscoveryNodeUtils.create("local");
 
             final var transportService = new TransportService(
                 settings,
@@ -151,7 +159,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
             final var otherNodes = new DiscoveryNode[between(1, 10)];
             for (int i = 0; i < otherNodes.length; i++) {
-                otherNodes[i] = new DiscoveryNode("other-" + i, buildNewFakeTransportAddress(), Version.CURRENT);
+                otherNodes[i] = DiscoveryNodeUtils.create("other-" + i);
                 final var connectionListener = new PlainActionFuture<Releasable>();
                 transportService.connectToNode(otherNodes[i], connectionListener);
                 releasables.add(connectionListener.get(10, TimeUnit.SECONDS));
@@ -232,8 +240,8 @@ public class JoinValidationServiceTests extends ESTestCase {
         class BadCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
             @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-                return builder;
+            public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                return Collections.emptyIterator();
             }
 
             @Override
@@ -242,8 +250,8 @@ public class JoinValidationServiceTests extends ESTestCase {
             }
 
             @Override
-            public Version getMinimalSupportedVersion() {
-                return Version.CURRENT;
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.current();
             }
 
             @Override
@@ -253,7 +261,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT).putCustom("test", new BadCustom()).build();
 
-        final var joiningNode = new DiscoveryNode("joining", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var joiningNode = DiscoveryNodeUtils.create("joining");
         final var joiningNodeTransport = new MockTransport();
         final var joiningNodeTransportService = joiningNodeTransport.createTransportService(
             Settings.EMPTY,
@@ -267,7 +275,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         joiningNodeTransportService.start();
         joiningNodeTransportService.acceptIncomingRequests();
 
-        final var masterNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var masterNode = DiscoveryNodeUtils.create("node0");
         final var masterTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -331,7 +339,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     public void testJoinValidationRejectsMismatchedClusterUUID() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
-        final var localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var localNode = DiscoveryNodeUtils.create("node0");
 
         final var localClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
@@ -380,7 +388,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     public void testJoinValidationRunsJoinValidators() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
-        final var localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var localNode = DiscoveryNodeUtils.create("node0");
         final var localClusterState = ClusterState.builder(ClusterName.DEFAULT).build();
 
         final var transportService = mockTransport.createTransportService(

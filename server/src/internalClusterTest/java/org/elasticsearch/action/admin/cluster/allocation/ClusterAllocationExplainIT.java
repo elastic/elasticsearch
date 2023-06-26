@@ -156,9 +156,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // wait till we have passed any pending shard data fetching
         assertEquals(
             AllocationDecision.ALLOCATION_DELAYED,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            clusterAdmin().prepareAllocationExplain()
                 .setIndex("idx")
                 .setShard(0)
                 .setPrimary(false)
@@ -295,11 +293,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         ensureStableCluster(1);
 
         logger.info("--> setting allocation filtering to only allow allocation on the currently running node");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", primaryNodeName))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", primaryNodeName), "idx");
 
         logger.info("--> restarting the stopped nodes");
         internalCluster().startNode(Settings.builder().put("node.name", nodes.get(0)).put(node0DataPathSettings).build());
@@ -366,7 +360,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertThat(d.getExplanation(), startsWith("a copy of this shard is already allocated to this node ["));
                 } else if (d.label().equals("filter") && nodeHoldingPrimary == false) {
                     assertEquals(Decision.Type.NO, d.type());
-                    assertEquals(formatted("""
+                    assertEquals(Strings.format("""
                         node does not match index setting [index.routing.allocation.include] \
                         filters [_name:"%s"]\
                         """, primaryNodeName), d.getExplanation());
@@ -512,11 +506,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(1, 0);
 
         logger.info("--> setting up allocation filtering to prevent allocation to both nodes");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", "non_existent_node"))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", "non_existent_node"), "idx");
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -627,11 +617,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(5, 0);
 
         logger.info("--> disabling rebalancing on the index");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Settings.builder().put("index.routing.rebalance.enable", "none"))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.rebalance.enable", "none"), "idx");
 
         logger.info("--> starting another node, with rebalancing disabled, it should get no shards");
         internalCluster().startNode();
@@ -739,11 +725,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(5, 0);
 
         logger.info("--> setting balancing threshold really high, so it won't be met");
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.balance.threshold", 1000.0f))
-            .get();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.balance.threshold", 1000.0f));
 
         logger.info("--> starting another node, with the rebalance threshold so high, it should not get any shards");
         internalCluster().startNode();
@@ -843,11 +825,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(5, 0);
 
         logger.info("--> setting up allocation filtering to only allow allocation to the current node");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", firstNode))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", firstNode), "idx");
 
         logger.info("--> starting another node, with filtering not allowing allocation to the new node, it should not get any shards");
         internalCluster().startNode();
@@ -914,7 +892,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         for (Decision d : result.getCanAllocateDecision().getDecisions()) {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
-                assertEquals(formatted("""
+                assertEquals(Strings.format("""
                     node does not match index setting [index.routing.allocation.include] filters [_name:"%s"]\
                     """, primaryNodeName), d.getExplanation());
             } else {
@@ -1068,11 +1046,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             ActiveShardCount.ONE
         );
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", (String) null))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", (String) null), "idx");
         ensureGreen();
 
         assertThat(replicaNode().getName(), equalTo(replicaNode));
@@ -1087,11 +1061,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             indexData();
         } else {
             logger.info("--> close the index, now the replica is stale");
-            assertAcked(client().admin().indices().prepareClose("idx"));
+            assertAcked(indicesAdmin().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(ActiveShardCount.ONE)
                 .setWaitForNoInitializingShards(true)
@@ -1109,9 +1081,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
         assertBusy(() -> {
-            ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex("idx")
                 .setShard(0)
                 .setPrimary(true)
@@ -1200,8 +1170,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     private ClusterAllocationExplanation runExplain(boolean primary, String nodeId, boolean includeYesDecisions, boolean includeDiskInfo)
         throws Exception {
 
-        ClusterAllocationExplanation explanation = client().admin()
-            .cluster()
+        ClusterAllocationExplanation explanation = admin().cluster()
             .prepareAllocationExplain()
             .setIndex("idx")
             .setShard(0)
@@ -1234,15 +1203,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         logger.info("--> creating a {} index with {} primary, {} replicas", state, numPrimaries, numReplicas);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("idx")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", numPrimaries)
-                        .put("index.number_of_replicas", numReplicas)
-                        .put(settings)
-                )
+            indicesAdmin().prepareCreate("idx")
+                .setSettings(indexSettings(numPrimaries, numReplicas).put(settings))
                 .setWaitForActiveShards(activeShardCount)
                 .get()
         );
@@ -1251,11 +1213,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             indexData();
         }
         if (state == IndexMetadata.State.CLOSE) {
-            assertAcked(client().admin().indices().prepareClose("idx"));
+            assertAcked(indicesAdmin().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(activeShardCount)
                 .setWaitForEvents(Priority.LANGUID)
@@ -1276,13 +1236,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private String primaryNodeName() {
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).primaryShard().currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
 
     private DiscoveryNode replicaNode() {
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node();
     }

@@ -32,6 +32,11 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
     }
 
     @Override
+    protected UnfollowAction mutateInstance(UnfollowAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<UnfollowAction> instanceReader() {
         return in -> UnfollowAction.INSTANCE;
     }

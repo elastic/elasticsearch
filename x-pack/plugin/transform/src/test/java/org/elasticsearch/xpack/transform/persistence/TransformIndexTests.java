@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +24,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.junit.Assert;
 import org.junit.Before;
@@ -32,6 +39,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +48,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,7 +86,7 @@ public class TransformIndexTests extends ESTestCase {
         TransformIndex.isDestinationIndexCreatedByTransform(
             client,
             DEST_INDEX,
-            new LatchedActionListener<>(ActionListener.wrap(Assert::assertFalse, e -> fail(e.getMessage())), latch)
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
         );
         assertTrue(latch.await(10, TimeUnit.SECONDS));
     }
@@ -90,7 +100,7 @@ public class TransformIndexTests extends ESTestCase {
             client,
             DEST_INDEX,
             new LatchedActionListener<>(
-                ActionListener.wrap(value -> assertThat(value, is(equalTo(expectedValue))), e -> fail(e.getMessage())),
+                ActionTestUtils.assertNoFailureListener(value -> assertThat(value, is(equalTo(expectedValue)))),
                 latch
             )
         );
@@ -137,7 +147,7 @@ public class TransformIndexTests extends ESTestCase {
             client,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
             TransformIndex.createTransformDestIndexSettings(new HashMap<>(), TRANSFORM_ID, clock),
-            ActionListener.wrap(Assert::assertTrue, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(Assert::assertTrue)
         );
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
@@ -152,6 +162,60 @@ public class TransformIndexTests extends ESTestCase {
             assertThat(extractValue("_doc._meta._transform.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));
             assertThat(extractValue("_doc._meta.created_by", map), equalTo(CREATED_BY));
         }
+        assertThat(createIndexRequest.aliases(), is(empty()));
+    }
+
+    public void testSetUpDestinationAliases_NullAliases() {
+        doAnswer(withResponse(null)).when(client).execute(any(), any(), any());
+
+        TransformConfig config = new TransformConfig.Builder().setId("my-id")
+            .setSource(new SourceConfig("my-source"))
+            .setDest(new DestConfig("my-dest", null, null))
+            .build();
+
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
+
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testSetUpDestinationAliases_EmptyAliases() {
+        doAnswer(withResponse(null)).when(client).execute(any(), any(), any());
+
+        TransformConfig config = new TransformConfig.Builder().setId("my-id")
+            .setSource(new SourceConfig("my-source"))
+            .setDest(new DestConfig("my-dest", List.of(), null))
+            .build();
+
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
+
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testSetUpDestinationAliases() {
+        doAnswer(withResponse(null)).when(client).execute(any(), any(), any());
+
+        String destIndex = "my-dest";
+        TransformConfig config = new TransformConfig.Builder().setId("my-id")
+            .setSource(new SourceConfig("my-source"))
+            .setDest(new DestConfig(destIndex, List.of(new DestAlias(".all", false), new DestAlias(".latest", true)), null))
+            .build();
+
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
+
+        ArgumentCaptor<IndicesAliasesRequest> indicesAliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
+        verify(client).execute(eq(IndicesAliasesAction.INSTANCE), indicesAliasesRequestCaptor.capture(), any());
+        verify(client, atLeastOnce()).threadPool();
+        verifyNoMoreInteractions(client);
+
+        IndicesAliasesRequest indicesAliasesRequest = indicesAliasesRequestCaptor.getValue();
+        assertThat(
+            indicesAliasesRequest.getAliasActions(),
+            contains(
+                IndicesAliasesRequest.AliasActions.remove().alias(".latest").index("*"),
+                IndicesAliasesRequest.AliasActions.add().alias(".all").index(destIndex),
+                IndicesAliasesRequest.AliasActions.add().alias(".latest").index(destIndex)
+            )
+        );
     }
 
     public void testCreateMappingsFromStringMap() {

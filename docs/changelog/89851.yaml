@@ -1,6 +1,0 @@
-pr: 89851
-summary: Distinguish no shutdowns case in `NodeShutdownAllocationDecider`
-area: Infra/Node Lifecycle
-type: enhancement
-issues:
- - 89823

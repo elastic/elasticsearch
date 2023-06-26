@@ -45,6 +45,10 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -150,7 +154,7 @@ public class InferenceProcessor extends AbstractProcessor {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return new InferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
+        return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -172,7 +176,7 @@ public class InferenceProcessor extends AbstractProcessor {
             response.getInferenceResults().get(0),
             ingestDocument,
             targetField,
-            response.getModelId() != null ? response.getModelId() : modelId
+            response.getId() != null ? response.getId() : modelId
         );
     }
 
@@ -196,10 +200,10 @@ public class InferenceProcessor extends AbstractProcessor {
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
 
-        public Factory(Client client, ClusterService clusterService, Settings settings) {
+        public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.auditor = new InferenceAuditor(client, clusterService);
+            this.auditor = new InferenceAuditor(client, clusterService, includeNodeInfo);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
@@ -312,6 +316,12 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
                 checkNlpSupported(TextEmbeddingConfig.NAME);
                 return TextEmbeddingConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextExpansionConfig.NAME)) {
+                checkNlpSupported(TextExpansionConfig.NAME);
+                return TextExpansionConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextSimilarityConfig.NAME)) {
+                checkNlpSupported(TextSimilarityConfig.NAME);
+                return TextSimilarityConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
@@ -328,8 +338,11 @@ public class InferenceProcessor extends AbstractProcessor {
                         FillMaskConfig.NAME,
                         NerConfig.NAME,
                         PassThroughConfig.NAME,
+                        QuestionAnsweringConfig.NAME,
                         TextClassificationConfig.NAME,
                         TextEmbeddingConfig.NAME,
+                        TextExpansionConfigUpdate.NAME,
+                        TextSimilarityConfig.NAME,
                         ZeroShotClassificationConfig.NAME
                     )
                 );
@@ -350,12 +363,12 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedNodeVersion().after(minNodeVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedVersion(),
+                        config.getMinimalSupportedNodeVersion(),
                         minNodeVersion
                     )
                 );

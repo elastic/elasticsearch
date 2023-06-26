@@ -62,7 +62,10 @@ public class MlInitializationService implements ClusterStateListener {
         ThreadPool threadPool,
         ClusterService clusterService,
         Client client,
-        MlAssignmentNotifier mlAssignmentNotifier
+        MlAssignmentNotifier mlAssignmentNotifier,
+        boolean isAnomalyDetectionEnabled,
+        boolean isDataFrameAnalyticsEnabled,
+        boolean isNlpEnabled
     ) {
         this(
             client,
@@ -73,7 +76,10 @@ public class MlInitializationService implements ClusterStateListener {
                 threadPool,
                 client,
                 clusterService,
-                mlAssignmentNotifier
+                mlAssignmentNotifier,
+                isAnomalyDetectionEnabled,
+                isDataFrameAnalyticsEnabled,
+                isNlpEnabled
             ),
             clusterService
         );

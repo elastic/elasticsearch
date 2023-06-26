@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,7 +33,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -210,7 +211,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isSearchable,
             isAggregatable,
             isDimension == null ? false : isDimension,
-            metricType != null ? Enum.valueOf(TimeSeriesParams.MetricType.class, metricType) : null,
+            metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
             indices != null ? indices.toArray(new String[0]) : null,
             nonSearchableIndices != null ? nonSearchableIndices.toArray(new String[0]) : null,
             nonAggregatableIndices != null ? nonAggregatableIndices.toArray(new String[0]) : null,
@@ -226,7 +227,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.isDimension = in.readBoolean();
             this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         } else {
@@ -236,14 +237,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.nonDimensionIndices = in.readOptionalStringArray();
             this.metricConflictsIndices = in.readOptionalStringArray();
         } else {
             this.nonDimensionIndices = null;
             this.metricConflictsIndices = null;
         }
-        meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
+        meta = in.readMap(i -> i.readSet(StreamInput::readString));
     }
 
     @Override
@@ -253,14 +254,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeOptionalStringArray(nonDimensionIndices);
             out.writeOptionalStringArray(metricConflictsIndices);
         }
@@ -472,6 +473,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
+    static FieldCapabilities buildBasic(String field, String type, String[] indices) {
+        return new FieldCapabilities(field, type, false, false, false, false, null, indices, null, null, null, null, Map.of());
+    }
+
     static class Builder {
         private final String name;
         private final String type;
@@ -481,23 +486,37 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private int dimensionIndices = 0;
         private TimeSeriesParams.MetricType metricType;
         private boolean hasConflictMetricType;
-        private final List<IndexCaps> indiceList;
+        private final List<IndexCaps> indicesList;
         private final Map<String, Set<String>> meta;
+        private int totalIndices;
 
         Builder(String name, String type) {
             this.name = name;
             this.type = type;
             this.metricType = null;
             this.hasConflictMetricType = false;
-            this.indiceList = new ArrayList<>();
+            this.indicesList = new ArrayList<>();
             this.meta = new HashMap<>();
+        }
+
+        private boolean assertIndicesSorted(String[] indices) {
+            for (int i = 1; i < indices.length; i++) {
+                assert indices[i - 1].compareTo(indices[i]) < 0 : "indices [" + Arrays.toString(indices) + "] aren't sorted";
+            }
+            if (indicesList.isEmpty() == false) {
+                final IndexCaps lastCaps = indicesList.get(indicesList.size() - 1);
+                final String lastIndex = lastCaps.indices[lastCaps.indices.length - 1];
+                assert lastIndex.compareTo(indices[0]) < 0
+                    : "indices aren't sorted; previous [" + lastIndex + "], current [" + indices[0] + "]";
+            }
+            return true;
         }
 
         /**
          * Collect the field capabilities for an index.
          */
         void add(
-            String index,
+            String[] indices,
             boolean isMetadataField,
             boolean search,
             boolean agg,
@@ -505,90 +524,79 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             TimeSeriesParams.MetricType metricType,
             Map<String, String> meta
         ) {
-            assert indiceList.isEmpty() || indiceList.get(indiceList.size() - 1).name.compareTo(index) < 0
-                : "indices aren't sorted; previous [" + indiceList.get(indiceList.size() - 1).name + "], current [" + index + "]";
+            assert assertIndicesSorted(indices);
+            totalIndices += indices.length;
             if (search) {
-                searchableIndices++;
+                searchableIndices += indices.length;
             }
             if (agg) {
-                aggregatableIndices++;
+                aggregatableIndices += indices.length;
             }
             if (isDimension) {
-                dimensionIndices++;
+                dimensionIndices += indices.length;
             }
             this.isMetadataField |= isMetadataField;
             // If we have discrepancy in metric types or in some indices this field is not marked as a metric field - we will
             // treat is a non-metric field and report this discrepancy in metricConflictsIndices
-            if (indiceList.isEmpty()) {
+            if (indicesList.isEmpty()) {
                 this.metricType = metricType;
             } else if (this.metricType != metricType) {
                 hasConflictMetricType = true;
                 this.metricType = null;
             }
-            IndexCaps indexCaps = new IndexCaps(index, search, agg, isDimension, metricType);
-            indiceList.add(indexCaps);
+            indicesList.add(new IndexCaps(indices, search, agg, isDimension, metricType));
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).add(entry.getValue());
             }
         }
 
-        void getIndices(Collection<String> indices) {
-            indiceList.forEach(cap -> indices.add(cap.name));
+        Stream<String> getIndices() {
+            return indicesList.stream().flatMap(c -> Arrays.stream(c.indices));
+        }
+
+        private String[] filterIndices(int length, Predicate<IndexCaps> pred) {
+            int index = 0;
+            final String[] dst = new String[length];
+            for (IndexCaps indexCaps : indicesList) {
+                if (pred.test(indexCaps)) {
+                    System.arraycopy(indexCaps.indices, 0, dst, index, indexCaps.indices.length);
+                    index += indexCaps.indices.length;
+                }
+            }
+            assert index == length : index + "!=" + length;
+            return dst;
         }
 
         FieldCapabilities build(boolean withIndices) {
-            final String[] indices;
-            if (withIndices) {
-                indices = indiceList.stream().map(caps -> caps.name).toArray(String[]::new);
-            } else {
-                indices = null;
-            }
+            final String[] indices = withIndices ? filterIndices(totalIndices, ic -> true) : null;
 
             // Iff this field is searchable in some indices AND non-searchable in others
             // we record the list of non-searchable indices
-            final boolean isSearchable = searchableIndices == indiceList.size();
+            final boolean isSearchable = searchableIndices == totalIndices;
             final String[] nonSearchableIndices;
             if (isSearchable || searchableIndices == 0) {
                 nonSearchableIndices = null;
             } else {
-                nonSearchableIndices = new String[indiceList.size() - searchableIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indiceList) {
-                    if (indexCaps.isSearchable == false) {
-                        nonSearchableIndices[index++] = indexCaps.name;
-                    }
-                }
+                nonSearchableIndices = filterIndices(totalIndices - searchableIndices, ic -> ic.isSearchable == false);
             }
 
             // Iff this field is aggregatable in some indices AND non-aggregatable in others
             // we keep the list of non-aggregatable indices
-            final boolean isAggregatable = aggregatableIndices == indiceList.size();
+            final boolean isAggregatable = aggregatableIndices == totalIndices;
             final String[] nonAggregatableIndices;
             if (isAggregatable || aggregatableIndices == 0) {
                 nonAggregatableIndices = null;
             } else {
-                nonAggregatableIndices = new String[indiceList.size() - aggregatableIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indiceList) {
-                    if (indexCaps.isAggregatable == false) {
-                        nonAggregatableIndices[index++] = indexCaps.name;
-                    }
-                }
+                nonAggregatableIndices = filterIndices(totalIndices - aggregatableIndices, ic -> ic.isAggregatable == false);
             }
 
             // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index
-            final boolean isDimension = dimensionIndices == indiceList.size();
+            final boolean isDimension = dimensionIndices == totalIndices;
             final String[] nonDimensionIndices;
             if (isDimension || dimensionIndices == 0) {
                 nonDimensionIndices = null;
             } else {
-                nonDimensionIndices = new String[indiceList.size() - dimensionIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indiceList) {
-                    if (indexCaps.isDimension == false) {
-                        nonDimensionIndices[index++] = indexCaps.name;
-                    }
-                }
+                nonDimensionIndices = filterIndices(totalIndices - dimensionIndices, ic -> ic.isDimension == false);
             }
 
             final String[] metricConflictsIndices;
@@ -596,10 +604,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 // Collect all indices that have this field. If it is marked differently in different indices, we cannot really
                 // make a decisions which index is "right" and which index is "wrong" so collecting all indices where this field
                 // is present is probably the only sensible thing to do here
-                metricConflictsIndices = Objects.requireNonNullElseGet(
-                    indices,
-                    () -> indiceList.stream().map(caps -> caps.name).toArray(String[]::new)
-                );
+                metricConflictsIndices = Objects.requireNonNullElseGet(indices, () -> filterIndices(totalIndices, ic -> true));
             } else {
                 metricConflictsIndices = null;
             }
@@ -627,7 +632,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     private record IndexCaps(
-        String name,
+        String[] indices,
         boolean isSearchable,
         boolean isAggregatable,
         boolean isDimension,

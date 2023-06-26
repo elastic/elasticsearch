@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
@@ -29,7 +30,8 @@ class TimeseriesFieldTypeHelper {
     }
 
     public boolean isTimeSeriesLabel(final String field, final Map<String, ?> unused) {
-        final MappedFieldType fieldType = mapperService.mappingLookup().getFieldType(field);
+        final MappingLookup lookup = mapperService.mappingLookup();
+        final MappedFieldType fieldType = lookup.getFieldType(field);
         return fieldType != null
             && (timestampField.equals(field) == false)
             && (fieldType.isAggregatable())
@@ -40,7 +42,7 @@ class TimeseriesFieldTypeHelper {
     public boolean isTimeSeriesMetric(final String unused, final Map<String, ?> fieldMapping) {
         final String metricType = (String) fieldMapping.get(TIME_SERIES_METRIC_PARAM);
         return metricType != null
-            && List.of(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricType));
+            && List.of(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.fromString(metricType));
     }
 
     public boolean isTimeSeriesDimension(final String unused, final Map<String, ?> fieldMapping) {

@@ -77,6 +77,11 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
     }
 
     @Override
+    protected Job mutateInstance(Job instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
@@ -152,7 +157,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
     public void testEnsureModelMemoryLimitSet() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setAnalysisLimits(new AnalysisLimits(null, null));
-        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(0L));
+        builder.validateAnalysisLimitsAndSetDefaults(ByteSizeValue.ZERO);
         Job job = builder.build();
         assertEquals("foo", job.getId());
         assertNotNull(job.getAnalysisLimits());

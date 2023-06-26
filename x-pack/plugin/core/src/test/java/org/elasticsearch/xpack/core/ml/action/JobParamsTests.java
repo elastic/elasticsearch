@@ -40,6 +40,11 @@ public class JobParamsTests extends AbstractXContentSerializingTestCase<OpenJobA
     }
 
     @Override
+    protected OpenJobAction.JobParams mutateInstance(OpenJobAction.JobParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<OpenJobAction.JobParams> instanceReader() {
         return OpenJobAction.JobParams::new;
     }

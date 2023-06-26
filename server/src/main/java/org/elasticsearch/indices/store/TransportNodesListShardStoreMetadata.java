@@ -8,8 +8,10 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -58,6 +60,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.NodeRequest,
     TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
 
+    private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
+
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
     public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesStoreFilesMetadata::new);
 
@@ -83,8 +87,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STORE,
-            NodeStoreFilesMetadata.class
+            ThreadPool.Names.FETCH_SHARD_STORE
         );
         this.settings = settings;
         this.indicesService = indicesService;
@@ -200,7 +203,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
 
         public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
-            if (in.getVersion().before(Version.V_8_2_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
                 new ShardId(in);
             }
             final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
@@ -214,12 +217,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_8_2_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_8_2_0)) {
                 // no compatible version cares about the shard ID, we can just make one up
                 FAKE_SHARD_ID.writeTo(out);
 
                 // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
-                assert out.getVersion().onOrAfter(Version.V_7_17_0) : out.getVersion();
+                assert out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
             out.writeList(peerRecoveryRetentionLeases);

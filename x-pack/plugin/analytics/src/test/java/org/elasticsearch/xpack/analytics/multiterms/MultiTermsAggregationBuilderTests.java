@@ -103,6 +103,11 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
     }
 
     @Override
+    protected MultiTermsAggregationBuilder mutateInstance(MultiTermsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<MultiTermsAggregationBuilder> instanceReader() {
         return MultiTermsAggregationBuilder::new;
     }

@@ -67,8 +67,6 @@ import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.Method;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
@@ -134,18 +132,14 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irBlockNode.addStatementNode(irReturnNode);
             }
 
-            List<String> parameterNames = new ArrayList<>(scriptClassInfo.getExecuteArguments().size());
-
-            for (MethodArgument methodArgument : scriptClassInfo.getExecuteArguments()) {
-                parameterNames.add(methodArgument.getName());
-            }
+            List<String> parameterNames = scriptClassInfo.getExecuteArguments().stream().map(MethodArgument::name).toList();
 
             FunctionNode irFunctionNode = new FunctionNode(userFunctionNode.getLocation());
             irFunctionNode.setBlockNode(irBlockNode);
             irFunctionNode.attachDecoration(new IRDName("execute"));
             irFunctionNode.attachDecoration(new IRDReturnType(returnType));
-            irFunctionNode.attachDecoration(new IRDTypeParameters(new ArrayList<>(localFunction.getTypeParameters())));
-            irFunctionNode.attachDecoration(new IRDParameterNames(new ArrayList<>(parameterNames)));
+            irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
+            irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
 
             injectStaticFieldsAndGetters();
@@ -188,8 +182,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         FunctionNode irFunctionNode = new FunctionNode(internalLocation);
         irFunctionNode.attachDecoration(new IRDName("getName"));
         irFunctionNode.attachDecoration(new IRDReturnType(String.class));
-        irFunctionNode.attachDecoration(new IRDTypeParameters(Collections.emptyList()));
-        irFunctionNode.attachDecoration(new IRDParameterNames(Collections.emptyList()));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(List.of()));
+        irFunctionNode.attachDecoration(new IRDParameterNames(List.of()));
         irFunctionNode.attachCondition(IRCSynthetic.class);
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
 
@@ -214,8 +208,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         irFunctionNode = new FunctionNode(internalLocation);
         irFunctionNode.attachDecoration(new IRDName("getSource"));
         irFunctionNode.attachDecoration(new IRDReturnType(String.class));
-        irFunctionNode.attachDecoration(new IRDTypeParameters(Collections.emptyList()));
-        irFunctionNode.attachDecoration(new IRDParameterNames(Collections.emptyList()));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(List.of()));
+        irFunctionNode.attachDecoration(new IRDParameterNames(List.of()));
         irFunctionNode.attachCondition(IRCSynthetic.class);
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
 
@@ -240,8 +234,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         irFunctionNode = new FunctionNode(internalLocation);
         irFunctionNode.attachDecoration(new IRDName("getStatements"));
         irFunctionNode.attachDecoration(new IRDReturnType(BitSet.class));
-        irFunctionNode.attachDecoration(new IRDTypeParameters(Collections.emptyList()));
-        irFunctionNode.attachDecoration(new IRDParameterNames(Collections.emptyList()));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(List.of()));
+        irFunctionNode.attachDecoration(new IRDParameterNames(List.of()));
         irFunctionNode.attachCondition(IRCSynthetic.class);
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
 
@@ -287,7 +281,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
                 irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(returnType));
                 irInvokeCallMemberNode.attachDecoration(
-                    new IRDFunction(new LocalFunction(getMethod.getName(), returnType, Collections.emptyList(), true, false))
+                    new IRDFunction(new LocalFunction(getMethod.getName(), returnType, List.of(), true, false))
                 );
                 irDeclarationNode.setExpressionNode(irInvokeCallMemberNode);
             }
@@ -306,8 +300,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             FunctionNode irFunctionNode = new FunctionNode(internalLocation);
             irFunctionNode.attachDecoration(new IRDName(needsMethod.getName()));
             irFunctionNode.attachDecoration(new IRDReturnType(boolean.class));
-            irFunctionNode.attachDecoration(new IRDTypeParameters(Collections.emptyList()));
-            irFunctionNode.attachDecoration(new IRDParameterNames(Collections.emptyList()));
+            irFunctionNode.attachDecoration(new IRDTypeParameters(List.of()));
+            irFunctionNode.attachDecoration(new IRDParameterNames(List.of()));
             irFunctionNode.attachCondition(IRCSynthetic.class);
             irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
 
@@ -365,13 +359,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(ScriptException.class));
             irInvokeCallMemberNode.attachDecoration(
                 new IRDFunction(
-                    new LocalFunction(
-                        "convertToScriptException",
-                        ScriptException.class,
-                        Arrays.asList(Throwable.class, Map.class),
-                        true,
-                        false
-                    )
+                    new LocalFunction("convertToScriptException", ScriptException.class, List.of(Throwable.class, Map.class), true, false)
                 )
             );
 
@@ -402,10 +390,10 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                     PainlessExplainError.class.getMethod("getHeaders", PainlessLookup.class),
                     PainlessExplainError.class,
                     null,
-                    Collections.emptyList(),
+                    List.of(),
                     null,
                     null,
-                    null
+                    Map.of()
                 )
             );
 
@@ -441,7 +429,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                         new LocalFunction(
                             "convertToScriptException",
                             ScriptException.class,
-                            Arrays.asList(Throwable.class, Map.class),
+                            List.of(Throwable.class, Map.class),
                             true,
                             false
                         )
@@ -470,15 +458,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallNode.attachDecoration(new IRDExpressionType(Map.class));
                 irInvokeCallNode.setBox(Collections.class);
                 irInvokeCallNode.setMethod(
-                    new PainlessMethod(
-                        Collections.class.getMethod("emptyMap"),
-                        Collections.class,
-                        null,
-                        Collections.emptyList(),
-                        null,
-                        null,
-                        null
-                    )
+                    new PainlessMethod(Collections.class.getMethod("emptyMap"), Collections.class, null, List.of(), null, null, Map.of())
                 );
 
                 irBinaryImplNode.setRightNode(irInvokeCallNode);

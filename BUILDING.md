@@ -78,7 +78,7 @@ For updated or newly added dependencies you need to add an entry to this verific
       </component>
 ```
 
-In case of updating a dependency, ensure to remove the unused entry of the outdated dependency manually from the verifcation.xml file.
+In case of updating a dependency, ensure to remove the unused entry of the outdated dependency manually from the `verification-metadata.xml` file.
 
 You can also automate the generation of this entry by running your build using the `--write-verification-metadata` commandline option:
 ```

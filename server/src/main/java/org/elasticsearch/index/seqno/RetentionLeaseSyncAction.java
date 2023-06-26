@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -59,10 +61,6 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
 
     public static final String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
-
-    protected static Logger getLogger() {
-        return LOGGER;
-    }
 
     @Inject
     public RetentionLeaseSyncAction(
@@ -134,14 +132,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
 
                         @Override
                         public void handleException(TransportException e) {
-                            if (ExceptionsHelper.unwrap(
-                                e,
-                                IndexNotFoundException.class,
-                                AlreadyClosedException.class,
-                                IndexShardClosedException.class
-                            ) == null) {
-                                getLogger().warn(() -> format("%s retention lease sync failed", shardId), e);
-                            }
+                            LOGGER.log(getExceptionLogLevel(e), () -> format("%s retention lease sync failed", shardId), e);
                             task.setPhase("finished");
                             taskManager.unregister(task);
                             listener.onFailure(e);
@@ -150,6 +141,16 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
                 );
             }
         }
+    }
+
+    static Level getExceptionLogLevel(Exception e) {
+        return ExceptionsHelper.unwrap(
+            e,
+            IndexNotFoundException.class,
+            AlreadyClosedException.class,
+            IndexShardClosedException.class,
+            ShardNotInPrimaryModeException.class
+        ) == null ? Level.WARN : Level.DEBUG;
     }
 
     @Override
@@ -163,7 +164,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             Objects.requireNonNull(request);
             Objects.requireNonNull(primary);
             primary.persistRetentionLeases();
-            return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
+            return new WritePrimaryResult<>(request, new Response(), null, primary, LOGGER, postWriteRefresh);
         });
     }
 
@@ -174,7 +175,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             Objects.requireNonNull(replica);
             replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
             replica.persistRetentionLeases();
-            return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+            return new WriteReplicaResult<>(request, null, null, replica, LOGGER);
         });
     }
 

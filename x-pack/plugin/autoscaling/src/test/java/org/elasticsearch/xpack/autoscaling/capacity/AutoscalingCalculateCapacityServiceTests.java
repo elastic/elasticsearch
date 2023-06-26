@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -161,8 +161,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         ByteSizeValue memory = configuration.getAsBytesSize(FixedAutoscalingDeciderService.MEMORY.getKey(), null);
         Double processors = configuration.getAsDouble(FixedAutoscalingDeciderService.PROCESSORS.getKey(), null);
         int nodes = FixedAutoscalingDeciderService.NODES.get(configuration);
-        ByteSizeValue totalStorage = storage != null ? new ByteSizeValue(storage.getBytes() * nodes) : null;
-        ByteSizeValue totalMemory = memory != null ? new ByteSizeValue(memory.getBytes() * nodes) : null;
+        ByteSizeValue totalStorage = storage != null ? ByteSizeValue.ofBytes(storage.getBytes() * nodes) : null;
+        ByteSizeValue totalMemory = memory != null ? ByteSizeValue.ofBytes(memory.getBytes() * nodes) : null;
         Double totalProcessors = processors != null ? processors * nodes : null;
 
         if (totalStorage == null && totalMemory == null && totalProcessors == null) {
@@ -179,7 +179,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterInfo info = ClusterInfo.EMPTY;
         SortedSet<String> roleNames = randomRoles();
-        boolean hasDataRole = roleNames.stream().anyMatch(r -> r.equals("data") || r.startsWith("data_"));
+        boolean hasDataRole = roleNames.stream().anyMatch(r -> DiscoveryNodeRole.getRoleFromRoleName(r).canContainData());
 
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(Map.of());
@@ -204,9 +204,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .collect(Collectors.toSet());
         final long memory = between(0, 1000);
         state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(
-                DiscoveryNodes.builder().add(new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT))
-            )
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("nodeId", buildNewFakeTransportAddress(), Map.of(), roles)))
             .build();
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
             roleNames,
@@ -218,12 +216,12 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
 
         assertThat(context.nodes().size(), equalTo(1));
-        assertThat(context.nodes(), equalTo(new HashSet<>(state.nodes())));
+        assertThat(context.nodes(), equalTo(new HashSet<>(state.nodes().getAllNodes())));
         if (hasDataRole) {
             assertNull(context.currentCapacity());
         } else {
-            assertThat(context.currentCapacity().node().memory(), equalTo(new ByteSizeValue(memory)));
-            assertThat(context.currentCapacity().total().memory(), equalTo(new ByteSizeValue(memory)));
+            assertThat(context.currentCapacity().node().memory(), equalTo(ByteSizeValue.ofBytes(memory)));
+            assertThat(context.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofBytes(memory)));
             assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ZERO));
             assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ZERO));
         }
@@ -237,12 +235,11 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         for (int i = 0; i < randomIntBetween(1, 5); ++i) {
             String nodeId = "nodeId" + i;
             boolean useOtherRoles = randomBoolean();
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 nodeId,
                 buildNewFakeTransportAddress(),
                 Map.of(),
-                useOtherRoles ? otherRoles : roles,
-                Version.CURRENT
+                useOtherRoles ? otherRoles : roles
             );
             nodes.add(node);
 
@@ -277,14 +274,17 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
         assertThat(context.nodes(), equalTo(expectedNodes));
         if (hasDataRole) {
-            assertThat(context.currentCapacity().node().storage(), equalTo(new ByteSizeValue(maxTotal)));
-            assertThat(context.currentCapacity().total().storage(), equalTo(new ByteSizeValue(sumTotal)));
+            assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ofBytes(maxTotal)));
+            assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ofBytes(sumTotal)));
         } else {
             assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ZERO));
             assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ZERO));
         }
-        assertThat(context.currentCapacity().node().memory(), equalTo(new ByteSizeValue(memory * Integer.signum(expectedNodes.size()))));
-        assertThat(context.currentCapacity().total().memory(), equalTo(new ByteSizeValue(memory * expectedNodes.size())));
+        assertThat(
+            context.currentCapacity().node().memory(),
+            equalTo(ByteSizeValue.ofBytes(memory * Integer.signum(expectedNodes.size())))
+        );
+        assertThat(context.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofBytes(memory * expectedNodes.size())));
 
         if (expectedNodes.isEmpty() == false) {
             context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
@@ -324,8 +324,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             if (hasDataRole) {
                 assertThat(context.currentCapacity(), is(nullValue()));
             } else {
-                assertThat(context.currentCapacity().node().memory(), equalTo(new ByteSizeValue(memory)));
-                assertThat(context.currentCapacity().total().memory(), equalTo(new ByteSizeValue(memory * expectedNodes.size())));
+                assertThat(context.currentCapacity().node().memory(), equalTo(ByteSizeValue.ofBytes(memory)));
+                assertThat(context.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofBytes(memory * expectedNodes.size())));
                 assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ZERO));
                 assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ZERO));
             }

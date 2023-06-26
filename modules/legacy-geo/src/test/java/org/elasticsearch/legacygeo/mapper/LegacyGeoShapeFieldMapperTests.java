@@ -21,6 +21,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -108,15 +109,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        return createMapperService(version, mappings);
-    }
-
-    @Override
-    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
-        assumeFalse("LegacyGeoShapeFieldMapper can't be created in version " + version, version.onOrAfter(Version.V_8_0_0));
-        return super.createMapperService(version, mapping);
+    protected IndexVersion getVersion() {
+        return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
     }
 
     public void testLegacySwitches() throws IOException {
@@ -646,8 +640,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("field");
-        assertThat(fields.length, equalTo(2));
+        List<IndexableField> fields = document.docs().get(0).getFields("field");
+        assertThat(fields.size(), equalTo(2));
         assertFieldWarnings("tree", "strategy");
     }
 

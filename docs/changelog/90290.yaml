@@ -1,5 +1,0 @@
-pr: 90290
-summary: "Fixed: aggregate_metric_double multi values exception"
-area: Aggregations
-type: bug
-issues: []

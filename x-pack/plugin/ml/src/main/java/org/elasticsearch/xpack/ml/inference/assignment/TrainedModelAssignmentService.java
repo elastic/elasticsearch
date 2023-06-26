@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -60,11 +59,10 @@ public class TrainedModelAssignmentService {
     ) {
         ClusterState currentState = clusterService.state();
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
-            logger.warn("[{}] no master known for assignment update [{}]", request.getModelId(), request.getUpdate());
-            waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener, changePredicate);
+            logger.warn("[{}] no master known for assignment update [{}]", request.getDeploymentId(), request.getUpdate());
+            waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
             return;
         }
         client.execute(
@@ -74,16 +72,10 @@ public class TrainedModelAssignmentService {
                 if (isMasterChannelException(failure)) {
                     logger.info(
                         "[{}] master channel exception will retry on new master node for assignment update [{}]",
-                        request.getModelId(),
+                        request.getDeploymentId(),
                         request.getUpdate()
                     );
-                    waitForNewMasterAndRetry(
-                        observer,
-                        UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE,
-                        request,
-                        listener,
-                        changePredicate
-                    );
+                    waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
                     return;
                 }
                 listener.onFailure(failure);
@@ -103,34 +95,27 @@ public class TrainedModelAssignmentService {
     }
 
     public void waitForAssignmentCondition(
-        final String modelId,
+        final String deploymentId,
         final Predicate<ClusterState> predicate,
         final @Nullable TimeValue timeout,
         final WaitForAssignmentListener listener
     ) {
+        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(TrainedModelAssignmentMetadata.assignmentForDeploymentId(state, deploymentId).orElse(null));
+            }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-        final ClusterState clusterState = observer.setAndGetObservedState();
-        if (predicate.test(clusterState)) {
-            listener.onResponse(TrainedModelAssignmentMetadata.assignmentForModelId(clusterState, modelId).orElse(null));
-        } else {
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(TrainedModelAssignmentMetadata.assignmentForModelId(state, modelId).orElse(null));
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onTimeout(timeout);
-                }
-            }, predicate);
-        }
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onTimeout(timeout);
+            }
+        }, predicate, timeout, logger);
     }
 
     public interface WaitForAssignmentListener extends ActionListener<TrainedModelAssignment> {
@@ -143,8 +128,7 @@ public class TrainedModelAssignmentService {
         ClusterStateObserver observer,
         ActionType<AcknowledgedResponse> action,
         ActionRequest request,
-        ActionListener<AcknowledgedResponse> listener,
-        Predicate<ClusterState> changePredicate
+        ActionListener<AcknowledgedResponse> listener
     ) {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
@@ -163,7 +147,7 @@ public class TrainedModelAssignmentService {
                 // we wait indefinitely for a new master
                 assert false;
             }
-        }, changePredicate);
+        }, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
     }
 
     private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[] {

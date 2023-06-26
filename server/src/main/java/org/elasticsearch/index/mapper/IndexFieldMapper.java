@@ -16,10 +16,12 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collections;
 import java.util.List;
@@ -48,7 +50,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             if (caseInsensitive) {
                 // Thankfully, all index names are lower-cased so we don't have to pass a case_insensitive mode flag
                 // down to all the index name-matching logic. We just lower-case the search string
@@ -82,8 +84,13 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 private final List<Object> indexName = List.of(context.getFullyQualifiedIndex().getName());
 
                 @Override
-                public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
                     return indexName;
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
                 }
             };
         }
@@ -101,5 +108,10 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

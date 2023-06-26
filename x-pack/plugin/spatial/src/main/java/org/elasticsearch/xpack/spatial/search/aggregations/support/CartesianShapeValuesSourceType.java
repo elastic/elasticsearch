@@ -38,7 +38,7 @@ public class CartesianShapeValuesSourceType extends ShapeValuesSourceType {
     }
 
     @Override
-    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
         boolean isPoint = fieldContext.indexFieldData() instanceof IndexCartesianPointFieldData;
         boolean isShape = fieldContext.indexFieldData() instanceof IndexShapeFieldData;
         if (isPoint == false && isShape == false) {

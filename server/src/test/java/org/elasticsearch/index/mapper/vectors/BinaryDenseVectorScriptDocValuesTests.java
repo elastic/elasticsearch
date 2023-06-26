@@ -10,27 +10,30 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.ByteBinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVector;
+import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
 
-    public void testGetVectorValueAndGetMagnitude() throws IOException {
+    public void testFloatGetVectorValueAndGetMagnitude() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
-            BinaryDocValues docValues = wrap(vectors, indexVersion);
-            BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
+        for (IndexVersion indexVersion : List.of(IndexVersion.V_7_4_0, IndexVersion.CURRENT)) {
+            BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
+            DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", ElementType.FLOAT, dims, indexVersion);
             DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
             for (int i = 0; i < vectors.length; i++) {
                 field.setNextDocId(i);
@@ -42,12 +45,29 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         }
     }
 
-    public void testMetadataAndIterator() throws IOException {
+    public void testByteGetVectorValueAndGetMagnitude() throws IOException {
         int dims = 3;
-        Version indexVersion = Version.CURRENT;
-        float[][] vectors = fill(new float[randomIntBetween(1, 5)][dims]);
-        BinaryDocValues docValues = wrap(vectors, indexVersion);
-        BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
+        float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
+        float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
+
+        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE, IndexVersion.CURRENT);
+        DenseVectorDocValuesField field = new ByteBinaryDenseVectorDocValuesField(docValues, "test", ElementType.BYTE, dims);
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        for (int i = 0; i < vectors.length; i++) {
+            field.setNextDocId(i);
+            assertEquals(1, field.size());
+            assertEquals(dims, scriptDocValues.dims());
+            assertArrayEquals(vectors[i], scriptDocValues.getVectorValue(), 0.0001f);
+            assertEquals(expectedMagnitudes[i], scriptDocValues.getMagnitude(), 0.0001f);
+        }
+    }
+
+    public void testFloatMetadataAndIterator() throws IOException {
+        int dims = 3;
+        IndexVersion indexVersion = IndexVersion.CURRENT;
+        float[][] vectors = fill(new float[randomIntBetween(1, 5)][dims], ElementType.FLOAT);
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
+        DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", ElementType.FLOAT, dims, indexVersion);
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             DenseVector dv = field.get();
@@ -62,20 +82,46 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         assertEquals(dv, DenseVector.EMPTY);
     }
 
-    protected float[][] fill(float[][] vectors) {
+    public void testByteMetadataAndIterator() throws IOException {
+        int dims = 3;
+        IndexVersion indexVersion = IndexVersion.CURRENT;
+        float[][] vectors = fill(new float[randomIntBetween(1, 5)][dims], ElementType.BYTE);
+        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE, indexVersion);
+        DenseVectorDocValuesField field = new ByteBinaryDenseVectorDocValuesField(docValues, "test", ElementType.BYTE, dims);
+        for (int i = 0; i < vectors.length; i++) {
+            field.setNextDocId(i);
+            DenseVector dv = field.get();
+            assertEquals(1, dv.size());
+            assertFalse(dv.isEmpty());
+            assertEquals(dims, dv.getDims());
+            UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
+            assertEquals("Cannot iterate over single valued dense_vector field, use get() instead", e.getMessage());
+        }
+        field.setNextDocId(vectors.length);
+        DenseVector dv = field.get();
+        assertEquals(dv, DenseVector.EMPTY);
+    }
+
+    protected float[][] fill(float[][] vectors, ElementType elementType) {
         for (float[] vector : vectors) {
             for (int i = 0; i < vector.length; i++) {
-                vector[i] = randomFloat();
+                vector[i] = elementType == ElementType.FLOAT ? randomFloat() : randomByte();
             }
         }
         return vectors;
     }
 
-    public void testMissingValues() throws IOException {
+    public void testFloatMissingValues() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
-        BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, Version.CURRENT);
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, IndexVersion.CURRENT);
+        DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(
+            docValues,
+            "test",
+            ElementType.FLOAT,
+            dims,
+            IndexVersion.CURRENT
+        );
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
@@ -87,11 +133,33 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
     }
 
-    public void testGetFunctionIsNotAccessible() throws IOException {
+    public void testByteMissingValues() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
-        BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, Version.CURRENT);
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, IndexVersion.CURRENT);
+        DenseVectorDocValuesField field = new ByteBinaryDenseVectorDocValuesField(docValues, "test", ElementType.BYTE, dims);
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+
+        field.setNextDocId(3);
+        assertEquals(0, field.size());
+        Exception e = expectThrows(IllegalArgumentException.class, scriptDocValues::getVectorValue);
+        assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, scriptDocValues::getMagnitude);
+        assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
+    }
+
+    public void testFloatGetFunctionIsNotAccessible() throws IOException {
+        int dims = 3;
+        float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, IndexVersion.CURRENT);
+        DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(
+            docValues,
+            "test",
+            ElementType.FLOAT,
+            dims,
+            IndexVersion.CURRENT
+        );
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
@@ -104,30 +172,24 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         );
     }
 
-    public void testSimilarityFunctions() throws IOException {
-        int dims = 5;
-        float[] docVector = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
-        float[] queryVector = new float[] { 0.5f, 111.3f, -13.0f, 14.8f, -156.0f };
+    public void testByteGetFunctionIsNotAccessible() throws IOException {
+        int dims = 3;
+        float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
+        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE, IndexVersion.CURRENT);
+        DenseVectorDocValuesField field = new ByteBinaryDenseVectorDocValuesField(docValues, "test", ElementType.BYTE, dims);
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
-        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
-            BinaryDocValues docValues = wrap(new float[][] { docVector }, indexVersion);
-            BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
-            DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
-
-            field.setNextDocId(0);
-
-            assertEquals(
-                "dotProduct result is not equal to the expected value!",
-                65425.624,
-                scriptDocValues.dotProduct(queryVector),
-                0.001
-            );
-            assertEquals("l1norm result is not equal to the expected value!", 485.184, scriptDocValues.l1Norm(queryVector), 0.001);
-            assertEquals("l2norm result is not equal to the expected value!", 301.361, scriptDocValues.l2Norm(queryVector), 0.001);
-        }
+        field.setNextDocId(0);
+        Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValue' or 'magnitude' instead."
+            )
+        );
     }
 
-    public static BinaryDocValues wrap(float[][] vectors, Version indexVersion) {
+    public static BinaryDocValues wrap(float[][] vectors, ElementType elementType, IndexVersion indexVersion) {
         return new BinaryDocValues() {
             int idx = -1;
             int maxIdx = vectors.length;
@@ -137,7 +199,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
                 if (idx >= maxIdx) {
                     throw new IllegalStateException("max index exceeded");
                 }
-                return mockEncodeDenseVector(vectors[idx], indexVersion);
+                return mockEncodeDenseVector(vectors[idx], elementType, indexVersion);
             }
 
             @Override
@@ -171,24 +233,29 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         };
     }
 
-    public static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
-        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
-            ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
-            : new byte[VectorEncoderDecoder.INT_BYTES * values.length];
+    public static BytesRef mockEncodeDenseVector(float[] values, ElementType elementType, IndexVersion indexVersion) {
+        int numBytes = indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
+            ? elementType.elementBytes * values.length + DenseVectorFieldMapper.MAGNITUDE_BYTES
+            : elementType.elementBytes * values.length;
         double dotProduct = 0f;
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes);
         for (float value : values) {
-            byteBuffer.putFloat(value);
+            if (elementType == ElementType.FLOAT) {
+                byteBuffer.putFloat(value);
+            } else if (elementType == ElementType.BYTE) {
+                byteBuffer.put((byte) value);
+            } else {
+                throw new IllegalStateException("unknown element_type [" + elementType + "]");
+            }
             dotProduct += value * value;
         }
 
-        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+        if (indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
-        return new BytesRef(bytes);
+        return new BytesRef(byteBuffer.array());
     }
 
 }

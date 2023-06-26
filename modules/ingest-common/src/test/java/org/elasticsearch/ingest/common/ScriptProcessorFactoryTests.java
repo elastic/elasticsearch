@@ -23,14 +23,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,7 +55,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), null, configMap);
         assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType().toString(), equalTo(INGEST_SCRIPT_PARAM_TO_TYPE.get(randomType)));
-        assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
+        assertThat(processor.getScript().getParams(), equalTo(Map.of()));
     }
 
     public void testFactoryValidationWithParams() throws Exception {
@@ -65,7 +65,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> configMap = new HashMap<>();
         String randomType = randomFrom("id", "source");
-        Map<String, Object> randomParams = Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Map<String, Object> randomParams = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10));
         configMap.put(randomType, "foo");
         configMap.put("params", randomParams);
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), null, configMap);
@@ -117,7 +117,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ScriptException thrownException = new ScriptException(
             "compile-time exception",
             new RuntimeException(),
-            Collections.emptyList(),
+            List.of(),
             "script",
             "mockscript"
         );
@@ -139,13 +139,10 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         String scriptName = "foo";
         ScriptService scriptService = new ScriptService(
             Settings.builder().build(),
-            Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG,
-                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
-                    ctx.put("foo", "bar");
-                    return null;
-                }), Collections.emptyMap())
-            ),
+            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
+                ctx.put("foo", "bar");
+                return null;
+            }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
             () -> 1L
         );
@@ -156,7 +153,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ScriptProcessor processor = factory.create(null, null, randomAlphaOfLength(10), configMap);
         assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType(), equalTo(ScriptType.INLINE));
-        assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
+        assertThat(processor.getScript().getParams(), equalTo(Map.of()));
         assertNotNull(processor.getPrecompiledIngestScriptFactory());
         CtxMap<?> ctx = TestIngestDocument.emptyIngestDocument().getCtxMap();
         processor.getPrecompiledIngestScriptFactory().newInstance(null, ctx).execute();
@@ -172,7 +169,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ScriptProcessor processor = factory.create(null, null, randomAlphaOfLength(10), configMap);
         assertNull(processor.getScript().getLang());
         assertThat(processor.getScript().getType(), equalTo(ScriptType.STORED));
-        assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
+        assertThat(processor.getScript().getParams(), equalTo(Map.of()));
         assertNull(processor.getPrecompiledIngestScriptFactory());
     }
 }

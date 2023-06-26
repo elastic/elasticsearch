@@ -22,29 +22,38 @@ import java.util.Objects;
 
 /**
  * Filter that has one or multiple associated keys associated with.
- * Used inside Join or Sequence.
+ * Used inside Join, Sequence and Sample.
  */
 public class KeyedFilter extends UnaryPlan {
 
     private final List<? extends NamedExpression> keys;
     private final Attribute timestamp;
     private final Attribute tiebreaker;
+    private final boolean isMissingEventFilter;
 
-    public KeyedFilter(Source source, LogicalPlan child, List<? extends NamedExpression> keys, Attribute timestamp, Attribute tiebreaker) {
+    public KeyedFilter(
+        Source source,
+        LogicalPlan child,
+        List<? extends NamedExpression> keys,
+        Attribute timestamp,
+        Attribute tiebreaker,
+        boolean isMissingEventFilter
+    ) {
         super(source, child);
         this.keys = keys;
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
+        this.isMissingEventFilter = isMissingEventFilter;
     }
 
     @Override
     protected NodeInfo<KeyedFilter> info() {
-        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tiebreaker);
+        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tiebreaker, isMissingEventFilter);
     }
 
     @Override
     public KeyedFilter replaceChild(LogicalPlan newChild) {
-        return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker);
+        return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker, isMissingEventFilter);
     }
 
     public List<? extends NamedExpression> keys() {
@@ -62,7 +71,11 @@ public class KeyedFilter extends UnaryPlan {
     public List<? extends NamedExpression> extractionAttributes() {
         List<NamedExpression> out = new ArrayList<>();
 
-        out.add(timestamp);
+        // samples ignore the timestamp, so even though it's passed with the request (a required parameter),
+        // it's discarded by the execution planner
+        if (Expressions.isPresent(timestamp)) {
+            out.add(timestamp);
+        }
         if (Expressions.isPresent(tiebreaker)) {
             out.add(tiebreaker);
         }
@@ -76,9 +89,13 @@ public class KeyedFilter extends UnaryPlan {
         return Resolvables.resolved(keys) && timestamp.resolved() && tiebreaker.resolved();
     }
 
+    public boolean isMissingEventFilter() {
+        return isMissingEventFilter;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(keys, timestamp, tiebreaker, child());
+        return Objects.hash(keys, timestamp, tiebreaker, child(), isMissingEventFilter);
     }
 
     @Override
@@ -95,6 +112,7 @@ public class KeyedFilter extends UnaryPlan {
         return Objects.equals(keys, other.keys)
             && Objects.equals(timestamp, other.timestamp)
             && Objects.equals(tiebreaker, other.tiebreaker)
-            && Objects.equals(child(), other.child());
+            && Objects.equals(child(), other.child())
+            && isMissingEventFilter == isMissingEventFilter;
     }
 }

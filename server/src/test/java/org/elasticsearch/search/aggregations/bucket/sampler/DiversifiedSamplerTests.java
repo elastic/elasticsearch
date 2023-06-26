@@ -34,6 +34,7 @@ import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,8 +90,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
         writeBooks(indexWriter);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         Consumer<InternalSampler> verify = result -> {
             Terms terms = result.getAggregations().get("terms");
             assertEquals(2, terms.getBuckets().size());
@@ -121,8 +122,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         writeBooks(indexWriter);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
         Consumer<InternalSampler> verify = result -> {
@@ -168,6 +169,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         SortedDoublesIndexFieldData fieldData = new SortedDoublesIndexFieldData(
             "price",
             IndexNumericFieldData.NumericType.DOUBLE,
+            CoreValuesSourceType.NUMERIC,
             (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
         );
         FunctionScoreQuery query = new FunctionScoreQuery(

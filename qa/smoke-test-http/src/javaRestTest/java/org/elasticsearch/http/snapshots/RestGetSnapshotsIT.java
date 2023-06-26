@@ -361,7 +361,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private void createIndexWithContent(String indexName) {
         logger.info("--> creating index [{}]", indexName);
-        createIndex(indexName, AbstractSnapshotIntegTestCase.SINGLE_SHARD_NO_REPLICA);
+        createIndex(indexName, 1, 0);
         ensureGreen(indexName);
         indexDoc(indexName, "some_id", "foo", "bar");
     }

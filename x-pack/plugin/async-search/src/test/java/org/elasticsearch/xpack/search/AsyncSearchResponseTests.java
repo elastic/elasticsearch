@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -67,20 +67,20 @@ public class AsyncSearchResponseTests extends ESTestCase {
     }
 
     protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance) throws IOException {
-        return assertSerialization(testInstance, Version.CURRENT);
+        return assertSerialization(testInstance, TransportVersion.current());
     }
 
-    protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance, Version version) throws IOException {
+    protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance, TransportVersion version) throws IOException {
         AsyncSearchResponse deserializedInstance = copyInstance(testInstance, version);
         assertEqualInstances(testInstance, deserializedInstance);
         return deserializedInstance;
     }
 
     protected final AsyncSearchResponse copyInstance(AsyncSearchResponse instance) throws IOException {
-        return copyInstance(instance, Version.CURRENT);
+        return copyInstance(instance, TransportVersion.current());
     }
 
-    protected AsyncSearchResponse copyInstance(AsyncSearchResponse instance, Version version) throws IOException {
+    protected AsyncSearchResponse copyInstance(AsyncSearchResponse instance, TransportVersion version) throws IOException {
         return copyWriteable(instance, namedWriteableRegistry, instanceReader(), version);
     }
 
@@ -145,7 +145,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(formatted("""
+            assertEquals(Strings.format("""
                 {
                   "id" : "id",
                   "is_partial" : true,
@@ -160,7 +160,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             builder.humanReadable(true);
             asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
             assertEquals(
-                formatted(
+                Strings.format(
                     """
                         {
                           "id" : "id",

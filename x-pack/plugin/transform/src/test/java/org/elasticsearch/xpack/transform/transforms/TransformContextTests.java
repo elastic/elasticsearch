@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Instant;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -36,9 +42,9 @@ public class TransformContextTests extends ESTestCase {
 
     public void testFailureCount() {
         TransformContext context = new TransformContext(null, null, 0, listener);
-        assertThat(context.incrementAndGetFailureCount("some_exception"), is(equalTo(1)));
+        assertThat(context.incrementAndGetFailureCount(new RuntimeException("some_exception")), is(equalTo(1)));
         assertThat(context.getFailureCount(), is(equalTo(1)));
-        assertThat(context.incrementAndGetFailureCount("some_other_exception"), is(equalTo(2)));
+        assertThat(context.incrementAndGetFailureCount(new IllegalArgumentException("some_other_exception")), is(equalTo(2)));
         assertThat(context.getFailureCount(), is(equalTo(2)));
         context.resetReasonAndFailureCounter();
         assertThat(context.getFailureCount(), is(equalTo(0)));
@@ -87,5 +93,27 @@ public class TransformContextTests extends ESTestCase {
         assertThat(context.getStateReason(), is(nullValue()));
 
         verify(listener).failureCountChanged();
+    }
+
+    public void testAuthState() {
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat(context.getAuthState(), is(nullValue()));
+
+        context.setAuthState(AuthorizationState.green());
+        assertThat(context.getAuthState(), is(notNullValue()));
+        assertThat(context.getAuthState().getStatus(), is(equalTo(HealthStatus.GREEN)));
+
+        context.setAuthState(AuthorizationState.red(new ElasticsearchSecurityException("missing privileges")));
+        assertThat(context.getAuthState(), is(notNullValue()));
+        assertThat(context.getAuthState().getStatus(), is(equalTo(HealthStatus.RED)));
+
+        context.setAuthState(null);
+        assertThat(context.getAuthState(), is(nullValue()));
+    }
+
+    public void testFrom() {
+        Instant from = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, from, listener);
+        assertThat(context.from(), is(equalTo(from)));
     }
 }

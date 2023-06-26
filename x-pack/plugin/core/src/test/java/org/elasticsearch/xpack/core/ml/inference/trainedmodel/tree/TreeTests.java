@@ -53,17 +53,26 @@ public class TreeTests extends AbstractXContentSerializingTestCase<Tree> {
         return createRandom();
     }
 
-    public static Tree createRandom(TargetType targetType) {
-        int numberOfFeatures = randomIntBetween(1, 10);
-        List<String> featureNames = new ArrayList<>();
-        for (int i = 0; i < numberOfFeatures; i++) {
-            featureNames.add(randomAlphaOfLength(10));
-        }
-        return buildRandomTree(targetType, featureNames, 6);
+    @Override
+    protected Tree mutateInstance(Tree instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static Tree createRandom() {
         return createRandom(randomFrom(TargetType.values()));
+    }
+
+    public static Tree createRandom(TargetType targetType) {
+        int numberOfFeatures = randomIntBetween(1, 10);
+        return createRandom(targetType, numberOfFeatures, 6);
+    }
+
+    public static Tree createRandom(TargetType targetType, int numberOfFeatures, int depth) {
+        List<String> featureNames = new ArrayList<>();
+        for (int i = 0; i < numberOfFeatures; i++) {
+            featureNames.add(randomAlphaOfLength(10));
+        }
+        return buildRandomTree(targetType, featureNames, depth);
     }
 
     public static Tree buildRandomTree(TargetType targetType, List<String> featureNames, int depth) {

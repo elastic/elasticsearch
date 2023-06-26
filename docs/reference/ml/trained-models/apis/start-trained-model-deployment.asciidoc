@@ -8,8 +8,6 @@
 
 Starts a new trained model deployment.
 
-beta::[]
-
 [[start-trained-model-deployment-request]]
 == {api-request-title}
 
@@ -27,23 +25,28 @@ Currently only `pytorch` models are supported for deployment. Once deployed
 the model can be used by the <<inference-processor,{infer-cap} processor>>
 in an ingest pipeline or directly in the <<infer-trained-model>> API.
 
+A model can be deployed multiple times by using deployment IDs. A deployment ID 
+must be unique and should not match any other deployment ID or model ID, unless 
+it is the same as the ID of the model being deployed. If `deployment_id` is not 
+set, it defaults to the `model_id`.
+
 Scaling inference performance can be achieved by setting the parameters
 `number_of_allocations` and `threads_per_allocation`.
 
-Increasing `threads_per_allocation` means more threads are used when
-an inference request is processed on a node. This can improve inference speed
-for certain models. It may also result in improvement to throughput.
+Increasing `threads_per_allocation` means more threads are used when an
+inference request is processed on a node. This can improve inference speed for
+certain models. It may also result in improvement to throughput.
 
-Increasing `number_of_allocations` means more threads are used to
-process multiple inference requests in parallel resulting in throughput
-improvement. Each model allocation uses a number of threads defined by
+Increasing `number_of_allocations` means more threads are used to process
+multiple inference requests in parallel resulting in throughput improvement.
+Each model allocation uses a number of threads defined by
 `threads_per_allocation`.
 
-Model allocations are distributed across {ml} nodes. All allocations assigned
-to a node share the same copy of the model in memory. To avoid
-thread oversubscription which is detrimental to performance, model allocations
-are distributed in such a way that the total number of used threads does not
-surpass the node's allocated processors.
+Model allocations are distributed across {ml} nodes. All allocations assigned to
+a node share the same copy of the model in memory. To avoid thread
+oversubscription which is detrimental to performance, model allocations are
+distributed in such a way that the total number of used threads does not surpass
+the node's allocated processors.
 
 [[start-trained-model-deployment-path-params]]
 == {api-path-parms-title}
@@ -57,33 +60,60 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `cache_size`::
 (Optional, <<byte-units,byte value>>)
-The inference cache size (in memory outside the JVM heap) per node for the model.
-The default value is the same size as the `model_size_bytes`. To disable the cache, `0b` can be provided.
+The inference cache size (in memory outside the JVM heap) per node for the
+model. The default value is the size of the model as reported by the
+`model_size_bytes` field in the <<get-trained-models-stats>>. To disable the
+cache, `0b` can be provided.
+
+`deployment_id`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+Defaults to `model_id`.
 
 `number_of_allocations`::
 (Optional, integer)
 The total number of allocations this model is assigned across {ml} nodes.
-Increasing this value generally increases the throughput.
-Defaults to 1.
+Increasing this value generally increases the throughput. Defaults to 1.
+
+`priority`::
+(Optional, string)
+The priority of the deployment. The default value is `normal`.
+There are two priority settings:
++
+--
+* `normal`: Use this for deployments in production. The deployment allocations
+are distributed so that node processors are not oversubscribed.
+* `low`: Use this for testing model functionality. The intention is that these
+deployments are not sent a high volume of input. The deployment is required to
+have a single allocation with just one thread. Low priority deployments may be
+assigned on nodes that already utilize all their processors but will be given a
+lower CPU priority than normal deployments. Low priority deployments may be
+unassigned in order to satisfy more allocations of normal priority deployments.
+--
+
+WARNING: Heavy usage of low priority deployments may impact performance of
+normal priority deployments.
 
 `queue_capacity`::
 (Optional, integer)
 Controls how many inference requests are allowed in the queue at a time.
 Every machine learning node in the cluster where the model can be allocated
 has a queue of this size; when the number of requests exceeds the total value,
-new requests are rejected with a 429 error. Defaults to 1024. Max allowed value is 1000000.
+new requests are rejected with a 429 error. Defaults to 1024. Max allowed value
+is 1000000.
 
 `threads_per_allocation`::
 (Optional, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases
-the speed per inference request. The inference process is a compute-bound process;
-`threads_per_allocations` must not exceed the number of available allocated processors per node.
-Defaults to 1. Must be a power of 2. Max allowed value is 32.
+Sets the number of threads used by each model allocation during inference. This
+generally increases the speed per inference request. The inference process is a
+compute-bound process; `threads_per_allocations` must not exceed the number of
+available allocated processors per node. Defaults to 1. Must be a power of 2.
+Max allowed value is 32.
 
 `timeout`::
 (Optional, time)
-Controls the amount of time to wait for the model to deploy. Defaults
-to 20 seconds.
+Controls the amount of time to wait for the model to deploy. Defaults to 30
+seconds.
 
 `wait_for`::
 (Optional, string)
@@ -116,7 +146,8 @@ The API returns the following results:
             "model_bytes": 265632637,
             "threads_per_allocation" : 1,
             "number_of_allocations" : 1,
-            "queue_capacity" : 1024
+            "queue_capacity" : 1024,
+            "priority": "normal"
         },
         "routing_table": {
             "uckeG3R8TLe2MMNBQ6AGrw": {
@@ -129,3 +160,25 @@ The API returns the following results:
     }
 }
 ----
+
+
+[[start-trained-model-deployment-deployment-id-example]]
+=== Using deployment IDs
+
+The following example starts a new deployment for the `my_model` trained model 
+with the ID `my_model_for_ingest`. The deployment ID an be used in {infer} API 
+calls or in {infer} processors.
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/my_model/deployment/_start?deployment_id=my_model_for_ingest
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The `my_model` trained model can be deployed again with a different ID:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/my_model/deployment/_start?deployment_id=my_model_for_search
+--------------------------------------------------
+// TEST[skip:TBD]

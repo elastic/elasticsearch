@@ -13,15 +13,13 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
+import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,7 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class IndicesSegmentResponse extends BaseBroadcastResponse implements ChunkedToXContent {
+public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
     private final ShardSegments[] shards;
 
@@ -79,72 +77,72 @@ public class IndicesSegmentResponse extends BaseBroadcastResponse implements Chu
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
-        return Iterators.concat(Iterators.single(((builder, params) -> {
-            builder.startObject();
-            RestActions.buildBroadcastShardsHeader(builder, params, this);
-            return builder.startObject(Fields.INDICES);
-        })), getIndices().values().stream().map(indexSegments -> (ToXContent) (builder, params) -> {
-            builder.startObject(indexSegments.getIndex());
+    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
+        return Iterators.concat(
+            Iterators.single((builder, p) -> builder.startObject(Fields.INDICES)),
+            getIndices().values().stream().map(indexSegments -> (ToXContent) (builder, p) -> {
+                builder.startObject(indexSegments.getIndex());
 
-            builder.startObject(Fields.SHARDS);
-            for (IndexShardSegments indexSegment : indexSegments) {
-                builder.startArray(Integer.toString(indexSegment.shardId().id()));
-                for (ShardSegments shardSegments : indexSegment) {
-                    builder.startObject();
+                builder.startObject(Fields.SHARDS);
+                for (IndexShardSegments indexSegment : indexSegments) {
+                    builder.startArray(Integer.toString(indexSegment.shardId().id()));
+                    for (ShardSegments shardSegments : indexSegment) {
+                        builder.startObject();
 
-                    builder.startObject(Fields.ROUTING);
-                    builder.field(Fields.STATE, shardSegments.getShardRouting().state());
-                    builder.field(Fields.PRIMARY, shardSegments.getShardRouting().primary());
-                    builder.field(Fields.NODE, shardSegments.getShardRouting().currentNodeId());
-                    if (shardSegments.getShardRouting().relocatingNodeId() != null) {
-                        builder.field(Fields.RELOCATING_NODE, shardSegments.getShardRouting().relocatingNodeId());
-                    }
-                    builder.endObject();
-
-                    builder.field(Fields.NUM_COMMITTED_SEGMENTS, shardSegments.getNumberOfCommitted());
-                    builder.field(Fields.NUM_SEARCH_SEGMENTS, shardSegments.getNumberOfSearch());
-
-                    builder.startObject(Fields.SEGMENTS);
-                    for (Segment segment : shardSegments) {
-                        builder.startObject(segment.getName());
-                        builder.field(Fields.GENERATION, segment.getGeneration());
-                        builder.field(Fields.NUM_DOCS, segment.getNumDocs());
-                        builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
-                        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                            builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(0));
-                        }
-                        builder.field(Fields.COMMITTED, segment.isCommitted());
-                        builder.field(Fields.SEARCH, segment.isSearch());
-                        if (segment.getVersion() != null) {
-                            builder.field(Fields.VERSION, segment.getVersion());
-                        }
-                        if (segment.isCompound() != null) {
-                            builder.field(Fields.COMPOUND, segment.isCompound());
-                        }
-                        if (segment.getMergeId() != null) {
-                            builder.field(Fields.MERGE_ID, segment.getMergeId());
-                        }
-                        if (segment.getSegmentSort() != null) {
-                            toXContent(builder, segment.getSegmentSort());
-                        }
-                        if (segment.attributes != null && segment.attributes.isEmpty() == false) {
-                            builder.field("attributes", segment.attributes);
+                        builder.startObject(Fields.ROUTING);
+                        builder.field(Fields.STATE, shardSegments.getShardRouting().state());
+                        builder.field(Fields.PRIMARY, shardSegments.getShardRouting().primary());
+                        builder.field(Fields.NODE, shardSegments.getShardRouting().currentNodeId());
+                        if (shardSegments.getShardRouting().relocatingNodeId() != null) {
+                            builder.field(Fields.RELOCATING_NODE, shardSegments.getShardRouting().relocatingNodeId());
                         }
                         builder.endObject();
+
+                        builder.field(Fields.NUM_COMMITTED_SEGMENTS, shardSegments.getNumberOfCommitted());
+                        builder.field(Fields.NUM_SEARCH_SEGMENTS, shardSegments.getNumberOfSearch());
+
+                        builder.startObject(Fields.SEGMENTS);
+                        for (Segment segment : shardSegments) {
+                            builder.startObject(segment.getName());
+                            builder.field(Fields.GENERATION, segment.getGeneration());
+                            builder.field(Fields.NUM_DOCS, segment.getNumDocs());
+                            builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
+                            builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
+                            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                                builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, ByteSizeValue.ZERO);
+                            }
+                            builder.field(Fields.COMMITTED, segment.isCommitted());
+                            builder.field(Fields.SEARCH, segment.isSearch());
+                            if (segment.getVersion() != null) {
+                                builder.field(Fields.VERSION, segment.getVersion());
+                            }
+                            if (segment.isCompound() != null) {
+                                builder.field(Fields.COMPOUND, segment.isCompound());
+                            }
+                            if (segment.getMergeId() != null) {
+                                builder.field(Fields.MERGE_ID, segment.getMergeId());
+                            }
+                            if (segment.getSegmentSort() != null) {
+                                toXContent(builder, segment.getSegmentSort());
+                            }
+                            if (segment.attributes != null && segment.attributes.isEmpty() == false) {
+                                builder.field("attributes", segment.attributes);
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+
+                        builder.endObject();
                     }
-                    builder.endObject();
-
-                    builder.endObject();
+                    builder.endArray();
                 }
-                builder.endArray();
-            }
-            builder.endObject();
+                builder.endObject();
 
-            builder.endObject();
-            return builder;
-        }).iterator(), Iterators.single((builder, params) -> builder.endObject().endObject()));
+                builder.endObject();
+                return builder;
+            }).iterator(),
+            Iterators.single((builder, p) -> builder.endObject())
+        );
     }
 
     private static void toXContent(XContentBuilder builder, Sort sort) throws IOException {

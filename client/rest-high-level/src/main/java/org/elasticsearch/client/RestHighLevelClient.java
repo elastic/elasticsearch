@@ -19,48 +19,29 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.aggregations.bucket.ParsedAdjacencyMatrix;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
+import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.histogram.ParsedAutoDateHistogram;
+import org.elasticsearch.aggregations.bucket.timeseries.ParsedTimeSeries;
+import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.client.analytics.StringStatsAggregationBuilder;
 import org.elasticsearch.client.analytics.TopMetricsAggregationBuilder;
-import org.elasticsearch.client.core.CountRequest;
-import org.elasticsearch.client.core.CountResponse;
-import org.elasticsearch.client.core.GetSourceRequest;
-import org.elasticsearch.client.core.GetSourceResponse;
-import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
-import org.elasticsearch.client.core.TermVectorsRequest;
-import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -77,10 +58,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoTileGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.ParsedAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedVariableWidthHistogram;
@@ -151,7 +130,6 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -163,8 +141,6 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.timeseries.ParsedTimeSeries;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
@@ -198,7 +174,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -325,6 +300,10 @@ public class RestHighLevelClient implements Closeable {
         return client;
     }
 
+    public final XContentParserConfiguration getParserConfig() {
+        return parserConfig;
+    }
+
     @Override
     public final void close() throws IOException {
         doClose.accept(client);
@@ -361,223 +340,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a reindex request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
-     * @param reindexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            reindexRequest,
-            RequestConverters::reindex,
-            options,
-            BulkByScrollResponse::fromXContent,
-            singleton(409)
-        );
-    }
-
-    /**
-     * Executes a update by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
-     * @param updateByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final BulkByScrollResponse updateByQuery(UpdateByQueryRequest updateByQueryRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            updateByQueryRequest,
-            RequestConverters::updateByQuery,
-            options,
-            BulkByScrollResponse::fromXContent,
-            singleton(409)
-        );
-    }
-
-    /**
-     * Executes a delete by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
-     * @param deleteByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            deleteByQueryRequest,
-            RequestConverters::deleteByQuery,
-            options,
-            BulkByScrollResponse::fromXContent,
-            singleton(409)
-        );
-    }
-
-    /**
-     * Get the cluster info otherwise provided when sending an HTTP request to '/'
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final MainResponse info(RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            new MainRequest(),
-            (request) -> RequestConverters.info(),
-            options,
-            MainResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Retrieves a document by id using the Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
-     * @param getRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, singleton(404));
-    }
-
-    /**
-     * Retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
-     * @param multiGetRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @deprecated use {@link #mget(MultiGetRequest, RequestOptions)} instead
-     */
-    @Deprecated
-    public final MultiGetResponse multiGet(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
-        return mget(multiGetRequest, options);
-    }
-
-    /**
-     * Retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
-     * @param multiGetRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final MultiGetResponse mget(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            multiGetRequest,
-            RequestConverters::multiGet,
-            options,
-            MultiGetResponse::fromXContent,
-            singleton(404)
-        );
-    }
-
-    /**
-     * Asynchronously retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
-     * @param multiGetRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @deprecated use {@link #mgetAsync(MultiGetRequest, RequestOptions, ActionListener)} instead
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public final Cancellable multiGetAsync(
-        MultiGetRequest multiGetRequest,
-        RequestOptions options,
-        ActionListener<MultiGetResponse> listener
-    ) {
-        return mgetAsync(multiGetRequest, options, listener);
-    }
-
-    /**
-     * Asynchronously retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
-     * @param multiGetRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
-        return performRequestAsyncAndParseEntity(
-            multiGetRequest,
-            RequestConverters::multiGet,
-            options,
-            MultiGetResponse::fromXContent,
-            listener,
-            singleton(404)
-        );
-    }
-
-    /**
-     * Checks for the existence of a document. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
-     * @param getRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return <code>true</code> if the document exists, <code>false</code> otherwise
-     */
-    public final boolean exists(GetRequest getRequest, RequestOptions options) throws IOException {
-        return performRequest(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, emptySet());
-    }
-
-    /**
-     * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
-     * @param getRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
-     */
-    @Deprecated
-    public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
-        GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
-        return performRequest(
-            getSourceRequest,
-            RequestConverters::sourceExists,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
-     * @param getRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
-        return performRequestAsync(
-            getSourceRequest,
-            RequestConverters::sourceExists,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Retrieves the source field only of a document using GetSource API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
-     * on elastic.co</a>
-     * @param getSourceRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public GetSourceResponse getSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            getSourceRequest,
-            RequestConverters::getSource,
-            options,
-            GetSourceResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
      * Index a document using the Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      * @param indexRequest the request
@@ -586,45 +348,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Executes a count request using the Count API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
-     * @param countRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final CountResponse count(CountRequest countRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Updates a document using the Update API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
-     * @param updateRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final UpdateResponse update(UpdateRequest updateRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Deletes a document by id using the Delete API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
-     * @param deleteRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            deleteRequest,
-            RequestConverters::delete,
-            options,
-            DeleteResponse::fromXContent,
-            singleton(404)
-        );
     }
 
     /**
@@ -664,96 +387,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
-     * @param multiSearchRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @deprecated use {@link #msearch(MultiSearchRequest, RequestOptions)} instead
-     */
-    @Deprecated
-    public final MultiSearchResponse multiSearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
-        return msearch(multiSearchRequest, options);
-    }
-
-    /**
-     * Executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
-     * @param multiSearchRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final MultiSearchResponse msearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            multiSearchRequest,
-            RequestConverters::multiSearch,
-            options,
-            MultiSearchResponse::fromXContext,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
-     * @param searchRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @deprecated use {@link #msearchAsync(MultiSearchRequest, RequestOptions, ActionListener)} instead
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public final Cancellable multiSearchAsync(
-        MultiSearchRequest searchRequest,
-        RequestOptions options,
-        ActionListener<MultiSearchResponse> listener
-    ) {
-        return msearchAsync(searchRequest, options, listener);
-    }
-
-    /**
-     * Asynchronously executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
-     * @param searchRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable msearchAsync(
-        MultiSearchRequest searchRequest,
-        RequestOptions options,
-        ActionListener<MultiSearchResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            searchRequest,
-            RequestConverters::multiSearch,
-            options,
-            MultiSearchResponse::fromXContext,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
-     * @param searchScrollRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @deprecated use {@link #scroll(SearchScrollRequest, RequestOptions)} instead
-     */
-    @Deprecated
-    public final SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
-        return scroll(searchScrollRequest, options);
-    }
-
-    /**
      * Executes a search using the Search Scroll API.
      * See <a
      * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
@@ -773,124 +406,11 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
-     * @param searchScrollRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @deprecated use {@link #scrollAsync(SearchScrollRequest, RequestOptions, ActionListener)} instead
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public final Cancellable searchScrollAsync(
-        SearchScrollRequest searchScrollRequest,
-        RequestOptions options,
-        ActionListener<SearchResponse> listener
-    ) {
-        return scrollAsync(searchScrollRequest, options, listener);
-    }
-
-    /**
-     * Asynchronously executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
-     * @param searchScrollRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable scrollAsync(
-        SearchScrollRequest searchScrollRequest,
-        RequestOptions options,
-        ActionListener<SearchResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            searchScrollRequest,
-            RequestConverters::searchScroll,
-            options,
-            SearchResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a request using the Explain API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
-     * @param explainRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
-        return performRequest(explainRequest, RequestConverters::explain, options, response -> {
-            CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser = parser -> ExplainResponse.fromXContent(
-                parser,
-                convertExistsResponse(response)
-            );
-            return parseEntity(response.getEntity(), entityParser);
-        }, singleton(404));
-    }
-
-    /**
-     * Calls the Term Vectors API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-termvectors.html">Term Vectors API on
-     * elastic.co</a>
-     *
-     * @param request   the request
-     * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     */
-    public final TermVectorsResponse termvectors(TermVectorsRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            request,
-            RequestConverters::termVectors,
-            options,
-            TermVectorsResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a request using the Field Capabilities API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
-     * on elastic.co</a>.
-     * @param fieldCapabilitiesRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            fieldCapabilitiesRequest,
-            RequestConverters::fieldCaps,
-            options,
-            FieldCapabilitiesResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(
-        Req request,
-        CheckedFunction<Req, Request, IOException> requestConverter,
-        RequestOptions options,
-        CheckedFunction<XContentParser, Resp, IOException> entityParser,
-        Set<Integer> ignores
-    ) throws IOException {
-        return performRequest(request, requestConverter, options, response -> parseEntity(response.getEntity(), entityParser), ignores);
-    }
-
-    /**
-     * Defines a helper method for performing a request and then parsing the returned entity using the provided entityParser.
-     */
-    protected final <Req extends Validatable, Resp> Resp performRequestAndParseEntity(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -1020,26 +540,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Defines a helper method for asynchronously performing a request.
-     * @return Cancellable instance that may be used to cancel the request
-     */
-    protected final <Req extends Validatable, Resp> Cancellable performRequestAsync(
-        Req request,
-        CheckedFunction<Req, Request, IOException> requestConverter,
-        RequestOptions options,
-        CheckedFunction<Response, Resp, IOException> responseConverter,
-        ActionListener<Resp> listener,
-        Set<Integer> ignores
-    ) {
-        Optional<ValidationException> validationException = request.validate();
-        if (validationException != null && validationException.isPresent()) {
-            listener.onFailure(validationException.get());
-            return Cancellable.NO_OP;
-        }
-        return internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
-    }
-
-    /**
      * Provides common functionality for asynchronously performing a request.
      * @return Cancellable instance that may be used to cancel the request
      */
@@ -1104,37 +604,6 @@ public class RestHighLevelClient implements Closeable {
         };
     }
 
-    final <Resp> ResponseListener wrapResponseListener404sOptional(
-        CheckedFunction<Response, Resp, IOException> responseConverter,
-        ActionListener<Optional<Resp>> actionListener
-    ) {
-        return new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                try {
-                    actionListener.onResponse(Optional.of(responseConverter.apply(response)));
-                } catch (Exception e) {
-                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
-                    onFailure(ioe);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                if (exception instanceof ResponseException responseException) {
-                    Response response = responseException.getResponse();
-                    if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
-                        actionListener.onResponse(Optional.empty());
-                    } else {
-                        actionListener.onFailure(parseResponseException(responseException));
-                    }
-                } else {
-                    actionListener.onFailure(exception);
-                }
-            }
-        };
-    }
-
     /**
      * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.
      * If a response body was returned, tries to parse it as an error returned from Elasticsearch.
@@ -1177,10 +646,6 @@ public class RestHighLevelClient implements Closeable {
         try (XContentParser parser = xContentType.xContent().createParser(parserConfig, entity.getContent())) {
             return entityParser.apply(parser);
         }
-    }
-
-    protected static boolean convertExistsResponse(Response response) {
-        return response.getStatusLine().getStatusCode() == 200;
     }
 
     private enum EntityType {
@@ -1383,7 +848,9 @@ public class RestHighLevelClient implements Closeable {
 
         Optional<String> versionValidation;
         try {
-            versionValidation = getVersionValidationFuture().get();
+            final var future = new PlainActionFuture<Optional<String>>();
+            getVersionValidationFuture().addListener(future);
+            versionValidation = future.get();
         } catch (InterruptedException | ExecutionException e) {
             // Unlikely to happen
             throw new ElasticsearchException(e);

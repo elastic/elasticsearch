@@ -80,6 +80,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRoleDescriptorValidation() {
+        final String[] unknownWorkflows = randomArray(1, 2, String[]::new, () -> randomAlphaOfLengthBetween(4, 10));
         final var request = new BulkUpdateApiKeyRequest(
             randomList(1, 5, () -> randomAlphaOfLength(10)),
             List.of(
@@ -97,7 +98,9 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
-                    null
+                    null,
+                    null,
+                    new RoleDescriptor.Restriction(unknownWorkflows)
                 )
             ),
             null
@@ -109,5 +112,8 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
         assertThat(ve.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        for (int i = 0; i < unknownWorkflows.length; i++) {
+            assertThat(ve.validationErrors().get(5 + i), containsStringIgnoringCase("unknown workflow [" + unknownWorkflows[i] + "]"));
+        }
     }
 }

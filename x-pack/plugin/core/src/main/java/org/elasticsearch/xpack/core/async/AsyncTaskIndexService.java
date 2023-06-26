@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -314,7 +315,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         response,
                         e,
                         // at end, we should report a failure to the listener
-                        ActionListener.wrap(() -> newListener.onFailure(e))
+                        ActionListener.running(() -> newListener.onFailure(e))
                     );
                 } else {
                     listener.onFailure(e);
@@ -428,8 +429,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             try {
                 final BytesReference source = getResponse.getSourceInternal();
                 // reserve twice memory of the source length: one for the internal XContent parser and one for the response
-                final int reservedBytes = source.length() * 2;
-                circuitBreaker.addEstimateBytesAndMaybeBreak(source.length() * 2L, "decode async response");
+                final long reservedBytes = source.length() * 2L;
+                circuitBreaker.addEstimateBytesAndMaybeBreak(reservedBytes, "decode async response");
                 listener = ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-reservedBytes));
                 resp = parseResponseFromIndex(asyncExecutionId, source, restoreResponseHeaders, checkAuthentication);
             } catch (Exception e) {
@@ -568,13 +569,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void writeResponse(R response, OutputStream os) throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        Version.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {
+        TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
+        TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
+        if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setVersion(minNodeVersion);
+            out.setTransportVersion(minNodeVersion);
             response.writeTo(out);
         }
     }
@@ -593,13 +594,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 }
             }
         });
-        final Version version = Version.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
-        if (version.onOrAfter(Version.V_7_15_0)) {
+        TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
+        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        if (version.onOrAfter(TransportVersion.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             return reader.read(in);
         }
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContent {
+public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
@@ -76,7 +76,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
+        this.responseMap = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readList(FieldCapabilitiesFailure::new);
     }
@@ -136,7 +136,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
-        return in.readMap(StreamInput::readString, FieldCapabilities::new);
+        return in.readMap(FieldCapabilities::new);
     }
 
     @Override
@@ -152,7 +152,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (indexResponses.size() > 0) {
             throw new IllegalStateException("cannot serialize non-merged response");
         }
@@ -241,6 +241,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public String toString() {
+        if (indexResponses.size() > 0) {
+            return "FieldCapabilitiesResponse{unmerged}";
+        }
         return Strings.toString(this);
     }
 }

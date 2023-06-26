@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,9 +58,13 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
         super(in, new FieldExtractor("lat", SpatialPoint::getY), new FieldExtractor("lon", SpatialPoint::getX));
     }
 
+    public static InternalGeoCentroid empty(String name, Map<String, Object> metadata) {
+        return new InternalGeoCentroid(name, null, 0L, metadata);
+    }
+
     @Override
     protected GeoPoint centroidFromStream(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             return new GeoPoint(in.readDouble(), in.readDouble());
         } else {
             final long hash = in.readLong();
@@ -70,7 +74,7 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
 
     @Override
     protected void centroidToStream(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             out.writeDouble(centroid.getY());
             out.writeDouble(centroid.getX());
         } else {

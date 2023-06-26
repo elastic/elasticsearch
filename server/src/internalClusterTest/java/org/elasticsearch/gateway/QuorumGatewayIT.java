@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -18,7 +19,6 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -62,7 +62,9 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                         ClusterHealthResponse clusterHealth = activeClient.admin()
                             .cluster()
                             .health(
-                                clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)
+                                new ClusterHealthRequest(new String[] {}).waitForYellowStatus()
+                                    .waitForNodes("2")
+                                    .waitForActiveShards(test.numPrimaries * 2)
                             )
                             .actionGet();
                         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());

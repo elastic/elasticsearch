@@ -1,5 +1,5 @@
 [[mapper-size]]
-=== Mapper Size Plugin
+=== Mapper size plugin
 
 The mapper-size plugin provides the `_size` metadata field which, when enabled,
 indexes the size in bytes of the original

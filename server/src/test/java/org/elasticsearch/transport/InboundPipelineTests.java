@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -25,11 +25,11 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
@@ -52,7 +52,7 @@ public class InboundPipelineTests extends ESTestCase {
             try {
                 final Header header = m.getHeader();
                 final MessageData actualData;
-                final Version version = header.getVersion();
+                final TransportVersion version = header.getVersion();
                 final boolean isRequest = header.isRequest();
                 final long requestId = header.getRequestId();
                 final Compression.Scheme compressionScheme = header.getCompressionScheme();
@@ -78,7 +78,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
+        final InboundDecoder decoder = new InboundDecoder(TransportVersion.current(), recycler);
         final String breakThisAction = "break_this_action";
         final String actionName = "actionName";
         final Predicate<String> canTripBreaker = breakThisAction::equals;
@@ -98,7 +98,7 @@ public class InboundPipelineTests extends ESTestCase {
             toRelease.clear();
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
-                    final Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+                    final TransportVersion version = randomFrom(TransportVersion.current(), TransportVersion.MINIMUM_COMPATIBLE);
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
                     Compression.Scheme compressionScheme = getCompressionScheme(version);
@@ -192,7 +192,7 @@ public class InboundPipelineTests extends ESTestCase {
         }
     }
 
-    private static Compression.Scheme getCompressionScheme(Version version) {
+    private static Compression.Scheme getCompressionScheme(TransportVersion version) {
         if (randomBoolean()) {
             return null;
         } else {
@@ -208,14 +208,14 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
+        final InboundDecoder decoder = new InboundDecoder(TransportVersion.current(), recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
-            final Version invalidVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+            final TransportVersion invalidVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
             final String value = randomAlphaOfLength(1000);
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
@@ -253,14 +253,14 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
+        final InboundDecoder decoder = new InboundDecoder(TransportVersion.current(), recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
-            final Version version = Version.CURRENT;
+            final TransportVersion version = TransportVersion.current();
             final String value = randomAlphaOfLength(1000);
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
@@ -273,7 +273,7 @@ public class InboundPipelineTests extends ESTestCase {
             }
 
             final BytesReference reference = message.serialize(streamOutput);
-            final int fixedHeaderSize = TcpHeader.headerSize(Version.CURRENT);
+            final int fixedHeaderSize = TcpHeader.headerSize(TransportVersion.current());
             final int variableHeaderSize = reference.getInt(fixedHeaderSize - 4);
             final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);
@@ -297,47 +297,12 @@ public class InboundPipelineTests extends ESTestCase {
         }
     }
 
-    private static class MessageData {
-
-        private final Version version;
-        private final long requestId;
-        private final boolean isRequest;
-        private final Compression.Scheme compressionScheme;
-        private final String value;
-        private final String actionName;
-
-        private MessageData(
-            Version version,
-            long requestId,
-            boolean isRequest,
-            Compression.Scheme compressionScheme,
-            String actionName,
-            String value
-        ) {
-            this.version = version;
-            this.requestId = requestId;
-            this.isRequest = isRequest;
-            this.compressionScheme = compressionScheme;
-            this.actionName = actionName;
-            this.value = value;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            MessageData that = (MessageData) o;
-            return requestId == that.requestId
-                && isRequest == that.isRequest
-                && Objects.equals(compressionScheme, that.compressionScheme)
-                && Objects.equals(version, that.version)
-                && Objects.equals(value, that.value)
-                && Objects.equals(actionName, that.actionName);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(version, requestId, isRequest, compressionScheme, value, actionName);
-        }
-    }
+    private record MessageData(
+        TransportVersion version,
+        long requestId,
+        boolean isRequest,
+        Compression.Scheme compressionScheme,
+        String actionName,
+        String value
+    ) {}
 }

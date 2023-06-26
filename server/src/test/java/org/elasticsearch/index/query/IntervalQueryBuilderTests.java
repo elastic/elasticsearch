@@ -180,7 +180,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testMatchInterval() throws IOException {
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -196,7 +196,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = formatted("""
+        json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -215,7 +215,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = formatted("""
+        json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -235,7 +235,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = formatted("""
+        json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -256,7 +256,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = formatted("""
+        json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -278,7 +278,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = formatted("""
+        json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -312,7 +312,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testOrInterval() throws IOException {
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -337,7 +337,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.or(Intervals.term("one"), Intervals.term("two")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = formatted("""
+        json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -375,7 +375,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testCombineInterval() throws IOException {
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -427,7 +427,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testCombineDisjunctionInterval() throws IOException {
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -503,7 +503,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         });
         assertThat(e.getMessage(), equalTo("Cannot create intervals over field [" + NO_POSITIONS_FIELD + "] with no positions indexed"));
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -526,7 +526,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testMultipleProviders() {
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -566,7 +566,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }
         };
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -594,7 +594,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testPrefixes() throws IOException {
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -608,7 +608,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.prefix(new BytesRef("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String no_positions_json = formatted("""
+        String no_positions_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -623,7 +623,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String no_positions_fixed_field_json = formatted("""
+        String no_positions_fixed_field_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -639,7 +639,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String prefix_json = formatted("""
+        String prefix_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -653,7 +653,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String short_prefix_json = formatted("""
+        String short_prefix_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -670,7 +670,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String fix_field_prefix_json = formatted("""
+        String fix_field_prefix_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -689,7 +689,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String keyword_json = formatted("""
+        String keyword_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -704,7 +704,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String keyword_fix_field_json = formatted("""
+        String keyword_fix_field_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -727,7 +727,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testWildcard() throws IOException {
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -742,7 +742,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String no_positions_json = formatted("""
+        String no_positions_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -758,7 +758,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String keyword_json = formatted("""
+        String keyword_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -774,7 +774,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("Te?m")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String fixed_field_json = formatted("""
+        String fixed_field_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -790,7 +790,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("te?m"))));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String fixed_field_json_no_positions = formatted("""
+        String fixed_field_json_no_positions = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -806,7 +806,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String fixed_field_analyzer_json = formatted("""
+        String fixed_field_analyzer_json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -831,7 +831,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testFuzzy() throws IOException {
 
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -849,7 +849,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_prefix = formatted("""
+        String json_with_prefix = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -864,7 +864,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_fuzziness = formatted("""
+        String json_with_fuzziness = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -880,7 +880,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_no_transpositions = formatted("""
+        String json_no_transpositions = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -896,7 +896,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, false, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_analyzer = formatted("""
+        String json_with_analyzer = Strings.format("""
             {
               "intervals": {
                 "%s": {
@@ -912,7 +912,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("Term", "Term", 2, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_fixfield = formatted("""
+        String json_with_fixfield = Strings.format("""
             {
               "intervals": {
                 "%s": {

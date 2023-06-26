@@ -1,6 +1,0 @@
-pr: 90421
-summary: Handling timeout exceptions on watcher startup
-area: Watcher
-type: bug
-issues:
- - 44981

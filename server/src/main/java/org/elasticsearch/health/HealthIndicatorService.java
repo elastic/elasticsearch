@@ -17,12 +17,21 @@ import java.util.stream.Collectors;
 
 /**
  * This is a service interface used to calculate health indicator from the different modules or plugins.
+
+ * NOTE: if you are adding the name of an indicator or the id of a diagnosis you need to update the configuration
+ * of the health-api-indexer in the telemetry repository so the new/changed fields will be indexed properly.
  */
 public interface HealthIndicatorService {
 
+    int MAX_AFFECTED_RESOURCES_COUNT = 1000;
+
     String name();
 
-    HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo);
+    default HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        return calculate(verbose, MAX_AFFECTED_RESOURCES_COUNT, healthInfo);
+    }
+
+    HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the

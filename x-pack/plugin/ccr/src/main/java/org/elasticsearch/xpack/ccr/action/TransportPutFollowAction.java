@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
@@ -46,11 +45,14 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
 
 public final class TransportPutFollowAction extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
@@ -60,7 +62,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     private final Client client;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public TransportPutFollowAction(
@@ -89,7 +90,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         this.client = client;
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
     @Override
@@ -191,56 +191,44 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             threadPool.getThreadContext().getHeaders(),
             clusterService.state()
         );
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+        ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
+            (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
+        );
+        if (remoteDataStream == null) {
+            // If the index we're following is not part of a data stream, start the
+            // restoration of the index normally.
+            restoreService.restoreSnapshot(restoreRequest, delegatelistener);
+        } else {
+            String followerIndexName = request.getFollowerIndex();
+            // This method is used to update the metadata in the same cluster state
+            // update as the snapshot is restored.
+            BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
+                final String localDataStreamName;
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            protected void doRun() {
-                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
-                    (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
-                );
-                if (remoteDataStream == null) {
-                    // If the index we're following is not part of a data stream, start the
-                    // restoration of the index normally.
-                    restoreService.restoreSnapshot(restoreRequest, delegatelistener);
+                // If we have been given a data stream name, use that name for the local
+                // data stream. See the javadoc for AUTO_FOLLOW_PATTERN_REPLACEMENT
+                // for more info.
+                final String dsName = request.getDataStreamName();
+                if (Strings.hasText(dsName)) {
+                    localDataStreamName = dsName;
                 } else {
-                    String followerIndexName = request.getFollowerIndex();
-                    // This method is used to update the metadata in the same cluster state
-                    // update as the snapshot is restored.
-                    BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
-                        final String localDataStreamName;
-
-                        // If we have been given a data stream name, use that name for the local
-                        // data stream. See the javadoc for AUTO_FOLLOW_PATTERN_REPLACEMENT
-                        // for more info.
-                        final String dsName = request.getDataStreamName();
-                        if (Strings.hasText(dsName)) {
-                            localDataStreamName = dsName;
-                        } else {
-                            // There was no specified name, use the original data stream name.
-                            localDataStreamName = remoteDataStream.getName();
-                        }
-                        final DataStream localDataStream = mdBuilder.dataStreamMetadata().dataStreams().get(localDataStreamName);
-                        final Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
-                        assert followerIndex != null
-                            : "expected followerIndex " + followerIndexName + " to exist in the state, but it did not";
-
-                        final DataStream updatedDataStream = updateLocalDataStream(
-                            followerIndex,
-                            localDataStream,
-                            localDataStreamName,
-                            remoteDataStream
-                        );
-                        mdBuilder.put(updatedDataStream);
-                    };
-                    restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
+                    // There was no specified name, use the original data stream name.
+                    localDataStreamName = remoteDataStream.getName();
                 }
-            }
-        });
+                final DataStream localDataStream = mdBuilder.dataStreamMetadata().dataStreams().get(localDataStreamName);
+                final Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
+                assert followerIndex != null : "expected followerIndex " + followerIndexName + " to exist in the state, but it did not";
+
+                final DataStream updatedDataStream = updateLocalDataStream(
+                    followerIndex,
+                    localDataStream,
+                    localDataStreamName,
+                    remoteDataStream
+                );
+                mdBuilder.put(updatedDataStream);
+            };
+            restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
+        }
     }
 
     private void afterRestoreStarted(
@@ -301,15 +289,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
-            ActionListener.wrap(
-                r -> activeShardsObserver.waitForActiveShards(
+            listener.delegateFailureAndWrap(
+                (l, r) -> ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
                     request.timeout(),
-                    result -> listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),
-                    listener::onFailure
-                ),
-                listener::onFailure
+                    l.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
+                )
             )
         );
     }
@@ -338,7 +325,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 true,
                 remoteDataStream.isSystem(),
                 remoteDataStream.isAllowCustomRouting(),
-                remoteDataStream.getIndexMode()
+                remoteDataStream.getIndexMode(),
+                remoteDataStream.getLifecycle()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -358,8 +346,22 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 // When following an older backing index it should be positioned before the newer backing indices.
                 // Currently the assumption is that the newest index (highest generation) is the write index.
                 // (just appending an older backing index to the list of backing indices would break that assumption)
-                // (string sorting works because of the naming backing index naming scheme)
-                backingIndices.sort(Index.COMPARE_BY_NAME);
+                // Not all backing indices follow the data stream backing indices naming convention (e.g. some might start with
+                // "restored-" if they're mounted indices, "shrink-" if they were shrunk, or miscellaneously named indices could be added
+                // to the data stream using the modify data stream API) so we use a comparator that partitions the non-standard backing
+                // indices at the beginning of the data stream (lower generations) and sorts them amongst themselves, and the rest of the
+                // indices (that contain `.ds-`) are sorted based on the original backing index name (ie. ignoring everything up to `.ds-`)
+                // The goal is to make sure the prefixed (usually read-only - shrink-, restored-, partial-) backing indices do not end
+                // up being the write index of the local data stream.
+
+                String partitionByBackingIndexBaseName = BACKING_INDEX_PREFIX + localDataStream.getName();
+                backingIndices.sort(
+                    Comparator.comparing((Index o) -> o.getName().contains(partitionByBackingIndexBaseName) ? 1 : -1)
+                        .thenComparing((Index o) -> {
+                            int backingPrefixPosition = o.getName().indexOf(BACKING_INDEX_PREFIX);
+                            return backingPrefixPosition > -1 ? o.getName().substring(backingPrefixPosition) : o.getName();
+                        })
+                );
             } else {
                 // edge case where the index was closed on the follower and was already in the datastream's index list
                 backingIndices = localDataStream.getIndices();
@@ -374,7 +376,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.isReplicated(),
                 localDataStream.isSystem(),
                 localDataStream.isAllowCustomRouting(),
-                localDataStream.getIndexMode()
+                localDataStream.getIndexMode(),
+                localDataStream.getLifecycle()
             );
         }
     }

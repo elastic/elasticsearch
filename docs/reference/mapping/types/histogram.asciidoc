@@ -69,10 +69,23 @@ means the field can technically be aggregated with either algorithm, in practice
 index data in that manner (e.g. centroids for T-Digest or intervals for HDRHistogram) to ensure best accuracy.
 
 [[histogram-synthetic-source]]
-==== Synthetic `_source` preview:[]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
 `histogram` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<ignore-malformed,`ignore_malformed`>> or <<copy-to,`copy_to`>>.
+
+NOTE: To save space, zero-count buckets are not stored in the histogram doc values.
+As a result, when indexing a histogram field in an index with synthetic source enabled,
+indexing a histogram including zero-count buckets will result in missing buckets when
+fetching back the histogram.
 
 [[histogram-ex]]
 ==== Examples

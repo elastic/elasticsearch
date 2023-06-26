@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -61,11 +62,7 @@ public class WeeklySchedule extends CronnableSchedule {
 
     static String[] crons(WeekTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        List<String> crons = new ArrayList<>(times.length);
-        for (WeekTimes time : times) {
-            crons.addAll(time.crons());
-        }
-        return crons.toArray(new String[crons.size()]);
+        return Arrays.stream(times).flatMap(wt -> wt.crons().stream()).toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<WeeklySchedule> {

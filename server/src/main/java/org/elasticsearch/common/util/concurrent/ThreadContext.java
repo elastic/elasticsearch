@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -102,17 +103,28 @@ public final class ThreadContext implements Writeable {
      * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
+        return stashContextPreservingRequestHeaders(Collections.emptySet());
+    }
+
+    /**
+     * Just like {@link #stashContext()} but preserves request headers specified via {@code requestHeaders},
+     * if these exist in the context before stashing.
+     */
+    public StoredContext stashContextPreservingRequestHeaders(Set<String> requestHeaders) {
         final ThreadContextStruct context = threadLocal.get();
 
         /*
+         * When the context is stashed, it should be empty, except for headers that were specified to be preserved via `requestHeaders`
+         * and a set of default headers such as X-Opaque-ID, which are always copied (specified via `Task.HEADERS_TO_COPY`).
+         *
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
-         * The same is applied to Task.TRACE_ID.
-         * Otherwise when context is stashed, it should be empty.
+         * The same is applied to Task.TRACE_ID and other values specified in `Task.HEADERS_TO_COPY`.
          */
+        final Set<String> requestHeadersToCopy = getRequestHeadersToCopy(requestHeaders);
         boolean hasHeadersToCopy = false;
         if (context.requestHeaders.isEmpty() == false) {
-            for (String header : HEADERS_TO_COPY) {
+            for (String header : requestHeadersToCopy) {
                 if (context.requestHeaders.containsKey(header)) {
                     hasHeadersToCopy = true;
                     break;
@@ -124,7 +136,7 @@ public final class ThreadContext implements Writeable {
 
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
         if (hasHeadersToCopy) {
-            Map<String, String> copiedHeaders = getHeadersToCopy(context);
+            Map<String, String> copiedHeaders = getHeadersPresentInContext(context, requestHeadersToCopy);
             threadContextStruct = DEFAULT_CONTEXT.putHeaders(copiedHeaders);
         }
         if (hasTransientHeadersToCopy) {
@@ -138,6 +150,10 @@ public final class ThreadContext implements Writeable {
         // If the node and thus the threadLocal get closed while this task is still executing, we don't want this runnable to fail with an
         // uncaught exception
         return storedOriginalContext(context);
+    }
+
+    public StoredContext stashContextPreservingRequestHeaders(final String... requestHeaders) {
+        return stashContextPreservingRequestHeaders(Set.of(requestHeaders));
     }
 
     /**
@@ -232,9 +248,18 @@ public final class ThreadContext implements Writeable {
         return () -> threadLocal.set(originalContext);
     }
 
-    private static Map<String, String> getHeadersToCopy(ThreadContextStruct context) {
-        Map<String, String> map = Maps.newMapWithExpectedSize(HEADERS_TO_COPY.size());
-        for (String header : HEADERS_TO_COPY) {
+    private static Set<String> getRequestHeadersToCopy(Set<String> requestHeaders) {
+        if (requestHeaders.isEmpty()) {
+            return HEADERS_TO_COPY;
+        }
+        final Set<String> allRequestHeadersToCopy = new HashSet<>(requestHeaders);
+        allRequestHeadersToCopy.addAll(HEADERS_TO_COPY);
+        return Set.copyOf(allRequestHeadersToCopy);
+    }
+
+    private static Map<String, String> getHeadersPresentInContext(ThreadContextStruct context, Set<String> headers) {
+        Map<String, String> map = Maps.newMapWithExpectedSize(headers.size());
+        for (String header : headers) {
             final String value = context.requestHeaders.get(header);
             if (value != null) {
                 map.put(header, value);
@@ -312,11 +337,29 @@ public final class ThreadContext implements Writeable {
 
     /**
      * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
-     * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
-     * restored by closing the returned {@link StoredContext}.
-     *
+     * to clear specific transient headers in the new context and {@code requestHeadersToClear} can be used to clear specific request
+     * headers. All original headers (without the {@code responseHeaders}) are restored by closing the returned {@link StoredContext}.
      */
-    public StoredContext newStoredContext(Collection<String> transientHeadersToClear) {
+    public StoredContext newStoredContext(Collection<String> transientHeadersToClear, Collection<String> requestHeadersToClear) {
+        return newStoredContext(false, transientHeadersToClear, requestHeadersToClear);
+    }
+
+    /**
+     * Just like {@link #newStoredContext(Collection, Collection)} but all headers are restored to original,
+     * except of {@code responseHeaders} which will be preserved from the restore thread.
+     */
+    public StoredContext newStoredContextPreservingResponseHeaders(
+        Collection<String> transientHeadersToClear,
+        Collection<String> requestHeadersToClear
+    ) {
+        return newStoredContext(true, transientHeadersToClear, requestHeadersToClear);
+    }
+
+    private StoredContext newStoredContext(
+        boolean preserveResponseHeaders,
+        Collection<String> transientHeadersToClear,
+        Collection<String> requestHeadersToClear
+    ) {
         final ThreadContextStruct originalContext = threadLocal.get();
         // clear specific transient headers from the current context
         Map<String, Object> newTransientHeaders = null;
@@ -328,18 +371,34 @@ public final class ThreadContext implements Writeable {
                 newTransientHeaders.remove(transientHeaderToClear);
             }
         }
-        // this is the context when this method returns
-        if (newTransientHeaders != null) {
+        Map<String, String> newRequestHeaders = null;
+        for (String requestHeaderToClear : requestHeadersToClear) {
+            if (originalContext.requestHeaders.containsKey(requestHeaderToClear)) {
+                if (newRequestHeaders == null) {
+                    newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+                }
+                newRequestHeaders.remove(requestHeaderToClear);
+            }
+        }
+        if (newTransientHeaders != null || newRequestHeaders != null) {
             ThreadContextStruct threadContextStruct = new ThreadContextStruct(
-                originalContext.requestHeaders,
+                newRequestHeaders != null ? newRequestHeaders : originalContext.requestHeaders,
                 originalContext.responseHeaders,
-                newTransientHeaders,
+                newTransientHeaders != null ? newTransientHeaders : originalContext.transientHeaders,
                 originalContext.isSystemContext,
                 originalContext.warningHeadersSize
             );
             threadLocal.set(threadContextStruct);
         }
-        return storedOriginalContext(originalContext);
+        // this is the context when this method returns
+        final ThreadContextStruct newContext = threadLocal.get();
+        return () -> {
+            if (preserveResponseHeaders && threadLocal.get() != newContext) {
+                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+            } else {
+                threadLocal.set(originalContext);
+            }
+        };
     }
 
     /**
@@ -404,8 +463,8 @@ public final class ThreadContext implements Writeable {
     }
 
     public static Tuple<Map<String, String>, Map<String, Set<String>>> readHeadersFromStream(StreamInput in) throws IOException {
-        final Map<String, String> requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
-        final Map<String, Set<String>> responseHeaders = in.readMap(StreamInput::readString, input -> {
+        final Map<String, String> requestHeaders = in.readMap(StreamInput::readString);
+        final Map<String, Set<String>> responseHeaders = in.readMap(input -> {
             final int size = input.readVInt();
             if (size == 0) {
                 return Collections.emptySet();
@@ -511,6 +570,13 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Returns unmodifiable copy of all transient headers.
+     */
+    public Map<String, Object> getTransientHeaders() {
+        return Collections.unmodifiableMap(threadLocal.get().transientHeaders);
+    }
+
+    /**
      * Add the {@code value} for the specified {@code key} Any duplicate {@code value} is ignored.
      *
      * @param key         the header name
@@ -574,7 +640,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Returns true if the current context is the default context.
      */
-    boolean isDefaultContext() {
+    public boolean isDefaultContext() {
         return threadLocal.get() == DEFAULT_CONTEXT;
     }
 

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -256,8 +256,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             index = in.readString();
             id = in.readString();
             source = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()) {
-                fetchFields = in.readMap(StreamInput::readString, DocumentField::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0) && in.readBoolean()) {
+                fetchFields = in.readMap(DocumentField::new);
             } else {
                 fetchFields = null;
             }
@@ -268,7 +268,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             out.writeString(index);
             out.writeString(id);
             out.writeBytesReference(source);
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
                 out.writeBoolean(fetchFields != null);
                 if (fetchFields != null) {
                     out.writeMap(fetchFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
@@ -417,7 +417,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (events.isEmpty() == false) {
                 builder.startArray(Fields.EVENTS);
                 for (Event event : events) {
-                    event.toXContent(builder, params);
+                    if (event == null) {
+                        builder.startObject();
+                        builder.field("missing", true);
+                        builder.endObject();
+                    } else {
+                        event.toXContent(builder, params);
+                    }
                 }
                 builder.endArray();
             }

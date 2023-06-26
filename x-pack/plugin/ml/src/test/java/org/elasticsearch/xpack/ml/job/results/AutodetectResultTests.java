@@ -129,7 +129,7 @@ public class AutodetectResultTests extends AbstractXContentSerializingTestCase<A
             categorizerStats = null;
         }
         if (randomBoolean()) {
-            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomInstant());
+            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomInstant(), randomBoolean());
         } else {
             flushAcknowledgement = null;
         }
@@ -148,6 +148,11 @@ public class AutodetectResultTests extends AbstractXContentSerializingTestCase<A
             categorizerStats == null ? null : categorizerStats.build(),
             flushAcknowledgement
         );
+    }
+
+    @Override
+    protected AutodetectResult mutateInstance(AutodetectResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

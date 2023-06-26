@@ -73,8 +73,38 @@ public class TrainedModelDefinitionTests extends AbstractXContentSerializingTest
         ).setTrainedModel(randomFrom(TreeTests.createRandom(targetType), EnsembleTests.createRandom(targetType)));
     }
 
+    public static TrainedModelDefinition.Builder createRandomBuilder(
+        TargetType targetType,
+        int numberOfProcessors,
+        int numberOfFeatures,
+        int numberOfModels,
+        int treeDepth
+    ) {
+        return new TrainedModelDefinition.Builder().setPreProcessors(
+            randomBoolean()
+                ? null
+                : Stream.generate(
+                    () -> randomFrom(
+                        FrequencyEncodingTests.createRandom(),
+                        OneHotEncodingTests.createRandom(),
+                        TargetMeanEncodingTests.createRandom()
+                    )
+                ).limit(numberOfProcessors).collect(Collectors.toList())
+        )
+            .setTrainedModel(
+                randomFrom(
+                    TreeTests.createRandom(targetType, numberOfFeatures, treeDepth),
+                    EnsembleTests.createRandom(targetType, numberOfFeatures, numberOfModels, treeDepth)
+                )
+            );
+    }
+
     public static TrainedModelDefinition.Builder createRandomBuilder() {
         return createRandomBuilder(randomFrom(TargetType.values()));
+    }
+
+    public static TrainedModelDefinition.Builder createSmallRandomBuilder() {
+        return createRandomBuilder(randomFrom(TargetType.values()), 2, 3, 2, 3);
     }
 
     public static final String ENSEMBLE_MODEL = """
@@ -282,6 +312,11 @@ public class TrainedModelDefinitionTests extends AbstractXContentSerializingTest
     @Override
     protected TrainedModelDefinition createTestInstance() {
         return createRandomBuilder().build();
+    }
+
+    @Override
+    protected TrainedModelDefinition mutateInstance(TrainedModelDefinition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

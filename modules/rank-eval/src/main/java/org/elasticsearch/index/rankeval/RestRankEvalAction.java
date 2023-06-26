@@ -14,6 +14,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -75,9 +77,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  *   }
  * }
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestRankEvalAction extends BaseRestHandler {
 
-    public static String ENDPOINT = "_rank_eval";
+    public static final String ENDPOINT = "_rank_eval";
 
     @Override
     public List<Route> routes() {

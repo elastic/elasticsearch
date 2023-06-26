@@ -103,7 +103,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
             }
 
         }, listener::onFailure);
-        final GroupedActionListener<Collection<User>> groupListener = new GroupedActionListener<>(sendingListener, 2);
+        final GroupedActionListener<Collection<User>> groupListener = new GroupedActionListener<>(2, sendingListener);
         // We have two sources for the users object, the reservedRealm and the usersStore, we query both at the same time with a
         // GroupedActionListener
         if (realmLookup.isEmpty()) {
@@ -117,7 +117,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         } else {
             // nested group listener action here - for each of the users we got and fetch it concurrently - once we are done we notify
             // the "global" group listener.
-            GroupedActionListener<User> realmGroupListener = new GroupedActionListener<>(groupListener, realmLookup.size());
+            GroupedActionListener<User> realmGroupListener = new GroupedActionListener<>(realmLookup.size(), groupListener);
             for (String user : realmLookup) {
                 reservedRealm.lookupUser(user, realmGroupListener);
             }

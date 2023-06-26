@@ -6,14 +6,17 @@
 <titleabbrev>Infer trained model</titleabbrev>
 ++++
 
-Evaluates a trained model. The model may be any supervised model either trained by {dfanalytics} or imported.
+Evaluates a trained model. The model may be any supervised model either trained
+by {dfanalytics} or imported.
 
-beta::[]
+NOTE: For model deployments with caching enabled, results may be returned
+directly from the {infer} cache.
 
 [[infer-trained-model-request]]
 == {api-request-title}
 
 `POST _ml/trained_models/<model_id>/_infer`
+`POST _ml/trained_models/<deployment_id>/_infer`
 
 ////
 [[infer-trained-model-prereq]]
@@ -30,8 +33,15 @@ beta::[]
 == {api-path-parms-title}
 
 `<model_id>`::
-(Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
+If you specify the `model_id` in the API call, and the model has multiple 
+deployments, a random deployment will be used. If the `model_id` matches the ID 
+of one of the deployments, that deployment will be used.
+
+`<deployment_id>`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 [[infer-trained-model-query-params]]
 == {api-query-parms-title}
@@ -47,9 +57,7 @@ Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 (Required, array)
 An array of objects to pass to the model for inference. The objects should
 contain the fields matching your configured trained model input. Typically for
-NLP models, the field name is `text_field`. Currently for NLP models, only a
-single value is allowed. For {dfanalytics} or imported classification or
-regression models, more than one value is allowed.
+NLP models, the field name is `text_field`.
 
 //Begin inference_config
 `inference_config`::
@@ -102,7 +110,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
 =====
 `num_top_classes`::::
 (Optional, integer)
-Number of top predicted tokens to return for replacing the mask token. Defaults to `0`.
+Number of top predicted tokens to return for replacing the mask token. Defaults
+to `0`.
 
 `results_field`::::
 (Optional, string)
@@ -142,6 +151,28 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
 [%collapsible%open]
 =======
 `truncate`::::
@@ -202,6 +233,28 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
 ======
 =====
 
@@ -256,6 +309,28 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
 ======
 =====
 
@@ -272,7 +347,8 @@ The maximum amount of words in the answer. Defaults to `15`.
 
 `num_top_classes`::::
 (Optional, integer)
-The number the top found answers to return. Defaults to `0`, meaning only the best found answer is returned.
+The number the top found answers to return. Defaults to `0`, meaning only the
+best found answer is returned.
 
 `question`::::
 (Required, string)
@@ -337,6 +413,36 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
 ======
 =====
 
@@ -368,7 +474,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 
 `num_top_classes`::::
 (Optional, integer)
-Specifies the number of top class predictions to return. Defaults to all classes (-1).
+Specifies the number of top class predictions to return. Defaults to all classes
+(-1).
 
 `results_field`::::
 (Optional, string)
@@ -416,6 +523,36 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
 [%collapsible%open]
 =======
 `span`::::
@@ -479,9 +616,31 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
 ======
 =====
-`text_similarity`::::
+`text_similarity`:::
 (Object, optional)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
 +
@@ -548,6 +707,36 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`with_special_tokens`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
+=======
 ======
 =====
 `zero_shot_classification`:::
@@ -609,6 +798,28 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
+`xlm_roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`bert_ja`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
 ======
 =====
 ====
@@ -629,7 +840,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 
 The response depends on the kind of model.
 
-For example, for {lang-ident} the response is the predicted language and the 
+For example, for {lang-ident} the response is the predicted language and the
 score:
 
 [source,console]
@@ -658,7 +869,7 @@ Here are the results predicting english with a high probability.
 // NOTCONSOLE
 
 
-When it is a text classification model, the response is the score and predicted 
+When it is a text classification model, the response is the score and predicted
 classification.
 
 For example:
@@ -822,8 +1033,8 @@ The API returns a response similar to the following:
 ----
 // NOTCONSOLE
 
-Text similarity models require at least two sequences of text to compare. It's 
-possible to provide multiple strings of text to compare to another text 
+Text similarity models require at least two sequences of text to compare. It's
+possible to provide multiple strings of text to compare to another text
 sequence:
 
 [source,console]
@@ -840,7 +1051,7 @@ POST _ml/trained_models/cross-encoder__ms-marco-tinybert-l-2-v2/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The response contains the prediction for every string that is compared to the 
+The response contains the prediction for every string that is compared to the
 text provided in the `text_similarity`.`text` field:
 
 [source,console-result]
@@ -879,8 +1090,8 @@ POST _ml/trained_models/model2/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-When the input has been truncated due to the limit imposed by the model's `max_sequence_length`
-the `is_truncated` field appears in the response.
+When the input has been truncated due to the limit imposed by the model's
+`max_sequence_length` the `is_truncated` field appears in the response.
 
 [source,console-result]
 ----

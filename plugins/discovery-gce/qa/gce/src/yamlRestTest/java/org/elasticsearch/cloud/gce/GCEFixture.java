@@ -9,7 +9,6 @@ package org.elasticsearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
@@ -192,22 +191,22 @@ public class GCEFixture extends AbstractHttpFixture {
             jsonBuilder().startObject()
                 .field(
                     "error",
-                    MapBuilder.<String, Object>newMapBuilder()
-                        .put(
+                    Map.<String, Object>ofEntries(
+                        Map.entry(
                             "errors",
-                            Collections.singletonList(
-                                MapBuilder.<String, Object>newMapBuilder()
-                                    .put("domain", "global")
-                                    .put("reason", "required")
-                                    .put("message", message)
-                                    .put("locationType", "header")
-                                    .put("location", code)
-                                    .immutableMap()
+                            List.of(
+                                Map.<String, Object>ofEntries(
+                                    Map.entry("domain", "global"),
+                                    Map.entry("reason", "required"),
+                                    Map.entry("message", message),
+                                    Map.entry("locationType", "header"),
+                                    Map.entry("location", code)
+                                )
                             )
-                        )
-                        .put("code", status.getStatus())
-                        .put("message", message)
-                        .immutableMap()
+                        ),
+                        Map.entry("code", status.getStatus()),
+                        Map.entry("message", message)
+                    )
                 )
                 .endObject()
         );

@@ -1,0 +1,40 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 16,
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "hidden": true,
+        "lifecycle.rollover_alias": "profiling-stacktraces",
+        "sort": {
+          "field": [
+            "Stacktrace.frame.ids"
+          ]
+        }
+      }
+    },
+    "mappings": {
+      "_source": {
+        "mode": "synthetic"
+      },
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "Stacktrace.frame.ids": {
+          "type": "keyword",
+          "index": false
+        },
+        "Stacktrace.frame.types": {
+          "type": "keyword",
+          "index": false
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

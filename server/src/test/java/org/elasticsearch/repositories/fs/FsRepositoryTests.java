@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -48,6 +49,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
@@ -60,11 +62,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class FsRepositoryTests extends ESTestCase {
@@ -108,11 +108,10 @@ public class FsRepositoryTests extends ESTestCase {
                     null,
                     snapshotId,
                     indexId,
-                    new Engine.IndexCommitRef(indexCommit, () -> {}),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> {})),
                     null,
                     snapshotStatus,
                     Version.CURRENT,
-                    Collections.emptyMap(),
                     randomMillisUpToYear9999(),
                     snapshot1Future
                 )
@@ -122,12 +121,13 @@ public class FsRepositoryTests extends ESTestCase {
             assertEquals(snapshot1StatusCopy.getTotalFileCount(), snapshot1StatusCopy.getIncrementalFileCount());
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
-            DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+            DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
             ShardRouting routing = ShardRouting.newUnassigned(
                 shardId,
                 true,
                 new RecoverySource.SnapshotRecoverySource("test", new Snapshot("foo", snapshotId), Version.CURRENT, indexId),
-                new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, ""),
+                ShardRouting.Role.DEFAULT
             );
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);
@@ -151,11 +151,10 @@ public class FsRepositoryTests extends ESTestCase {
                     null,
                     incSnapshotId,
                     indexId,
-                    new Engine.IndexCommitRef(incIndexCommit, () -> {}),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(incIndexCommit, () -> {})),
                     null,
                     snapshotStatus2,
                     Version.CURRENT,
-                    Collections.emptyMap(),
                     randomMillisUpToYear9999(),
                     snapshot2future
                 )

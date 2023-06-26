@@ -1,5 +1,0 @@
-pr: 90295
-summary: "Add validations for the downsampling ILM action"
-area: "ILM+SLM"
-type: enhancement
-issues: []

@@ -27,6 +27,11 @@ public class TextStructureTests extends AbstractXContentSerializingTestCase<Text
         return createTestFileStructure();
     }
 
+    @Override
+    protected TextStructure mutateInstance(TextStructure instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static TextStructure createTestFileStructure() {
 
         TextStructure.Format format = randomFrom(EnumSet.allOf(TextStructure.Format.class));

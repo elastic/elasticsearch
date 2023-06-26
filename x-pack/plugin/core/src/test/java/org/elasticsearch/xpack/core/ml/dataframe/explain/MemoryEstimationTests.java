@@ -21,14 +21,19 @@ public class MemoryEstimationTests extends AbstractXContentSerializingTestCase<M
 
     public static MemoryEstimation createRandom() {
         return new MemoryEstimation(
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null,
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null
         );
     }
 
     @Override
     protected MemoryEstimation createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected MemoryEstimation mutateInstance(MemoryEstimation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

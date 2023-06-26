@@ -219,7 +219,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity(formatted("""
+        createTemplateRequest.setJsonEntity(Strings.format("""
             {
               "index_patterns": ["%s-*"],
               "settings": {

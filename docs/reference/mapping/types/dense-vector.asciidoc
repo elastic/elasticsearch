@@ -5,17 +5,14 @@
 <titleabbrev>Dense vector</titleabbrev>
 ++++
 
-The `dense_vector` field type stores dense vectors of float values. Dense
-vector fields can be used in the following ways:
-
-* In <<query-dsl-script-score-query,`script_score`>> queries, to score
-documents matching a filter
-* In the <<knn-search-api, kNN search API>>, to find the _k_ most similar
-vectors to a query vector
+The `dense_vector` field type stores dense vectors of numeric values. Dense
+vector fields are primarily used for <<knn-search,k-nearest neighbor (kNN) search>>.
 
 The `dense_vector` type does not support aggregations or sorting.
 
-You add a `dense_vector` field as an array of floats:
+You add a `dense_vector` field as an array of numeric values
+based on <<dense-vector-params, `element_type`>> with
+`float` by default:
 
 [source,console]
 --------------------------------------------------
@@ -54,8 +51,6 @@ It is not possible to store multiple values in one `dense_vector` field.
 [[index-vectors-knn-search]]
 ==== Index vectors for kNN search
 
-experimental::[]
-
 include::{es-repo-dir}/search/search-your-data/knn-search.asciidoc[tag=knn-def]
 
 Dense vector fields can be used to rank documents in
@@ -65,9 +60,14 @@ similarity.
 
 In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
-data structure to support fast kNN retrieval through the
-<<knn-search-api, kNN search API>>. You can enable indexing by setting the
-`index` parameter:
+data structure to support fast kNN retrieval through the <<search-api-knn, `knn` option>> in the search API
+
+NOTE: Indexing vectors for approximate kNN search is an expensive process. It
+can take substantial time to ingest documents that contain vector fields with
+`index` enabled. See <<tune-knn-search,k-nearest neighbor (kNN) search>> to
+learn more about the memory requirements.
+
+You can enable indexing by setting the `index` parameter:
 
 [source,console]
 --------------------------------------------------
@@ -91,10 +91,6 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-NOTE: Indexing vectors for approximate kNN search is an expensive process. It
-can take substantial time to ingest documents that contain vector fields with
-`index` enabled.
-
 Dense vector fields cannot be indexed if they are within
 <<nested, `nested`>> mappings.
 
@@ -104,10 +100,24 @@ Dense vector fields cannot be indexed if they are within
 
 The following mapping parameters are accepted:
 
+[[dense-vector-element-type]]
+`element_type`::
+(Optional, string)
+The data type used to encode vectors. The supported data types are
+`float` (default) and `byte`. `float` indexes a 4-byte floating-point
+value per dimension. `byte` indexes a 1-byte integer value per dimension.
+Using `byte` can result in a substantially smaller index size with the
+trade off of lower precision. Vectors using `byte` require dimensions with
+integer values between -128 to 127, inclusive for both indexing and searching.
+
 `dims`::
 (Required, integer)
 Number of vector dimensions. Can't exceed `1024` for indexed vectors
 (`"index": true`), or `2048` for non-indexed vectors.
+
++
+experimental:[]
+The number of dimensions for indexed vectors can be extended up to `2048`.
 
 `index`::
 (Optional, Boolean)
@@ -134,9 +144,18 @@ distance) between the vectors. The document `_score` is computed as
 
 `dot_product`:::
 Computes the dot product of two vectors. This option provides an optimized way
-to perform cosine similarity. In order to use it, all vectors must be of unit
-length, including both document and query vectors. The document `_score` is
-computed as `(1 + dot_product(query, vector)) / 2`.
+to perform cosine similarity. The constraints and computed score are defined
+by `element_type`.
++
+When `element_type` is `float`, all vectors must be unit length, including both
+document and query vectors. The document `_score` is computed as
+`(1 + dot_product(query, vector)) / 2`.
++
+When `element_type` is `byte`, all vectors must have the same
+length including both document and query vectors or results will be inaccurate.
+The document `_score` is computed as
+`0.5 + (dot_product(query, vector) / (32768 * dims))`
+where `dims` is the number of dimensions per vector.
 
 `cosine`:::
 Computes the cosine similarity. Note that the most efficient way to perform
@@ -180,5 +199,13 @@ neighbors for each new node. Defaults to `100`.
 ====
 
 [[dense-vector-synthetic-source]]
-==== Synthetic `_source` preview:[]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
 `dense_vector` fields support <<synthetic-source,synthetic `_source`>> .

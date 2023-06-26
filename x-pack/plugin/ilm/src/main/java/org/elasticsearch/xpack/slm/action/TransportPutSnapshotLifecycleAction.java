@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,8 +28,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
@@ -44,7 +45,7 @@ import java.util.Set;
 
 public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeAction<
     PutSnapshotLifecycleAction.Request,
-    PutSnapshotLifecycleAction.Response> {
+    AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
 
@@ -64,7 +65,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             actionFilters,
             PutSnapshotLifecycleAction.Request::new,
             indexNameExpressionResolver,
-            PutSnapshotLifecycleAction.Response::new,
+            AcknowledgedResponse::readFrom,
             ThreadPool.Names.SAME
         );
     }
@@ -74,7 +75,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final Task task,
         final PutSnapshotLifecycleAction.Request request,
         final ClusterState state,
-        final ActionListener<PutSnapshotLifecycleAction.Response> listener
+        final ActionListener<AcknowledgedResponse> listener
     ) {
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
 
@@ -88,12 +89,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         submitUnbatchedTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
-            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders) {
-                @Override
-                protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
-                    return new PutSnapshotLifecycleAction.Response(acknowledged);
-                }
-            }
+            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders)
         );
     }
 
@@ -107,7 +103,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
 
         UpdateSnapshotPolicyTask(
             PutSnapshotLifecycleAction.Request request,
-            ActionListener<PutSnapshotLifecycleAction.Response> listener,
+            ActionListener<AcknowledgedResponse> listener,
             Map<String, String> filteredHeaders
         ) {
             super(request, listener);
@@ -128,6 +124,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         @Override
         public ClusterState execute(ClusterState currentState) {
             SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
 
             String id = request.getLifecycleId();
             final SnapshotLifecycleMetadata lifecycleMetadata;
@@ -139,7 +136,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                     .build();
                 lifecycleMetadata = new SnapshotLifecycleMetadata(
                     Collections.singletonMap(id, meta),
-                    OperationMode.RUNNING,
+                    currentMode,
                     new SnapshotLifecycleStats()
                 );
                 logger.info("adding new snapshot lifecycle [{}]", id);
@@ -153,7 +150,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                     .setModifiedDate(Instant.now().toEpochMilli())
                     .build();
                 snapLifecycles.put(id, newLifecycle);
-                lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode(), snapMeta.getStats());
+                lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
                 if (oldLifecycle == null) {
                     logger.info("adding new snapshot lifecycle [{}]", id);
                 } else {

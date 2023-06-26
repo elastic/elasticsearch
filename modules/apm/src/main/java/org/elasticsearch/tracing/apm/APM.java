@@ -11,7 +11,7 @@ package org.elasticsearch.tracing.apm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -81,7 +81,7 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer unused,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         final APMTracer apmTracer = tracer.get();
 
@@ -101,6 +101,7 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
             APMAgentSettings.APM_ENABLED_SETTING,
             APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING,
             APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING,
+            APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES,
             APMAgentSettings.APM_AGENT_SETTINGS,
             APMAgentSettings.APM_SECRET_TOKEN_SETTING,
             APMAgentSettings.APM_API_KEY_SETTING

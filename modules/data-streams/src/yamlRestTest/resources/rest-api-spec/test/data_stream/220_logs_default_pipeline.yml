@@ -1,0 +1,94 @@
+---
+Test default logs-*-* pipeline:
+  - do:
+      # setting up a custom field mapping, to test custom pipeline
+      cluster.put_component_template:
+        name: logs@custom
+        body:
+          template:
+            mappings:
+              properties:
+                custom_timestamp:
+                  type: date
+
+  - do:
+      ingest.put_pipeline:
+        # testing custom pipeline - setting a custom timestamp with the same value used to set the `@timestamp` field when missing
+        id: "logs@custom"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "custom_timestamp",
+                  "copy_from": "_ingest.timestamp"
+                }
+              }
+            ]
+          }
+
+  - do:
+      indices.create_data_stream:
+        name: logs-generic-default
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-generic-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: logs-generic-default
+  - match: { .$idx0name.mappings.properties.@timestamp.type: "date" }
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          # no timestamp - testing default pipeline's @timestamp set processor
+          message: 'no_timestamp'
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'no_timestamp'
+          fields:
+            - field: '@timestamp'
+            - field: 'custom_timestamp'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.@timestamp: '/[0-9-]+T[0-9:.]+Z/' }
+  - set: {hits.hits.0._source.custom_timestamp: custom_timestamp_source }
+  - match: { hits.hits.0._source.@timestamp: $custom_timestamp_source }
+  - match: { hits.hits.0.fields.@timestamp.0: '/[0-9-]+T[0-9:.]+Z/' }
+  - set: {hits.hits.0.fields.custom_timestamp.0: custom_timestamp_field }
+  - match: { hits.hits.0.fields.@timestamp.0: $custom_timestamp_field }
+
+  # verify that when a document is ingested with a timestamp, it does not get overridden
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          '@timestamp': '2023-05-10'
+          message: 'with_timestamp'
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'with_timestamp'
+          fields:
+            - field: '@timestamp'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.@timestamp.0: '2023-05-10T00:00:00.000Z' }

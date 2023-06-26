@@ -92,6 +92,33 @@ images, and combining them with a Docker manifest. The Elasticsearch Delivery
 team aren't responsible for this - rather, it happens during our unified release
 process.
 
+To build multi-architecture images on `x86_64` hosts using Docker[^1], you'll
+need [buildx](https://docs.docker.com/build/buildx/install/) and ensure that it
+supports both `linux/amd64` **and** `linux/arm64` targets.
+
+You can verify the supported targets using `docker buildx ls`. For example, the
+following output indicates that support for `linux/arm64` is missing:
+
+```shell
+$ docker buildx ls
+NAME/NODE DRIVER/ENDPOINT STATUS  BUILDKIT PLATFORMS
+default * docker
+  default default         running 20.10.21 linux/amd64, linux/386
+```
+
+On Linux `x86_64` hosts, to enable `linux-arm64` you need to install
+[qemu-user-static-binfmt](https://github.com/multiarch/qemu-user-static).
+Installation details depend on the Linux distribution but, as described in the
+[getting started docs](https://github.com/multiarch/qemu-user-static#getting-started),
+running `docker run --rm --privileged multiarch/qemu-user-static --reset -p yes`
+will add the necessary support (but will not persist across reboots):
+
+```shell
+$ docker buildx ls
+NAME/NODE DRIVER/ENDPOINT STATUS  BUILDKIT PLATFORMS
+default * docker
+  default default         running 20.10.21 linux/amd64, linux/arm64, linux/riscv64, linux/ppc64le, linux/s390x, linux/386, linux/arm/v7, linux/arm/v6
+```
 
 ## Testing
 
@@ -130,3 +157,5 @@ Ideally this import / export stuff should be completely removed.
 [DockerTests]: ../../qa/os/src/test/java/org/elasticsearch/packaging/test/DockerTests.java
 [multi-arch]: https://www.docker.com/blog/multi-arch-build-and-images-the-simple-way/
 [ubi]: https://developers.redhat.com/products/rhel/ubi
+
+[^1]: `podman/buildah` also [supports building multi-platform images](https://github.com/containers/buildah/issues/1590).

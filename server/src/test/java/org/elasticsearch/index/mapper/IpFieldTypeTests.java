@@ -15,8 +15,8 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -348,16 +348,16 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).build(
-            MapperBuilderContext.ROOT
+        MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, IndexVersion.CURRENT).build(
+            MapperBuilderContext.root(false)
         ).fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
-        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).nullValue(
+        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, IndexVersion.CURRENT).nullValue(
             "2001:db8:0:0:0:0:2:7"
-        ).build(MapperBuilderContext.ROOT).fieldType();
+        ).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

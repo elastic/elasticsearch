@@ -9,18 +9,24 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -41,16 +47,20 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterStatsIT extends ESIntegTestCase {
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {
         assertThat(counts.getTotal(), equalTo(total));
         assertThat(counts.getRoles(), equalTo(roles));
     }
 
     private void waitForNodes(int numNodes) {
-        ClusterHealthResponse actionGet = client().admin()
-            .cluster()
-            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
-            .actionGet();
+        ClusterHealthResponse actionGet = clusterAdmin().health(
+            new ClusterHealthRequest(new String[] {}).waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes))
+        ).actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
@@ -65,15 +75,17 @@ public class ClusterStatsIT extends ESIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.INDEX_ROLE.roleName(), 0);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.ML_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.SEARCH_ROLE.roleName(), 0);
         expectedCounts.put(DiscoveryNodeRole.TRANSFORM_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE.roleName(), 0);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
 
         for (int i = 0; i < numNodes; i++) {
@@ -117,7 +129,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 
-            response = client().admin().cluster().prepareClusterStats().get();
+            response = clusterAdmin().prepareClusterStats().get();
             assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
         }
     }
@@ -141,12 +153,12 @@ public class ClusterStatsIT extends ESIntegTestCase {
     public void testIndicesShardStats() throws ExecutionException, InterruptedException {
         internalCluster().startNode();
         ensureGreen();
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
         prepareCreate("test1").setSettings(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1)).get();
 
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0L));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(1));
@@ -157,14 +169,14 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureGreen();
         indexDoc("test1", "1", "f", "f");
         refresh(); // make the doc visible
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1L));
         assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
         prepareCreate("test2").setSettings(Settings.builder().put("number_of_shards", 3).put("number_of_replicas", 0)).get();
         ensureGreen();
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(2));
         assertShardStats(response.getIndicesStats().getShards(), 2, 7, 5, 2.0 / 5);
@@ -187,7 +199,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         internalCluster().startNodes(randomIntBetween(1, 3));
         indexDoc("test1", "1", "f", "f");
 
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         String msg = response.toString();
         assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
         assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
@@ -206,7 +218,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
         assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
-        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setOs(true).get();
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats().setOs(true).get();
         long total = 0;
         long free = 0;
         long used = 0;
@@ -228,32 +240,32 @@ public class ClusterStatsIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), nodeProcessors).build());
         waitForNodes(1);
 
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(nodeProcessors));
     }
 
     public void testClusterStatusWhenStateNotRecovered() {
         internalCluster().startMasterOnlyNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 1).build());
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         internalCluster().startDataOnlyNode();
         // wait for the cluster status to settle
         ensureGreen();
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
     public void testFieldTypes() {
         internalCluster().startNode();
         ensureGreen();
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin().indices().prepareCreate("test1").setMapping("""
+        indicesAdmin().prepareCreate("test1").setMapping("""
             {"properties":{"foo":{"type": "keyword"}}}""").get();
-        client().admin().indices().prepareCreate("test2").setMapping("""
+        indicesAdmin().prepareCreate("test2").setMapping("""
             {
               "properties": {
                 "foo": {
@@ -271,7 +283,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 }
               }
             }""").get();
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
         List<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
         for (FieldStats stat : stats) {
@@ -283,5 +295,69 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));
             }
         }
+    }
+
+    public void testSearchUsageStats() throws IOException {
+        internalCluster().startNode();
+        ensureStableCluster(1);
+        {
+            SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+            assertEquals(0, stats.getTotalSearchCount());
+            assertEquals(0, stats.getQueryUsage().size());
+            assertEquals(0, stats.getSectionsUsage().size());
+        }
+
+        // doesn't get counted because it doesn't specify a request body
+        getRestClient().performRequest(new Request("GET", "/_search"));
+        {
+            Request request = new Request("GET", "/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", "value"));
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            getRestClient().performRequest(request);
+        }
+        {
+            Request request = new Request("GET", "/_search");
+            // error at parsing: request not counted
+            request.setJsonEntity("{\"unknown]\":10}");
+            expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        }
+        {
+            // non existent index: request counted
+            Request request = new Request("GET", "/unknown/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"));
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertEquals(404, responseException.getResponse().getStatusLine().getStatusCode());
+        }
+        {
+            Request request = new Request("GET", "/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(
+                QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("field").from(10))
+            );
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            getRestClient().performRequest(request);
+        }
+        {
+            Request request = new Request("POST", "/_msearch");
+            SearchSourceBuilder searchSourceBuilder1 = new SearchSourceBuilder().aggregation(
+                new TermsAggregationBuilder("name").field("field")
+            );
+            SearchSourceBuilder searchSourceBuilder2 = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"));
+            request.setJsonEntity(
+                "{}\n" + Strings.toString(searchSourceBuilder1) + "\n" + "{}\n" + Strings.toString(searchSourceBuilder2) + "\n"
+            );
+            getRestClient().performRequest(request);
+        }
+
+        SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+        assertEquals(5, stats.getTotalSearchCount());
+        assertEquals(4, stats.getQueryUsage().size());
+        assertEquals(1, stats.getQueryUsage().get("match").longValue());
+        assertEquals(2, stats.getQueryUsage().get("term").longValue());
+        assertEquals(1, stats.getQueryUsage().get("range").longValue());
+        assertEquals(1, stats.getQueryUsage().get("bool").longValue());
+        assertEquals(2, stats.getSectionsUsage().size());
+        assertEquals(4, stats.getSectionsUsage().get("query").longValue());
+        assertEquals(1, stats.getSectionsUsage().get("aggs").longValue());
     }
 }

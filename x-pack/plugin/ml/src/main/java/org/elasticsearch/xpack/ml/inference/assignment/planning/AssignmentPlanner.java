@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.Comparator;
@@ -38,20 +37,20 @@ import static org.elasticsearch.core.Strings.format;
  * Furthermore, the planner preserves at least one allocation for all existing
  * assignments. This way, the new plan will only have new assignments and the
  * transition can happen with minimal impact on performance of started deployments.
- * However, if previously assigned models do not receive any allocation, then we
- * attempt to find a solution that provides at least one allocation to
- * previously assigned models.
+ * However, if previously assigned model deployments do not receive any allocation,
+ * then we attempt to find a solution that provides at least one allocation to
+ * previously assigned model deployments.
  */
-class AssignmentPlanner {
+public class AssignmentPlanner {
 
     private static final Logger logger = LogManager.getLogger(AssignmentPlanner.class);
 
     private final List<Node> nodes;
-    private final List<Model> models;
+    private final List<AssignmentPlan.Deployment> deployments;
 
-    AssignmentPlanner(List<Node> nodes, List<Model> models) {
+    public AssignmentPlanner(List<Node> nodes, List<AssignmentPlan.Deployment> deployments) {
         this.nodes = nodes.stream().sorted(Comparator.comparing(Node::id)).toList();
-        this.models = models.stream().sorted(Comparator.comparing(Model::id)).toList();
+        this.deployments = deployments.stream().sorted(Comparator.comparing(AssignmentPlan.Deployment::id)).toList();
     }
 
     public AssignmentPlan computePlan() {
@@ -59,7 +58,7 @@ class AssignmentPlanner {
     }
 
     public AssignmentPlan computePlan(boolean tryAssigningPreviouslyAssignedModels) {
-        logger.debug(() -> format("Computing plan for nodes = %s; models = %s", nodes, models));
+        logger.debug(() -> format("Computing plan for nodes = %s; deployments = %s", nodes, deployments));
 
         AssignmentPlan bestPlan;
         AssignmentPlan planSatisfyingCurrentAssignments = solveSatisfyingCurrentAssignments();
@@ -107,11 +106,11 @@ class AssignmentPlanner {
     }
 
     private AssignmentPlan solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated() {
-        logger.debug(() -> "Attempting to solve assigning at least one allocations to previously assigned models");
-        List<Model> previouslyAssignedModelsOnly = models.stream()
+        logger.debug(() -> "Attempting to solve assigning at least one allocation to previously assigned deployments");
+        List<AssignmentPlan.Deployment> previouslyAssignedModelsOnly = deployments.stream()
             .filter(m -> m.hasEverBeenAllocated())
             .map(
-                m -> new Model(
+                m -> new AssignmentPlan.Deployment(
                     m.id(),
                     m.memoryBytes(),
                     1,
@@ -127,7 +126,7 @@ class AssignmentPlanner {
         ).solvePlan(true);
 
         Map<String, String> modelIdToNodeIdWithSingleAllocation = new HashMap<>();
-        for (Model m : planWithSingleAllocationForPreviouslyAssignedModels.models()) {
+        for (AssignmentPlan.Deployment m : planWithSingleAllocationForPreviouslyAssignedModels.models()) {
             Optional<Map<Node, Integer>> assignments = planWithSingleAllocationForPreviouslyAssignedModels.assignments(m);
             Set<Node> nodes = assignments.orElse(Map.of()).keySet();
             if (nodes.isEmpty() == false) {
@@ -136,11 +135,11 @@ class AssignmentPlanner {
             }
         }
 
-        List<Model> planModels = models.stream().map(m -> {
+        List<AssignmentPlan.Deployment> planDeployments = deployments.stream().map(m -> {
             Map<String, Integer> currentAllocationsByNodeId = modelIdToNodeIdWithSingleAllocation.containsKey(m.id())
                 ? Map.of(modelIdToNodeIdWithSingleAllocation.get(m.id()), 1)
                 : Map.of();
-            return new Model(
+            return new AssignmentPlan.Deployment(
                 m.id(),
                 m.memoryBytes(),
                 m.allocations(),
@@ -150,27 +149,27 @@ class AssignmentPlanner {
             );
         }).toList();
 
-        return new AssignmentPlanner(nodes, planModels).computePlan(false);
+        return new AssignmentPlanner(nodes, planDeployments).computePlan(false);
     }
 
     private AssignmentPlan solveKeepingOneAllocationOnCurrentAssignments() {
         // We do not want to ever completely unassign a model from a node so we
         // can move allocations without having temporary impact on performance.
         logger.trace(() -> format("Solving preserving one allocation on current assignments"));
-        return solvePreservingCurrentAssignments(new PreserveOneAllocation(nodes, models));
+        return solvePreservingCurrentAssignments(new PreserveOneAllocation(nodes, deployments));
     }
 
     private AssignmentPlan solvePreservingAllAllocationsOnCurrentAssignments() {
         logger.trace(() -> format("Solving preserving all allocations on current assignments"));
-        return solvePreservingCurrentAssignments(new PreserveAllAllocations(nodes, models));
+        return solvePreservingCurrentAssignments(new PreserveAllAllocations(nodes, deployments));
     }
 
     private AssignmentPlan solvePreservingCurrentAssignments(AbstractPreserveAllocations preserveAllocations) {
         List<Node> planNodes = preserveAllocations.nodesPreservingAllocations();
-        List<Model> planModels = preserveAllocations.modelsPreservingAllocations();
+        List<AssignmentPlan.Deployment> planDeployments = preserveAllocations.modelsPreservingAllocations();
         logger.trace(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));
-        logger.trace(() -> format("Models after applying allocation preserving strategy = %s", planModels));
-        AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planModels).solvePlan(false);
+        logger.trace(() -> format("Deployments after applying allocation preserving strategy = %s", planDeployments));
+        AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planDeployments).solvePlan(false);
         return preserveAllocations.mergePreservedAllocations(assignmentPlan);
     }
 
@@ -181,7 +180,7 @@ class AssignmentPlanner {
         long totalAvailableMem = nodes.stream().map(Node::availableMemoryBytes).mapToLong(Long::longValue).sum();
         int totalCores = nodes.stream().map(Node::cores).mapToInt(Integer::intValue).sum();
         long totalUsedMem = 0;
-        for (Model m : models) {
+        for (AssignmentPlan.Deployment m : deployments) {
             totalAllocationsRequired += m.allocations();
             if (assignmentPlan.assignments(m).isPresent()) {
                 int allocations = assignmentPlan.assignments(m).get().values().stream().mapToInt(Integer::intValue).sum();

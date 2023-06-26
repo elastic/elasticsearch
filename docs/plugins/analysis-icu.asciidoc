@@ -1,8 +1,8 @@
 [[analysis-icu]]
-=== ICU Analysis Plugin
+=== ICU analysis plugin
 
 The ICU Analysis plugin integrates the Lucene ICU module into {es},
-adding extended Unicode support using the http://site.icu-project.org/[ICU]
+adding extended Unicode support using the https://icu.unicode.org/[ICU]
 libraries, including better analysis of Asian languages, Unicode
 normalization, Unicode-aware case folding, collation support, and
 transliteration.
@@ -27,7 +27,7 @@ characters.
 include::install_remove.asciidoc[]
 
 [[analysis-icu-analyzer]]
-==== ICU Analyzer
+==== ICU analyzer
 
 The `icu_analyzer` analyzer performs basic normalization, tokenization and character folding, using the
 `icu_normalizer` char filter, `icu_tokenizer` and `icu_folding` token filter
@@ -45,10 +45,10 @@ The following parameters are accepted:
     Normalization mode. Accepts `compose` (default) or `decompose`.
 
 [[analysis-icu-normalization-charfilter]]
-==== ICU Normalization Character Filter
+==== ICU normalization character filter
 
 Normalizes characters as explained
-http://userguide.icu-project.org/transforms/normalization[here].
+https://unicode-org.github.io/icu/userguide/transforms/normalization/[here].
 It registers itself as the `icu_normalizer` character filter, which is
 available to all indices without any further configuration. The type of
 normalization can be specified with the `name` parameter, which accepts `nfc`,
@@ -100,7 +100,7 @@ PUT icu_sample
 <2> Uses the customized `nfd_normalizer` token filter, which is set to use `nfc` normalization with decomposition.
 
 [[analysis-icu-tokenizer]]
-==== ICU Tokenizer
+==== ICU tokenizer
 
 Tokenizes text into words on word boundaries, as defined in
 https://www.unicode.org/reports/tr29/[UAX #29: Unicode Text Segmentation].
@@ -199,10 +199,10 @@ The above `analyze` request returns the following:
 
 
 [[analysis-icu-normalization]]
-==== ICU Normalization Token Filter
+==== ICU normalization token filter
 
 Normalizes characters as explained
-http://userguide.icu-project.org/transforms/normalization[here]. It registers
+https://unicode-org.github.io/icu/userguide/transforms/normalization/[here]. It registers
 itself as the `icu_normalizer` token filter, which is available to all indices
 without any further configuration. The type of normalization can be specified
 with the `name` parameter, which accepts `nfc`, `nfkc`, and `nfkc_cf`
@@ -254,7 +254,7 @@ PUT icu_sample
 
 
 [[analysis-icu-folding]]
-==== ICU Folding Token Filter
+==== ICU folding token filter
 
 Case folding of Unicode characters based on `UTR#30`, like the
 {ref}/analysis-asciifolding-tokenfilter.html[ASCII-folding token filter]
@@ -324,7 +324,7 @@ PUT icu_sample
 
 
 [[analysis-icu-collation]]
-==== ICU Collation Token Filter
+==== ICU collation token filter
 
 [WARNING]
 ======
@@ -333,7 +333,7 @@ This token filter has been deprecated since Lucene 5.0. Please use
 ======
 
 [[analysis-icu-collation-keyword-field]]
-==== ICU Collation Keyword Field
+==== ICU collation keyword field
 
 Collations are used for sorting documents in a language-specific word order.
 The `icu_collation_keyword` field type is available to all indices and will encode
@@ -385,7 +385,7 @@ GET /my-index-000001/_search <3>
     a single token doc values, and applies the German ``phonebook'' order.
 <3> An example query which searches the `name` field and sorts on the `name.sort` field.
 
-===== Parameters for ICU Collation Keyword Fields
+===== Parameters for ICU collation keyword fields
 
 The following parameters are accepted by `icu_collation_keyword` fields:
 
@@ -488,7 +488,7 @@ Hiragana characters in `quaternary` strength.
 
 
 [[analysis-icu-transform]]
-==== ICU Transform Token Filter
+==== ICU transform token filter
 
 Transforms are used to process Unicode text in many different ways, such as
 case mapping, normalization, transliteration and bidirectional text handling.
@@ -554,4 +554,4 @@ GET icu_sample/_analyze
 <3> Returns `zdravstvujte`.
 <4> Returns `kon'nichiha`.
 
-For more documentation, Please see the http://userguide.icu-project.org/transforms/general[user guide of ICU Transform].
+For more documentation, Please see the https://unicode-org.github.io/icu/userguide/transforms/[user guide of ICU Transform].

@@ -20,7 +20,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -75,7 +74,7 @@ public class LookupFieldTests extends AbstractWireSerializingTestCase<LookupFiel
     }
 
     @Override
-    protected LookupField mutateInstance(LookupField old) throws IOException {
+    protected LookupField mutateInstance(LookupField old) {
         String lookupIndex = old.targetIndex();
         QueryBuilder query = old.query();
         List<FieldAndFormat> fetchFields = old.fetchFields();

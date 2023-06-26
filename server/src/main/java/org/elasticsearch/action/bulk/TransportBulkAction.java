@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -30,6 +29,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -46,6 +47,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -78,6 +80,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -169,6 +172,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return indexRequest;
     }
 
+    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
+        final ActionListener<Response> listener
+    ) {
+        return listener.delegateFailureAndWrap((l, bulkItemResponses) -> {
+            assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
+            final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
+            if (bulkItemResponse.isFailed() == false) {
+                @SuppressWarnings("unchecked")
+                final Response response = (Response) bulkItemResponse.getResponse();
+                l.onResponse(response);
+            } else {
+                l.onFailure(bulkItemResponse.getFailure().getCause());
+            }
+        });
+    }
+
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         /*
@@ -210,9 +229,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = IngestService.resolvePipelines(actionRequest, indexRequest, metadata);
-                hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {
@@ -227,7 +245,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.
-            try {
+            ActionListener.run(listener, l -> {
                 if (Assertions.ENABLED) {
                     final boolean arePipelinesResolved = bulkRequest.requests()
                         .stream()
@@ -237,13 +255,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, listener);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
                 } else {
-                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
+                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, l);
                 }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            });
             return;
         }
 
@@ -362,7 +378,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
-        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
 
         // At this point with write op is targeting a backing index of a data stream directly,
         // so checking if write op is append-only and if so fail.
@@ -402,8 +418,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         if (writeRequest.routing() != null) {
-            IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-            if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+            DataStream dataStream = (DataStream) indexAbstraction;
+            if (dataStream.isAllowCustomRouting() == false) {
                 throw new IllegalArgumentException(
                     "index request targeting data stream ["
                         + dataStream.getName()
@@ -736,10 +752,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
-            return indexAbstractions.computeIfAbsent(
-                request.index(),
-                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
-            );
+            try {
+                return indexAbstractions.computeIfAbsent(
+                    request.index(),
+                    key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+                );
+            } catch (IndexNotFoundException e) {
+                if (e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                    throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams", e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         IndexRouting routing(Index index) {
@@ -762,6 +786,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ingestService.executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
+            bulkRequestModifier::markItemAsDropped,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
@@ -805,7 +830,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 }
             },
-            bulkRequestModifier::markItemAsDropped,
             executorName
         );
     }

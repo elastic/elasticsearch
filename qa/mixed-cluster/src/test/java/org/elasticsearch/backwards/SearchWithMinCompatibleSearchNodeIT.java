@@ -18,6 +18,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -84,7 +85,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                 );
                 assertThat(responseException.getMessage(), containsString("""
                     {"error":{"root_cause":[],"type":"search_phase_execution_exception\""""));
-                assertThat(responseException.getMessage(), containsString(formatted("""
+                assertThat(responseException.getMessage(), containsString(Strings.format("""
                     caused_by":{"type":"version_mismatch_exception",\
                     "reason":"One of the shards is incompatible with the required minimum version [%s]\"""", newVersion)));
             });

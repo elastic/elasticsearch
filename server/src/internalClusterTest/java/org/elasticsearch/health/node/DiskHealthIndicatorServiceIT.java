@@ -47,6 +47,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96919")
     public void testRed() throws Exception {
         try (InternalTestCluster internalCluster = internalCluster()) {
             internalCluster.startMasterOnlyNode(getVeryLowWatermarksSettings());
@@ -81,7 +82,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        healthService.getHealth(internalCluster().client(node), DiskHealthIndicatorService.NAME, true, listener);
+        healthService.getHealth(internalCluster().client(node), DiskHealthIndicatorService.NAME, true, 1000, listener);
         assertBusy(() -> assertNotNull(resultListReference.get()));
         return resultListReference.get();
     }

@@ -9,9 +9,11 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -58,8 +60,10 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             )
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .routingTable(RoutingTable.builder().addAsNew(sourceMetadata.index(sourceIndex)))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(sourceMetadata.index(sourceIndex))
+            )
             .metadata(sourceMetadata)
             .nodes(discoveryNodes)
             .build();
@@ -77,7 +81,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 16)
                 .build()
         );
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         {
             IndexRoutingTable sourceRoutingTable = clusterState.routingTable().index(sourceIndex);
@@ -101,9 +105,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
 
         final int targetNumShards = randomFrom(1, 2, 4, 8, 16);
         final int targetNumReplicas = randomInt(2);
-        final Settings.Builder targetSettings = settings(Version.CURRENT);
-        targetSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetNumShards);
-        targetSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, targetNumReplicas);
+        final Settings.Builder targetSettings = indexSettings(Version.CURRENT, targetNumShards, targetNumReplicas);
         targetSettings.put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex);
         targetSettings.put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), sourceMetadata.index(sourceIndex).getIndexUUID());
         final boolean isShrink = randomBoolean();
@@ -122,7 +124,10 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             )
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.builder(clusterState.routingTable()).addAsNew(clusterState.metadata().index(targetIndex)))
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.routingTable())
+                    .addAsNew(clusterState.metadata().index(targetIndex))
+            )
             .build();
 
         {
@@ -134,7 +139,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             }
         }
 
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         {
             IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndex);

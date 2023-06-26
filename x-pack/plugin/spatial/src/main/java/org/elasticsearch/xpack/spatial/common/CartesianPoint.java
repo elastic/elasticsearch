@@ -77,8 +77,14 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
     public CartesianPoint resetFromString(String value, final boolean ignoreZValue) {
         if (value.toLowerCase(Locale.ROOT).contains("point")) {
             return resetFromWKT(value, ignoreZValue);
-        } else {
+        } else if (value.contains(",")) {
             return resetFromCoordinates(value, ignoreZValue);
+        } else if (value.contains(".")) {
+            // This error mimics the structure of the parser error from 'resetFromCoordinates' below
+            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates but found: [{}]", value, 1);
+        } else {
+            // This error mimics the structure of the Geohash.mortonEncode() error to simplify testing
+            throw new ElasticsearchParseException("unsupported symbol [{}] in point [{}]", value.charAt(0), value);
         }
     }
 
@@ -86,11 +92,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
     public CartesianPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3 || vals.length < 2) {
-            throw new ElasticsearchParseException(
-                "failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]",
-                vals,
-                vals.length
-            );
+            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates but found: [{}]", vals, vals.length);
         }
         final double x;
         final double y;
@@ -98,7 +100,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
             x = Double.parseDouble(vals[0].trim());
             if (Double.isFinite(x) == false) {
                 throw new ElasticsearchParseException(
-                    "invalid [{}] value [{}]; " + "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
+                    "invalid [{}] value [{}]; must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                     X_FIELD,
                     x
                 );
@@ -110,7 +112,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
             y = Double.parseDouble(vals[1].trim());
             if (Double.isFinite(y) == false) {
                 throw new ElasticsearchParseException(
-                    "invalid [{}] value [{}]; " + "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
+                    "invalid [{}] value [{}]; must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                     Y_FIELD,
                     y
                 );
@@ -137,7 +139,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
         }
         if (geometry.type() != ShapeType.POINT) {
             throw new ElasticsearchParseException(
-                "[{}] supports only POINT among WKT primitives, " + "but found {}",
+                "[{}] supports only POINT among WKT primitives, but found {}",
                 PointFieldMapper.CONTENT_TYPE,
                 geometry.type()
             );
@@ -228,14 +230,14 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
     public static void assertZValue(final boolean ignoreZValue, double zValue) {
         if (ignoreZValue == false) {
             throw new ElasticsearchParseException(
-                "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] " + "parameter is [{}]",
+                "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] parameter is [{}]",
                 zValue,
                 ignoreZValue
             );
         }
         if (Double.isFinite(zValue) == false) {
             throw new ElasticsearchParseException(
-                "invalid [{}] value [{}]; " + "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
+                "invalid [{}] value [{}]; must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                 Z_FIELD,
                 zValue
             );

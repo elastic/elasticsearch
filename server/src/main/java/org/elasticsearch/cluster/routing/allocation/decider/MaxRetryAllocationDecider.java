@@ -34,14 +34,21 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         Setting.Property.NotCopyableOnResize
     );
 
+    private static final String RETRY_FAILED_API = "POST /_cluster/reroute?retry_failed&metric=none";
+
     public static final String NAME = "max_retry";
 
     private static final Decision YES_NO_FAILURES = Decision.single(Decision.Type.YES, NAME, "shard has no previous failures");
 
+    private static final Decision YES_SIMULATING = Decision.single(Decision.Type.YES, NAME, "previous failures ignored when simulating");
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        final int maxRetries = SETTING_ALLOCATION_MAX_RETRY.get(allocation.metadata().getIndexSafe(shardRouting.index()).getSettings());
+        if (allocation.isSimulating()) {
+            return YES_SIMULATING;
+        }
 
+        final int maxRetries = SETTING_ALLOCATION_MAX_RETRY.get(allocation.metadata().getIndexSafe(shardRouting.index()).getSettings());
         final var unassignedInfo = shardRouting.unassignedInfo();
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.getNumFailedAllocations();
         if (numFailedAllocations > 0) {
@@ -64,9 +71,9 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
             return Decision.single(
                 Decision.Type.NO,
                 NAME,
-                "shard has exceeded the maximum number of retries [%d] on failed allocation attempts - "
-                    + "manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
+                "shard has exceeded the maximum number of retries [%d] on failed allocation attempts - manually call [%s] to retry, [%s]",
                 maxRetries,
+                RETRY_FAILED_API,
                 info.toString()
             );
         } else {
@@ -85,9 +92,9 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
             return Decision.single(
                 Decision.Type.NO,
                 NAME,
-                "shard has exceeded the maximum number of retries [%d] on failed relocation attempts - "
-                    + "manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
+                "shard has exceeded the maximum number of retries [%d] on failed relocation attempts - manually call [%s] to retry, [%s]",
                 maxRetries,
+                RETRY_FAILED_API,
                 info.toString()
             );
         } else {

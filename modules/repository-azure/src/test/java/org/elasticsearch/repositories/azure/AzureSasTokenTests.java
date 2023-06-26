@@ -17,6 +17,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
@@ -42,12 +44,9 @@ public class AzureSasTokenTests extends AbstractAzureServerTestCase {
 
         httpServer.createContext("/account/container/sas_test", exchange -> {
             try {
-                final var queryParams = exchange.getRequestURI().getRawQuery();
-                if (sasToken.startsWith("?")) {
-                    assertThat(queryParams, is(equalTo(sasToken.substring(1))));
-                } else {
-                    assertThat(queryParams, is(equalTo(sasToken)));
-                }
+                final var queryParams = queryParams(exchange.getRequestURI().getRawQuery());
+                final var expectedParams = queryParams(sasToken.startsWith("?") ? sasToken.substring(1) : sasToken);
+                assertThat(queryParams, is(equalTo(expectedParams)));
 
                 Streams.readFully(exchange.getRequestBody());
                 if ("HEAD".equals(exchange.getRequestMethod())) {
@@ -68,6 +67,9 @@ public class AzureSasTokenTests extends AbstractAzureServerTestCase {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                     exchange.getResponseBody().write(bytes, rangeStart, length);
                 }
+            } catch (Throwable t) {
+                logger.warn(t); // ensure that assertions are not silently swallowed
+                throw t;
             } finally {
                 exchange.close();
             }
@@ -77,5 +79,9 @@ public class AzureSasTokenTests extends AbstractAzureServerTestCase {
         try (InputStream inputStream = blobContainer.readBlob("sas_test")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
+    }
+
+    static List<String> queryParams(String queryParamString) {
+        return Arrays.stream(queryParamString.split("&")).sorted().toList();
     }
 }

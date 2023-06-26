@@ -22,7 +22,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -75,20 +75,29 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile())) {
-            // setup security
-            final SecureString keystorePassword = getKeystorePassword(keystore, terminal);
-            env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+        var secureSettingsLoader = secureSettingsLoader(env);
 
-            if (keystore != null) {
-                keystore.decrypt(keystorePassword.getChars());
+        try (
+            var loadedSecrets = secureSettingsLoader.load(env, terminal);
+            var password = (loadedSecrets.password().isPresent()) ? loadedSecrets.password().get() : new SecureString(new char[0]);
+        ) {
+            SecureSettings secrets = loadedSecrets.secrets();
+            if (secureSettingsLoader.supportsSecurityAutoConfiguration()) {
+                env = autoConfigureSecurity(terminal, options, processInfo, env, password);
+                // reload or create the secrets
+                secrets = secureSettingsLoader.bootstrap(env, password);
+            }
+
+            // we should have a loaded or bootstrapped secure settings at this point
+            if (secrets == null) {
+                throw new UserException(ExitCodes.CONFIG, "Elasticsearch secure settings not configured");
             }
 
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);
 
-            ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
-            this.server = startServer(terminal, processInfo, args, keystore);
+            ServerArgs args = createArgs(options, env, secrets, processInfo);
+            this.server = startServer(terminal, processInfo, args);
         }
 
         if (options.has(daemonizeOption)) {
@@ -127,21 +136,17 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private static SecureString getKeystorePassword(KeyStoreWrapper keystore, Terminal terminal) {
-        if (keystore != null && keystore.hasPassword()) {
-            return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
-        } else {
-            return new SecureString(new char[0]);
-        }
-    }
-
-    private Environment autoConfigureSecurity(
+    // Autoconfiguration of SecureSettings is currently only supported for KeyStore based secure settings
+    // package private for testing
+    Environment autoConfigureSecurity(
         Terminal terminal,
         OptionSet options,
         ProcessInfo processInfo,
         Environment env,
         SecureString keystorePassword
     ) throws Exception {
+        assert secureSettingsLoader(env) instanceof KeyStoreLoader;
+
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool("auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
@@ -182,7 +187,8 @@ class ServerCli extends EnvironmentAwareCommand {
         return env;
     }
 
-    private void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+    // package private for testing
+    void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
         String pluginCliLibs = "lib/tools/plugin-cli";
         Command cmd = loadTool("sync-plugins", pluginCliLibs);
         assert cmd instanceof EnvironmentAwareCommand;
@@ -201,7 +207,7 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureSettings secrets, ProcessInfo processInfo)
         throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
@@ -213,7 +219,7 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile());
     }
 
     @Override
@@ -229,8 +235,13 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, KeyStoreWrapper keystore)
-        throws UserException {
-        return ServerProcess.start(terminal, processInfo, args, keystore);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
+        return ServerProcess.start(terminal, processInfo, args);
+    }
+
+    // protected to allow tests to override
+    protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+        // TODO: Use the environment configuration to decide what kind of secrets store to load
+        return new KeyStoreLoader();
     }
 }

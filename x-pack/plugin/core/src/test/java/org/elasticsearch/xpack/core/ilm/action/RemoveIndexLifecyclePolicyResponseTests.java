@@ -32,7 +32,7 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSer
     }
 
     @Override
-    protected Response mutateInstance(Response instance) throws IOException {
+    protected Response mutateInstance(Response instance) {
         List<String> failedIndices = randomValueOtherThan(
             instance.getFailedIndexes(),
             () -> Arrays.asList(generateRandomStringArray(20, 20, false))

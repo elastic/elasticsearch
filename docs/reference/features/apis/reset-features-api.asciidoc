@@ -6,7 +6,7 @@
 
 experimental::[]
 
-Clears all of the the state information stored in system indices by {es} features, including the security and machine learning indices.
+Clears all of the state information stored in system indices by {es} features, including the security and machine learning indices.
 
 WARNING: Intended for development and testing use only. Do not reset features on a production cluster.
 

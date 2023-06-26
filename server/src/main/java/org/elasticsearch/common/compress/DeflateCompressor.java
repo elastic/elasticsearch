@@ -8,11 +8,11 @@
 
 package org.elasticsearch.common.compress;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Streams;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;

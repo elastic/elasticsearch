@@ -59,7 +59,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("john", "role"))
             .realmRef(new RealmRef("realm", "type", "node", null))
@@ -69,7 +69,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         if (useFls) {
             fieldPermissions = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, null));
         } else {
-            fieldPermissions = new FieldPermissions();
+            fieldPermissions = FieldPermissions.DEFAULT;
         }
         final boolean useDls = (useFls == false) || randomBoolean();
         final Set<BytesReference> queries;
@@ -121,7 +121,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("john", "role"))
             .realmRef(new RealmRef("realm", "type", "node", null))

@@ -24,12 +24,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -262,7 +263,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         request.setResolvedStartedDatafeedIds(resolvedStartedDatafeeds.toArray(new String[0]));
         request.setNodes(executorNodes.toArray(new String[0]));
 
-        final Set<String> movedDatafeeds = Sets.newConcurrentHashSet();
+        final Set<String> movedDatafeeds = ConcurrentCollections.newConcurrentSet();
 
         ActionListener<StopDatafeedAction.Response> finalListener = ActionListener.wrap(
             response -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, response, ActionListener.wrap(finished -> {
@@ -412,7 +413,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         StopDatafeedAction.Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<StopDatafeedAction.Response> listener
@@ -520,9 +521,9 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         // tasks, otherwise something went wrong
         if (request.getResolvedStartedDatafeedIds().length != tasks.size()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+                throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+                throw failedNodeExceptions.get(0);
             } else {
                 // This can happen when the local task in the node no longer exists,
                 // which means the datafeed(s) have already been stopped. It can

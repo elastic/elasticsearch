@@ -1,6 +1,0 @@
-pr: 85745
-summary: Upgrade Apache Commons Logging to 1.2
-area: Client
-type: upgrade
-issues:
-  - 40305

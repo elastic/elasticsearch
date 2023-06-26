@@ -214,12 +214,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, Object> creatorMap = (Map<String, Object>) sourceMap.get("creator");
         assertThat(creatorMap, notNullValue());
-        assertThat(creatorMap.get("principal"), equalTo(authentication.getUser().principal()));
-        assertThat(creatorMap.get("full_name"), equalTo(authentication.getUser().fullName()));
-        assertThat(creatorMap.get("email"), equalTo(authentication.getUser().email()));
-        assertThat(creatorMap.get("metadata"), equalTo(authentication.getUser().metadata()));
-        assertThat(creatorMap.get("realm"), equalTo(authentication.getSourceRealm().getName()));
-        assertThat(creatorMap.get("realm_type"), equalTo(authentication.getSourceRealm().getType()));
+        assertThat(creatorMap.get("principal"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
+        assertThat(creatorMap.get("full_name"), equalTo(authentication.getEffectiveSubject().getUser().fullName()));
+        assertThat(creatorMap.get("email"), equalTo(authentication.getEffectiveSubject().getUser().email()));
+        assertThat(creatorMap.get("metadata"), equalTo(authentication.getEffectiveSubject().getUser().metadata()));
+        assertThat(creatorMap.get("realm"), equalTo(authentication.getEffectiveSubject().getRealm().getName()));
+        assertThat(creatorMap.get("realm_type"), equalTo(authentication.getEffectiveSubject().getRealm().getType()));
 
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse1 = future1.get();
         assertNotNull(createServiceAccountTokenResponse1);
@@ -265,9 +265,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     .mapToObj(
                         i -> new SearchHit(
                             randomIntBetween(0, Integer.MAX_VALUE),
-                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i],
-                            Map.of(),
-                            Map.of()
+                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i]
                         )
                     )
                     .toArray(SearchHit[]::new);

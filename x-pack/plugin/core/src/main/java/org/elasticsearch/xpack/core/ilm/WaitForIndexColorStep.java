@@ -26,9 +26,9 @@ import java.util.function.BiFunction;
 /**
  * Wait Step for index based on color. Optionally derives the index name using the provided prefix (if any).
  */
-class WaitForIndexColorStep extends ClusterStateWaitStep {
+public class WaitForIndexColorStep extends ClusterStateWaitStep {
 
-    static final String NAME = "wait-for-index-color";
+    public static final String NAME = "wait-for-index-color";
 
     private static final Logger logger = LogManager.getLogger(WaitForIndexColorStep.class);
 
@@ -92,7 +92,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             String errorMessage = String.format(
                 Locale.ROOT,
                 "[%s] lifecycle action for index [%s] executed but the target index [%s] " + "does not exist",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName(),
                 indexName
             );

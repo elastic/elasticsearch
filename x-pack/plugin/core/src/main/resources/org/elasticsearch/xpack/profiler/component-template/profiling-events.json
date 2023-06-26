@@ -1,0 +1,79 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 4,
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "max_result_window": 150000,
+        "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "profiling.project.id",
+            "@timestamp",
+            "orchestrator.resource.name",
+            "container.name",
+            "process.thread.name",
+            "host.id"
+          ]
+        }
+      },
+      "codec": "best_compression"
+    },
+    "mappings": {
+      "_source": {
+        "enabled": false
+      },
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "profiling.project.id": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        },
+        "host.id": {
+          "type": "keyword"
+        },
+        "Stacktrace.id": {
+          "type": "keyword",
+          "index": false
+        },
+        "orchestrator.resource.name": {
+          "type": "keyword"
+        },
+        "container.name": {
+          "type": "keyword"
+        },
+        "process.thread.name": {
+          "type": "keyword"
+        },
+        "Stacktrace.count": {
+          "type": "short",
+          "index": false
+        },
+        "agent.version": {
+          "type": "keyword"
+        },
+        "host.ip": {
+          "type": "ip"
+        },
+        "host.name": {
+          "type": "keyword"
+        },
+        "os.kernel": {
+          "type": "keyword"
+        },
+        "tags": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

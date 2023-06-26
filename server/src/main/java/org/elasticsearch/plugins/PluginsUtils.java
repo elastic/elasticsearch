@@ -77,7 +77,30 @@ public class PluginsUtils {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     public static void verifyCompatibility(PluginDescriptor info) {
-        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+        if (info.isStable()) {
+            if (info.getElasticsearchVersion().major != Version.CURRENT.major) {
+                throw new IllegalArgumentException(
+                    "Stable Plugin ["
+                        + info.getName()
+                        + "] was built for Elasticsearch major version "
+                        + info.getElasticsearchVersion().major
+                        + " but version "
+                        + Version.CURRENT
+                        + " is running"
+                );
+            }
+            if (info.getElasticsearchVersion().after(Version.CURRENT)) {
+                throw new IllegalArgumentException(
+                    "Stable Plugin ["
+                        + info.getName()
+                        + "] was built for Elasticsearch version "
+                        + info.getElasticsearchVersion()
+                        + " but earlier version "
+                        + Version.CURRENT
+                        + " is running"
+                );
+            }
+        } else if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()

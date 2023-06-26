@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -48,6 +47,8 @@ import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
@@ -55,10 +56,10 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
 
     @Override
@@ -369,7 +370,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (fsInfo != null) {
                 diskTotal = fsInfo.getTotal().getTotal();
                 diskAvailable = fsInfo.getTotal().getAvailable();
-                diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());
+                diskUsed = ByteSizeValue.ofBytes(diskTotal.getBytes() - diskAvailable.getBytes());
 
                 double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
                 diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
@@ -412,13 +413,7 @@ public class RestNodesAction extends AbstractCatAction {
             );
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
-            final String roles;
-            if (node.getRoles().isEmpty()) {
-                roles = "-";
-            } else {
-                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
-            }
-            table.addCell(roles);
+            table.addCell(node.getRoleAbbreviationString());
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
             table.addCell(node.getName());
 
@@ -498,7 +493,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
-            table.addCell(segmentsStats == null ? null : new ByteSizeValue(0));
+            table.addCell(segmentsStats == null ? null : ByteSizeValue.ZERO);
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());

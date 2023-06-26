@@ -110,7 +110,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         );
         waitForIndexCreationToComplete(indexName);
         if (indexExists(indexName)) {
-            client().admin().indices().prepareDelete(indexName).get();
+            indicesAdmin().prepareDelete(indexName).get();
         }
 
         // enough data nodes, all shards are active
@@ -136,10 +136,10 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             .execute();
 
         logger.info("--> wait until the cluster state contains the new index");
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().metadata().hasIndex(indexName)));
+        assertBusy(() -> assertTrue(clusterAdmin().prepareState().get().getState().metadata().hasIndex(indexName)));
 
         logger.info("--> delete the index");
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("--> ensure the create index request completes");
         assertAcked(responseListener.get());
@@ -150,7 +150,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
     // only after the test cleanup does the index creation manifest in the cluster state. To take care of this problem
     // and its potential ramifications, we wait here for the index creation cluster state update task to finish
     private void waitForIndexCreationToComplete(final String indexName) {
-        client().admin().cluster().prepareHealth(indexName).setWaitForEvents(Priority.URGENT).get();
+        clusterAdmin().prepareHealth(indexName).setWaitForEvents(Priority.URGENT).get();
     }
 
 }

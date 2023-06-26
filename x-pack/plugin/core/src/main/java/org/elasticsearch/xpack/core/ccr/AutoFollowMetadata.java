@@ -7,18 +7,22 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,6 +32,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -101,9 +106,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     public AutoFollowMetadata(StreamInput in) throws IOException {
         this(
-            in.readMap(StreamInput::readString, AutoFollowPattern::readFrom),
-            in.readMapOfLists(StreamInput::readString, StreamInput::readString),
-            in.readMap(StreamInput::readString, valIn -> valIn.readMap(StreamInput::readString, StreamInput::readString))
+            in.readMap(AutoFollowPattern::readFrom),
+            in.readMapOfLists(StreamInput::readString),
+            in.readMap(valIn -> valIn.readMap(StreamInput::readString))
         );
     }
 
@@ -131,8 +136,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -147,31 +152,12 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(PATTERNS_FIELD.getPreferredName());
-        for (Map.Entry<String, AutoFollowPattern> entry : patterns.entrySet()) {
-            builder.startObject(entry.getKey());
-            builder.value(entry.getValue());
-            builder.endObject();
-        }
-        builder.endObject();
-
-        builder.startObject(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName());
-        for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-        builder.startObject(HEADERS.getPreferredName());
-        for (Map.Entry<String, Map<String, String>> entry : headers.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return true;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentFragmentValuesMap(PATTERNS_FIELD.getPreferredName(), patterns),
+            ChunkedToXContentHelper.map(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs),
+            ChunkedToXContentHelper.map(HEADERS.getPreferredName(), headers)
+        );
     }
 
     @Override
@@ -281,7 +267,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             final List<String> leaderIndexPatterns = in.readStringList();
             final String followIndexPattern = in.readOptionalString();
             final Settings settings;
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 settings = Settings.readSettingsFromStream(in);
             } else {
                 settings = Settings.EMPTY;
@@ -301,12 +287,12 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.settings = Objects.requireNonNull(settings);
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
                 this.active = in.readBoolean();
             } else {
                 this.active = true;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 this.leaderIndexExclusionPatterns = in.readStringList();
             } else {
                 this.leaderIndexExclusionPatterns = Collections.emptyList();
@@ -329,7 +315,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             if (matches) {
                 return true;
             } else {
-                final IndexAbstraction.DataStream parentDataStream = indexAbstraction.getParentDataStream();
+                final DataStream parentDataStream = indexAbstraction.getParentDataStream();
                 return parentDataStream != null
                     && parentDataStream.isSystem() == false
                     && Regex.simpleMatch(leaderIndexExclusionPatterns, indexAbstraction.getParentDataStream().getName()) == false
@@ -366,14 +352,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 settings.writeTo(out);
             }
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
                 out.writeBoolean(active);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }
         }

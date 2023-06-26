@@ -297,31 +297,6 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
     }
 
-    // TODO these terminate after tests are flaky
-    /*    public void testTerminateAfterTopDocsOnly() throws IOException {
-        {
-            //weight is propagated, collection is early terminated in between segments, terminate_after is somehow honoured
-            TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(assertNoCollection(topDocsCollector), null, 10, null, null);
-            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
-            assertTrue(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(reader.maxDoc(), topDocsCollector.getTotalHits());
-        }
-    }
-
-    public void testTerminateAfterWithAggs() throws IOException {
-        {
-            //weight is propagated to both collectors, no real collection happens, terminate_after is not honoured
-            TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();
-            TotalHitCountCollector aggsCollector = new TotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(assertNoCollection(topDocsCollector), null, 10, assertNoCollection(aggsCollector), null);
-            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(reader.maxDoc(), topDocsCollector.getTotalHits());
-            assertEquals(reader.maxDoc(), aggsCollector.getTotalHits());
-        }
-    }*/
-
     public void testWeightIsPropagatedTopDocsOnly() throws IOException {
         {
             TotalHitCountCollector topDocsCollector = new TotalHitCountCollector();

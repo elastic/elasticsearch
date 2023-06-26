@@ -1,0 +1,5 @@
+pr: 97112
+summary: Upgrade Netty to 4.1.94.Final
+area: Network
+type: upgrade
+issues: []

@@ -104,6 +104,10 @@ public class InMemoryJavaCompiler {
             this.files = List.of(file);
         }
 
+        public List<InMemoryJavaFileObject> getFiles() {
+            return this.files;
+        }
+
         @Override
         public JavaFileObject getJavaFileForOutput(Location location, String className, Kind kind, FileObject sibling) throws IOException {
             return files.stream()
@@ -129,10 +133,14 @@ public class InMemoryJavaCompiler {
      */
     public static Map<String, byte[]> compile(Map<String, CharSequence> sources, String... options) {
         var files = sources.entrySet().stream().map(e -> new InMemoryJavaFileObject(e.getKey(), e.getValue())).toList();
-        CompilationTask task = getCompilationTask(files, options);
+        try (FileManagerWrapper wrapper = new FileManagerWrapper(files)) {
+            CompilationTask task = getCompilationTask(wrapper, options);
 
-        boolean result = PrivilegedOperations.compilationTaskCall(task);
-        if (result == false) {
+            boolean result = PrivilegedOperations.compilationTaskCall(task);
+            if (result == false) {
+                throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
+            }
+        } catch (IOException e) {
             throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
         }
 
@@ -150,13 +158,16 @@ public class InMemoryJavaCompiler {
      */
     public static byte[] compile(String className, CharSequence sourceCode, String... options) {
         InMemoryJavaFileObject file = new InMemoryJavaFileObject(className, sourceCode);
-        CompilationTask task = getCompilationTask(file, options);
+        try (FileManagerWrapper wrapper = new FileManagerWrapper(file)) {
+            CompilationTask task = getCompilationTask(wrapper, options);
 
-        boolean result = PrivilegedOperations.compilationTaskCall(task);
-        if (result == false) {
+            boolean result = PrivilegedOperations.compilationTaskCall(task);
+            if (result == false) {
+                throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
+            }
+        } catch (IOException e) {
             throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
         }
-
         return file.getByteCode();
     }
 
@@ -164,11 +175,7 @@ public class InMemoryJavaCompiler {
         return ToolProvider.getSystemJavaCompiler();
     }
 
-    private static CompilationTask getCompilationTask(List<InMemoryJavaFileObject> files, String... options) {
-        return getCompiler().getTask(null, new FileManagerWrapper(files), null, List.of(options), null, files);
-    }
-
-    private static CompilationTask getCompilationTask(InMemoryJavaFileObject file, String... options) {
-        return getCompiler().getTask(null, new FileManagerWrapper(file), null, List.of(options), null, List.of(file));
+    private static CompilationTask getCompilationTask(FileManagerWrapper wrapper, String... options) {
+        return getCompiler().getTask(null, wrapper, null, List.of(options), null, wrapper.getFiles());
     }
 }

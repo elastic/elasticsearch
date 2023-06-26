@@ -92,7 +92,7 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
         assertNotSame(inferenceRescorerBuilder, rewritten);
         assertTrue(rewriteContext.hasAsyncActions());
         if (setWindowSize) {
-            assertEquals(rewritten.windowSize(), equalTo(42));
+            assertThat(rewritten.windowSize(), equalTo(42));
         }
     }
 

@@ -78,7 +78,7 @@ public class SubscribableListenerTests extends ESTestCase {
         var expectedResponse = new Object();
 
         IntFunction<ActionListener<Object>> listenerFactory = i -> ActionListener.runAfter(
-            ActionListener.wrap(o -> assertSame(o, expectedResponse), e -> fail()),
+            ActionTestUtils.assertNoFailureListener(o -> assertSame(o, expectedResponse)),
             new OrderAssertingRunnable(i, order)
         );
 

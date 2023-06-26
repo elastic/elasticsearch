@@ -39,7 +39,7 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
             client().prepareIndex("bigindex").setSource("foo", "bar").get();
         }
 
-        Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         final String mergeNode = discoveryNodes[0].getName();
         ensureGreen();

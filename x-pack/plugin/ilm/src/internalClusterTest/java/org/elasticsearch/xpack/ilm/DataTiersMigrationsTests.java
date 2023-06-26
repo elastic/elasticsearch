@@ -230,7 +230,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         ClusterAllocationExplainRequest explainReplicaShard = new ClusterAllocationExplainRequest().setIndex(managedIndex)
             .setPrimary(false)
             .setShard(0);
-        ClusterAllocationExplainResponse response = client().admin().cluster().allocationExplain(explainReplicaShard).actionGet();
+        ClusterAllocationExplainResponse response = clusterAdmin().allocationExplain(explainReplicaShard).actionGet();
         assertThat(response.getExplanation().getShardState(), is(ShardRoutingState.UNASSIGNED));
     }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -153,7 +152,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     }
 
     @Override
-    protected RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) {
+    protected InferenceRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
         return new InferenceRescorerContext(windowSize, InferenceRescorer.INSTANCE, inferenceDefinition, context);
     }

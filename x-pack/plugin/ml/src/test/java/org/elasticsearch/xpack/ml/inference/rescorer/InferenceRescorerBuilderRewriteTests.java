@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.rescorer;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -41,11 +45,17 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
         TestModelLoader testModelLoader = new TestModelLoader();
         InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder("modelId", () -> testModelLoader);
         SearchExecutionContext context = createSearchExecutionContext();
+        InferenceRescorerContext inferenceRescorerContext = inferenceRescorerBuilder.innerBuildContext(randomIntBetween(1, 30), context);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> inferenceRescorerBuilder.innerBuildContext(randomIntBetween(1, 30), context)
+            () -> inferenceRescorerContext.rescorer()
+                .rescore(
+                    new TopDocs(new TotalHits(10, TotalHits.Relation.EQUAL_TO), new ScoreDoc[10]),
+                    mock(IndexSearcher.class),
+                    inferenceRescorerContext
+                )
         );
-        assertEquals("local model reference is null, missing rewriteAndFetch?", e.getMessage());
+        assertEquals("local model reference is null, missing rewriteAndFetch before rescore phase?", e.getMessage());
     }
 
     public void testRewriteOnCoordinator() throws IOException {

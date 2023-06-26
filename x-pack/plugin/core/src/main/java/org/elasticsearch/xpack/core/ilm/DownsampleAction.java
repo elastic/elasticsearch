@@ -111,6 +111,7 @@ public class DownsampleAction implements LifecycleAction {
         StepKey downsampleKey = new StepKey(phase, NAME, DownsampleStep.NAME);
         StepKey waitForDownsampleIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
+        StepKey copyIndexLifecycleKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
@@ -181,9 +182,16 @@ public class DownsampleAction implements LifecycleAction {
 
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
-            dataStreamCheckBranchingKey,
+            copyIndexLifecycleKey,
             (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
             nextStepKey
+        );
+
+        CopySettingsStep copyLifecycleSettingsStep = new CopySettingsStep(
+            copyIndexLifecycleKey,
+            dataStreamCheckBranchingKey,
+            (index, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()
         );
 
         // By the time we get to this step we have 2 indices, the source and the downsampled one. We now need to choose an index
@@ -226,6 +234,7 @@ public class DownsampleAction implements LifecycleAction {
             downsampleStep,
             downsampleAllocatedStep,
             copyExecutionStateStep,
+            copyLifecycleSettingsStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep,

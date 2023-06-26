@@ -601,11 +601,25 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         stringBuilder.append('{').append(address).append('}');
         if (roles.isEmpty() == false) {
             stringBuilder.append('{');
-            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+            appendRoleAbbreviations(stringBuilder, "");
             stringBuilder.append('}');
         }
         stringBuilder.append('{').append(version.nodeVersion()).append('}');
         stringBuilder.append('{').append(version.minIndexVersion()).append('-').append(version.maxIndexVersion()).append('}');
+    }
+
+    public void appendRoleAbbreviations(StringBuilder stringBuilder, String ifEmpty) {
+        if (roles.isEmpty()) {
+            stringBuilder.append(ifEmpty);
+        } else {
+            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+        }
+    }
+
+    public String getRoleAbbreviationString() {
+        final var stringBuilder = new StringBuilder();
+        appendRoleAbbreviations(stringBuilder, "-");
+        return stringBuilder.toString();
     }
 
     public String descriptionWithoutAttributes() {

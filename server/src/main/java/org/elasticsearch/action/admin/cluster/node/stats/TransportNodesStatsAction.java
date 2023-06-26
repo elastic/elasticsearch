@@ -53,8 +53,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             actionFilters,
             NodesStatsRequest::new,
             NodeStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeStats.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.nodeService = nodeService;
     }

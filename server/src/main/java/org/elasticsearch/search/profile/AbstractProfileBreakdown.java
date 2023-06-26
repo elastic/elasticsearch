@@ -36,7 +36,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         T[] enumConstants = clazz.getEnumConstants();
         timings = new HashMap<>(enumConstants.length, 1.0f);
         for (int i = 0; i < enumConstants.length; ++i) {
-            Collection<Timer> listOfTimers = new ArrayList<>();
+            Collection<Timer> listOfTimers = Collections.synchronizedCollection(new ArrayList<>());
             listOfTimers.add(new Timer());
             timings.put(enumConstants[i], listOfTimers);
         }

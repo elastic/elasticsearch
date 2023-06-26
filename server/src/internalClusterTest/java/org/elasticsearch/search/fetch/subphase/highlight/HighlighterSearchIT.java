@@ -3501,8 +3501,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testConstantKeywordFieldHighlighting() throws IOException {
-        // check that constant_keyword highlighting works
+    public void testConstantKeywordFieldHighlightingQueryString() throws IOException {
         String index = "test";
         String constantKeywordFieldName = "test_constant_keyword_field";
         String constantValue = "constant_value";
@@ -3519,7 +3518,154 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
 
         assertNoFailures(search);
-        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+    }
+
+    public void testConstantKeywordFieldNoHighlightingQueryString() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+        String queryString = "foobar";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(queryString));
+
+        assertNoFailures(search);
+        assertHitCount(search, 0);
+    }
+
+    public void testConstantKeywordFieldHighlightingTerm() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.termQuery(constantKeywordFieldName, constantValue));
+
+        assertNoFailures(search);
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+    }
+
+    public void testConstantKeywordFieldNoHighlightingTerm() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+        String termValue = "foobar";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.termQuery(constantKeywordFieldName, termValue));
+
+        assertNoFailures(search);
+        assertHitCount(search, 0);
+    }
+
+    public void testConstantKeywordFieldHighlightingWildcard() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+        String partialConstantValueWithWildCard = "constant*";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(
+            QueryBuilders.wildcardQuery(constantKeywordFieldName, partialConstantValueWithWildCard)
+        );
+
+        assertNoFailures(search);
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+    }
+
+    public void testConstantKeywordFieldNoHighlightingWildcard() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+        String partialConstantValueWithWildCard = "foobar*";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(
+            QueryBuilders.wildcardQuery(constantKeywordFieldName, partialConstantValueWithWildCard)
+        );
+
+        assertNoFailures(search);
+        assertHitCount(search, 0);
+    }
+
+    public void testConstantKeywordFieldHighlightingPrefix() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+        String prefixConstantValue = "constant";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.prefixQuery(constantKeywordFieldName, prefixConstantValue));
+
+        assertNoFailures(search);
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+    }
+
+    public void testConstantKeywordFieldNoHighlightingPrefix() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+        String prefixConstantValue = "value";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.prefixQuery(constantKeywordFieldName, prefixConstantValue));
+
+        assertNoFailures(search);
+        assertHitCount(search, 0);
     }
 
     public void testImplicitConstantKeywordFieldHighlighting() throws IOException {
@@ -3537,32 +3683,14 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
 
         assertNoFailures(search);
-        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
-    }
-
-    public void testConstantKeywordFieldPartialNoHighlighting() throws IOException {
-        String index = "test";
-        String constantKeywordFieldName = "test_constant_keyword_field";
-        String constantValue = "constant_value";
-        String partialConstantValue = constantValue.substring(0, 3);
-
-        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
-        assertAcked(prepareCreate(index).setMapping(mappings));
-
-        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
-        saveDocumentIntoIndex(index, "1", document);
-
-        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValue));
-
-        assertNoFailures(search);
-        assertHitCount(search, 0);
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
     }
 
     public void testConstantKeywordFieldPartialWithWildcardHighlighting() throws IOException {
         String index = "test";
         String constantKeywordFieldName = "test_constant_keyword_field";
         String constantValue = "constant_value";
-        String partialConstantValueWithWildCard = "%s*".formatted(constantValue.substring(0, 3));
+        String partialConstantValueWithWildCard = "constant*";
 
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
@@ -3573,7 +3701,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValueWithWildCard));
 
         assertNoFailures(search);
-        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
     }
 
     public void testConstantKeywordFieldNotHighlightedOnOtherFieldMatch() throws IOException {
@@ -3607,8 +3735,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
 
         assertNoFailures(search);
-        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
-        assertHighlight(search, 0, "foo", 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>bar</em>"));
+        assertHighlight(search, 0, "foo", 0, 1, equalTo("<em>bar</em>"));
 
     }
 
@@ -3628,8 +3756,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
 
         assertNoFailures(search);
-        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
-        assertHighlight(search, 1, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+        assertHighlight(search, 1, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
     }
 
     public void testConstantKeywordAndOtherFieldsMatchMultipleHitsHighlighted() throws IOException {
@@ -3648,10 +3776,10 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
 
         assertNoFailures(search);
-        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
-        assertHighlight(search, 0, "foo", 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
-        assertHighlight(search, 1, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
-        assertHighlight(search, 1, "foo", 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+        assertHighlight(search, 0, "foo", 0, 1, equalTo("<em>constant_value</em>"));
+        assertHighlight(search, 1, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+        assertHighlight(search, 1, "foo", 0, 1, equalTo("<em>constant_value</em>"));
     }
 
     public void testDoubleConstantKeywordJustOneHighlighted() throws IOException {
@@ -3689,7 +3817,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         assertNoFailures(search);
         assertEquals(1, search.getHits().getHits()[0].getHighlightFields().size());
-        assertHighlight(search, 0, firstConstantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(firstConstantValue)));
+        assertHighlight(search, 0, firstConstantKeywordFieldName, 0, 1, equalTo("<em>constant_value_1</em>"));
     }
 
     private XContentBuilder prepareConstantKeywordMappings(String constantKeywordFieldName, String constantValue) throws IOException {

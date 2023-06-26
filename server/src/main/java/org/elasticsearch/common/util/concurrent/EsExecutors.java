@@ -46,7 +46,7 @@ public class EsExecutors {
      */
     public static final Setting<Processors> NODE_PROCESSORS_SETTING = new Setting<>(
         "node.processors",
-        Double.toString(Runtime.getRuntime().availableProcessors()),
+        Double.toString(MAX_NUM_PROCESSORS),
         textValue -> {
             double numberOfProcessors = Double.parseDouble(textValue);
             if (Double.isNaN(numberOfProcessors) || Double.isInfinite(numberOfProcessors)) {

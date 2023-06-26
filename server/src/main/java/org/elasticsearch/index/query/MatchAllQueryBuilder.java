@@ -89,7 +89,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     }
 
     @Override
-    public Query toDoHighlight(String fieldName) {
+    public Query toHighlightQuery(String fieldName) {
         return new WildcardQuery(new Term(fieldName, "*"));
     }
 }

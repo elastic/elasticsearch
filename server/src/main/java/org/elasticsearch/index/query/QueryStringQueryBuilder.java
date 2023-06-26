@@ -974,7 +974,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     @Override
-    public Query toDoHighlight(String fieldName) {
+    public Query toHighlightQuery(String fieldName) {
         return new WildcardQuery(new Term(fieldName, queryString));
     }
 }

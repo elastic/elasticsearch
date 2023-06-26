@@ -34,7 +34,7 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
      * @return the {@link Query} or {@code null} if this query should have standard behaviour
      * for highlighting.
      */
-    default Query toDoHighlight(String fieldName) {
+    default Query toHighlightQuery(String fieldName) {
         return null;
     }
 

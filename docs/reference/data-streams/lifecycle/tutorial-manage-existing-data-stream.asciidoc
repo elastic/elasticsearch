@@ -95,7 +95,7 @@ The response will look like:
 [[delete-lifecycle]]
 ==== Remove lifecycle for a data stream
 
-To remove the lifecycle of a data stream you can use the <<data-streams-delete-lifecycle-request,delete lifecycle API>>, as consequence,
+To remove the lifecycle of a data stream you can use the <<data-streams-delete-lifecycle-request,delete lifecycle API>>. As consequence,
 the maintenance operations that were applied by the lifecycle will no longer be applied to the data stream and all its
 backing indices. For example:
 

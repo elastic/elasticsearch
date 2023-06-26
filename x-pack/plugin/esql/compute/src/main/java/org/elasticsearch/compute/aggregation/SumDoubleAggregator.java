@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -51,14 +52,22 @@ class SumDoubleAggregator {
         current.add(v, groupId);
     }
 
-    public static void combineStates(GroupingSumState current, int currentGroupId, GroupingSumState state, int statePosition) {
-        current.add(state.values.get(statePosition), state.deltas.get(statePosition), currentGroupId);
+    public static void combineStates(GroupingSumState current, int groupId, GroupingSumState state, int statePosition) {
+        if (state.hasValue(statePosition)) {
+            current.add(state.values.get(statePosition), state.deltas.get(statePosition), groupId);
+        } else {
+            current.putNull(groupId);
+        }
     }
 
     public static Block evaluateFinal(GroupingSumState state, IntVector selected) {
         DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
-            builder.appendDouble(state.values.get(selected.getInt(i)));
+            if (state.hasValue(i)) {
+                builder.appendDouble(state.values.get(selected.getInt(i)));
+            } else {
+                builder.appendNull();
+            }
         }
         return builder.build();
     }
@@ -143,6 +152,7 @@ class SumDoubleAggregator {
         int largestGroupId;
 
         private final GroupingSumStateSerializer serializer;
+        private BitArray nonNulls;
 
         GroupingSumState(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
@@ -163,31 +173,48 @@ class SumDoubleAggregator {
             add(valueToAdd, 0d, groupId);
         }
 
-        void add(double valueToAdd, double deltaToAdd, int position) {
-            ensureCapacity(position);
+        void add(double valueToAdd, double deltaToAdd, int groupId) {
+            ensureCapacity(groupId);
 
             // If the value is Inf or NaN, just add it to the running tally to "convert" to
             // Inf/NaN. This keeps the behavior bwc from before kahan summing
             if (Double.isFinite(valueToAdd) == false) {
-                values.increment(position, valueToAdd);
+                values.increment(groupId, valueToAdd);
                 return;
             }
 
-            double value = values.get(position);
+            double value = values.get(groupId);
             if (Double.isFinite(value) == false) {
                 // It isn't going to get any more infinite.
                 return;
             }
-            double delta = deltas.get(position);
+            double delta = deltas.get(groupId);
             double correctedSum = valueToAdd + (delta + deltaToAdd);
             double updatedValue = value + correctedSum;
-            deltas.set(position, correctedSum - (updatedValue - value));
-            values.set(position, updatedValue);
+            deltas.set(groupId, correctedSum - (updatedValue - value));
+            values.set(groupId, updatedValue);
+            if (nonNulls != null) {
+                nonNulls.set(groupId);
+            }
         }
 
-        void putNull(int position) {
-            // counts = 0 is for nulls
-            ensureCapacity(position);
+        void putNull(int groupId) {
+            if (groupId > largestGroupId) {
+                ensureCapacity(groupId);
+                largestGroupId = groupId;
+            }
+            if (nonNulls == null) {
+                nonNulls = new BitArray(groupId + 1, bigArrays);
+                for (int i = 0; i < groupId; i++) {
+                    nonNulls.set(i);
+                }
+            } else {
+                nonNulls.ensureCapacity(groupId + 1);
+            }
+        }
+
+        boolean hasValue(int index) {
+            return nonNulls == null || nonNulls.get(index);
         }
 
         private void ensureCapacity(int groupId) {
@@ -200,7 +227,7 @@ class SumDoubleAggregator {
 
         @Override
         public long getEstimatedSize() {
-            return Long.BYTES + (largestGroupId + 1) * BYTES_SIZE;
+            return Long.BYTES + (largestGroupId + 1) * BYTES_SIZE + LongArrayState.estimateSerializeSize(nonNulls);
         }
 
         @Override
@@ -210,7 +237,7 @@ class SumDoubleAggregator {
 
         @Override
         public void close() {
-            Releasables.close(values, deltas);
+            Releasables.close(values, deltas, nonNulls);
         }
     }
 
@@ -237,7 +264,7 @@ class SumDoubleAggregator {
                 doubleHandle.set(ba, offset + 8, state.deltas.get(group));
                 offset += BYTES_SIZE;
             }
-            return 8 + (BYTES_SIZE * selected.getPositionCount()); // number of bytes written
+            return 8 + (BYTES_SIZE * selected.getPositionCount()) + LongArrayState.serializeBitArray(state.nonNulls, ba, offset);
         }
 
         // sets the state in value
@@ -255,6 +282,7 @@ class SumDoubleAggregator {
                 offset += BYTES_SIZE;
             }
             state.largestGroupId = positions - 1;
+            state.nonNulls = LongArrayState.deseralizeBitArray(state.bigArrays, ba, offset);
         }
     }
 }

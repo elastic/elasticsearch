@@ -26,6 +26,10 @@ class SumIntAggregator {
     }
 
     public static void combineStates(LongArrayState current, int groupId, LongArrayState state, int position) {
-        current.set(Math.addExact(current.getOrDefault(groupId), state.get(position)), groupId);
+        if (state.hasValue(position)) {
+            current.set(Math.addExact(current.getOrDefault(groupId), state.get(position)), groupId);
+        } else {
+            current.putNull(groupId);
+        }
     }
 }

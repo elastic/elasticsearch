@@ -22,7 +22,6 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EmptySourceOperator;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -118,20 +117,38 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     public final void testEmptyInput() {
-        List<Page> results = new ArrayList<>();
         DriverContext driverContext = new DriverContext();
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), List.<Page>of().iterator());
 
-        try (
-            Driver d = new Driver(
-                driverContext,
-                new EmptySourceOperator(),
-                List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
+        assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
+    }
+
+    public final void testEmptyInputInitialFinal() {
+        DriverContext driverContext = new DriverContext();
+        List<Page> results = drive(
+            List.of(
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            ),
+            List.<Page>of().iterator()
+        );
+
+        assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
+    }
+
+    public final void testEmptyInputInitialIntermediateFinal() {
+        DriverContext driverContext = new DriverContext();
+        List<Page> results = drive(
+            List.of(
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            ),
+            List.<Page>of().iterator()
+        );
+
         assertThat(results, hasSize(1));
         assertOutputFromEmpty(results.get(0).getBlock(0));
     }

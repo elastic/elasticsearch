@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -27,6 +28,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -69,8 +71,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             + "[channels=[1]], mode=SINGLE]]]";
     }
 
-    @Override
-    protected final void assertSimpleOutput(List<Page> input, List<Page> results) {
+    private SortedSet<Long> seenGroups(List<Page> input) {
         SortedSet<Long> seenGroups = new TreeSet<>();
         for (Page in : input) {
             LongBlock groups = in.getBlock(0);
@@ -85,6 +86,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 }
             }
         }
+        return seenGroups;
+    }
+
+    @Override
+    protected final void assertSimpleOutput(List<Page> input, List<Page> results) {
+        SortedSet<Long> seenGroups = seenGroups(input);
 
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(2));
@@ -183,6 +190,112 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> input = CannedSourceOperator.collectPages(nullValues(mergeValues(simpleInput(end))));
         List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
+    }
+
+    public final void testNullOnly() {
+        DriverContext driverContext = new DriverContext();
+        assertNullOnly(List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)));
+    }
+
+    public final void testNullOnlyInputInitialFinal() {
+        DriverContext driverContext = new DriverContext();
+        assertNullOnly(
+            List.of(
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            )
+        );
+    }
+
+    public final void testNullOnlyInputInitialIntermediateFinal() {
+        DriverContext driverContext = new DriverContext();
+        assertNullOnly(
+            List.of(
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            )
+        );
+    }
+
+    private void assertNullOnly(List<Operator> operators) {
+        List<Page> source = List.of(new Page(LongVector.newVectorBuilder(1).appendLong(0).build().asBlock(), Block.constantNullBlock(1)));
+        List<Page> results = drive(operators, source.iterator());
+
+        assertThat(results, hasSize(1));
+        Block resultBlock = results.get(0).getBlock(1);
+        assertOutputFromNullOnly(resultBlock, 0);
+    }
+
+    public final void testNullSome() {
+        DriverContext driverContext = new DriverContext();
+        assertNullSome(List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)));
+    }
+
+    public final void testNullSomeInitialFinal() {
+        DriverContext driverContext = new DriverContext();
+        assertNullSome(
+            List.of(
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            )
+        );
+    }
+
+    public final void testNullSomeInitialIntermediateFinal() {
+        DriverContext driverContext = new DriverContext();
+        assertNullSome(
+            List.of(
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
+                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            )
+        );
+    }
+
+    private void assertNullSome(List<Operator> operators) {
+        List<Page> inputData = CannedSourceOperator.collectPages(simpleInput(1000));
+        SortedSet<Long> seenGroups = seenGroups(inputData);
+
+        long nullGroup = randomFrom(seenGroups);
+        List<Page> source = new ArrayList<>(inputData.size());
+        for (Page page : inputData) {
+            LongVector groups = page.<LongBlock>getBlock(0).asVector();
+            Block values = page.getBlock(1);
+            Block.Builder copiedValues = values.elementType().newBlockBuilder(page.getPositionCount());
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                if (groups.getLong(p) == nullGroup) {
+                    copiedValues.appendNull();
+                } else {
+                    copiedValues.copyFrom(values, p, p + 1);
+                }
+            }
+            source.add(new Page(groups.asBlock(), copiedValues.build()));
+        }
+
+        List<Page> results = drive(operators, source.iterator());
+
+        assertThat(results, hasSize(1));
+        LongVector groups = results.get(0).<LongBlock>getBlock(0).asVector();
+        Block resultBlock = results.get(0).getBlock(1);
+        boolean foundNullPosition = false;
+        for (int p = 0; p < groups.getPositionCount(); p++) {
+            if (groups.getLong(p) == nullGroup) {
+                foundNullPosition = true;
+                assertOutputFromNullOnly(resultBlock, p);
+            }
+        }
+        assertTrue("didn't find the null position. bad position range?", foundNullPosition);
+    }
+
+    /**
+     * Asserts that the output from a group that contains only null values is
+     * a {@link Block} containing only {@code null}. Override for
+     * {@code count} style aggregations that return other sorts of results.
+     */
+    protected void assertOutputFromNullOnly(Block b, int position) {
+        assertThat(b.isNull(position), equalTo(true));
+        assertThat(b.getValueCount(position), equalTo(0));
     }
 
     private SourceOperator mergeValues(SourceOperator orig) {

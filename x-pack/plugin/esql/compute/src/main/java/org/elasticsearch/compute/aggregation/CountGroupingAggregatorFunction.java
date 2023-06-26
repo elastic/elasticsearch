@@ -89,6 +89,9 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     private void addRawInput(LongBlock groups, Block values) {
+        if (values.areAllValuesNull()) {
+            return;
+        }
         for (int position = 0; position < groups.getPositionCount(); position++) {
             if (groups.isNull(position)) {
                 continue;
@@ -145,7 +148,11 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-        blocks[offset] = state.toValuesBlock(selected);
+        LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount());
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            builder.appendLong(state.get(selected.getInt(i)));
+        }
+        blocks[offset] = builder.build().asBlock();
     }
 
     @Override

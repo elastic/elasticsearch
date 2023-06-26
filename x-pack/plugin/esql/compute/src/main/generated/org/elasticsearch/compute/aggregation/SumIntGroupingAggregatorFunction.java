@@ -40,8 +40,13 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    IntBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
+    Block uncastValuesBlock = page.getBlock(channels.get(0));
+    if (uncastValuesBlock.areAllValuesNull()) {
+      addRawInputAllNulls(groups, uncastValuesBlock);
+      return;
+    }
+    IntBlock valuesBlock = (IntBlock) uncastValuesBlock;
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       addRawInput(groups, valuesBlock);
@@ -72,10 +77,23 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
     }
   }
 
+  private void addRawInputAllNulls(LongVector groups, Block values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groups.getLong(position));
+      assert values.isNull(position);
+      state.putNull(groupId);
+    }
+  }
+
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    IntBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
+    Block uncastValuesBlock = page.getBlock(channels.get(0));
+    if (uncastValuesBlock.areAllValuesNull()) {
+      addRawInputAllNulls(groups, uncastValuesBlock);
+      return;
+    }
+    IntBlock valuesBlock = (IntBlock) uncastValuesBlock;
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       addRawInput(groups, valuesBlock);
@@ -116,6 +134,21 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
         state.set(SumIntAggregator.combine(state.getOrDefault(groupId), values.getInt(position)), groupId);
+      }
+    }
+  }
+
+  private void addRawInputAllNulls(LongBlock groups, Block values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      if (groups.isNull(position)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(position);
+      int groupEnd = groupStart + groups.getValueCount(position);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = Math.toIntExact(groups.getLong(g));
+        assert values.isNull(position);
+        state.putNull(groupId);
       }
     }
   }

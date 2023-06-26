@@ -12,7 +12,6 @@ import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -42,11 +41,11 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
 
   @Override
   public void addRawInput(Page page) {
-    ElementType type = page.getBlock(channels.get(0)).elementType();
-    if (type == ElementType.NULL) {
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
       return;
     }
-    IntBlock block = page.getBlock(channels.get(0));
+    IntBlock block = (IntBlock) uncastBlock;
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

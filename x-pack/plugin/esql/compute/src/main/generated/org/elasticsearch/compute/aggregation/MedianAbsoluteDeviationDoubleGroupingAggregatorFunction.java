@@ -45,8 +45,13 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
+    Block uncastValuesBlock = page.getBlock(channels.get(0));
+    if (uncastValuesBlock.areAllValuesNull()) {
+      addRawInputAllNulls(groups, uncastValuesBlock);
+      return;
+    }
+    DoubleBlock valuesBlock = (DoubleBlock) uncastValuesBlock;
     DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       addRawInput(groups, valuesBlock);
@@ -77,10 +82,23 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
     }
   }
 
+  private void addRawInputAllNulls(LongVector groups, Block values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groups.getLong(position));
+      assert values.isNull(position);
+      state.putNull(groupId);
+    }
+  }
+
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     assert groups.getPositionCount() == page.getPositionCount();
+    Block uncastValuesBlock = page.getBlock(channels.get(0));
+    if (uncastValuesBlock.areAllValuesNull()) {
+      addRawInputAllNulls(groups, uncastValuesBlock);
+      return;
+    }
+    DoubleBlock valuesBlock = (DoubleBlock) uncastValuesBlock;
     DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       addRawInput(groups, valuesBlock);
@@ -121,6 +139,21 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
         MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(position));
+      }
+    }
+  }
+
+  private void addRawInputAllNulls(LongBlock groups, Block values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      if (groups.isNull(position)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(position);
+      int groupEnd = groupStart + groups.getValueCount(position);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = Math.toIntExact(groups.getLong(g));
+        assert values.isNull(position);
+        state.putNull(groupId);
       }
     }
   }

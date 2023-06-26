@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -48,11 +47,11 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
   @Override
   public void addRawInput(Page page) {
-    ElementType type = page.getBlock(channels.get(0)).elementType();
-    if (type == ElementType.NULL) {
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
       return;
     }
-    BytesRefBlock block = page.getBlock(channels.get(0));
+    BytesRefBlock block = (BytesRefBlock) uncastBlock;
     BytesRefVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

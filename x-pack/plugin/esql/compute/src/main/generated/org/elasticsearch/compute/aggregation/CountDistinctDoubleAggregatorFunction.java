@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -47,11 +46,11 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
 
   @Override
   public void addRawInput(Page page) {
-    ElementType type = page.getBlock(channels.get(0)).elementType();
-    if (type == ElementType.NULL) {
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
       return;
     }
-    DoubleBlock block = page.getBlock(channels.get(0));
+    DoubleBlock block = (DoubleBlock) uncastBlock;
     DoubleVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

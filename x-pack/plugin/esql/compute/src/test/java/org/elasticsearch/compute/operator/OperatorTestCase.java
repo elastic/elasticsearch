@@ -195,12 +195,16 @@ public abstract class OperatorTestCase extends ESTestCase {
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input) {
+        return drive(List.of(operator), input);
+    }
+
+    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input) {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
                 new DriverContext(),
                 new CannedSourceOperator(input),
-                List.of(operator),
+                operators,
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )

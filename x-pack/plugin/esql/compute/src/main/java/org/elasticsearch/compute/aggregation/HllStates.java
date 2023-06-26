@@ -160,6 +160,12 @@ final class HllStates {
 
         final HyperLogLogPlusPlus hll;
 
+        /**
+         * Maximum group id received. Only needed for estimating max serialization size.
+         * We won't need to do that one day and can remove this.
+         */
+        int maxGroupId;
+
         GroupingState(BigArrays bigArrays, int precision) {
             this.serializer = new GroupingStateSerializer();
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
@@ -191,7 +197,7 @@ final class HllStates {
         }
 
         void putNull(int groupId) {
-            // no-op
+            maxGroupId = Math.max(maxGroupId, groupId);
         }
 
         void merge(int groupId, AbstractHyperLogLogPlusPlus other, int otherGroup) {
@@ -201,7 +207,7 @@ final class HllStates {
         @Override
         public long getEstimatedSize() {
             int len = Integer.BYTES; // Serialize number of groups
-            for (int groupId = 0; groupId < hll.maxOrd(); groupId++) {
+            for (int groupId = 0; groupId <= Math.max(hll.maxOrd(), maxGroupId + 1); groupId++) {
                 len += Integer.BYTES; // Serialize length of hll byte array
                 // Serialize hll byte array. Unfortunately, the hll data structure
                 // is not fixed length, so we must serialize it and then get its length

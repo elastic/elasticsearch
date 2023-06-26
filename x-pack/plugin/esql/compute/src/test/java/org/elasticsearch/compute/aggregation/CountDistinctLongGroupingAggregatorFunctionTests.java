@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
@@ -44,5 +45,12 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAg
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
         // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
         assertThat((double) count, closeTo(expected, expected * 0.1));
+    }
+
+    @Override
+    protected void assertOutputFromNullOnly(Block b, int position) {
+        assertThat(b.isNull(position), equalTo(false));
+        assertThat(b.getValueCount(position), equalTo(1));
+        assertThat(((LongBlock) b).getLong(b.getFirstValueIndex(position)), equalTo(0L));
     }
 }

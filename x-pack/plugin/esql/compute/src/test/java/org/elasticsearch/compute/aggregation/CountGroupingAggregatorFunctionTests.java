@@ -49,4 +49,11 @@ public class CountGroupingAggregatorFunctionTests extends GroupingAggregatorFunc
         long count = input.stream().flatMapToInt(p -> allValueOffsets(p, group)).count();
         assertThat(((LongBlock) result).getLong(position), equalTo(count));
     }
+
+    @Override
+    protected void assertOutputFromNullOnly(Block b, int position) {
+        assertThat(b.isNull(position), equalTo(false));
+        assertThat(b.getValueCount(position), equalTo(1));
+        assertThat(((LongBlock) b).getLong(b.getFirstValueIndex(position)), equalTo(0L));
+    }
 }

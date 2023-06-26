@@ -45,4 +45,11 @@ public class CountDistinctBooleanGroupingAggregatorFunctionTests extends Groupin
         long count = ((LongBlock) result).getLong(position);
         assertThat(count, equalTo(distinct));
     }
+
+    @Override
+    protected void assertOutputFromNullOnly(Block b, int position) {
+        assertThat(b.isNull(position), equalTo(false));
+        assertThat(b.getValueCount(position), equalTo(1));
+        assertThat(((LongBlock) b).getLong(b.getFirstValueIndex(position)), equalTo(0L));
+    }
 }

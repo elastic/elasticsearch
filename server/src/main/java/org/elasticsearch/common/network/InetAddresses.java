@@ -37,7 +37,7 @@ public class InetAddresses {
 
     public static String getIpOrHost(String ipString) {
         byte[] bytes = ipStringToBytes(ipString);
-        if (bytes == null) {
+        if (bytes == null) { // is not InetAddress
             return ipString;
         }
         return NetworkAddress.format(bytesToInetAddress(bytes));

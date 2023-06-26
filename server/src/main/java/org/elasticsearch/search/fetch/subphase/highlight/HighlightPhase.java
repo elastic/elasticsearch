@@ -167,7 +167,7 @@ public class HighlightPhase implements FetchSubPhase {
         MappedFieldType fieldType
     ) {
         if (fieldType instanceof ConstantFieldType) {
-            QueryBuilder originalQuery = highlightContext.getOriginalQuery();
+            QueryBuilder originalQuery = highlightContext.originalQuery();
             return originalQuery.toHighlightQuery(fieldType.name());
         }
         return field.fieldOptions().highlightQuery();

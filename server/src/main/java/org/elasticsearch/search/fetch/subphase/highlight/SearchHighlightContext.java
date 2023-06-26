@@ -21,12 +21,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class SearchHighlightContext {
-    public void setOriginalQuery(QueryBuilder originalQuery) {
-        this.originalQuery = originalQuery;
-    }
-
-    private QueryBuilder originalQuery;
     private final Map<String, Field> fields;
+    private QueryBuilder originalQuery;
 
     public SearchHighlightContext(Collection<Field> fields) {
         assert fields != null;
@@ -40,8 +36,12 @@ public class SearchHighlightContext {
         return fields.values();
     }
 
-    public QueryBuilder getOriginalQuery() {
+    public QueryBuilder originalQuery() {
         return originalQuery;
+    }
+
+    public void setOriginalQuery(QueryBuilder originalQuery) {
+        this.originalQuery = originalQuery;
     }
 
     public static class Field {

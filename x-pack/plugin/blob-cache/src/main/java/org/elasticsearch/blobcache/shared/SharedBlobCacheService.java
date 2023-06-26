@@ -625,6 +625,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    /**
+     * Evicts every entry from the cache.
+     * <p>
+     * As currently implemented, this is a blocking operation on the entire cache.
+     * This is used for perf testing serverless.
+     *
+     * @return The number of entries evicted.
+     */
+    public synchronized int forceEvictAll() {
+        final int priorEntries = keyMapping.size();
+        for (Entry<CacheFileRegion> entry : keyMapping.values()) {
+            boolean evicted = entry.chunk.forceEvict();
+            if (evicted && entry.chunk.sharedBytesPos != -1) {
+                unlink(entry);
+                keyMapping.remove(entry.chunk.regionKey, entry);
+            }
+        }
+        return priorEntries - keyMapping.size();
+    }
+
     // used by tests
     int getFreq(CacheFileRegion cacheFileRegion) {
         return keyMapping.get(cacheFileRegion.regionKey).freq;

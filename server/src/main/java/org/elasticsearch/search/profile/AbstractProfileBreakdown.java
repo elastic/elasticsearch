@@ -11,8 +11,9 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.common.util.Maps;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -28,14 +29,14 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * The accumulated timings for this query node
      */
-    private final Map<T, List<Timer>> timings;
+    private final Map<T, Collection<Timer>> timings;
 
     /** Sole constructor. */
     public AbstractProfileBreakdown(Class<T> clazz) {
         T[] enumConstants = clazz.getEnumConstants();
-        timings = Maps.newMapWithExpectedSize(enumConstants.length);
+        timings = new HashMap<>(enumConstants.length, 1.0f);
         for (int i = 0; i < enumConstants.length; ++i) {
-            ArrayList<Timer> listOfTimers = new ArrayList<>();
+            Collection<Timer> listOfTimers = new ArrayList<>();
             listOfTimers.add(new Timer());
             timings.put(enumConstants[i], listOfTimers);
         }
@@ -45,7 +46,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * @param timingType the timing type to create a new {@link Timer} for
      * @return a new {@link Timer} instance
      */
-    public synchronized Timer getNewTimer(T timingType) {
+    public Timer getNewTimer(T timingType) {
         Timer timer = new Timer();
         timings.get(timingType).add(timer);
         return timer;
@@ -56,7 +57,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * If multiple timers where requested from different locations or threads from this profile breakdown,
      * the approximation will contain the sum of each timers approximate time and count.
      */
-    public final synchronized Map<String, Long> toBreakdownMap() {
+    public final Map<String, Long> toBreakdownMap() {
         Map<String, Long> map = Maps.newMapWithExpectedSize(timings.keySet().size() * 2);
         this.timings.forEach((timingType, timers) -> {
             map.put(timingType.toString(), timers.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum());
@@ -68,14 +69,14 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * Fetch extra debugging information.
      */
-    protected synchronized Map<String, Object> toDebugMap() {
+    protected Map<String, Object> toDebugMap() {
         return emptyMap();
     }
 
     /**
      * @return the total sum of timers approximate times across all timing types
      */
-    public final synchronized long toNodeTime() {
+    public final long toNodeTime() {
         final LongAdder total = new LongAdder();
         this.timings.forEach(
             (timingType, timers) -> { total.add(timers.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum()); }

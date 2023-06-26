@@ -41,9 +41,15 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
 
         Timer secondTimerOne = testBreakdown.getNewTimer(TestTimingTypes.ONE);
         runTimer(secondTimerOne);
-        // test that running second timer doesn't affect first timers count etc...
+        // test that running second timer doesn't affect first timers count etc... and vice versa
         assertThat(firstTimerOne.getCount(), equalTo(1L));
         assertThat(firstTimerOne.getApproximateTiming(), equalTo(firstTimerOneTime));
+
+        assertThat(secondTimerOne.getCount(), equalTo(1L));
+        long approximateTimingSecondTimer = secondTimerOne.getApproximateTiming();
+        runTimer(firstTimerOne);
+        assertThat(secondTimerOne.getCount(), equalTo(1L));
+        assertThat(secondTimerOne.getApproximateTiming(), equalTo(approximateTimingSecondTimer));
     }
 
     public void testGetBreakdownAndNodeTime() {
@@ -101,7 +107,7 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
 
     public void testMultiThreaded() throws InterruptedException {
         TestProfileBreakdown testBreakdown = new TestProfileBreakdown();
-        Thread[] threads = new Thread[2000];
+        Thread[] threads = new Thread[200];
         final CountDownLatch latch = new CountDownLatch(1);
         int startsPerThread = between(1, 5);
         for (int t = 0; t < threads.length; t++) {

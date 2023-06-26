@@ -998,6 +998,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
         );
 
+        assertNull(rollupSettings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
         assertEquals("true", rollupSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
         assertEquals(sourceSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), rollupSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN));
 

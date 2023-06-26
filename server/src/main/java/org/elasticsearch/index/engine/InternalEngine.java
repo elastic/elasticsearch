@@ -100,6 +100,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -2802,7 +2803,9 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8);
+                final Map<String, String> extraCommitUserData = getCommitExtraUserData();
+                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
+                commitData.putAll(extraCommitUserData);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
@@ -2843,6 +2846,14 @@ public class InternalEngine extends Engine {
                 throw e;
             }
         }
+    }
+
+    /**
+     * Allows InternalEngine extenders to return custom key-value pairs which will be included in the Lucene commit user-data. Custom user
+     * data keys can be overwritten by if their keys conflict keys used by InternalEngine.
+     */
+    protected Map<String, String> getCommitExtraUserData() {
+        return Collections.emptyMap();
     }
 
     final void ensureCanFlush() {

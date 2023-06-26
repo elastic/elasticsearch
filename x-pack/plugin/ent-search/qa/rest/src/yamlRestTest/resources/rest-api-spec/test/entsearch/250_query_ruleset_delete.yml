@@ -6,7 +6,6 @@ setup:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-to-delete
         body:
-          ruleset_id: test-query-ruleset-to-delete
           rules:
             - rule_id: query-rule-id1
               type: pinned

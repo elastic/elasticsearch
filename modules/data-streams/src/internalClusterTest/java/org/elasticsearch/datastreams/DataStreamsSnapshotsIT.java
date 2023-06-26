@@ -823,7 +823,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             is(true)
         );
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).get();
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO, snapshotName).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), empty());
     }
 
@@ -831,7 +831,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Client client1 = client();
 
         // this test uses a MockRepository
-        assertAcked(client().admin().cluster().prepareDeleteRepository(REPO));
+        assertAcked(clusterAdmin().prepareDeleteRepository(REPO));
 
         final String repositoryName = "test-repo";
         createRepository(
@@ -910,11 +910,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .execute()
         );
         assertAcked(
-            client().admin()
-                .cluster()
-                .prepareCloneSnapshot(REPO, sourceSnapshotName, "target-snapshot-1")
-                .setIndices(indexWithoutDataStream)
-                .get()
+            clusterAdmin().prepareCloneSnapshot(REPO, sourceSnapshotName, "target-snapshot-1").setIndices(indexWithoutDataStream).get()
         );
     }
 
@@ -944,9 +940,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final boolean partial = randomBoolean();
         blockAllDataNodes(repoName);
         final String snapshotName = "ds-snap";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, snapshotName)
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .setPartial(partial)
             .setIncludeGlobalState(randomBoolean())
@@ -967,9 +961,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.dataStreams(), hasItems("ds"));
         assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
 
-        RestoreInfo restoreSnapshotResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repoName, snapshotName)
+        RestoreInfo restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices("ds")
             .get()
@@ -986,9 +978,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createRepository(repoName, "mock");
         blockAllDataNodes(repoName);
         final String snapshotName = "ds-snap";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, snapshotName)
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .setPartial(true)
             .setIncludeGlobalState(randomBoolean())
@@ -1013,9 +1003,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "other-ds" })).get()
         );
 
-        RestoreInfo restoreSnapshotResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repoName, snapshotName)
+        RestoreInfo restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices("other-ds")
             .get()

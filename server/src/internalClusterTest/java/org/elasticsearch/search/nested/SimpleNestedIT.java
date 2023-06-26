@@ -1560,7 +1560,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureSearchable("test");
 
         // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
 
         // Now add nested mapping
@@ -1583,7 +1583,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureSearchable("test");
 
         if (loadFixedBitSeLazily) {
-            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
             assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
 
             // only when querying with nested the fixed bitsets are loaded
@@ -1593,11 +1593,11 @@ public class SimpleNestedIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L));
         }
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0L));
 
         assertAcked(indicesAdmin().prepareDelete("test"));
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
     }
 

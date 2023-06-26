@@ -61,7 +61,6 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestRepositoryPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95994")
     public void testRecoveryStateRecoveredBytesMatchPhysicalCacheState() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -83,9 +82,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .get()
@@ -147,9 +144,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         internalCluster().restartRandomDataNode();
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .get()

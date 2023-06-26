@@ -121,27 +121,27 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
         {
             QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(0, 10);
-            final List<String> rulesetIds = searchResponse.rulesetIds();
-            assertNotNull(rulesetIds);
-            assertThat(rulesetIds.size(), equalTo(10));
+            final List<QueryRulesetListItem> rulesets = searchResponse.rulesets();
+            assertNotNull(rulesets);
+            assertThat(rulesets.size(), equalTo(10));
             assertThat(searchResponse.totalResults(), equalTo(10L));
 
             for (int i = 0; i < numRulesets; i++) {
-                String rulesetId = rulesetIds.get(i);
+                String rulesetId = rulesets.get(i).rulesetId();
                 assertThat(rulesetId, equalTo("my_ruleset_" + i));
             }
         }
 
         {
             QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(5, 10);
-            final List<String> rulesetIds = searchResponse.rulesetIds();
-            assertNotNull(rulesetIds);
-            assertThat(rulesetIds.size(), equalTo(5));
+            final List<QueryRulesetListItem> rulesets = searchResponse.rulesets();
+            assertNotNull(rulesets);
+            assertThat(rulesets.size(), equalTo(5));
             assertThat(searchResponse.totalResults(), equalTo(10L));
 
             for (int i = 0; i < 5; i++) {
                 int index = i + 5;
-                String rulesetId = rulesetIds.get(i);
+                String rulesetId = rulesets.get(i).rulesetId();
                 assertThat(rulesetId, equalTo("my_ruleset_" + index));
             }
         }

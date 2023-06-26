@@ -86,10 +86,15 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     ) {
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> {
             Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadedIndicesDetails = new HashMap<>();
+            // if the request was to reload for a specific resource, we only want to return the details for that resource
+            boolean includeEmptyReloadDetails = request.resource() == null;
             for (ReloadResult result : responses) {
                 if (reloadedIndicesDetails.containsKey(result.index)) {
                     reloadedIndicesDetails.get(result.index).merge(result);
                 } else {
+                    if (result.reloadedSearchAnalyzers.isEmpty() && includeEmptyReloadDetails == false) {
+                        continue;
+                    }
                     HashSet<String> nodeIds = new HashSet<>();
                     nodeIds.add(result.nodeId);
                     ReloadAnalyzersResponse.ReloadDetails details = new ReloadAnalyzersResponse.ReloadDetails(
@@ -119,7 +124,8 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         ActionListener.completeWith(listener, () -> {
             logger.info("reloading analyzers for index shard " + shardRouting);
             IndexService indexService = indicesService.indexService(shardRouting.index());
-            List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
+            List<String> reloadedSearchAnalyzers = indexService.mapperService()
+                .reloadSearchAnalyzers(indicesService.getAnalysis(), request.resource());
             return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
         });
     }

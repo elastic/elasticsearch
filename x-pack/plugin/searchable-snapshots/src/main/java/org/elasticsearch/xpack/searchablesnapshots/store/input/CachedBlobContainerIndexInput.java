@@ -123,6 +123,13 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     /**
+     * @return Returns the number of bytes already cached for the file in the cold persistent cache
+     */
+    public long getPersistentCacheInitialLength() throws Exception {
+        return cacheFileReference.get().getInitialLength();
+    }
+
+    /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
      *
      * @param part the index of the part to prewarm

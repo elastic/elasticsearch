@@ -68,7 +68,7 @@ class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         double[] sortVals = getSortValues(bucket);
         long[] bucketLine = getPoints(bucket);
         PathArraySorter.forOrder(sortOrder).apply(bucketLine, sortVals).sort();
-        return new InternalGeoLine(name, bucketLine, sortVals, metadata, complete, includeSorts, sortOrder, size);
+        return new InternalGeoLine(name, bucketLine, sortVals, metadata, complete, includeSorts, sortOrder, size, false, false);
     }
 
     long sizeOf(long bucket) {

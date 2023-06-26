@@ -354,7 +354,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testDiscoverWithSingleIncompatibleSeedNode() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        NodeVersions incompatibleVersion = new NodeVersions(Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion());
+        NodeVersions incompatibleVersion = NodeVersions.inferVersions(Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion());
         TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
         try (
             MockTransportService seedTransport = startTransport("seed_node", knownNodes, NodeVersions.CURRENT, TransportVersion.current());
@@ -424,7 +424,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testConnectFailsWithIncompatibleNodes() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        NodeVersions incompatibleVersion = new NodeVersions(Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion());
+        NodeVersions incompatibleVersion = NodeVersions.inferVersions(Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion());
         TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
         try (
             MockTransportService incompatibleSeedTransport = startTransport(

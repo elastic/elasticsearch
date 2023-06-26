@@ -186,7 +186,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             address,
             attributes,
             roles,
-            expandNodeVersion(version)
+            NodeVersions.inferVersions(version)
         );
     }
 
@@ -257,18 +257,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         @Nullable NodeVersions version
     ) {
         this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
-    }
-
-    static NodeVersions expandNodeVersion(Version version) {
-        if (version == null) return null;
-        if (version.onOrAfter(Version.V_8_10_0)) throw new IllegalArgumentException(
-            "IndexVersion can only be calculated from Version for <8.10.0"
-        );
-        return new NodeVersions(
-            version,
-            IndexVersion.fromId(version.minimumIndexCompatibilityVersion().id),
-            IndexVersion.fromId(version.id)
-        );
     }
 
     /**

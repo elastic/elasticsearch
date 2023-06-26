@@ -2220,7 +2220,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (
             MockTransportService service = buildService(
                 "TS_C",
-                new NodeVersions(Version.CURRENT.minimumCompatibilityVersion()),
+                NodeVersions.inferVersions(Version.CURRENT.minimumCompatibilityVersion()),
                 transportVersion,
                 Settings.EMPTY
             )
@@ -2250,7 +2250,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (
             MockTransportService service = buildService(
                 "TS_C",
-                new NodeVersions(Version.CURRENT.minimumCompatibilityVersion()),
+                NodeVersions.inferVersions(Version.CURRENT.minimumCompatibilityVersion()),
                 transportVersion,
                 Settings.EMPTY
             )

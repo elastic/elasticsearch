@@ -145,7 +145,7 @@ public class DiscoveryNodeUtils {
 
             NodeVersions versionInfo;
             if (minIndexVersion == null || maxIndexVersion == null) {
-                versionInfo = DiscoveryNode.expandNodeVersion(version);
+                versionInfo = NodeVersions.inferVersions(version);
             } else {
                 versionInfo = new NodeVersions(version, minIndexVersion, maxIndexVersion);
             }

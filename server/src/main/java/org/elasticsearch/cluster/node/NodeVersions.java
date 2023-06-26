@@ -13,12 +13,30 @@ import org.elasticsearch.index.IndexVersion;
 
 import java.util.Objects;
 
+/**
+ * Represents the versions of various aspects of an Elasticsearch node.
+ * @param nodeVersion   The release version
+ * @param minIndexVersion   The minimum {@link IndexVersion} supported by this node
+ * @param maxIndexVersion   The maximum {@link IndexVersion} supported by this node
+ */
 public record NodeVersions(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
 
     public static final NodeVersions CURRENT = new NodeVersions(Version.CURRENT, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
 
-    public NodeVersions(Version nodeVersion) {
-        this(nodeVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+    public static NodeVersions inferVersions(Version nodeVersion) {
+        if (nodeVersion == null) {
+            return null;
+        } else if (nodeVersion.equals(Version.CURRENT)) {
+            return CURRENT;
+        } else if (nodeVersion.before(Version.V_8_10_0)) {
+            return new NodeVersions(
+                nodeVersion,
+                IndexVersion.fromId(nodeVersion.minimumIndexCompatibilityVersion().id),
+                IndexVersion.fromId(nodeVersion.id)
+            );
+        } else {
+            throw new IllegalArgumentException("Node versions can only be inferred before release version 8.10.0");
+        }
     }
 
     public NodeVersions {

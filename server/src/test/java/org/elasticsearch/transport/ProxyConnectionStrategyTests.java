@@ -226,7 +226,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         try (
             MockTransportService transport1 = startTransport(
                 "incompatible-node",
-                new NodeVersions(incompatibleVersion),
+                NodeVersions.inferVersions(incompatibleVersion),
                 incompatibleTransportVersion
             )
         ) {

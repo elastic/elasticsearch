@@ -41,7 +41,7 @@ import java.util.Set;
  * This test is adapted from {@link SinglePassGroupingCollectorTests} with
  * modifications to test {@link FieldDoc after} parameter.
  */
-public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
+public class SinglePassGroupingCollectorWithCollapseSortSearchAfterTests extends ESTestCase {
     interface CollapsingDocValuesProducer<T extends Comparable<?>> {
         T randomGroup(int maxGroup);
 
@@ -103,9 +103,11 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
         }
 
         FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { sortedValues.get(randomIndex) });
-        SinglePassGroupingCollector<?> collapsingCollector = numeric
-            ? SinglePassGroupingCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
-            : SinglePassGroupingCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);
+        SinglePassGroupingCollectorWithCollapseSort<?> collapsingCollector = numeric
+            ? SinglePassGroupingCollectorWithCollapseSort
+            .createNumeric("field", fieldType, sort, null, expectedNumGroups, values.size(), after)
+            : SinglePassGroupingCollectorWithCollapseSort
+            .createKeyword("field", fieldType, sort, null, expectedNumGroups, values.size(), after);
 
         TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, after, Integer.MAX_VALUE);
         Query query = new MatchAllDocsQuery();
@@ -254,5 +256,70 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
             }
         };
         assertSearchCollapse(producer, false);
+    }
+
+    public void testEmptyNumericSegmentWithCollapseSort() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new NumericDocValuesField("group", 5));
+        doc.add(new SortedDocValuesField("order", new BytesRef("c")));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new NumericDocValuesField("group", 5));
+        doc.add(new SortedDocValuesField("order", new BytesRef("b")));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new NumericDocValuesField("group", 1));
+        doc.add(new SortedDocValuesField("order", new BytesRef("b")));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new NumericDocValuesField("group", 10));
+        doc.add(new SortedDocValuesField("order", new BytesRef("a")));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new NumericDocValuesField("category", 0));
+        w.addDocument(doc);
+        w.commit();
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+
+        SortField sortField = new SortField("group", SortField.Type.LONG);
+        sortField.setMissingValue(Long.MAX_VALUE);
+        Sort sort = new Sort(sortField);
+
+        Sort collapseSort = new Sort(new SortField("order", SortField.Type.STRING));
+
+        FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { 1L });
+
+        final SinglePassGroupingCollectorWithCollapseSort<?> collapsingCollector = SinglePassGroupingCollectorWithCollapseSort
+            .createNumeric(
+                "group",
+                fieldType,
+                sort,
+                collapseSort,
+                10,
+                10,
+                after
+            );
+        searcher.search(new MatchAllDocsQuery(), collapsingCollector);
+        TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
+        assertEquals(3, collapseTopFieldDocs.scoreDocs.length);
+        assertEquals(1, collapseTopFieldDocs.scoreDocs[0].doc);
+        assertEquals(3, collapseTopFieldDocs.scoreDocs[1].doc);
+        assertEquals(4, collapseTopFieldDocs.scoreDocs[2].doc);
+        assertEquals(3, collapseTopFieldDocs.groupValues.length);
+        assertEquals(5L, collapseTopFieldDocs.groupValues[0]);
+        assertEquals(10L, collapseTopFieldDocs.groupValues[1]);
+        assertNull(collapseTopFieldDocs.groupValues[2]);
+        w.close();
+        reader.close();
+        dir.close();
     }
 }

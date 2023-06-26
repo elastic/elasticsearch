@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
+import org.elasticsearch.lucene.grouping.SinglePassGroupingCollectorWithCollapseSort;
 
 import java.util.List;
 
@@ -57,9 +58,17 @@ public class CollapseContext {
 
     public SinglePassGroupingCollector<?> createTopDocs(Sort sort, int topN, int totalNumDocs, FieldDoc after) {
         if (fieldType.collapseType() == CollapseType.KEYWORD) {
-            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, collapseSort, topN, totalNumDocs, after);
+            if (collapseSort == null) {
+                return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, topN, after);
+            }
+            return SinglePassGroupingCollectorWithCollapseSort
+                .createKeyword(fieldName, fieldType, sort, collapseSort, topN, totalNumDocs, after);
         } else if (fieldType.collapseType() == CollapseType.NUMERIC) {
-            return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, collapseSort, topN, totalNumDocs, after);
+            if (collapseSort == null) {
+                return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, topN, after);
+            }
+            return SinglePassGroupingCollectorWithCollapseSort
+                .createNumeric(fieldName, fieldType, sort, collapseSort, topN, totalNumDocs, after);
         } else {
             throw new IllegalStateException("collapse is not supported on this field type");
         }

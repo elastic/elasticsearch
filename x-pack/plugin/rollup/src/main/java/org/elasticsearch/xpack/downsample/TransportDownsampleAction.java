@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -103,6 +104,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         IndexSettings.FINAL_PIPELINE.getKey(),
         IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
     );
+
+    private static final Set<String> OVERRIDE_SETTINGS = Set.of(DataTier.TIER_PREFERENCE_SETTING.getKey());
 
     /**
      * This is the cluster state task executor for cluster state update actions.
@@ -578,7 +581,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * Copy index settings from the source index to the rollup index. Settings that
      * have already been set in the rollup index will not be overridden.
      */
-    private IndexMetadata.Builder copyIndexMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata rollupIndexMetadata) {
+    static IndexMetadata.Builder copyIndexMetadata(
+        final IndexMetadata sourceIndexMetadata,
+        final IndexMetadata rollupIndexMetadata,
+        final IndexScopedSettings indexScopedSettings
+    ) {
         // Copy index settings from the source index, but do not override the settings
         // that already have been set in the rollup index
         final Settings.Builder targetSettings = Settings.builder().put(rollupIndexMetadata.getSettings());
@@ -594,6 +601,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // Do not copy index settings which are valid for the source index but not for the target index
             if (FORBIDDEN_SETTINGS.contains(key)) {
                 continue;
+            }
+
+            if (OVERRIDE_SETTINGS.contains(key)) {
+                targetSettings.put(key, sourceIndexMetadata.getSettings().get(key));
             }
             // Do not override settings that have already been set in the rollup index.
             if (targetSettings.keys().contains(key)) {
@@ -677,7 +688,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     createIndexClusterStateUpdateRequest,
                     true,
                     // Copy index metadata from source index to rollup index
-                    (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata)),
+                    (builder, rollupIndexMetadata) -> builder.put(
+                        copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata, indexScopedSettings)
+                    ),
                     delegate.reroute()
                 );
             }

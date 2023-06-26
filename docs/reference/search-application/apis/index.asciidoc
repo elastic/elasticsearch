@@ -16,7 +16,6 @@ Use Search Application APIs to manage tasks and resources related to Search Appl
 * <<list-search-applications>>
 * <<delete-search-application>>
 * <<search-application-search>>
-* <<search-application-search>>
 * <<search-application-render-query>>
 
 include::put-search-application.asciidoc[]

@@ -1,0 +1,68 @@
+ipSortingAsTiebreaker
+from hosts | sort host desc, card, ip1 desc | limit 8 | keep host, card, ip0, ip1;
+
+ host:keyword  | card:keyword  |                                ip0:ip                                           |                         ip1:ip
+gamma          |eth0           |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                                             
+gamma          |lo0            |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9                             
+epsilon        |eth0           |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1                             
+epsilon        |eth1           |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]                     
+epsilon        |eth2           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+beta           |eth0           |127.0.0.1                                                                        |::1                                                   
+beta           |eth1           |127.0.0.1                                                                        |128.0.0.1                                             
+beta           |eth1           |127.0.0.1                                                                        |127.0.0.2
+;
+
+ipSortingByTwoIPs
+from hosts | sort ip0, ip1 desc | limit 8 | keep host, card, ip0, ip1;
+
+ host:keyword  | card:keyword  |                                ip0:ip                                           |                         ip1:ip
+alpha          |eth1           |::1                                                                              |::1                      
+beta           |eth1           |127.0.0.1                                                                        |128.0.0.1                
+beta           |eth1           |127.0.0.1                                                                        |127.0.0.2                
+alpha          |eth0           |127.0.0.1                                                                        |127.0.0.1                
+beta           |eth0           |127.0.0.1                                                                        |::1                      
+gamma          |lo0            |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9
+epsilon        |eth0           |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
+gamma          |eth0           |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3
+;
+
+ipSortingBySameIPfield
+from hosts | sort ip0 asc nulls first, ip0 desc, card, host, ip1 | limit 15 | keep host, card, ip0, ip1 | where card != "lo0";
+
+ host:keyword  | card:keyword  |                                ip0:ip                                           |           ip1:ip
+epsilon        |eth1           |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]                     
+alpha          |eth1           |::1                                                                              |::1                                                   
+alpha          |eth0           |127.0.0.1                                                                        |127.0.0.1                                             
+beta           |eth0           |127.0.0.1                                                                        |::1                                                   
+beta           |eth1           |127.0.0.1                                                                        |127.0.0.2                                             
+beta           |eth1           |127.0.0.1                                                                        |128.0.0.1                                             
+epsilon        |eth0           |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1                             
+gamma          |eth0           |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                                             
+epsilon        |eth2           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+complexMultiSortingFields_SameFieldAscAndDesc
+from employees | sort job_positions asc, languages nulls first, gender desc, job_positions desc | limit 20 | keep job_positions, languages, gender;
+
+                       job_positions:keyword                                |languages:integer|gender:keyword     
+[Accountant, Internship, Python Developer, Tech Lead]                       |null             |M              
+Accountant                                                                  |null             |M              
+[Accountant, Purchase Manager, Support Engineer]                            |null             |F              
+[Accountant, Business Analyst, Data Scientist, Python Developer]            |1                |M              
+[Accountant, Principal Support Engineer, Support Engineer, Tech Lead]       |1                |F              
+[Accountant, Junior Developer]                                              |1                |F              
+[Accountant, Purchase Manager, Python Developer, Reporting Analyst]         |2                |null           
+[Accountant, Senior Python Developer, Tech Lead]                            |2                |M              
+[Accountant, Junior Developer, Reporting Analyst, Support Engineer]         |2                |M              
+[Accountant, Senior Python Developer]                                       |2                |M              
+[Accountant, Internship]                                                    |2                |M              
+[Accountant, Junior Developer, Principal Support Engineer, Purchase Manager]|3                |M              
+[Accountant, Business Analyst, Purchase Manager]                            |3                |M              
+[Accountant, Junior Developer]                                              |4                |F              
+[Accountant, Head Human Resources]                                          |5                |null           
+[Accountant, Business Analyst, Senior Python Developer, Tech Lead]          |5                |M              
+[Accountant, Data Scientist, Internship, Senior Python Developer]           |5                |M              
+[Accountant, Principal Support Engineer, Senior Python Developer]           |5                |F              
+[Architect, Principal Support Engineer, Purchase Manager, Senior Team Lead] |2                |F              
+[Architect, Internship, Principal Support Engineer]                         |2                |F
+;

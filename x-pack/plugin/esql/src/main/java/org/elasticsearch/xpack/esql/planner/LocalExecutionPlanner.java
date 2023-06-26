@@ -332,10 +332,14 @@ public class LocalExecutionPlanner {
                 throw new UnsupportedOperationException();
             }
 
+            TopNOperator.Encoder encoder = a.dataType() != DataTypes.IP
+                ? TopNOperator.Encoder.BYTES_REF_ENCODER
+                : TopNOperator.Encoder.IP_BYTES_REF_ENCODER;
             return new TopNOperator.SortOrder(
                 sortByChannel,
                 order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST)
+                order.nullsPosition().equals(Order.NullsPosition.FIRST),
+                encoder
             );
         }).toList();
 

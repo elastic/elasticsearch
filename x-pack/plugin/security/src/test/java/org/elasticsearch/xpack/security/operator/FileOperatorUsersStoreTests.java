@@ -430,6 +430,44 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 containsString("[realm_type] requires [file] when [auth_type] is [realm] or not specified")
             );
         }
+
+        config = """
+            operator:
+              - realm_type: "_service_account"
+                usernames: ["elastic/fleet-server", "second/name"]
+                auth_type: "token"
+                token_source: "index"
+                token_names: ["token1", "token2"]
+            """;
+
+        try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
+            final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
+            assertThat(
+                e.getCause().getCause().getMessage(),
+                containsString("[usernames] must be a single value when auth_type is [token] and realm_type is [_service_account]")
+            );
+        }
+        config = """
+            operator:
+              - usernames: ["operator_1","operator_2"]
+                realm_type: "file"
+                token_source: "index"
+            """;
+
+        try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
+            final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
+            assertThat(e.getCause().getCause().getMessage(), containsString("[token_source] is not valid when [realm_type] is [file]"));
+        }
+        config = """
+            operator:
+              - usernames: ["operator_1","operator_2"]
+                token_names: ["name1"]
+            """;
+
+        try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
+            final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
+            assertThat(e.getCause().getCause().getMessage(), containsString("[token_names] is not valid when [realm_type] is [file]"));
+        }
     }
 
     private Path getOperatorUsersPath() throws IOException {

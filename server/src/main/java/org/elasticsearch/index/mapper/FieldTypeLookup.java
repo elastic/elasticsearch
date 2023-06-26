@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  */
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType;
-    private final Map<String, String> fullSubfieldNameToMultiFieldParent;
+    private final Map<String, String> fullSubfieldNameToParentPath;
     private final Map<String, DynamicFieldType> dynamicFieldTypes;
 
     /**
@@ -45,14 +45,14 @@ final class FieldTypeLookup {
     ) {
 
         final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-        final Map<String, String> fullSubfieldNameToMultiFieldParent = new HashMap<>();
+        final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            fieldMapper.multiFields().forEach(mapper -> fullSubfieldNameToMultiFieldParent.put(mapper.name(), fieldName));
+            fieldMapper.forEach(mapper -> fullSubfieldNameToParentPath.put(mapper.name(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }
@@ -92,7 +92,7 @@ final class FieldTypeLookup {
         }
         // make all fields into compact+fast immutable maps
         this.fullNameToFieldType = Map.copyOf(fullNameToFieldType);
-        this.fullSubfieldNameToMultiFieldParent = Map.copyOf(fullSubfieldNameToMultiFieldParent);
+        this.fullSubfieldNameToParentPath = Map.copyOf(fullSubfieldNameToParentPath);
         this.dynamicFieldTypes = Map.copyOf(dynamicFieldTypes);
         // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
@@ -198,8 +198,8 @@ final class FieldTypeLookup {
         }
 
         String resolvedField = field;
-        if (fullSubfieldNameToMultiFieldParent.containsKey(field)) {
-            resolvedField = fullSubfieldNameToMultiFieldParent.get(field);
+        if (fullSubfieldNameToParentPath.containsKey(field)) {
+            resolvedField = fullSubfieldNameToParentPath.get(field);
         }
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);

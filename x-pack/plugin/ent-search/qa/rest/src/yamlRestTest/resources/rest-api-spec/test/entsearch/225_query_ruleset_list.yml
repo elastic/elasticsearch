@@ -6,7 +6,6 @@ setup:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-3
         body:
-          ruleset_id: test-query-ruleset-3
           rules:
             - rule_id: query-rule-id1
               type: pinned
@@ -33,7 +32,6 @@ setup:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-1
         body:
-          ruleset_id: test-query-ruleset-1
           rules:
             - rule_id: query-rule-id1
               type: pinned
@@ -70,7 +68,6 @@ setup:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-2
         body:
-          ruleset_id: test-query-ruleset-2
           rules:
             - rule_id: query-rule-id1
               type: pinned

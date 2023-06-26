@@ -26,6 +26,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -35,12 +37,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -53,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +72,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PivotTests extends ESTestCase {
 
@@ -208,41 +215,6 @@ public class PivotTests extends ESTestCase {
         assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
-    public void testProcessSearchResponse() {
-        Function pivot = new Pivot(
-            PivotConfigTests.randomPivotConfig(),
-            SettingsConfigTests.randomSettingsConfig(),
-            Version.CURRENT,
-            Collections.emptySet()
-        );
-
-        Aggregations aggs = null;
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
-
-        aggs = new Aggregations(List.of());
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
-
-        CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
-        when(compositeAgg.getName()).thenReturn("_transform");
-        when(compositeAgg.getBuckets()).thenReturn(List.of());
-        when(compositeAgg.afterKey()).thenReturn(null);
-        aggs = new Aggregations(List.of(compositeAgg));
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
-
-        when(compositeAgg.getBuckets()).thenReturn(List.of());
-        when(compositeAgg.afterKey()).thenReturn(Map.of("key", "value"));
-        aggs = new Aggregations(List.of(compositeAgg));
-        // Empty bucket list is *not* a stop condition for composite agg processing.
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(notNullValue()));
-
-        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-        List<? extends CompositeAggregation.Bucket> buckets = List.of(bucket);
-        doReturn(buckets).when(compositeAgg).getBuckets();
-        when(compositeAgg.afterKey()).thenReturn(null);
-        aggs = new Aggregations(List.of(compositeAgg));
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
-    }
-
     public void testPreviewForEmptyAggregation() throws Exception {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
@@ -295,12 +267,6 @@ public class PivotTests extends ESTestCase {
 
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(responseHolder.get(), is(empty()));
-    }
-
-    private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
-        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
-        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
-        return searchResponse;
     }
 
     private class MyMockClient extends NoOpClient {
@@ -372,7 +338,7 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             SearchResponse response = mock(SearchResponse.class);
-            when(response.getAggregations()).thenReturn(new Aggregations(List.of()));
+            when(response.getAggregations()).thenReturn(new Aggregations(Collections.emptyList()));
             listener.onResponse((Response) response);
         }
     }
@@ -391,7 +357,7 @@ public class PivotTests extends ESTestCase {
         ) {
             SearchResponse response = mock(SearchResponse.class);
             CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
-            when(response.getAggregations()).thenReturn(new Aggregations(List.of(compositeAggregation)));
+            when(response.getAggregations()).thenReturn(new Aggregations(Collections.singletonList(compositeAggregation)));
             when(compositeAggregation.getBuckets()).thenReturn(new ArrayList<>());
             listener.onResponse((Response) response);
         }

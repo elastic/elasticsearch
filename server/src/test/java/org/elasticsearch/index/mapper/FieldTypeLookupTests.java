@@ -118,14 +118,18 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testSourcePathWithMultiFields() {
         MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
-            .addMultiField(new MockFieldMapper.Builder("field.subfield2"))
+            .addMultiField(new MockFieldMapper.Builder("field.subfield2.subfield3"))
             .build(MapperBuilderContext.root(false));
 
-        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(field), emptyList(), emptyList());
+        // Adding a subfield that is not multi-field
+        MockFieldMapper subfield = new MockFieldMapper.Builder("field.subfield4").build(MapperBuilderContext.root(false));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(field, subfield), emptyList(), emptyList());
 
         assertEquals(Set.of("field"), lookup.sourcePaths("field"));
         assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield1"));
-        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield2"));
+        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield2.subfield3"));
+        assertEquals(Set.of("field.subfield4"), lookup.sourcePaths("field.subfield4"));
     }
 
     public void testSourcePathsWithCopyTo() {

@@ -1120,3 +1120,39 @@ fetch geo_point:
               format: wkt
   - length: { hits.hits.0.fields: 1 }
   - match: { hits.hits.0.fields.field.0: "POINT (-71.34 41.12)" }
+
+---
+"Test with subobjects: false":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: false
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body: >
+          {
+            "root": "parent",
+            "root.subfield": "child"
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              root.subfield:
+                value: 'child'
+          fields:
+            - field: 'root*'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.root.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
+  - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }

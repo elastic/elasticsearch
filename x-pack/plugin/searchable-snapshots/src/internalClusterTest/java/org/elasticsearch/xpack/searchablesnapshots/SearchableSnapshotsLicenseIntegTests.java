@@ -141,7 +141,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         assertBusy(
             () -> assertEquals(
                 ClusterHealthStatus.RED,
-                client().admin().cluster().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
+                clusterAdmin().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
             )
         );
 

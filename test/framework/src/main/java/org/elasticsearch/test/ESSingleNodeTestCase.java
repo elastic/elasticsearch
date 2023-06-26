@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -85,7 +86,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // we must wait for the node to actually be up and running. otherwise the node might have started,
         // elected itself master but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
         indicesAdmin().preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
@@ -144,7 +145,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         var deleteComponentTemplateRequest = new DeleteComponentTemplateAction.Request("*");
         assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, deleteComponentTemplateRequest).actionGet());
         assertAcked(indicesAdmin().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get());
-        Metadata metadata = client().admin().cluster().prepareState().get().getState().getMetadata();
+        Metadata metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         assertThat(
             "test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
             metadata.persistentSettings().size(),
@@ -290,6 +291,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return admin().indices();
     }
 
+    /**
+     * Returns a cluster admin client.
+     */
+    protected ClusterAdminClient clusterAdmin() {
+        return admin().cluster();
+    }
+
     public Client wrapClient(final Client client) {
         return client;
     }
@@ -348,10 +356,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
-        ClusterHealthResponse health = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true))
-            .actionGet();
+        ClusterHealthResponse health = clusterAdmin().health(
+            new ClusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)
+        ).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
@@ -389,20 +396,17 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
-        ClusterHealthResponse actionGet = client().admin()
-            .cluster()
-            .health(
-                new ClusterHealthRequest(indices).timeout(timeout)
-                    .waitForGreenStatus()
-                    .waitForEvents(Priority.LANGUID)
-                    .waitForNoRelocatingShards(true)
-            )
-            .actionGet();
+        ClusterHealthResponse actionGet = clusterAdmin().health(
+            new ClusterHealthRequest(indices).timeout(timeout)
+                .waitForGreenStatus()
+                .waitForEvents(Priority.LANGUID)
+                .waitForNoRelocatingShards(true)
+        ).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info(
                 "ensureGreen timed out, cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get()
+                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().preparePendingClusterTasks().get()
             );
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
@@ -426,9 +430,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * inspired by {@link ESRestTestCase}
      */
     protected void ensureNoInitializingShards() {
-        ClusterHealthResponse actionGet = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest("_all").waitForNoInitializingShards(true))
+        ClusterHealthResponse actionGet = clusterAdmin().health(new ClusterHealthRequest("_all").waitForNoInitializingShards(true))
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());

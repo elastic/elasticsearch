@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -36,6 +37,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -154,7 +157,12 @@ public class ClusterStateHealthTests extends ESTestCase {
             new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
-        ActionTestUtils.execute(action, null, new ClusterHealthRequest().waitForGreenStatus(), listener);
+        ActionTestUtils.execute(
+            action,
+            new CancellableTask(1, "direct", ClusterHealthAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+            new ClusterHealthRequest().waitForGreenStatus(),
+            listener
+        );
 
         assertFalse(listener.isDone());
 

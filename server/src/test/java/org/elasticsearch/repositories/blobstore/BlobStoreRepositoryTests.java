@@ -292,9 +292,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
 
         final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repositoryName, "test-snap-1")
             .setWaitForCompletion(true)
             .setPartial(true)
             .get();

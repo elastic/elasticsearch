@@ -495,9 +495,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("-->  creating repository");
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -534,9 +532,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
         assertThat(getRolesResponse.roles().length, is(0));
         // restore
-        RestoreSnapshotResponse response = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap-1")
+        RestoreSnapshotResponse response = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .setIncludeAliases(randomBoolean()) // Aliases are always restored for system indices
             .setFeatureStates(SECURITY_FEATURE_NAME)
@@ -562,7 +558,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .prepareCreate("idx")
             .get();
         assertThat(createIndexResponse.isAcknowledged(), is(true));
-        assertAcked(client().admin().cluster().prepareDeleteRepository("test-repo"));
+        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo"));
     }
 
     public void testAuthenticateWithDeletedRole() {

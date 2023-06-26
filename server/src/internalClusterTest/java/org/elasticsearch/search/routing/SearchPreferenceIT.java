@@ -59,7 +59,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         }
         refresh();
         internalCluster().stopRandomDataNode();
-        client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
             "_local",
             "_prefer_nodes:somenode",
@@ -156,7 +156,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ArrayList<String> allNodeIds = new ArrayList<>();
         ArrayList<String> allNodeNames = new ArrayList<>();
         ArrayList<String> allNodeHosts = new ArrayList<>();
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         for (NodeStats node : nodeStats.getNodes()) {
             allNodeIds.add(node.getNode().getId());
             allNodeNames.add(node.getNode().getName());

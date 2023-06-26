@@ -528,7 +528,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                                         file.length()
                                     )
                                 );
-                                return;
+                                continue;
                             }
                         }
 

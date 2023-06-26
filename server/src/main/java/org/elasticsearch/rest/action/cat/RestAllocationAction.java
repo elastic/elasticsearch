@@ -136,7 +136,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
             table.addCell(node.getName());
-            table.addCell(RestNodesAction.getRoleAbbreviationString(node));
+            table.addCell(node.getRoleAbbreviationString());
             table.endRow();
         }
 

@@ -27,19 +27,11 @@ Snapshot/Restore::
 Watcher::
 * Avoiding running IO on scheduler thread in `ResourceWatcherService` {es-pull}96251[#96251]
 
-[[enhancement-7.17.11]]
-[float]
-=== Enhancements
-
-Transform::
-* Adding null check to fix potential NPE {es-pull}96785[#96785] (issue: {es-issue}96781[#96781])
-
 [[upgrade-7.17.11]]
 [float]
 === Upgrades
 
 Network::
 * Upgrade Netty to 4.1.89 {es-pull}95559[#95559]
-* Upgrade Netty to 4.1.94.Final {es-pull}97114[#97114]
 
 

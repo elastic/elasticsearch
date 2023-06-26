@@ -9,17 +9,12 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.MatchAllDocumentQueryWrapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -146,7 +141,7 @@ public class HighlightPhase implements FetchSubPhase {
                     sourceRequired = true;
                 }
 
-                Query highlightQuery = getHighlightQuery(context, field, fieldType);
+                Query highlightQuery = getHighlightQuery(highlightContext, field, fieldType);
 
                 builders.put(
                     fieldName,
@@ -166,25 +161,15 @@ public class HighlightPhase implements FetchSubPhase {
         return new FieldContext(storedFieldsSpec, builders);
     }
 
-    private Query getHighlightQuery(FetchContext context, SearchHighlightContext.Field field, MappedFieldType fieldType) {
-        if (fieldType instanceof ConstantFieldType constantFieldType) {
-            return getHighlightQueryForConstantFieldType(context, constantFieldType);
+    private Query getHighlightQuery(
+        SearchHighlightContext highlightContext,
+        SearchHighlightContext.Field field,
+        MappedFieldType fieldType
+    ) {
+        if (fieldType instanceof ConstantFieldType) {
+            QueryBuilder originalQuery = highlightContext.getOriginalQuery();
+            return originalQuery.toDoHighlight(fieldType.name());
         }
         return field.fieldOptions().highlightQuery();
-    }
-
-    private Query getHighlightQueryForConstantFieldType(FetchContext context, ConstantFieldType fieldType) {
-        if (context.query() instanceof MatchAllDocumentQueryWrapper matchAllDocumentQueryWrapper) {
-            return new TermQuery(new Term(fieldType.name(), matchAllDocumentQueryWrapper.getPattern()));
-        } else if (context.query() instanceof DisjunctionMaxQuery unionOfQueries) {
-            for (Query query : unionOfQueries.getDisjuncts()) {
-                if (query instanceof MatchAllDocumentQueryWrapper matchAllDocumentQueryWrapper) {
-                    if (Regex.simpleMatch(matchAllDocumentQueryWrapper.getPattern(), fieldType.getConstantValue(context))) {
-                        return new TermQuery(new Term(fieldType.name(), fieldType.getConstantValue(context)));
-                    }
-                }
-            }
-        }
-        return new MatchNoDocsQuery();
     }
 }

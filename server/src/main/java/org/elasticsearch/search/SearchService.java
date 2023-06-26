@@ -90,6 +90,7 @@ import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
@@ -1284,7 +1285,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                context.highlight(highlightBuilder.build(searchExecutionContext));
+                SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchExecutionContext);
+                searchHighlightContext.setOriginalQuery(source.query());
+                context.highlight(searchHighlightContext);
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create SearchContextHighlighter", e);
             }

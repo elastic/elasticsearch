@@ -8,9 +8,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
@@ -969,5 +971,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
+    }
+
+    @Override
+    public Query toDoHighlight(String fieldName) {
+        return new WildcardQuery(new Term(fieldName, queryString));
     }
 }

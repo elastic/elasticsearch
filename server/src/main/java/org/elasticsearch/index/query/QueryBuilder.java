@@ -27,6 +27,18 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
     Query toQuery(SearchExecutionContext context) throws IOException;
 
     /**
+     * Converts this QueryBuilder to a lucene {@link Query}.
+     * Returns {@code null} if this query should be ignored in the context of highlighting.
+     *
+     * @param fieldName name of the field we want to highlight
+     * @return the {@link Query} or {@code null} if this query should have standard behaviour
+     * for highlighting.
+     */
+    default Query toDoHighlight(String fieldName) {
+        return null;
+    }
+
+    /**
      * Sets the arbitrary name to be assigned to the query (see named queries).
      * Implementers should return the concrete type of the
      * {@link QueryBuilder} so that calls can be chained. This is done

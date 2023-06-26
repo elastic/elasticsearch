@@ -245,7 +245,11 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertNotNull(responseEntity);
 
         final Number count = (Number) XContentMapValues.extractValue("count", response);
-        assertThat("Unexpected number of followed indices [" + responseEntity + ']', count.longValue(), greaterThanOrEqualTo(1L));
+        assertThat(
+            "Expected at least 1 successfully followed index but found none, count returned [" + responseEntity + ']',
+            count.longValue(),
+            greaterThanOrEqualTo(1L)
+        );
     }
 
     protected static Map<String, Object> toMap(Response response) throws IOException {

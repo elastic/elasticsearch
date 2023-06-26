@@ -123,7 +123,7 @@ public class LocalAllocateDangledIndices {
                         allocationService.getShardRoutingRoleStrategy(),
                         currentState.routingTable()
                     );
-                    IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
+                    IndexVersion minIndexCompatibilityVersion = currentState.nodes().getMinSupportedIndexVersion();
                     IndexVersion maxIndexCompatibilityVersion = currentState.nodes().getMaxDataNodeCompatibleIndexVersion();
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();

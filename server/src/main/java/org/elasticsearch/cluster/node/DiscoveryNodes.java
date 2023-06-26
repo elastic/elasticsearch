@@ -821,6 +821,16 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         }
 
         public DiscoveryNodes build() {
+            /*
+             * Calculate all the version info we need. This is:
+             * - The highest and lowest release versions in the cluster
+             * - The lowest release version amongst data or master nodes
+             * - The highest index version that is supported by all data/master nodes in the cluster
+             * - The lowest index version that is supported by all nodes in the cluster
+             *
+             * Any of these values may be null (for example, if there are no data or master nodes),
+             * where they are replaced with the defaults for this node
+             */
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;

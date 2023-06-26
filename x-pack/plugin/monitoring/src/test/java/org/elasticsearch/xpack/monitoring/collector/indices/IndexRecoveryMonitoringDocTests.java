@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.NodeVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -102,7 +104,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             new TransportAddress(TransportAddress.META_ADDRESS, 9301),
             singletonMap("attr", "value_1"),
             singleton(DiscoveryNodeRole.DATA_ROLE),
-            DiscoveryNodeUtils.versionInfo(Version.CURRENT.minimumCompatibilityVersion())
+            new NodeVersions(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT)
         );
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);

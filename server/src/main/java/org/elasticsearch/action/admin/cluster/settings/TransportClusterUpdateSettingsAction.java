@@ -159,7 +159,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAllNodesAcked() {
-                if (changed) {
+                if (reroute) {
                     reroute(true);
                 } else {
                     super.onAllNodesAcked();
@@ -168,8 +168,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAckFailure(Exception e) {
-                if (changed) {
-                    reroute(true);
+                if (reroute) {
+                    reroute(false);
                 } else {
                     super.onAckFailure(e);
                 }
@@ -177,7 +177,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAckTimeout() {
-                if (changed) {
+                if (reroute) {
                     reroute(false);
                 } else {
                     super.onAckTimeout();
@@ -239,7 +239,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     }
 
     public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
-        protected volatile boolean changed = false;
+        protected volatile boolean reroute = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
         private final ClusterSettings clusterSettings;
@@ -271,7 +271,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 clusterSettings.upgradeSettings(request.persistentSettings()),
                 logger
             );
-            changed = clusterState != currentState;
+            reroute = clusterState != currentState;
             return clusterState;
         }
     }

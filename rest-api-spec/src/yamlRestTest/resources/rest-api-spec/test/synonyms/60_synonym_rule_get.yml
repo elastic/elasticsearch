@@ -1,0 +1,41 @@
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "test-id-1"
+            - synonyms: "bye => goodbye"
+              id: "test-id-2"
+            - synonyms: "test => check"
+              id: "test-id-3"
+
+
+---
+"Get a synonym rule":
+  - do:
+      synonym_rule.get:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-id-2"
+
+  - match: {id: "test-id-2"}
+  - match: {synonyms: "bye => goodbye"}
+
+---
+"Synonym set not found":
+  - do:
+      catch: missing
+      synonym_rule.get:
+        synonyms_set: "test-non-existing-synonyms"
+        synonym_rule: "test-id-2"
+---
+"Synonym rule not found":
+  - do:
+      catch: missing
+      synonym_rule.get:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-non-existing-id"

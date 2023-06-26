@@ -406,3 +406,30 @@ dfs profile for search with dfs_query_then_fetch:
 
   - match: { hits.total.value: 0 }
   - is_false: profile.shards.0.dfs
+---
+composite_id_parsed:
+  - skip:
+      version: " - 8.9.99"
+      reason: node_id, shard_id, index and cluster fields added in 8.10.0
+      features: "contains"
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          profile: true
+          fields: [keyword]
+  - set:  { profile.shards.0.id: composite_id,
+            profile.shards.0.node_id: first_node_id,
+            profile.shards.0.index: first_index
+          }
+
+  - is_true: profile.shards.0.id
+  - is_true: profile.shards.0.node_id
+  - length: { profile.shards.0.node_id: 22 }
+  - gte: { profile.shards.0.shard_id: 0 }
+  - match: { profile.shards.0.index: "test" }
+  - is_true: profile.shards.0.cluster
+  - contains: { $composite_id: $first_node_id }
+  - contains: { $composite_id: $first_index }

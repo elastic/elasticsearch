@@ -99,7 +99,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void fetchTransportAddress() {
-        NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
+        NodeInfo nodeInfo = clusterAdmin().prepareNodesInfo().get().getNodes().get(0);
         address = nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress();
     }
 

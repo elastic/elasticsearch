@@ -190,7 +190,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
             LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING,
-            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
+            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
         );
     }
 
@@ -278,7 +281,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
                 clusterService,
                 new IlmHealthIndicatorService.StagnatingIndicesFinder(
                     clusterService,
-                    IlmHealthIndicatorService.ILM_RULE_EVALUATOR,
+                    IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG.values(),
                     System::currentTimeMillis
                 )
             )

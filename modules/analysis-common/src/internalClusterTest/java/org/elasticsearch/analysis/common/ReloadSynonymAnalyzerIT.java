@@ -95,8 +95,10 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
             ) {
                 out.println("foo, baz, " + testTerm);
             }
-            ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest("test"))
-                .actionGet();
+            ReloadAnalyzersResponse reloadResponse = client().execute(
+                ReloadAnalyzerAction.INSTANCE,
+                new ReloadAnalyzersRequest(null, "test")
+            ).actionGet();
             assertNoFailures(reloadResponse);
             assertEquals(cluster().numDataNodes(), reloadResponse.getSuccessfulShards());
             assertTrue(reloadResponse.getReloadDetails().containsKey("test"));

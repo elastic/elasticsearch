@@ -68,7 +68,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     protected static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
+        doConfigureClient(builder, settings);
 
         int timeout = Math.toIntExact(timeout().millis());
         builder.setRequestConfigCallback(

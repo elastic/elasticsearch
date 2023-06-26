@@ -98,13 +98,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
         // make sure that all shards recovered before trying to flush
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth("test")
-                .setWaitForActiveShards(numShards.totalNumShards)
-                .execute()
-                .actionGet()
-                .getActiveShards(),
+            clusterAdmin().prepareHealth("test").setWaitForActiveShards(numShards.totalNumShards).execute().actionGet().getActiveShards(),
             equalTo(numShards.totalNumShards)
         );
         // flush for simpler debugging

@@ -131,6 +131,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_005 = registerTransportVersion(8_500_005, "65370d2a-d936-4383-a2e0-8403f708129b");
     public static final TransportVersion V_8_500_006 = registerTransportVersion(8_500_006, "7BB5621A-80AC-425F-BA88-75543C442F23");
     public static final TransportVersion V_8_500_007 = registerTransportVersion(8_500_007, "77261d43-4149-40af-89c5-7e71e0454fce");
+    // Introduced for stateless plugin
     public static final TransportVersion V_8_500_008 = registerTransportVersion(8_500_008, "8884ab9d-94cd-4bac-aff8-01f2c394f47c");
 
     public static final TransportVersion V_8_500_009 = registerTransportVersion(8_500_009, "35091358-fd41-4106-a6e2-d2a1315494c1");
@@ -147,10 +148,13 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     // 8.9.0
     public static final TransportVersion V_8_500_020 = registerTransportVersion(8_500_020, "ECB42C26-B258-42E5-A835-E31AF84A76DE");
     public static final TransportVersion V_8_500_021 = registerTransportVersion(8_500_021, "102e0d84-0c08-402c-a696-935f3a3da873");
-    public static final TransportVersion V_8_500_022 = registerTransportVersion(8_500_022, "965d294b-14aa-4abb-bcfc-34631187941d");
+    // Introduced for stateless plugin
+    public static final TransportVersion V_8_500_022 = registerTransportVersion(8_500_022, "4993c724-7a81-4955-84e7-403484610091");
+    public static final TransportVersion V_8_500_023 = registerTransportVersion(8_500_023, "01b06435-5d73-42ff-a121-3b36b771375e");
+    public static final TransportVersion V_8_500_024 = registerTransportVersion(8_500_024, "965d294b-14aa-4abb-bcfc-34631187941d");
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_022);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_024);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

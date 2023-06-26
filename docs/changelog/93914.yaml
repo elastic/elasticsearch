@@ -1,0 +1,5 @@
+pr: 93914
+summary: Fix unhandled exception when blobstore repository contains unexpected file
+area: Snapshot/Restore
+type: bug
+issues: []

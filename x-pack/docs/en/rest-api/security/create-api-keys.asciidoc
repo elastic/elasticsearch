@@ -68,9 +68,9 @@ authentication; it will not have authority to call {es} APIs.
 +
 `applications`::: (list) A list of application privilege entries.
 `application` (required):::: (string) The name of the application to which this entry applies
-`privileges`:::: (list) A list of strings, where each element is the name of an application
+`privileges` (required):::: (list) A list of strings, where each element is the name of an application
 privilege or action.
-`resources`:::: (list) A list resources to which the privileges are applied.
+`resources` (required):::: (list) A list resources to which the privileges are applied.
 
 `cluster`::: (list) A list of cluster privileges. These privileges define the
 cluster level actions that API keys are able to execute.
@@ -97,13 +97,11 @@ that begin with `_` are reserved for system usage.
 
 `restriction`::: (object) Optional restriction. For more information, see
 <<role-restriction>>.
-`workflows` (required):::: (list) A list of workflows to which the API key is restricted.
+`workflows`:::: (list) A list of workflows to which the API key is restricted.
 For a full list see <<workflows-restriction>>.
 +
 --
-NOTE: Only a single role descriptor with a restriction is supported.
-Also, creating the API key with combination of role descriptors with
-and without restriction is not supported.
+NOTE: In order to use role restriction, an API key must be created with a *single role descriptor*.
 --
 +
 
@@ -214,7 +212,7 @@ echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64 <1>
 <1> Use `-n` so that the `echo` command doesn't print the trailing newline
 character
 
-The following example creates an API key with a restriction to the `search_application_query` workflow,
+The following example creates an API key with a <<role-restriction, restriction>> to the `search_application_query` workflow,
 which allows to call only <<search-application-search, Search Application Search API>>:
 
 [source,console]
@@ -226,7 +224,7 @@ POST /_security/api_key
     "restricted-role": {
       "index": [
         {
-          "names": ["index-*"],
+          "names": ["my-search-app"],
           "privileges": ["read"]
         }
       ],

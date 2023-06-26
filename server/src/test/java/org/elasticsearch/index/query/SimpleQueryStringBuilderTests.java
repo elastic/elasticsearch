@@ -196,11 +196,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             SimpleQueryStringBuilder.DEFAULT_OPERATOR,
             qb.defaultOperator()
         );
-        assertEquals(
-            "Setting type to null should result in returning to default value.",
-            SimpleQueryStringBuilder.DEFAULT_TYPE,
-            qb.type()
-        );
+        assertEquals("Setting type to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_TYPE, qb.type());
     }
 
     // Check operator handling, and default field handling.

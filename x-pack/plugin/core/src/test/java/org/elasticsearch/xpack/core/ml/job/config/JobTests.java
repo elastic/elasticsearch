@@ -20,7 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class JobTests extends AbstractSerializingTestCase<Job> {
+public class JobTests extends AbstractXContentSerializingTestCase<Job> {
 
     private static final String FUTURE_JOB = """
         {
@@ -74,6 +74,11 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     @Override
     protected Job createTestInstance() {
         return createRandomizedJob(new DatafeedConfig.Builder().setIndices(Arrays.asList("airline_data")));
+    }
+
+    @Override
+    protected Job mutateInstance(Job instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -152,7 +157,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testEnsureModelMemoryLimitSet() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setAnalysisLimits(new AnalysisLimits(null, null));
-        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(0L));
+        builder.validateAnalysisLimitsAndSetDefaults(ByteSizeValue.ZERO);
         Job job = builder.build();
         assertEquals("foo", job.getId());
         assertNotNull(job.getAnalysisLimits());

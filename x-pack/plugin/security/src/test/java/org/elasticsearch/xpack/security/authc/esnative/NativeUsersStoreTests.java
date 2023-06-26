@@ -179,7 +179,6 @@ public class NativeUsersStoreTests extends ESTestCase {
         assertThat(user.enabled(), equalTo(true));
         assertThat(user.principal(), equalTo(username));
         assertThat(user.roles(), equalTo(roles));
-        assertThat(user.authenticatedUser(), equalTo(user));
     }
 
     public void testVerifyUserWithIncorrectPassword() throws Exception {

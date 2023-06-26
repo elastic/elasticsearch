@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,12 +34,16 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<SettingsConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<SettingsConfig, Void> LENIENT_PARSER = createParser(true);
 
+    public static final int MAX_NUM_FAILURE_RETRIES = 100;
+
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
     private static final int DEFAULT_DATES_AS_EPOCH_MILLIS = -1;
     private static final int DEFAULT_ALIGN_CHECKPOINTS = -1;
     private static final int DEFAULT_USE_PIT = -1;
     private static final int DEFAULT_DEDUCE_MAPPINGS = -1;
+    private static final int DEFAULT_NUM_FAILURE_RETRIES = -2;
+    private static final int DEFAULT_UNATTENDED = -1;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
@@ -51,7 +55,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 (Integer) args[2],
                 (Integer) args[3],
                 (Integer) args[4],
-                (Integer) args[5]
+                (Integer) args[5],
+                (Integer) args[6],
+                (Integer) args[7]
             )
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
@@ -84,6 +90,14 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             TransformField.DEDUCE_MAPPINGS,
             ValueType.BOOLEAN_OR_NULL
         );
+        parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_NUM_FAILURE_RETRIES, TransformField.NUM_FAILURE_RETRIES);
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_UNATTENDED : p.booleanValue() ? 1 : 0,
+            TransformField.UNATTENDED,
+            ValueType.BOOLEAN_OR_NULL
+        );
         return parser;
     }
 
@@ -93,9 +107,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private final Integer alignCheckpoints;
     private final Integer usePit;
     private final Integer deduceMappings;
+    private final Integer numFailureRetries;
+    private final Integer unattended;
 
     public SettingsConfig() {
-        this(null, null, (Integer) null, (Integer) null, (Integer) null, (Integer) null);
+        this(null, null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null);
     }
 
     public SettingsConfig(
@@ -104,7 +120,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         Boolean datesAsEpochMillis,
         Boolean alignCheckpoints,
         Boolean usePit,
-        Boolean deduceMappings
+        Boolean deduceMappings,
+        Integer numFailureRetries,
+        Boolean unattended
     ) {
         this(
             maxPageSearchSize,
@@ -112,17 +130,21 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             datesAsEpochMillis == null ? null : datesAsEpochMillis ? 1 : 0,
             alignCheckpoints == null ? null : alignCheckpoints ? 1 : 0,
             usePit == null ? null : usePit ? 1 : 0,
-            deduceMappings == null ? null : deduceMappings ? 1 : 0
+            deduceMappings == null ? null : deduceMappings ? 1 : 0,
+            numFailureRetries,
+            unattended == null ? null : unattended ? 1 : 0
         );
     }
 
-    public SettingsConfig(
+    SettingsConfig(
         Integer maxPageSearchSize,
         Float docsPerSecond,
         Integer datesAsEpochMillis,
         Integer alignCheckpoints,
         Integer usePit,
-        Integer deduceMappings
+        Integer deduceMappings,
+        Integer numFailureRetries,
+        Integer unattended
     ) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
@@ -130,30 +152,31 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.alignCheckpoints = alignCheckpoints;
         this.usePit = usePit;
         this.deduceMappings = deduceMappings;
+        this.numFailureRetries = numFailureRetries;
+        this.unattended = unattended;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
         this.maxPageSearchSize = in.readOptionalInt();
         this.docsPerSecond = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            this.datesAsEpochMillis = in.readOptionalInt();
-        } else {
-            this.datesAsEpochMillis = DEFAULT_DATES_AS_EPOCH_MILLIS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            this.alignCheckpoints = in.readOptionalInt();
-        } else {
-            this.alignCheckpoints = DEFAULT_ALIGN_CHECKPOINTS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_1)) {
-            this.usePit = in.readOptionalInt();
-        } else {
-            this.usePit = DEFAULT_USE_PIT;
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        this.datesAsEpochMillis = in.readOptionalInt();
+        this.alignCheckpoints = in.readOptionalInt();
+        this.usePit = in.readOptionalInt();
+
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             deduceMappings = in.readOptionalInt();
         } else {
             deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            numFailureRetries = in.readOptionalInt();
+        } else {
+            numFailureRetries = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+            unattended = in.readOptionalInt();
+        } else {
+            unattended = DEFAULT_UNATTENDED;
         }
     }
 
@@ -197,6 +220,22 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return deduceMappings;
     }
 
+    public Integer getNumFailureRetries() {
+        return numFailureRetries != null ? (numFailureRetries == DEFAULT_NUM_FAILURE_RETRIES ? null : numFailureRetries) : null;
+    }
+
+    public Integer getNumFailureRetriesForUpdate() {
+        return numFailureRetries;
+    }
+
+    public Boolean getUnattended() {
+        return unattended != null ? (unattended == DEFAULT_UNATTENDED) ? null : (unattended > 0) : null;
+    }
+
+    public Integer getUnattendedForUpdate() {
+        return unattended;
+    }
+
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
@@ -204,6 +243,25 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     + maxPageSearchSize
                     + "] is out of range. The minimum value is 10 and the maximum is "
                     + MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                validationException
+            );
+        }
+        if (numFailureRetries != null && (numFailureRetries < -1 || numFailureRetries > MAX_NUM_FAILURE_RETRIES)) {
+            validationException = addValidationError(
+                "settings.num_failure_retries ["
+                    + numFailureRetries
+                    + "] is out of range. The minimum value is -1 (infinity) and the maximum is "
+                    + MAX_NUM_FAILURE_RETRIES,
+                validationException
+            );
+        }
+
+        // disallow setting unattended to true with explicit num failure retries
+        if (unattended != null && unattended == 1 && numFailureRetries != null && numFailureRetries > 0) {
+            validationException = addValidationError(
+                "settings.num_failure_retries ["
+                    + numFailureRetries
+                    + "] can not be set in unattended mode, unattended retries indefinitely",
                 validationException
             );
         }
@@ -217,17 +275,18 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(maxPageSearchSize);
         out.writeOptionalFloat(docsPerSecond);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeOptionalInt(datesAsEpochMillis);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeOptionalInt(alignCheckpoints);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_1)) {
-            out.writeOptionalInt(usePit);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        out.writeOptionalInt(datesAsEpochMillis);
+        out.writeOptionalInt(alignCheckpoints);
+        out.writeOptionalInt(usePit);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalInt(deduceMappings);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            out.writeOptionalInt(numFailureRetries);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+            out.writeOptionalInt(unattended);
         }
     }
 
@@ -253,6 +312,12 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (deduceMappings != null && (deduceMappings.equals(DEFAULT_DEDUCE_MAPPINGS) == false)) {
             builder.field(TransformField.DEDUCE_MAPPINGS.getPreferredName(), deduceMappings > 0 ? true : false);
         }
+        if (numFailureRetries != null && (numFailureRetries.equals(DEFAULT_NUM_FAILURE_RETRIES) == false)) {
+            builder.field(TransformField.NUM_FAILURE_RETRIES.getPreferredName(), numFailureRetries);
+        }
+        if (unattended != null && (unattended.equals(DEFAULT_UNATTENDED) == false)) {
+            builder.field(TransformField.UNATTENDED.getPreferredName(), unattended > 0 ? true : false);
+        }
         builder.endObject();
         return builder;
     }
@@ -272,12 +337,23 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             && Objects.equals(datesAsEpochMillis, that.datesAsEpochMillis)
             && Objects.equals(alignCheckpoints, that.alignCheckpoints)
             && Objects.equals(usePit, that.usePit)
-            && Objects.equals(deduceMappings, that.deduceMappings);
+            && Objects.equals(deduceMappings, that.deduceMappings)
+            && Objects.equals(numFailureRetries, that.numFailureRetries)
+            && Objects.equals(unattended, that.unattended);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit, deduceMappings);
+        return Objects.hash(
+            maxPageSearchSize,
+            docsPerSecond,
+            datesAsEpochMillis,
+            alignCheckpoints,
+            usePit,
+            deduceMappings,
+            numFailureRetries,
+            unattended
+        );
     }
 
     @Override
@@ -296,6 +372,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         private Integer alignCheckpoints;
         private Integer usePit;
         private Integer deduceMappings;
+        private Integer numFailureRetries;
+        private Integer unattended;
 
         /**
          * Default builder
@@ -314,6 +392,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             this.alignCheckpoints = base.alignCheckpoints;
             this.usePit = base.usePit;
             this.deduceMappings = base.deduceMappings;
+            this.numFailureRetries = base.numFailureRetries;
+            this.unattended = base.unattended;
         }
 
         /**
@@ -402,6 +482,26 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setNumFailureRetries(Integer numFailureRetries) {
+            this.numFailureRetries = numFailureRetries == null ? DEFAULT_NUM_FAILURE_RETRIES : numFailureRetries;
+            return this;
+        }
+
+        /**
+         * Whether to run the transform in unattended mode.
+         * In unattended mode the transform does not immediately fail for errors that are classified
+         * as irrecoverable.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param unattended true if this is a unattended transform.
+         * @return the {@link Builder} with usePit set.
+         */
+        public Builder setUnattended(Boolean unattended) {
+            this.unattended = unattended == null ? DEFAULT_UNATTENDED : unattended ? 1 : 0;
+            return this;
+        }
+
         /**
          * Update settings according to given settings config.
          *
@@ -437,12 +537,29 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     ? null
                     : update.getDeduceMappingsForUpdate();
             }
+            if (update.getNumFailureRetriesForUpdate() != null) {
+                this.numFailureRetries = update.getNumFailureRetriesForUpdate().equals(DEFAULT_NUM_FAILURE_RETRIES)
+                    ? null
+                    : update.getNumFailureRetriesForUpdate();
+            }
+            if (update.getUnattendedForUpdate() != null) {
+                this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED) ? null : update.getUnattendedForUpdate();
+            }
 
             return this;
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit, deduceMappings);
+            return new SettingsConfig(
+                maxPageSearchSize,
+                docsPerSecond,
+                datesAsEpochMillis,
+                alignCheckpoints,
+                usePit,
+                deduceMappings,
+                numFailureRetries,
+                unattended
+            );
         }
     }
 }

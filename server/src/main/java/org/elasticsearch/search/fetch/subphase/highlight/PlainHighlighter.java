@@ -22,7 +22,6 @@ import org.apache.lucene.search.highlight.SimpleHTMLFormatter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.util.BytesRefHash;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
@@ -32,6 +31,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +41,17 @@ import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlight
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
+
+    private record OrderedTextFragment(TextFragment textFragment, int fragNum) {
+        float score() {
+            return textFragment.getScore();
+        }
+
+        @Override
+        public String toString() {
+            return textFragment.toString();
+        }
+    }
 
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
@@ -92,7 +103,7 @@ public class PlainHighlighter implements Highlighter {
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
-        ArrayList<TextFragment> fragsList = new ArrayList<>();
+        ArrayList<OrderedTextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
@@ -101,13 +112,9 @@ public class PlainHighlighter implements Highlighter {
             queryMaxAnalyzedOffset
         );
 
-        textsToHighlight = HighlightUtils.loadFieldValues(
-            fieldType,
-            context.getSearchExecutionContext(),
-            hitContext,
-            fieldContext.forceSource
-        );
+        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext);
 
+        int fragNumBase = 0;
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
@@ -144,9 +151,10 @@ public class PlainHighlighter implements Highlighter {
                 TextFragment[] bestTextFragments = entry.getBestTextFragments(tokenStream, text, false, numberOfFragments);
                 for (TextFragment bestTextFragment : bestTextFragments) {
                     if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
-                        fragsList.add(bestTextFragment);
+                        fragsList.add(new OrderedTextFragment(bestTextFragment, bestTextFragment.getFragNum() + fragNumBase));
                     }
                 }
+                fragNumBase += bestTextFragments.length;
             } catch (BytesRefHash.MaxBytesLengthExceededException e) {
                 // this can happen if for example a field is not_analyzed and ignore_above option is set.
                 // the field will be ignored when indexing but the huge term is still in the source and
@@ -157,10 +165,15 @@ public class PlainHighlighter implements Highlighter {
             }
         }
 
-        // fragments are ordered by score by default since we add them in best
-        if (field.fieldOptions().scoreOrdered() == false) {
-            CollectionUtil.introSort(fragsList, (o1, o2) -> o1.getFragNum() - o2.getFragNum());
+        // For single text inputs, the fragments are already ordered by score. If we have multiple
+        // inputs, or if we are ordering by fragment number, then we need to resort the output list
+        if (textsToHighlight.size() > 1 || field.fieldOptions().scoreOrdered() == false) {
+            Comparator<OrderedTextFragment> comparator = field.fieldOptions().scoreOrdered()
+                ? Comparator.comparingDouble(OrderedTextFragment::score).reversed()
+                : Comparator.comparingInt(OrderedTextFragment::fragNum);
+            fragsList.sort(comparator);
         }
+
         String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field
         if (field.fieldOptions().numberOfFragments() == 0 && textsToHighlight.size() > 1 && fragsList.size() > 0) {

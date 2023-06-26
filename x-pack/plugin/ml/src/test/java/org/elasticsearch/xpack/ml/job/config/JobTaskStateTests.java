@@ -7,16 +7,21 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
-public class JobTaskStateTests extends AbstractSerializingTestCase<JobTaskState> {
+public class JobTaskStateTests extends AbstractXContentSerializingTestCase<JobTaskState> {
 
     @Override
     protected JobTaskState createTestInstance() {
         return new JobTaskState(randomFrom(JobState.values()), randomLong(), randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected JobTaskState mutateInstance(JobTaskState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

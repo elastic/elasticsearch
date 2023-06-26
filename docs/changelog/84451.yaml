@@ -1,6 +1,0 @@
-pr: 84451
-summary: Clean any used memory by the sequence matcher and circuit breaker used bytes
-  in case of exception
-area: EQL
-type: bug
-issues: []

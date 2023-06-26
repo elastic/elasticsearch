@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -51,8 +51,11 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
@@ -169,13 +172,30 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<Boolean> modelSnapshotValidationListener = ActionListener.wrap(
+            ActionListener<Boolean> referencedRuleFiltersPresentListener = ActionListener.wrap(
                 response -> memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(
                     jobParams.getJobId(),
                     memoryRequirementRefreshListener
                 ),
                 listener::onFailure
             );
+
+            // Validate referenced rule filters are present
+            ActionListener<Boolean> modelSnapshotValidationListener = ActionListener.wrap(response -> {
+                Set<String> referencedRuleFilters = jobParams.getJob().getAnalysisConfig().extractReferencedFilters();
+                if (referencedRuleFilters.isEmpty()) {
+                    referencedRuleFiltersPresentListener.onResponse(true);
+                } else {
+                    GetFiltersAction.Request getFiltersRequest = new GetFiltersAction.Request();
+                    getFiltersRequest.setResourceId(referencedRuleFilters.stream().collect(Collectors.joining(",")));
+                    getFiltersRequest.setAllowNoResources(false);
+                    client.execute(
+                        GetFiltersAction.INSTANCE,
+                        getFiltersRequest,
+                        ActionListener.wrap(filtersResponse -> referencedRuleFiltersPresentListener.onResponse(true), listener::onFailure)
+                    );
+                }
+            }, listener::onFailure);
 
             // Validate the model snapshot is supported
             ActionListener<Boolean> getJobHandler = ActionListener.wrap(response -> {
@@ -216,7 +236,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }, listener::onFailure);
 
             // Get the job config
-            jobConfigProvider.getJob(jobParams.getJobId(), ActionListener.wrap(builder -> {
+            jobConfigProvider.getJob(jobParams.getJobId(), null, ActionListener.wrap(builder -> {
                 jobParams.setJob(builder.build());
                 getJobHandler.onResponse(null);
             }, listener::onFailure));
@@ -254,7 +274,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException("Opening job [{}] timed out after [{}]", jobParams.getJob(), timeout));
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Opening job [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
+                            jobParams.getJob().getId(),
+                            timeout
+                        )
+                    );
                 }
             }
         );
@@ -269,14 +296,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     ) {
         final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
         ActionListener<Job> clearedTimeListener = ActionListener.wrap(job -> listener.onResponse(response), e -> {
-            logger.error(new ParameterizedMessage("[{}] Failed to clear finished_time", jobId), e);
+            logger.error(() -> "[" + jobId + "] Failed to clear finished_time", e);
             // Not a critical error so continue
             listener.onResponse(response);
         });
         ActionListener<Boolean> mappingsUpdatedListener = ActionListener.wrap(
             mappingUpdateResponse -> jobConfigProvider.updateJob(jobId, update, null, clearedTimeListener),
             e -> {
-                logger.error(new ParameterizedMessage("[{}] Failed to update mapping; not clearing finished_time", jobId), e);
+                logger.error(() -> "[" + jobId + "] Failed to update mapping; not clearing finished_time", e);
                 // Not a critical error so continue without attempting to clear finish time
                 listener.onResponse(response);
             }
@@ -307,8 +334,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage(
-                        "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                    () -> format(
+                        "[%s] Failed to cancel persistent task that could not be assigned due to [%s]",
                         persistentTask.getParams().getJobId(),
                         exception.getMessage()
                     ),

@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -84,6 +82,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
@@ -201,8 +200,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Index followIndex = params.getFollowShardId().getIndex();
 
-                ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest(leaderIndex.getName());
-
                 CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
                     final IndexMetadata leaderIMD = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
                     final IndexMetadata followerIMD = clusterService.state().metadata().getIndexSafe(followIndex);
@@ -247,7 +244,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     }
                 };
                 try {
-                    remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+                    remoteClient(params).admin()
+                        .cluster()
+                        .state(CcrRequests.metadataRequest(leaderIndex.getName()), ActionListener.wrap(onResponse, errorHandler));
                 } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
@@ -280,8 +279,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                  */
                 final var leaderIndex = params.getLeaderShardId().getIndex();
                 final var followerIndex = params.getFollowShardId().getIndex();
-
-                final var clusterStateRequest = CcrRequests.metadataRequest(leaderIndex.getName());
 
                 final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
                     final var leaderIndexMetadata = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
@@ -374,7 +371,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 };
 
                 try {
-                    remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+                    remoteClient(params).admin()
+                        .cluster()
+                        .state(CcrRequests.metadataRequest(leaderIndex.getName()), ActionListener.wrap(onResponse, errorHandler));
                 } catch (final NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
@@ -535,8 +534,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 assert cause instanceof ElasticsearchSecurityException == false : cause;
                 if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "{} background management of retention lease [{}] failed while following",
+                        () -> format(
+                            "%s background management of retention lease [%s] failed while following",
                             params.getFollowShardId(),
                             retentionLeaseId
                         ),
@@ -580,10 +579,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "failed to fetch follow shard global {} checkpoint and max sequence number",
-                        shardFollowNodeTask
-                    ),
+                    () -> format("failed to fetch follow shard global %s checkpoint and max sequence number", shardFollowNodeTask),
                     e
                 );
                 try {

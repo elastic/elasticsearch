@@ -41,12 +41,13 @@ import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.zip.CRC32;
 
 /**
  * Snapshot metadata file format used in v2.0 and above
  */
-public final class ChecksumBlobStoreFormat<T extends ToXContent> {
+public final class ChecksumBlobStoreFormat<T> {
 
     // Serialization parameters to specify correct context for metadata serialization.
     // When metadata is serialized certain elements of the metadata shouldn't be included into snapshot
@@ -68,31 +69,42 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     private final CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader;
 
+    private final Function<T, ? extends ToXContent> writer;
+
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
      * @param fallbackReader fallback prototype object that can deserialize T from XContent in case reader fails
+     * @param writer         function that maps the given type to a {@link ToXContent} for serialization
      */
     public ChecksumBlobStoreFormat(
         String codec,
         String blobNameFormat,
         CheckedBiFunction<String, XContentParser, T, IOException> reader,
-        @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader
+        @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader,
+        Function<T, ? extends ToXContent> writer
     ) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
         this.codec = codec;
         this.fallbackReader = fallbackReader;
+        this.writer = writer;
     }
 
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
+     * @param writer         function that maps the given type to a {@link ToXContent} for serialization
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedBiFunction<String, XContentParser, T, IOException> reader) {
-        this(codec, blobNameFormat, reader, null);
+    public ChecksumBlobStoreFormat(
+        String codec,
+        String blobNameFormat,
+        CheckedBiFunction<String, XContentParser, T, IOException> reader,
+        Function<T, ? extends ToXContent> writer
+    ) {
+        this(codec, blobNameFormat, reader, null, writer);
     }
 
     /**
@@ -289,13 +301,13 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             final int footerLen = CodecUtil.footerLength();
             if (bufferCount == 0) {
                 // first read, fill the buffer
-                bufferCount = Streams.readFully(in, buffer, 0, buffer.length);
+                bufferCount = org.elasticsearch.core.Streams.readFully(in, buffer, 0, buffer.length);
             } else if (bufferPos == bufferCount - footerLen) {
                 // crc and discard all but the last 16 bytes in the buffer that might be the footer bytes
                 assert bufferCount >= footerLen;
                 crc32.update(buffer, 0, bufferPos);
                 System.arraycopy(buffer, bufferPos, buffer, 0, footerLen);
-                bufferCount = footerLen + Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
+                bufferCount = footerLen + org.elasticsearch.core.Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
                 bufferPos = 0;
             }
             // bytes in the buffer minus 16 bytes that could be the footer
@@ -331,7 +343,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress, Map<String, String> serializationParams)
         throws IOException {
         final String blobName = blobName(name);
-        blobContainer.writeBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
+        blobContainer.writeMetadataBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, final OutputStream outputStream) throws IOException {
@@ -349,7 +361,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
                 "ChecksumBlobStoreFormat.serialize(blob=\"" + blobName + "\")",
                 blobName,
-                org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
+                org.elasticsearch.core.Streams.noCloseStream(outputStream),
                 BUFFER_SIZE
             )
         ) {
@@ -371,7 +383,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     : new ToXContent.DelegatingMapParams(extraParams, SNAPSHOT_ONLY_FORMAT_PARAMS);
 
                 builder.startObject();
-                obj.toXContent(builder, params);
+                writer.apply(obj).toXContent(builder, params);
                 builder.endObject();
             }
             CodecUtil.writeFooter(indexOutput);

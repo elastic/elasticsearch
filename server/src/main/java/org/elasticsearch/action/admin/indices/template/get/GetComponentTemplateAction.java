@@ -8,9 +8,11 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,22 +45,32 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         @Nullable
         private String name;
+        private boolean includeDefaults;
 
         public Request() {}
 
         public Request(String name) {
             this.name = name;
+            this.includeDefaults = false;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                includeDefaults = in.readBoolean();
+            } else {
+                includeDefaults = false;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                out.writeBoolean(includeDefaults);
+            }
         }
 
         @Override
@@ -75,10 +87,25 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
         /**
+         * Sets the flag to signal that in the response the default values will also be displayed.
+         */
+        public Request includeDefaults(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
+            return this;
+        }
+
+        /**
          * The name of the component templates.
          */
         public String name() {
             return this.name;
+        }
+
+        /**
+         * True if in the response the default values will be displayed.
+         */
+        public boolean includeDefaults() {
+            return includeDefaults;
         }
     }
 
@@ -88,14 +115,27 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
 
         private final Map<String, ComponentTemplate> componentTemplates;
+        @Nullable
+        private final RolloverConfiguration rolloverConfiguration;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
+            componentTemplates = in.readMap(ComponentTemplate::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
+            } else {
+                rolloverConfiguration = null;
+            }
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates) {
             this.componentTemplates = componentTemplates;
+            this.rolloverConfiguration = null;
+        }
+
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
+            this.componentTemplates = componentTemplates;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Map<String, ComponentTemplate> getComponentTemplates() {
@@ -105,6 +145,9 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                out.writeOptionalWriteable(rolloverConfiguration);
+            }
         }
 
         @Override
@@ -112,12 +155,13 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return Objects.equals(componentTemplates, that.componentTemplates);
+            return Objects.equals(componentTemplates, that.componentTemplates)
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(componentTemplates);
+            return Objects.hash(componentTemplates, rolloverConfiguration);
         }
 
         @Override
@@ -127,7 +171,8 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
-                builder.field(COMPONENT_TEMPLATE.getPreferredName(), componentTemplate.getValue(), params);
+                builder.field(COMPONENT_TEMPLATE.getPreferredName());
+                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

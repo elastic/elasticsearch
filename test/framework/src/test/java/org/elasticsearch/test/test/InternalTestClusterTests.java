@@ -42,7 +42,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
@@ -59,17 +58,6 @@ public class InternalTestClusterTests extends ESTestCase {
 
     private static Collection<Class<? extends Plugin>> mockPlugins() {
         return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);
-    }
-
-    @Override
-    protected List<String> filteredWarnings() {
-        return Stream.concat(
-            super.filteredWarnings().stream(),
-            List.of(
-                "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing "
-                    + "multiple disks. This feature will be removed in 8.0."
-            ).stream()
-        ).collect(Collectors.toList());
     }
 
     public void testInitializiationIsConsistent() {
@@ -295,56 +283,56 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             cluster.beforeTest(random());
             final int originalMasterCount = cluster.numMasterNodes();
-            final Map<String, Path[]> shardNodePaths = new HashMap<>();
+            final Map<String, Path[]> shardDataPaths = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
-                shardNodePaths.put(name, getNodePaths(cluster, name));
+                shardDataPaths.put(name, getDataPaths(cluster, name));
             }
             String poorNode = randomValueOtherThanMany(
                 n -> originalMasterCount == 1 && n.equals(cluster.getMasterName()),
                 () -> randomFrom(cluster.getNodeNames())
             );
-            Path dataPath = getNodePaths(cluster, poorNode)[0];
+            Path dataPath = getDataPaths(cluster, poorNode)[0];
             final Settings poorNodeDataPathSettings = cluster.dataPathSettings(poorNode);
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
-            cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
+            cluster.stopNode(poorNode);
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());
-            final Path stableDataPath = getNodePaths(cluster, stableNode)[0];
+            final Path stableDataPath = getDataPaths(cluster, stableNode)[0];
             final Path stableTestMarker = stableDataPath.resolve("stableTestMarker");
             assertThat(stableDataPath, not(dataPath));
             Files.createDirectories(stableTestMarker);
 
             final String newNode1 = cluster.startNode();
-            assertThat(getNodePaths(cluster, newNode1)[0], not(dataPath));
+            assertThat(getDataPaths(cluster, newNode1)[0], not(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
             final String newNode2 = cluster.startNode();
-            final Path newDataPath = getNodePaths(cluster, newNode2)[0];
+            final Path newDataPath = getDataPaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
             Files.createDirectories(newTestMarker);
             final String newNode3 = cluster.startNode(poorNodeDataPathSettings);
-            assertThat(getNodePaths(cluster, newNode3)[0], equalTo(dataPath));
+            assertThat(getDataPaths(cluster, newNode3)[0], equalTo(dataPath));
             cluster.beforeTest(random());
             assertFileNotExists(newTestMarker); // the cluster should be reset for a new test, cleaning up the extra path we made
             assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name : cluster.getNodeNames()) {
-                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
+                assertThat("data paths for " + name + " changed", getDataPaths(cluster, name), equalTo(shardDataPaths.get(name)));
             }
 
             cluster.beforeTest(random());
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name : cluster.getNodeNames()) {
-                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
+                assertThat("data paths for " + name + " changed", getDataPaths(cluster, name), equalTo(shardDataPaths.get(name)));
             }
         } finally {
             cluster.close();
         }
     }
 
-    private Path[] getNodePaths(InternalTestCluster cluster, String name) {
+    private Path[] getDataPaths(InternalTestCluster cluster, String name) {
         final NodeEnvironment nodeEnvironment = cluster.getInstance(NodeEnvironment.class, name);
         if (nodeEnvironment.hasNodeFile()) {
             return nodeEnvironment.nodeDataPaths();
@@ -416,7 +404,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     throw new IllegalStateException("get your story straight");
                 }
                 Set<String> rolePaths = pathsPerRole.computeIfAbsent(role, k -> new HashSet<>());
-                for (Path path : getNodePaths(cluster, node)) {
+                for (Path path : getDataPaths(cluster, node)) {
                     assertTrue(rolePaths.add(path.toString()));
                 }
             }
@@ -426,7 +414,7 @@ public class InternalTestClusterTests extends ESTestCase {
             Map<DiscoveryNodeRole, Set<String>> result = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
-                List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
+                List<String> paths = Arrays.stream(getDataPaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else if (node.canContainData()) {

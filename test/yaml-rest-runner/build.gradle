@@ -1,5 +1,6 @@
-
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 dependencies {
   api project(':test:framework')

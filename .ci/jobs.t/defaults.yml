@@ -56,8 +56,8 @@
             COMPOSE_HTTP_TIMEOUT=120
             JOB_BRANCH=%BRANCH%
             HOME=$JENKINS_HOME
-            GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-            GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+            GRADLEW=./gradlew --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+            GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
     publishers:
 # Disable Junit publisher for now since it's causing OOME on our Jenkins instance
 #      - junit:

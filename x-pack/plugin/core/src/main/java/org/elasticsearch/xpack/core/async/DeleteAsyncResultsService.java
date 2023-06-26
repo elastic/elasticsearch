@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -56,7 +55,7 @@ public class DeleteAsyncResultsService {
         final Authentication current = store.getSecurityContext().getAuthentication();
         if (current != null) {
             HasPrivilegesRequest req = new HasPrivilegesRequest();
-            req.username(current.getUser().principal());
+            req.username(current.getEffectiveSubject().getUser().principal());
             req.clusterPrivileges(ClusterPrivilegeResolver.CANCEL_TASK.name());
             req.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
             req.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
@@ -94,7 +93,7 @@ public class DeleteAsyncResultsService {
                 } else {
                     store.ensureAuthenticatedUserCanDeleteFromIndex(
                         searchId,
-                        ActionListener.wrap(res -> deleteResponseFromIndex(searchId, false, listener), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, res) -> deleteResponseFromIndex(searchId, false, l))
                     );
                 }
             }
@@ -117,7 +116,7 @@ public class DeleteAsyncResultsService {
             if (status == RestStatus.NOT_FOUND && taskWasFound) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                logger.error(() -> new ParameterizedMessage("failed to clean async result [{}]", taskId.getEncoded()), exc);
+                logger.error(() -> "failed to clean async result [" + taskId.getEncoded() + "]", exc);
                 listener.onFailure(new ResourceNotFoundException(taskId.getEncoded()));
             }
         }));

@@ -9,14 +9,11 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -27,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -101,26 +99,22 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 if (repositoryCleanupInProgress.hasCleanupInProgress() == false) {
                     return;
                 }
-                clusterService.submitStateUpdateTask(
-                    "clean up repository cleanup task after master failover",
-                    new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            return removeInProgressCleanup(currentState);
-                        }
+                submitUnbatchedTask(clusterService, "clean up repository cleanup task after master failover", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return removeInProgressCleanup(currentState);
+                    }
 
-                        @Override
-                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                            logger.debug("Removed repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
-                        }
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        logger.debug("Removed repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
-                        }
-                    },
-                    newExecutor()
-                );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
+                    }
+                });
             }
         });
     }
@@ -159,12 +153,13 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             return;
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repository.getRepositoryData(repositoryDataListener);
-        repositoryDataListener.whenComplete(repositoryData -> {
+        repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
             final long repositoryStateId = repositoryData.getGenId();
             logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);
-            clusterService.submitStateUpdateTask(
+            submitUnbatchedTask(
+                clusterService,
                 "cleanup repository [" + repositoryName + "][" + repositoryStateId + ']',
                 new ClusterStateUpdateTask() {
 
@@ -227,7 +222,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         threadPool.executor(ThreadPool.Names.SNAPSHOT)
                             .execute(
                                 ActionRunnable.wrap(
-                                    listener,
+                                    delegate,
                                     l -> blobStoreRepository.cleanup(
                                         repositoryStateId,
                                         SnapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
@@ -242,21 +237,22 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             logger.debug("Finished repository cleanup operations on [{}][{}]", repositoryName, repositoryStateId);
                         } else {
                             logger.debug(
-                                () -> new ParameterizedMessage(
-                                    "Failed to finish repository cleanup operations on [{}][{}]",
-                                    repositoryName,
-                                    repositoryStateId
-                                ),
+                                () -> "Failed to finish repository cleanup operations on ["
+                                    + repositoryName
+                                    + "]["
+                                    + repositoryStateId
+                                    + "]",
                                 failure
                             );
                         }
                         assert failure != null || result != null;
                         if (startedCleanup == false) {
                             logger.debug("No cleanup task to remove from cluster state because we failed to start one", failure);
-                            listener.onFailure(failure);
+                            delegate.onFailure(failure);
                             return;
                         }
-                        clusterService.submitStateUpdateTask(
+                        submitUnbatchedTask(
+                            clusterService,
                             "remove repository cleanup task [" + repositoryName + "][" + repositoryStateId + ']',
                             new ClusterStateUpdateTask() {
                                 @Override
@@ -269,11 +265,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     if (failure != null) {
                                         e.addSuppressed(failure);
                                     }
-                                    logger.warn(
-                                        () -> new ParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName),
-                                        e
-                                    );
-                                    listener.onFailure(e);
+                                    logger.warn(() -> "[" + repositoryName + "] failed to remove repository cleanup task", e);
+                                    delegate.onFailure(e);
                                 }
 
                                 @Override
@@ -285,31 +278,33 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                             repositoryStateId,
                                             result
                                         );
-                                        listener.onResponse(result);
+                                        delegate.onResponse(result);
                                     } else {
                                         logger.warn(
-                                            () -> new ParameterizedMessage(
-                                                "Failed to run repository cleanup operations on [{}][{}]",
-                                                repositoryName,
-                                                repositoryStateId
-                                            ),
+                                            () -> "Failed to run repository cleanup operations on ["
+                                                + repositoryName
+                                                + "]["
+                                                + repositoryStateId
+                                                + "]",
                                             failure
                                         );
-                                        listener.onFailure(failure);
+                                        delegate.onFailure(failure);
                                     }
                                 }
-                            },
-                            newExecutor()
+                            }
                         );
                     }
-                },
-                newExecutor()
+                }
             );
-        }, listener::onFailure);
+        }));
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

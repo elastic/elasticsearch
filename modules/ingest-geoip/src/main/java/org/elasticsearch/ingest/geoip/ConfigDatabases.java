@@ -9,7 +9,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -87,7 +86,7 @@ final class ConfigDatabases implements Closeable {
                 existing.close();
             }
         } catch (Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
+            LOGGER.error((Supplier<?>) () -> "failed to update database [" + databaseFileName + "]", e);
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.AfterClass;
@@ -67,9 +68,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
     public void testSecurityFeatureStateSnapshotAndRestore() throws Exception {
         // set up a snapshot repository
         final String repositoryName = "test-repo";
-        client().admin()
-            .cluster()
-            .preparePutRepository(repositoryName)
+        clusterAdmin().preparePutRepository(repositoryName)
             .setType("fs")
             .setSettings(Settings.builder().put("location", repositoryLocation))
             .get();
@@ -92,9 +91,9 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         // create a test user
         final Request createUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
         createUserRequest.addParameter("refresh", "wait_for");
-        createUserRequest.setJsonEntity("""
+        createUserRequest.setJsonEntity(Strings.format("""
             {  "password": "%s",  "roles": [ "%s" ]}
-            """.formatted(LOCAL_TEST_USER_PASSWORD, roleName));
+            """, LOCAL_TEST_USER_PASSWORD, roleName));
         performSuperuserRequest(createUserRequest);
 
         // test user posts a document
@@ -106,9 +105,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
         // snapshot state
         final String snapshotName = "security-state";
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, snapshotName)
+        clusterAdmin().prepareCreateSnapshot(repositoryName, snapshotName)
             .setIndices("test_index")
             .setFeatureStates("LocalStateSecurity")
             .get();
@@ -134,9 +131,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         client().admin().indices().prepareClose("test_index").get();
 
         // restore state
-        client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repositoryName, snapshotName)
+        clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName)
             .setFeatureStates("LocalStateSecurity")
             .setIndices("test_index")
             .setWaitForCompletion(true)
@@ -173,13 +168,11 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
     private void waitForSnapshotToFinish(String repo, String snapshot) throws Exception {
         assertBusy(() -> {
-            SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
+            SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress = client().admin()
-                .cluster()
-                .state(new ClusterStateRequest())
+            SnapshotsInProgress snapshotsInProgress = clusterAdmin().state(new ClusterStateRequest())
                 .get()
                 .getState()
                 .custom(SnapshotsInProgress.TYPE);

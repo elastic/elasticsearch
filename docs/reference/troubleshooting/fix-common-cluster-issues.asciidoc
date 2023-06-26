@@ -1,0 +1,64 @@
+[[fix-common-cluster-issues]]
+== Fix common cluster issues
+
+This guide describes how to fix common errors and problems with {es} clusters.
+
+<<fix-watermark-errors,Watermark errors>>::
+Fix watermark errors that occur when a data node is critically low on disk space
+and has reached the flood-stage disk usage watermark.
+
+<<circuit-breaker-errors,Circuit breaker errors>>::
+{es} uses circuit breakers to prevent nodes from running out of JVM heap memory.
+If Elasticsearch estimates an operation would exceed a circuit breaker, it stops
+the operation and returns an error.
+
+<<high-cpu-usage,High CPU usage>>::
+The most common causes of high CPU usage and their solutions.
+
+<<high-jvm-memory-pressure,High JVM memory pressure>>::
+High JVM memory usage can degrade cluster performance and trigger circuit
+breaker errors.
+
+<<red-yellow-cluster-status,Red or yellow cluster status>>::
+A red or yellow cluster status indicates one or more shards are missing or
+unallocated. These unassigned shards increase your risk of data loss and can
+degrade cluster performance.
+
+<<rejected-requests,Rejected requests>>::
+When {es} rejects a request, it stops the operation and returns an error with a
+`429` response code.
+
+<<task-queue-backlog,Task queue backlog>>::
+A backlogged task queue can prevent tasks from completing and put the cluster
+into an unhealthy state.
+
+<<diagnose-unassigned-shards,Diagnose unassigned shards>>::
+There are multiple reasons why shards might get unassigned, ranging from 
+misconfigured allocation settings to lack of disk space.
+
+<<cluster-fault-detection-troubleshooting,Troubleshooting an unstable cluster>>::
+A cluster in which nodes leave unexpectedly is unstable and can create several 
+issues.
+
+
+<<mapping-explosion,Mapping explosion>>::
+A cluster in which an index or index pattern as exploded with a high count of 
+mapping fields which causes performance look-up issues for Elasticsearch and 
+Kibana.
+
+<<hotspotting,Hot spotting>>::
+Hot spotting may occur in {es} when resource utilizations are unevenly
+distributed across nodes.
+
+
+include::common-issues/disk-usage-exceeded.asciidoc[]
+include::common-issues/circuit-breaker-errors.asciidoc[]
+include::common-issues/high-cpu-usage.asciidoc[]
+include::common-issues/high-jvm-memory-pressure.asciidoc[]
+include::common-issues/red-yellow-cluster-status.asciidoc[]
+include::common-issues/rejected-requests.asciidoc[]
+include::common-issues/task-queue-backlog.asciidoc[]
+include::common-issues/mapping-explosion.asciidoc[]
+include::common-issues/hotspotting.asciidoc[]
+include::common-issues/diagnose-unassigned-shards.asciidoc[]
+

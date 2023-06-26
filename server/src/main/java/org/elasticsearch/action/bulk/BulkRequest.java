@@ -44,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
- * and allows to executes it in a single batch.
+ * and allows to execute it in a single batch.
  *
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
@@ -113,12 +113,12 @@ public class BulkRequest extends ActionRequest
      * @return the current bulk request
      */
     public BulkRequest add(DocWriteRequest<?> request) {
-        if (request instanceof IndexRequest) {
-            add((IndexRequest) request);
-        } else if (request instanceof DeleteRequest) {
-            add((DeleteRequest) request);
-        } else if (request instanceof UpdateRequest) {
-            add((UpdateRequest) request);
+        if (request instanceof IndexRequest indexRequest) {
+            add(indexRequest);
+        } else if (request instanceof DeleteRequest deleteRequest) {
+            add(deleteRequest);
+        } else if (request instanceof UpdateRequest updateRequest) {
+            add(updateRequest);
         } else {
             throw new IllegalArgumentException("No support for request [" + request + "]");
         }

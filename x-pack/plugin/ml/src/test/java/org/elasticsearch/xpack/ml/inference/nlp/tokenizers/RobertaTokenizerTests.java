@@ -34,7 +34,7 @@ public class RobertaTokenizerTests extends ESTestCase {
             ).build()
         ) {
             TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
-            assertThat(tokenStrings(tokenization.tokens()), contains("Elast", "icsearch", "Ġfun"));
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elast", "icsearch", "Ġfun"));
             assertArrayEquals(new int[] { 0, 297, 299, 275, 2 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { -1, 0, 0, 1, -1 }, tokenization.tokenMap());
         }

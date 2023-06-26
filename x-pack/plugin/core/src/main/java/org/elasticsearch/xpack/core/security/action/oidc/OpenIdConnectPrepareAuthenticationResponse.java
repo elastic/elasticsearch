@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +47,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         authenticationRequestUrl = in.readString();
         state = in.readString();
         nonce = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             realmName = in.readString();
         }
     }
@@ -73,7 +73,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         out.writeString(authenticationRequestUrl);
         out.writeString(state);
         out.writeString(nonce);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             out.writeString(realmName);
         }
     }

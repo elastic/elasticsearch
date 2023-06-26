@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -27,12 +28,9 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.murmur3.Murmur3DocValueField;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class Murmur3FieldMapper extends FieldMapper {
 
@@ -60,8 +58,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(stored, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { stored, meta };
         }
 
         @Override
@@ -90,7 +88,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);
         }
@@ -124,7 +122,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
         if (value != null) {
-            final BytesRef bytes = new BytesRef(value.toString());
+            final BytesRef bytes = new BytesRef(value);
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
             if (fieldType().isStored()) {

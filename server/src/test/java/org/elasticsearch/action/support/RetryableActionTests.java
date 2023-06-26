@@ -108,7 +108,6 @@ public class RetryableActionTests extends ESTestCase {
         assertTrue(future.actionGet());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76165")
     public void testRetryableActionTimeout() {
         final AtomicInteger retryCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
@@ -152,8 +151,8 @@ public class RetryableActionTests extends ESTestCase {
         expectThrows(EsRejectedExecutionException.class, future::actionGet);
 
         long end = taskQueue.getCurrentTimeMillis();
-        // max 3x timeout since we minimum wait half the bound for every retry.
-        assertThat(end - begin, lessThanOrEqualTo(3000L));
+        // max 20% greater than the timeout.
+        assertThat(end - begin, lessThanOrEqualTo(1200L));
     }
 
     public void testTimeoutOfZeroMeansNoRetry() {
@@ -250,5 +249,48 @@ public class RetryableActionTests extends ESTestCase {
         // A second run will not occur because it is cancelled
         assertEquals(1, executedCount.get());
         expectThrows(ElasticsearchException.class, future::actionGet);
+    }
+
+    public void testMaxDelayBound() {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
+            logger,
+            taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueMillis(50),
+            TimeValue.timeValueSeconds(1),
+            future
+        ) {
+
+            @Override
+            public void tryAction(ActionListener<Boolean> listener) {
+                if (randomBoolean()) {
+                    listener.onFailure(new EsRejectedExecutionException());
+                } else {
+                    throw new EsRejectedExecutionException();
+                }
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                return e instanceof EsRejectedExecutionException;
+            }
+        };
+        retryableAction.run();
+        taskQueue.runAllRunnableTasks();
+        long previousDeferredTime = 0;
+        while (previousDeferredTime < 1000) {
+            assertTrue(taskQueue.hasDeferredTasks());
+            long latestDeferredExecutionTime = taskQueue.getLatestDeferredExecutionTime();
+            assertThat(latestDeferredExecutionTime - previousDeferredTime, lessThanOrEqualTo(50L));
+            previousDeferredTime = latestDeferredExecutionTime;
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+        }
+
+        assertFalse(taskQueue.hasDeferredTasks());
+        assertFalse(taskQueue.hasRunnableTasks());
+
+        expectThrows(EsRejectedExecutionException.class, future::actionGet);
     }
 }

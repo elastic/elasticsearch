@@ -77,7 +77,7 @@ The following parameters are accepted by `text` fields:
     (default). Enabling this is a good idea on fields that are frequently used for
     (significant) terms aggregations.
 
-<<fielddata,`fielddata`>>::
+<<fielddata-mapping-param,`fielddata`>>::
 
     Can the field use in-memory fielddata for sorting, aggregations,
     or scripting? Accepts `true` or `false` (default).
@@ -159,16 +159,118 @@ The following parameters are accepted by `text` fields:
 
     Metadata about the field.
 
+[[text-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`text` fields support <<synthetic-source,synthetic `_source`>> if they have
+a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
+`_source` or if the `text` field sets `store` to `true`. Either way, it may
+not have <<copy-to,`copy_to`>>.
+
+If using a sub-`keyword` field then the values are sorted in the same way as
+a `keyword` field's values are sorted. By default, that means sorted with
+duplicates removed. So:
+[source,console,id=synthetic-source-text-example-default]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "text": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "text": [
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog"
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "text": [
+    "jumped over the lazy dog",
+    "the quick brown fox"
+  ]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+NOTE: Reordering text fields can have an effect on <<query-dsl-match-query-phrase,phrase>>
+      and <<span-queries,span>> queries. See the discussion about
+      <<position-increment-gap,`position_increment_gap`>> for more detail. You
+      can avoid this by making sure the `slop` parameter on the phrase queries
+      is lower than the `position_increment_gap`. This is the default.
+
+If the `text` field sets `store` to true then order and duplicates
+are preserved.
+[source,console,id=synthetic-source-text-example-stored]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "text": { "type": "text", "store": true }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "text": [
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog"
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "text": [
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog"
+  ]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
 [[fielddata-mapping-param]]
 ==== `fielddata` mapping parameter
 
 `text` fields are searchable by default, but by default are not available for
 aggregations, sorting, or scripting. If you try to sort, aggregate, or access
-values from a script on a `text` field, you will see this exception:
+values from a `text` field using a script, you'll see an exception indicating
+that field data is disabled by default on text fields. To load field data in
+memory, set `fielddata=true` on your field.
 
-Fielddata is disabled on text fields by default. Set `fielddata=true` on
-`your_field_name` in order to load fielddata in memory by uninverting the
-inverted index. Note that this can however use significant memory.
+NOTE: Loading field data in memory can consume significant memory.
 
 Field data is the only way to access the analyzed tokens from a full text field
 in aggregations, sorting, or scripting. For example, a full text field like `New York`

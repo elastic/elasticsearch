@@ -16,9 +16,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,11 +28,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestIndicesSegmentsAction.class);
 
-    private final ThreadPool threadPool;
-
-    public RestIndicesSegmentsAction(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
+    public RestIndicesSegmentsAction() {}
 
     @Override
     public List<Route> routes() {
@@ -60,9 +55,6 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
-            .segments(
-                indicesSegmentsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
-            );
+            .segments(indicesSegmentsRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

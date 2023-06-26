@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
@@ -22,25 +21,19 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -71,7 +64,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<AuthenticateResponse>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<AuthenticateResponse>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -108,7 +101,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<AuthenticateResponse>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<AuthenticateResponse>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -127,29 +120,15 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
     public void testValidAuthentication() {
         final AnonymousUser anonymousUser = prepareAnonymousUser();
-        final boolean isRunAs = randomBoolean();
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
-        final User effectiveUser = isRunAs ? new User(user, new User("bar")) : user;
-
-        final AuthenticationType authenticationType = isRunAs
-            ? randomFrom(AuthenticationType.API_KEY, AuthenticationType.REALM, AuthenticationType.TOKEN)
-            : randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN);
-        final RealmRef authenticatedBy = new RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
-        final RealmRef lookedUpBy = isRunAs ? new RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5)) : null;
-        final Authentication authentication = new Authentication(
-            effectiveUser,
-            authenticatedBy,
-            lookedUpBy,
-            Version.CURRENT,
-            authenticationType,
-            authenticationType == AuthenticationType.API_KEY ? Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20)) : Map.of()
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
+        final User effectiveUser = authentication.getEffectiveSubject().getUser();
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, effectiveUser, authentication);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -162,19 +141,29 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        if (anonymousUser.enabled()) {
+        if (anonymousUser.enabled() && false == (authentication.isApiKey() || authentication.isCrossClusterAccess())) {
+            // Roles of anonymousUser are added to non api key authentication
             final Authentication auth = responseRef.get().authentication();
-            final User authUser = auth.getUser();
+            final User userInResponse = auth.getEffectiveSubject().getUser();
             assertThat(
-                authUser.roles(),
-                arrayContainingInAnyOrder(ArrayUtils.concat(authentication.getUser().roles(), anonymousUser.roles()))
+                userInResponse.roles(),
+                arrayContainingInAnyOrder(ArrayUtils.concat(authentication.getEffectiveSubject().getUser().roles(), anonymousUser.roles()))
             );
-            assertThat(authUser.authenticatedUser(), sameInstance(effectiveUser.authenticatedUser()));
-            assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
-            assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
-            assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
-            assertThat(auth.getMetadata(), sameInstance(auth.getMetadata()));
+            assertThat(auth.isRunAs(), is(authentication.isRunAs()));
+            if (auth.isRunAs()) {
+                assertThat(auth.getAuthenticatingSubject().getUser(), sameInstance(authentication.getAuthenticatingSubject().getUser()));
+            }
+            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(authentication.getAuthenticatingSubject().getRealm()));
+            assertThat(auth.getEffectiveSubject().getRealm(), sameInstance(authentication.getEffectiveSubject().getRealm()));
+            assertThat(
+                auth.getEffectiveSubject().getTransportVersion(),
+                sameInstance(authentication.getEffectiveSubject().getTransportVersion())
+            );
+            assertThat(auth.getAuthenticationType(), sameInstance(authentication.getAuthenticationType()));
+            assertThat(
+                auth.getAuthenticatingSubject().getMetadata(),
+                sameInstance(authentication.getAuthenticatingSubject().getMetadata())
+            );
         } else {
             assertThat(responseRef.get().authentication(), sameInstance(authentication));
         }
@@ -184,36 +173,22 @@ public class TransportAuthenticateActionTests extends ESTestCase {
     public void testShouldNotAddAnonymousRolesForApiKeyOrServiceAccount() {
         final AnonymousUser anonymousUser = prepareAnonymousUser();
 
-        final User user;
         final Authentication authentication;
 
         if (randomBoolean()) {
-            user = new User("joe");
-            authentication = new Authentication(
-                user,
-                new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node1"),
-                null,
-                Version.CURRENT,
-                AuthenticationType.API_KEY,
-                Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20))
-            );
+            authentication = AuthenticationTestHelper.builder().apiKey().build();
         } else {
-            user = new User("elastic/fleet-server");
-            authentication = new Authentication(
-                user,
-                new RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, "node1"),
-                null,
-                Version.CURRENT,
-                AuthenticationType.TOKEN,
-                Map.of()
-            );
+            authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         }
+        final User user = authentication.getEffectiveSubject().getUser();
+        // API key or service account have no named roles
+        assertThat(user.roles(), emptyArray());
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, user, authentication);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -226,19 +201,8 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        if (anonymousUser.enabled()) {
-            final Authentication auth = responseRef.get().authentication();
-            final User authUser = auth.getUser();
-            assertThat(authUser.roles(), emptyArray());
-            assertThat(authUser.authenticatedUser(), sameInstance(user.authenticatedUser()));
-            assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
-            assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
-            assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
-            assertThat(auth.getMetadata(), sameInstance(auth.getMetadata()));
-        } else {
-            assertThat(responseRef.get().authentication(), sameInstance(authentication));
-        }
+        // Anonymous roles should not be added which means there is no change to the authentication at all
+        assertThat(responseRef.get().authentication(), sameInstance(authentication));
         assertThat(throwableRef.get(), nullValue());
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -46,6 +48,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -69,6 +72,7 @@ import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -98,10 +102,10 @@ import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.Searchable
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotRepositoryExistsAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheMaintenanceService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
@@ -122,6 +126,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -185,17 +190,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NotCopyableOnResize
     );
     // The file extensions that are excluded from the cache
-    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.stringListSetting(
         "index.store.snapshot.cache.excluded_file_types",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "index.store.snapshot.uncached_chunk_size",
-        new ByteSizeValue(-1, ByteSizeUnit.BYTES),
+        ByteSizeValue.MINUS_ONE,
         Setting.Property.IndexScope,
         Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
@@ -205,12 +208,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String SNAPSHOT_BLOB_CACHE_INDEX_PATTERN = SNAPSHOT_BLOB_CACHE_INDEX + "*";
     public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
     public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
-        new Setting.SimpleKey(SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH),
-        s -> new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
+        SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH,
+        new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
         s -> Setting.parseByteSize(
             s,
             new ByteSizeValue(1L, ByteSizeUnit.KB),
-            new ByteSizeValue(Long.MAX_VALUE),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE),
             SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH
         ),
         value -> {
@@ -251,7 +254,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
-    private final SetOnce<FrozenCacheService> frozenCacheService = new SetOnce<>();
+    private final SetOnce<SharedBlobCacheService<CacheKey>> frozenCacheService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final SetOnce<SearchableSnapshotAllocator> allocator = new SetOnce<>();
@@ -278,6 +281,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         return (BlobStoreRepository) repository;
     }
 
+    public static Predicate<CacheKey> forceEvictPredicate(ShardId shardId, Settings indexSettings) {
+        final String snapshotUUID = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings);
+        final String snapshotIndexName = SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings);
+        return k -> shardId.equals(k.shardId()) && snapshotIndexName.equals(k.snapshotIndexName()) && snapshotUUID.equals(k.snapshotUUID());
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
@@ -300,14 +309,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
-            FrozenCacheService.SHARED_CACHE_SIZE_SETTING,
-            FrozenCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING,
-            FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING,
-            FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING,
-            FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING,
-            FrozenCacheService.SHARED_CACHE_MAX_FREQ_SETTING,
-            FrozenCacheService.SHARED_CACHE_DECAY_INTERVAL_SETTING,
-            FrozenCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING,
             BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING,
             BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING,
             BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING,
@@ -327,7 +328,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
@@ -336,8 +339,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final FrozenCacheService frozenCacheService = new FrozenCacheService(nodeEnvironment, settings, threadPool);
-            this.frozenCacheService.set(frozenCacheService);
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+            );
+            this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
                 clusterService,
@@ -710,20 +718,20 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     /**
-     * Allows to inject the {@link FrozenCacheService} instance to transport actions
+     * Allows to inject the {@link SharedBlobCacheService} instance to transport actions
      */
-    public static final class FrozenCacheServiceSupplier implements Supplier<FrozenCacheService> {
+    public static final class FrozenCacheServiceSupplier implements Supplier<SharedBlobCacheService<CacheKey>> {
 
         @Nullable
-        private final FrozenCacheService frozenCacheService;
+        private final SharedBlobCacheService<CacheKey> sharedBlobCacheService;
 
-        FrozenCacheServiceSupplier(@Nullable FrozenCacheService frozenCacheService) {
-            this.frozenCacheService = frozenCacheService;
+        FrozenCacheServiceSupplier(@Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService) {
+            this.sharedBlobCacheService = sharedBlobCacheService;
         }
 
         @Override
-        public FrozenCacheService get() {
-            return frozenCacheService;
+        public SharedBlobCacheService<CacheKey> get() {
+            return sharedBlobCacheService;
         }
     }
 

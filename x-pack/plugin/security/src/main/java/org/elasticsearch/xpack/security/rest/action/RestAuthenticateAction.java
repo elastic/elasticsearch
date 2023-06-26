@@ -10,10 +10,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +29,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestAuthenticateAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
@@ -55,16 +57,14 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
         if (user == null) {
             return restChannel -> { throw new IllegalStateException("we should never have a null user and invoke this consumer"); };
         }
-        final String username = user.principal();
-
         return channel -> client.execute(
             AuthenticateAction.INSTANCE,
-            new AuthenticateRequest(username),
+            AuthenticateRequest.INSTANCE,
             new RestBuilderListener<AuthenticateResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(AuthenticateResponse authenticateResponse, XContentBuilder builder) throws Exception {
                     authenticateResponse.authentication().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             }
         );

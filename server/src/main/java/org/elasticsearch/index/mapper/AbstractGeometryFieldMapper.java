@@ -11,7 +11,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -25,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -124,6 +124,18 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 }
             };
         }
+
+        public ValueFetcher valueFetcher(Set<String> sourcePaths, Object nullValue, String format) {
+            Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
+            return new ArraySourceValueFetcher(sourcePaths, nullValue) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    final List<T> values = new ArrayList<>();
+                    geometryParser.fetchFromSource(value, values::add);
+                    return formatter.apply(values);
+                }
+            };
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;
@@ -133,14 +145,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        Map<String, NamedAnalyzer> indexAnalyzers,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.parser = parser;
@@ -149,24 +160,12 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        Explicit<Boolean> ignoreMalformed,
-        Explicit<Boolean> ignoreZValue,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser
-    ) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
-    }
-
-    protected AbstractGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser,
-        String onScriptError
+        OnScriptError onScriptError
     ) {
-        super(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, true, onScriptError);
+        super(simpleName, mappedFieldType, multiFields, copyTo, true, onScriptError);
         this.ignoreMalformed = Explicit.EXPLICIT_FALSE;
         this.ignoreZValue = Explicit.EXPLICIT_FALSE;
         this.parser = parser;
@@ -193,7 +192,8 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     @Override
     public final void parse(DocumentParserContext context) throws IOException {
         if (hasScript) {
-            throw new MapperParsingException(
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
                 "failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
@@ -202,11 +202,16 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             if (ignoreMalformed()) {
                 context.addIgnoredField(fieldType().name());
             } else {
-                throw new MapperParsingException("failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]", e);
+                throw new DocumentParsingException(
+                    context.parser().getTokenLocation(),
+                    "failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]",
+                    e
+                );
             }
         });
     }
 
+    @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
     }

@@ -214,11 +214,11 @@ public final class ShardPath {
 
         if (indexSettings.hasCustomDataPath()) {
             dataPath = env.resolveCustomLocation(indexSettings.customDataPath(), shardId);
-            statePath = env.nodePaths()[0].resolve(shardId);
+            statePath = env.dataPaths()[0].resolve(shardId);
         } else {
             BigInteger totFreeSpace = BigInteger.ZERO;
-            for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
-                totFreeSpace = totFreeSpace.add(BigInteger.valueOf(nodePath.fileStore.getUsableSpace()));
+            for (NodeEnvironment.DataPath nodeDataPath : env.dataPaths()) {
+                totFreeSpace = totFreeSpace.add(BigInteger.valueOf(nodeDataPath.fileStore.getUsableSpace()));
             }
 
             // TODO: this is a hack!! We should instead keep track of incoming (relocated) shards since we know
@@ -229,20 +229,20 @@ public final class ShardPath {
             BigInteger estShardSizeInBytes = BigInteger.valueOf(avgShardSizeInBytes).max(totFreeSpace.divide(BigInteger.valueOf(20)));
 
             // TODO - do we need something more extensible? Yet, this does the job for now...
-            final NodeEnvironment.NodePath[] paths = env.nodePaths();
+            final NodeEnvironment.DataPath[] paths = env.dataPaths();
 
             // If no better path is chosen, use the one with the most space by default
-            NodeEnvironment.NodePath bestPath = getPathWithMostFreeSpace(env);
+            NodeEnvironment.DataPath bestPath = getPathWithMostFreeSpace(env);
 
             if (paths.length != 1) {
-                Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
+                Map<NodeEnvironment.DataPath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
 
                 // Compute how much space there is on each path
-                final Map<NodeEnvironment.NodePath, BigInteger> pathsToSpace = Maps.newMapWithExpectedSize(paths.length);
-                for (NodeEnvironment.NodePath nodePath : paths) {
-                    FileStore fileStore = nodePath.fileStore;
+                final Map<NodeEnvironment.DataPath, BigInteger> pathsToSpace = Maps.newMapWithExpectedSize(paths.length);
+                for (NodeEnvironment.DataPath nodeDataPath : paths) {
+                    FileStore fileStore = nodeDataPath.fileStore;
                     BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
-                    pathsToSpace.put(nodePath, usableBytes);
+                    pathsToSpace.put(nodeDataPath, usableBytes);
                 }
 
                 bestPath = Arrays.stream(paths)
@@ -276,19 +276,19 @@ public final class ShardPath {
         return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);
     }
 
-    static NodeEnvironment.NodePath getPathWithMostFreeSpace(NodeEnvironment env) throws IOException {
-        final NodeEnvironment.NodePath[] paths = env.nodePaths();
-        NodeEnvironment.NodePath bestPath = null;
+    static NodeEnvironment.DataPath getPathWithMostFreeSpace(NodeEnvironment env) throws IOException {
+        final NodeEnvironment.DataPath[] paths = env.dataPaths();
+        NodeEnvironment.DataPath bestPath = null;
         long maxUsableBytes = Long.MIN_VALUE;
-        for (NodeEnvironment.NodePath nodePath : paths) {
-            FileStore fileStore = nodePath.fileStore;
+        for (NodeEnvironment.DataPath dataPath : paths) {
+            FileStore fileStore = dataPath.fileStore;
             long usableBytes = fileStore.getUsableSpace(); // NB usable bytes doesn't account for reserved space (e.g. incoming recoveries)
             assert usableBytes >= 0 : "usable bytes must be >= 0, got: " + usableBytes;
 
             if (bestPath == null || usableBytes > maxUsableBytes) {
                 // This path has been determined to be "better" based on the usable bytes
                 maxUsableBytes = usableBytes;
-                bestPath = nodePath;
+                bestPath = dataPath;
             }
         }
         return bestPath;
@@ -322,6 +322,6 @@ public final class ShardPath {
 
     @Override
     public String toString() {
-        return "ShardPath{" + "path=" + path + ", shard=" + shardId + '}';
+        return "ShardPath{path=" + path + ", shard=" + shardId + '}';
     }
 }

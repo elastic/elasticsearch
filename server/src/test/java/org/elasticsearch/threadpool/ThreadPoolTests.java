@@ -13,8 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -25,8 +27,11 @@ import java.util.concurrent.ExecutorService;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
+import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ThreadPoolTests extends ESTestCase {
 
@@ -49,6 +54,13 @@ public class ThreadPoolTests extends ESTestCase {
         int max = randomIntBetween(min + 1, 64);
         int value = randomIntBetween(min, max);
         assertThat(ThreadPool.boundedBy(value, min, max), equalTo(value));
+    }
+
+    public void testOneEighthAllocatedProcessors() {
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(1), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(4), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(8), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
     }
 
     public void testAbsoluteTime() throws Exception {
@@ -301,6 +313,54 @@ public class ThreadPoolTests extends ESTestCase {
         } finally {
             Loggers.removeAppender(logger, appender);
             appender.stop();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testForceMergeThreadPoolSize() {
+        final int allocatedProcessors = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            final int expectedSize = Math.max(1, allocatedProcessors / 8);
+            ThreadPool.Info info = threadPool.info(ThreadPool.Names.FORCE_MERGE);
+            assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
+            assertThat(info.getMin(), equalTo(expectedSize));
+            assertThat(info.getMax(), equalTo(expectedSize));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testGetMaxSnapshotCores() {
+        int allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(
+            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(400)),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(
+            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(749)),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(750)), equalTo(10));
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
+    }
+
+    public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
+        final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
+        try {
+            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(
+                threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
+                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+            );
+        } finally {
             assertTrue(terminate(threadPool));
         }
     }

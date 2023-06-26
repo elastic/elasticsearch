@@ -9,6 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerTests;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -24,7 +25,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -127,7 +127,7 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         BulkRequest bulkRequest = modifier.getBulkRequest();
         assertThat(bulkRequest, Matchers.sameInstance(originalBulkRequest));
-        assertThat(modifier.wrapActionListenerIfNeeded(1L, ActionListener.noop()), instanceOf(ActionListener.MappedActionListener.class));
+        assertThat(modifier.wrapActionListenerIfNeeded(1L, ActionListener.noop()), ActionListenerTests.isMappedActionListener());
     }
 
     private static class CaptureActionListener implements ActionListener<BulkResponse> {

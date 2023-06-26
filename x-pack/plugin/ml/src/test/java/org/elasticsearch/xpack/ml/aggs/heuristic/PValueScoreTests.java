@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 import org.apache.commons.math3.util.FastMath;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
@@ -31,8 +31,8 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
     private static final double eps = 1e-9;
 
     @Override
-    protected Version randomVersion() {
-        return randomFrom(Version.V_8_0_0, Version.V_7_16_0);
+    protected TransportVersion randomVersion() {
+        return randomFrom(TransportVersion.V_8_0_0, TransportVersion.V_7_16_0);
     }
 
     @Override

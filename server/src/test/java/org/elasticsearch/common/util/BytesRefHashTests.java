@@ -11,7 +11,7 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -325,7 +325,7 @@ public class BytesRefHashTests extends ESTestCase {
     private void assertAllIn(Set<String> strings, BytesRefHash hash) {
         BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
-        long count = hash.size();
+        long count = strings.size();
         for (String string : strings) {
             ref.copyChars(string);
             long key = hash.add(ref.get()); // add again to check duplicates
@@ -338,13 +338,15 @@ public class BytesRefHashTests extends ESTestCase {
     // END - tests borrowed from LUCENE
 
     public void testAllocation() {
-        MockBigArrays.assertFitsIn(new ByteSizeValue(512), bigArrays -> new BytesRefHash(1, bigArrays));
+        MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(512), bigArrays -> new BytesRefHash(1, bigArrays));
     }
 
     private void assertEquality(BytesRefHash original, BytesRefHash copy) {
         BytesRef scratch = new BytesRef();
         int numberOfOriginalKeys = 0;
         int numberOfCopyKeys = 0;
+
+        assertEquals(original.size(), copy.size);
 
         // check that all keys of original can be found in the copy
         for (int i = 0; i < original.capacity(); ++i) {
@@ -392,11 +394,11 @@ public class BytesRefHashTests extends ESTestCase {
                 writableRegistry(),
                 (out, value) -> value.writeTo(out),
                 in -> new BytesRefArray(in, mockBigArrays()),
-                Version.CURRENT
+                TransportVersion.current()
             );
 
             BytesRefHash copy = new BytesRefHash(refArrayCopy, mockBigArrays());
-
+            refArrayCopy.close();
             assertEquality(hash, copy);
             assertAllIn(strings, copy);
             copy.close();

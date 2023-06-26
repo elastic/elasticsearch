@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,22 +24,15 @@ import java.util.stream.Collectors;
 final class ResponseRewriter {
 
     public static Map<String, IndexFieldCapabilities> rewriteOldResponses(
-        Version version,
+        TransportVersion version,
         Map<String, IndexFieldCapabilities> input,
         String[] filters,
-        String[] allowedTypes,
-        Predicate<String> isMetadata
+        String[] allowedTypes
     ) {
-        if (version.onOrAfter(Version.V_8_2_0)) {
+        if (version.onOrAfter(TransportVersion.V_8_2_0)) {
             return input;   // nothing needs to be done
         }
-        Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer = buildTransformer(
-            version,
-            input,
-            filters,
-            allowedTypes,
-            isMetadata
-        );
+        Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer = buildTransformer(input, filters, allowedTypes);
         Map<String, IndexFieldCapabilities> rewritten = new HashMap<>();
         for (var entry : input.entrySet()) {
             IndexFieldCapabilities fc = transformer.apply(entry.getValue());
@@ -51,13 +44,10 @@ final class ResponseRewriter {
     }
 
     private static Function<IndexFieldCapabilities, IndexFieldCapabilities> buildTransformer(
-        Version version,
         Map<String, IndexFieldCapabilities> input,
         String[] filters,
-        String[] allowedTypes,
-        Predicate<String> isMetadata
+        String[] allowedTypes
     ) {
-        boolean checkMetadata = version.before(Version.V_7_13_0);
         Predicate<IndexFieldCapabilities> test = ifc -> true;
         Set<String> objects = null;
         Set<String> nestedObjects = null;
@@ -93,14 +83,10 @@ final class ResponseRewriter {
         }
         Predicate<IndexFieldCapabilities> finalTest = test;
         return fc -> {
-            IndexFieldCapabilities rewritten = fc;
-            if (checkMetadata) {
-                rewritten = IndexFieldCapabilities.withMetadata(fc, isMetadata.test(fc.getName()));
-            }
-            if (finalTest.test(rewritten) == false) {
+            if (finalTest.test(fc) == false) {
                 return null;
             }
-            return rewritten;
+            return fc;
         };
     }
 

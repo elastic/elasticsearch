@@ -57,7 +57,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(equalTo("persistent task cannot be assigned while upgrade mode is enabled.")));
     }
@@ -70,7 +70,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
@@ -89,7 +89,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             )
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(
             assignment.getExplanation(),
@@ -118,7 +118,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             )
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(
             assignment.getExplanation(),
@@ -153,7 +153,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(createNode(0, true, Version.V_7_10_0)))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(equalTo("_node_id0")));
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
@@ -190,7 +190,14 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             "_node_name" + i,
             "_node_id" + i,
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            isMlNode ? Map.of("ml.machine_memory", String.valueOf(ByteSizeValue.ofGb(1).getBytes())) : Map.of(),
+            isMlNode
+                ? Map.of(
+                    "ml.machine_memory",
+                    String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
+                    "ml.max_jvm_size",
+                    String.valueOf(ByteSizeValue.ofMb(400).getBytes())
+                )
+                : Map.of(),
             isMlNode
                 ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
                 : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasable;
@@ -49,12 +49,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readReleasableBytesReference());
+        return new Serialized<>(reader, in.getTransportVersion(), in.namedWriteableRegistry(), in.readReleasableBytesReference());
     }
 
     public static <T extends Writeable> DelayableWriteable<T> referencing(Writeable.Reader<T> reader, StreamInput in) throws IOException {
         try (ReleasableBytesReference serialized = in.readReleasableBytesReference()) {
-            return new Referencing<>(deserialize(reader, in.getVersion(), in.namedWriteableRegistry(), serialized));
+            return new Referencing<>(deserialize(reader, in.getTransportVersion(), in.namedWriteableRegistry(), serialized));
         }
     }
 
@@ -103,12 +103,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             BytesStreamOutput buffer;
             try {
-                buffer = writeToBuffer(Version.CURRENT);
+                buffer = writeToBuffer(TransportVersion.current());
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
             // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
-            return new Serialized<>(reader, Version.CURRENT, registry, ReleasableBytesReference.wrap(buffer.bytes()));
+            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()));
         }
 
         @Override
@@ -121,9 +121,9 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             return DelayableWriteable.getSerializedSize(reference);
         }
 
-        private BytesStreamOutput writeToBuffer(Version version) throws IOException {
+        private BytesStreamOutput writeToBuffer(TransportVersion version) throws IOException {
             try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-                buffer.setVersion(version);
+                buffer.setTransportVersion(version);
                 reference.writeTo(buffer);
                 return buffer;
             }
@@ -141,13 +141,13 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      */
     public static class Serialized<T extends Writeable> extends DelayableWriteable<T> {
         private final Writeable.Reader<T> reader;
-        private final Version serializedAtVersion;
+        private final TransportVersion serializedAtVersion;
         private final NamedWriteableRegistry registry;
         private final ReleasableBytesReference serialized;
 
         private Serialized(
             Writeable.Reader<T> reader,
-            Version serializedAtVersion,
+            TransportVersion serializedAtVersion,
             NamedWriteableRegistry registry,
             ReleasableBytesReference serialized
         ) {
@@ -159,7 +159,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion() == serializedAtVersion) {
+            if (out.getTransportVersion() == serializedAtVersion) {
                 /*
                  * If the version *does* line up we can just copy the bytes
                  * which is good because this is how shard request caching
@@ -214,7 +214,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      */
     public static long getSerializedSize(Writeable ref) {
         try (CountingStreamOutput out = new CountingStreamOutput()) {
-            out.setVersion(Version.CURRENT);
+            out.setTransportVersion(TransportVersion.current());
             ref.writeTo(out);
             return out.size;
         } catch (IOException exc) {
@@ -224,7 +224,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
     private static <T> T deserialize(
         Reader<T> reader,
-        Version serializedAtVersion,
+        TransportVersion serializedAtVersion,
         NamedWriteableRegistry registry,
         BytesReference serialized
     ) throws IOException {
@@ -233,7 +233,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                 ? serialized.streamInput()
                 : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)
         ) {
-            in.setVersion(serializedAtVersion);
+            in.setTransportVersion(serializedAtVersion);
             return reader.read(in);
         }
     }
@@ -256,14 +256,5 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void close() throws IOException {}
-
-        @Override
-        public void reset() throws IOException {
-            size = 0;
-        }
-
-        public long length() {
-            return size;
-        }
     }
 }

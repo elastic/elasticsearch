@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ public final class FieldAliasMapper extends Mapper {
 
     public FieldAliasMapper(String simpleName, String name, String path) {
         super(simpleName);
-        this.name = name;
+        this.name = Mapper.internFieldName(name);
         this.path = path;
     }
 
@@ -54,7 +55,7 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public Mapper merge(Mapper mergeWith) {
+    public Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
         if ((mergeWith instanceof FieldAliasMapper) == false) {
             throw new IllegalArgumentException(
                 "Cannot merge a field alias mapping [" + name() + "] with a mapping that is not for a field alias."
@@ -124,6 +125,11 @@ public final class FieldAliasMapper extends Mapper {
             }
             return builder.path(path);
         }
+
+        @Override
+        public boolean supportsVersion(IndexVersion indexCreatedVersion) {
+            return true;
+        }
     }
 
     public static class Builder extends Mapper.Builder {
@@ -149,5 +155,10 @@ public final class FieldAliasMapper extends Mapper {
             String fullName = context.buildFullName(name);
             return new FieldAliasMapper(name, fullName, path);
         }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

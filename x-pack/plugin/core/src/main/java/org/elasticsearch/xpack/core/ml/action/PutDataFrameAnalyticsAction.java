@@ -54,19 +54,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             return new PutDataFrameAnalyticsAction.Request(config.build());
         }
 
-        /**
-         * Parses request for use in the explain action.
-         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and
-         * {@link ExplainDataFrameAnalyticsAction} but parsing differs
-         * between these two usages.
-         */
-        public static Request parseRequestForExplain(XContentParser parser) {
-            DataFrameAnalyticsConfig.Builder configBuilder = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
-            DataFrameAnalyticsConfig config = configBuilder.buildForExplain();
-            return new PutDataFrameAnalyticsAction.Request(config);
-        }
-
-        private DataFrameAnalyticsConfig config;
+        private final DataFrameAnalyticsConfig config;
 
         public Request(StreamInput in) throws IOException {
             super(in);

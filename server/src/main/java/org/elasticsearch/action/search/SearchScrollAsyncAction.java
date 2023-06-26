@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -35,6 +34,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Abstract base class for scroll execution modes. This class encapsulates the basic logic to
@@ -88,7 +88,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 Arrays.asList(context),
                 nodes,
                 searchTransportService,
-                ActionListener.wrap(lookup -> run(lookup, context), listener::onFailure)
+                listener.delegateFailureAndWrap((l, lookup) -> run(lookup, context))
             );
         }
     }
@@ -280,7 +280,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         Supplier<SearchPhase> nextPhaseSupplier
     ) {
         if (logger.isDebugEnabled()) {
-            logger.debug(new ParameterizedMessage("[{}] Failed to execute {} phase", searchId, phaseName), failure);
+            logger.debug(() -> format("[%s] Failed to execute %s phase", searchId, phaseName), failure);
         }
         addShardFailure(new ShardSearchFailure(failure, searchShardTarget));
         int successfulOperations = successfulOps.decrementAndGet();

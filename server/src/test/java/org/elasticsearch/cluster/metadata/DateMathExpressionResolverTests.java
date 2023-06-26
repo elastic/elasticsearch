@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -68,6 +69,45 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         assertThat(result.get(0), equalTo(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
         assertThat(result.get(1), equalTo(".watch_history-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
         assertThat(result.get(2), equalTo("logstash-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
+    }
+
+    public void testExpressionWithWildcardAndExclusions() {
+        List<String> indexExpressions = Arrays.asList(
+            "<-before-inner-{now}>",
+            "-<before-outer-{now}>",
+            "<wild*card-{now}*>",
+            "<-after-inner-{now}>",
+            "-<after-outer-{now}>"
+        );
+        List<String> result = DateMathExpressionResolver.resolve(context, indexExpressions);
+        assertThat(
+            result,
+            Matchers.contains(
+                equalTo("-before-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                equalTo("-<before-outer-{now}>"), // doesn't evaluate because it doesn't start with "<" and it is not an exclusion
+                equalTo("wild*card-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())) + "*"),
+                equalTo("-after-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                equalTo("-after-outer-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())))
+            )
+        );
+        Context noWildcardExpandContext = new Context(
+            ClusterState.builder(new ClusterName("_name")).build(),
+            IndicesOptions.strictSingleIndexNoExpandForbidClosed(),
+            SystemIndexAccessLevel.NONE
+        );
+        result = DateMathExpressionResolver.resolve(noWildcardExpandContext, indexExpressions);
+        assertThat(
+            result,
+            Matchers.contains(
+                equalTo("-before-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                // doesn't evaluate because it doesn't start with "<" and there can't be exclusions without wildcard expansion
+                equalTo("-<before-outer-{now}>"),
+                equalTo("wild*card-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())) + "*"),
+                equalTo("-after-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                // doesn't evaluate because it doesn't start with "<" and there can't be exclusions without wildcard expansion
+                equalTo("-<after-outer-{now}>")
+            )
+        );
     }
 
     public void testEmpty() throws Exception {

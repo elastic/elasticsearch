@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.aggregations.metric.InternalMatrixStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -35,7 +35,7 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.matrix.stats.MatrixAggregationInspectionHelper.hasValue;
+import static org.elasticsearch.aggregations.metric.MatrixAggregationInspectionHelper.hasValue;
 import static org.elasticsearch.search.aggregations.support.AggregationInspectionHelper.hasValue;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.convert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;

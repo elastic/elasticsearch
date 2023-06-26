@@ -11,8 +11,6 @@ package org.elasticsearch.action.admin.indices.template.delete;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class DeleteComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<
     DeleteComposableIndexTemplateAction.Request> {
     @Override
@@ -26,8 +24,7 @@ public class DeleteComposableIndexTemplateRequestTests extends AbstractWireSeria
     }
 
     @Override
-    protected DeleteComposableIndexTemplateAction.Request mutateInstance(DeleteComposableIndexTemplateAction.Request instance)
-        throws IOException {
+    protected DeleteComposableIndexTemplateAction.Request mutateInstance(DeleteComposableIndexTemplateAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

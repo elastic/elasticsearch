@@ -30,7 +30,7 @@ dependencies {
 
   // watcher deps
   api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20211018.2'
-  runtimeOnly 'com.google.guava:guava:27.1-jre' // needed by watcher for the html sanitizer
+  runtimeOnly 'com.google.guava:guava:30.1-jre' // needed by watcher for the html sanitizer
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api 'com.sun.mail:jakarta.mail:1.6.4'
   api 'com.sun.activation:jakarta.activation:1.2.1'
@@ -80,4 +80,4 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

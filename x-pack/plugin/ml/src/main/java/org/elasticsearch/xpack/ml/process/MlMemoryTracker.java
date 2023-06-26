@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -43,6 +42,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -51,6 +51,8 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This class keeps track of the memory requirement of ML jobs.
@@ -67,6 +69,7 @@ import java.util.stream.Stream;
 public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private static final Duration RECENT_UPDATE_THRESHOLD = Duration.ofMinutes(1);
+    private static final Duration DEFAULT_AUTOSCALING_CHECK_INTERVAL = Duration.ofMinutes(5);
 
     private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
     private final Map<String, Long> memoryRequirementByAnomalyDetectorJob = new ConcurrentHashMap<>();
@@ -85,6 +88,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private volatile boolean stopped;
     private volatile Instant lastUpdateTime;
     private volatile Duration reassignmentRecheckInterval;
+    private volatile Duration autoscalingCheckInterval = DEFAULT_AUTOSCALING_CHECK_INTERVAL;
 
     public MlMemoryTracker(
         Settings settings,
@@ -119,6 +123,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private void setReassignmentRecheckInterval(TimeValue recheckInterval) {
         reassignmentRecheckInterval = Duration.ofNanos(recheckInterval.getNanos());
+    }
+
+    public void setAutoscalingCheckInterval(Duration autoscalingCheckInterval) {
+        this.autoscalingCheckInterval = Objects.requireNonNull(autoscalingCheckInterval);
     }
 
     @Override
@@ -196,18 +204,21 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * for valid task assignment decisions to be made using it?
      */
     public boolean isRecentlyRefreshed() {
-        return isRecentlyRefreshed(reassignmentRecheckInterval);
+        Instant localLastUpdateTime = lastUpdateTime;
+        return isMaster && localLastUpdateTime != null && localLastUpdateTime.plus(getStalenessDuration()).isAfter(Instant.now());
     }
 
     /**
-     * Is the information in this object sufficiently up to date
-     * for valid task assignment decisions to be made using it?
+     * @return The definition of "staleness" used by {@link #isRecentlyRefreshed()}. This method is intended only as
+     *         a debugging aid, as calling it separately to {@link #isRecentlyRefreshed()} could return a different
+     *         number if settings were modified in between the two calls.
      */
-    public boolean isRecentlyRefreshed(Duration customDuration) {
-        Instant localLastUpdateTime = lastUpdateTime;
-        return isMaster
-            && localLastUpdateTime != null
-            && localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(customDuration).isAfter(Instant.now());
+    public Duration getStalenessDuration() {
+        return max(reassignmentRecheckInterval, autoscalingCheckInterval).plus(RECENT_UPDATE_THRESHOLD);
+    }
+
+    static Duration max(Duration first, Duration second) {
+        return first.compareTo(second) > 0 ? first : second;
     }
 
     /**
@@ -251,10 +262,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public Long getTrainedModelAssignmentMemoryRequirement(String modelId) {
         if (isMaster == false) {
+            logger.warn("Request to get trained model assignment memory not on master node; modelId was [{}]", modelId);
             return null;
         }
 
-        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).modelAssignments().get(modelId))
+        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).allAssignments().get(modelId))
             .map(TrainedModelAssignment::getTaskParams)
             .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
             .orElse(null);
@@ -271,6 +283,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public Long getJobMemoryRequirement(String taskName, String id) {
 
         if (isMaster == false) {
+            logger.warn("Request to get job memory not on master node; taskName [{}], id [{}]", taskName, id);
             return null;
         }
 
@@ -342,7 +355,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void refreshAnomalyDetectorJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
 
         if (isMaster == false) {
-            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirements on non-master node"));
+            String msg = "Request to refresh anomaly detector memory requirements on non-master node";
+            logger.warn(msg);
+            listener.onFailure(new NotMasterException(msg));
             return;
         }
 
@@ -366,7 +381,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(String id, long mem, ActionListener<Void> listener) {
 
         if (isMaster == false) {
-            listener.onFailure(new NotMasterException("Request to put data frame analytics memory requirement on non-master node"));
+            String msg = "Request to put data frame analytics memory requirement on non-master node";
+            logger.warn(msg);
+            listener.onFailure(new NotMasterException(msg));
             return;
         }
 
@@ -404,12 +421,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                         listener.onResponse(null);
                     }
-                    logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
+                    logger.debug("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
                 } else {
                     Exception e = new NotMasterException("Node ceased to be master during ML memory tracker refresh");
                     for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                         listener.onFailure(e);
                     }
+                    logger.debug(e.getMessage());
                 }
                 fullRefreshCompletionListeners.clear();
             }
@@ -433,7 +451,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks()
                 .stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName()))
-                .collect(Collectors.toList());
+                .toList();
             ActionListener<Void> refreshDataFrameAnalyticsJobs = ActionListener.wrap(
                 aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
                 refreshComplete::onFailure
@@ -505,7 +523,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public void refreshAnomalyDetectorJobMemory(String jobId, ActionListener<Long> listener) {
         if (isMaster == false) {
-            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirement on non-master node"));
+            String msg = "Request to refresh anomaly detector memory requirement on non-master node";
+            logger.warn(msg);
+            listener.onFailure(new NotMasterException(msg));
             return;
         }
 
@@ -514,7 +534,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (stopPhaser.register() != phase.get()) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
-            logger.info(() -> new ParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId));
+            logger.info(() -> "[" + jobId + "] not refreshing anomaly detector memory as node is shutting down");
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
             return;
         }
@@ -538,10 +558,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             }, e -> {
                 logIfNecessary(
                     () -> logger.error(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed to calculate anomaly detector job established model memory requirement",
-                            jobId
-                        ),
+                        () -> format("[%s] failed to calculate anomaly detector job established model memory requirement", jobId),
                         e
                     )
                 );
@@ -550,10 +567,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         } catch (Exception e) {
             logIfNecessary(
                 () -> logger.error(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to calculate anomaly detector job established model memory requirement",
-                        jobId
-                    ),
+                    () -> format("[%s] failed to calculate anomaly detector job established model memory requirement", jobId),
                     e
                 )
             );
@@ -582,12 +596,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 // during the memory refresh.
                 logger.trace("[{}] anomaly detector job deleted during ML memory update", jobId);
             } else {
-                logIfNecessary(
-                    () -> logger.error(
-                        () -> new ParameterizedMessage("[{}] failed to get anomaly detector job during ML memory update", jobId),
-                        e
-                    )
-                );
+                logIfNecessary(() -> logger.error(() -> "[" + jobId + "] failed to get anomaly detector job during ML memory update", e));
 
             }
             memoryRequirementByAnomalyDetectorJob.remove(jobId);

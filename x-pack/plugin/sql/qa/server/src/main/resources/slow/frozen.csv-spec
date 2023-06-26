@@ -7,16 +7,17 @@
 showTables
 SHOW TABLES INCLUDE FROZEN;
 
- catalog       |       name        | type  |  kind
-integTest      |empty_mapping      |TABLE  |INDEX
-integTest      |frozen_emp         |TABLE  |FROZEN INDEX
-integTest      |logs               |TABLE  |INDEX
-integTest      |logs_nanos         |TABLE  |INDEX
-integTest      |logs_unsigned_long |TABLE  |INDEX
-integTest      |test_alias         |VIEW   |ALIAS
-integTest      |test_alias_emp     |VIEW   |ALIAS
-integTest      |test_emp           |TABLE  |INDEX
-integTest      |test_emp_copy      |TABLE  |INDEX
+ catalog          |       name        | type  |  kind
+javaRestTest      |apps               |TABLE  |INDEX
+javaRestTest      |empty_mapping      |TABLE  |INDEX
+javaRestTest      |frozen_emp         |TABLE  |FROZEN INDEX
+javaRestTest      |logs               |TABLE  |INDEX
+javaRestTest      |logs_nanos         |TABLE  |INDEX
+javaRestTest      |logs_unsigned_long |TABLE  |INDEX
+javaRestTest      |test_alias         |VIEW   |ALIAS
+javaRestTest      |test_alias_emp     |VIEW   |ALIAS
+javaRestTest      |test_emp           |TABLE  |INDEX
+javaRestTest      |test_emp_copy      |TABLE  |INDEX
 ;
 
 columnFromFrozen
@@ -35,7 +36,7 @@ SELECT gender, PERCENTILE(emp_no, 92.45) p1 FROM FROZEN frozen_emp GROUP BY gend
 
 gender:s             | p1:d
 null                 |10018.745
-F                    |10098.0085
+F                    |10096.336
 M                    |10091.393
 ;
 

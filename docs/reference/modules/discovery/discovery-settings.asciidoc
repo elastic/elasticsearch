@@ -187,7 +187,7 @@ considered to have failed and is removed from the cluster. See
 `cluster.max_voting_config_exclusions`::
 (<<dynamic-cluster-setting,Dynamic>>)
 Sets a limit on the number of voting configuration exclusions at any one time.
-The default value is `10`. See <<modules-discovery-adding-removing-nodes>>.
+The default value is `10`. See <<add-elasticsearch-nodes>>.
 
 `cluster.publish.info_timeout`::
 (<<static-cluster-setting,Static>>)
@@ -200,6 +200,20 @@ nodes are responding slowly. The default value is `10s`.
 Sets how long the master node waits for each cluster state update to be
 completely published to all nodes, unless `discovery.type` is set to
 `single-node`. The default value is `30s`. See <<cluster-state-publishing>>.
+
+`cluster.discovery_configuration_check.interval`::
+(<<static-cluster-setting,Static>>)
+Sets the interval of some checks that will log warnings about an
+incorrect discovery configuration. The default value is `30s`.
+
+`cluster.join_validation.cache_timeout`::
+(<<static-cluster-setting,Static>>)
+When a node requests to join the cluster, the elected master node sends it a
+copy of a recent cluster state to detect certain problems which might prevent
+the new node from joining the cluster. The master caches the state it sends and
+uses the cached state if another node joins the cluster soon after. This
+setting controls how long the master waits until it clears this cache. Defaults
+to `60s`.
 
 [[no-master-block]]
 `cluster.no_master_block`::

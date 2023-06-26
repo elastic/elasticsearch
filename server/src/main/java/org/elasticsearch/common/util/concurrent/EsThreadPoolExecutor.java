@@ -10,7 +10,6 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
@@ -19,6 +18,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
@@ -90,7 +91,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     // package-visible for testing
     void logException(AbstractRunnable r, Exception e) {
-        logger.error(() -> new ParameterizedMessage("[{}] unexpected exception when submitting task [{}] for execution", name, r), e);
+        logger.error(() -> format("[%s] unexpected exception when submitting task [%s] for execution", name, r), e);
         assert false : "executor throws an exception (not a rejected execution exception) before the task has been submitted " + e;
     }
 
@@ -124,7 +125,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (getQueue()instanceof SizeBlockingQueue<?> queue) {
+        if (getQueue() instanceof SizeBlockingQueue<?> queue) {
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
         appendThreadPoolExecutorDetails(b);

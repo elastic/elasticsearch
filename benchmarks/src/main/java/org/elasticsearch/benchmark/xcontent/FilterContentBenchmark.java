@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -131,7 +131,7 @@ public class FilterContentBenchmark {
             excludes = filters.toArray(Strings.EMPTY_ARRAY);
         }
         Map<String, Object> filterMap = XContentMapValues.filter(sourceMap, includes, excludes);
-        return FetchSourcePhase.objectToBytes(filterMap, XContentType.JSON, Math.min(1024, source.length()));
+        return Source.fromMap(filterMap, XContentType.JSON).internalSourceRef();
     }
 
     @Benchmark

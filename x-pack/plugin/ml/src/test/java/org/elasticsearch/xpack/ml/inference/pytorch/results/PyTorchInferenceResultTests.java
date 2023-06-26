@@ -30,23 +30,17 @@ public class PyTorchInferenceResultTests extends AbstractXContentTestCase<PyTorc
     }
 
     public static PyTorchInferenceResult createRandom() {
-        boolean createError = randomBoolean();
-        String id = randomAlphaOfLength(6);
-        if (createError) {
-            return new PyTorchInferenceResult(id, null, null, "This is an error message");
-        } else {
-            int rows = randomIntBetween(1, 10);
-            int columns = randomIntBetween(1, 10);
-            int depth = randomIntBetween(1, 10);
-            double[][][] arr = new double[rows][columns][depth];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    for (int k = 0; k < depth; k++) {
-                        arr[i][j][k] = randomDouble();
-                    }
+        int rows = randomIntBetween(1, 10);
+        int columns = randomIntBetween(1, 10);
+        int depth = randomIntBetween(1, 10);
+        double[][][] arr = new double[rows][columns][depth];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                for (int k = 0; k < depth; k++) {
+                    arr[i][j][k] = randomDouble();
                 }
             }
-            return new PyTorchInferenceResult(id, arr, randomLong(), null);
         }
+        return new PyTorchInferenceResult(arr);
     }
 }

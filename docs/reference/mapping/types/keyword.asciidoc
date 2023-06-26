@@ -149,18 +149,15 @@ The following parameters are accepted by `keyword` fields:
     Accepts `true` or `false` (default).
 
 `time_series_dimension`::
+    (Optional, Boolean)
 +
 --
-experimental:[]
-(Optional, Boolean)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 // tag::dimension[]
-Marks the field as a time series dimension. Defaults to `false`.
+Marks the field as a <<time-series-dimension,time series dimension>>. Defaults
+to `false`.
 
-The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
+The
+<<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting limits the number of dimensions in an index.
 
 Dimension fields have the following constraints:
@@ -170,8 +167,112 @@ Dimension fields have the following constraints:
 // end::dimension[]
 * Field values cannot be larger than 1024 bytes.
 * The field cannot use a <<normalizer,`normalizer`>>.
-====
 --
+
+[[keyword-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`keyword` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+a <<normalizer,`normalizer`>> or <<copy-to,`copy_to`>>.
+
+By default, synthetic source sorts `keyword` fields and removes duplicates.
+For example:
+[source,console,id=synthetic-source-keyword-example-default]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "kwd": { "type": "keyword" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", "foo", "bar", "baz"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "kwd": ["bar", "baz", "foo"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+If a `keyword` field sets `store` to `true` then order and duplicates
+are preserved. For example:
+[source,console,id=synthetic-source-keyword-example-stored]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "kwd": { "type": "keyword", "store": true }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", "foo", "bar", "baz"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "kwd": ["foo", "foo", "bar", "baz"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+Values longer than `ignore_above` are preserved but sorted to the end.
+For example:
+[source,console,id=synthetic-source-keyword-example-ignore-above]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "kwd": { "type": "keyword", "ignore_above": 3 }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", "foo", "bang", "bar", "baz"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "kwd": ["bar", "baz", "foo", "bang"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
 
 include::constant-keyword.asciidoc[]
 

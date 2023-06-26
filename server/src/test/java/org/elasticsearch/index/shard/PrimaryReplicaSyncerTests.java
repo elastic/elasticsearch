@@ -71,7 +71,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             listener.onResponse(new ResyncReplicationResponse());
         };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
-        syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
+        syncer.setChunkSize(ByteSizeValue.ofBytes(randomIntBetween(1, 10)));
 
         int numDocs = randomInt(10);
         for (int i = 0; i < numDocs; i++) {
@@ -161,7 +161,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             emptySet()
         );
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
-        syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
+        syncer.setChunkSize(ByteSizeValue.ofBytes(1)); // every document is sent off separately
 
         int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {

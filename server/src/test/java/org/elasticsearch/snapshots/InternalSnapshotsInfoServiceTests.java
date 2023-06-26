@@ -13,10 +13,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
@@ -49,6 +49,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -60,9 +61,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.snapshots.InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING;
@@ -90,7 +88,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         repositoriesService = mock(RepositoriesService.class);
-        rerouteService = (reason, priority, listener) -> listener.onResponse(clusterService.state());
+        rerouteService = (reason, priority, listener) -> listener.onResponse(null);
     }
 
     @After
@@ -108,7 +106,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final int numberOfShards = randomIntBetween(1, 50);
         final CountDownLatch rerouteLatch = new CountDownLatch(numberOfShards);
         final RerouteService rerouteService = (reason, priority, listener) -> {
-            listener.onResponse(clusterService.state());
+            listener.onResponse(null);
             assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
             rerouteLatch.countDown();
         };
@@ -180,7 +178,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final CountDown reroutes = new CountDown(maxShardsToCreate);
         final RerouteService rerouteService = (reason, priority, listener) -> {
             try {
-                listener.onResponse(clusterService.state());
+                listener.onResponse(null);
             } finally {
                 if (reroutes.countDown()) {
                     waitForAllReroutesProcessed.onResponse(null);
@@ -361,8 +359,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 Settings.builder()
                     .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), nbShards)
                     .put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), nbShards)
+                    .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                     .build(),
                 snapshotsInfoService
+            );
+            assertCriticalWarnings(
+                "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
             );
             applyClusterState(
                 "starting shards for " + indexName,
@@ -396,12 +398,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             final ThreadPoolStats threadPoolStats = clusterService.getClusterApplierService().threadPool().stats();
             ThreadPoolStats.Stats generic = null;
             for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
-                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.getName())) {
+                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.name())) {
                     generic = threadPoolStat;
                 }
             }
             assertThat(generic, notNullValue());
-            assertThat(generic.getActive(), equalTo(nbActive));
+            assertThat(generic.active(), equalTo(nbActive));
         }, 30L, TimeUnit.SECONDS);
     }
 
@@ -409,13 +411,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         assertThat(currentState.metadata().hasIndex(indexName), is(false));
 
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-            );
+            .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()));
 
         for (int i = 0; i < numberOfShards; i++) {
             indexMetadataBuilder.putInSyncAllocationIds(i, Collections.singleton(AllocationId.newInitializing().getId()));
@@ -436,12 +432,16 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Index index = indexMetadata.getIndex();
 
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
-        routingTable.add(IndexRoutingTable.builder(index).initializeAsNewRestore(indexMetadata, recoverySource, new HashSet<>()).build());
+        routingTable.add(
+            IndexRoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, index)
+                .initializeAsNewRestore(indexMetadata, recoverySource, new HashSet<>())
+                .build()
+        );
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
             currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
         );
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             shards.put(new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
         }
@@ -451,8 +451,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 recoverySource.restoreUUID(),
                 recoverySource.snapshot(),
                 RestoreInProgress.State.INIT,
+                false,
                 Collections.singletonList(indexName),
-                shards.build()
+                shards
             )
         );
 
@@ -464,13 +465,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = new DiscoveryNode(
-            "other",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        final DiscoveryNode node = DiscoveryNodeUtils.create("other");
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)

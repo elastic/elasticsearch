@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
@@ -32,7 +31,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
@@ -49,6 +48,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 class DatafeedJob {
@@ -137,6 +137,10 @@ class DatafeedJob {
         return maxEmptySearches;
     }
 
+    public long numberOfSearchesIn24Hours() {
+        return (60_000 * 60 * 24) / frequencyMs;
+    }
+
     public void finishReportingTimingStats() {
         timingStatsReporter.finishReporting();
     }
@@ -171,6 +175,7 @@ class DatafeedJob {
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
+        request.setRefreshRequired(false);
         run(lookbackStartTimeMs, lookbackEnd, request);
         if (shouldPersistAfterLookback(isLookbackOnly)) {
             sendPersistRequest();
@@ -201,6 +206,7 @@ class DatafeedJob {
             // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
+            request.setRefreshRequired(false);
             FlushJobAction.Response flushResponse = flushJob(request);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
             return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
@@ -214,6 +220,7 @@ class DatafeedJob {
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setWaitForNormalization(false);
+        request.setRefreshRequired(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -296,12 +303,12 @@ class DatafeedJob {
         Date currentTime = new Date(currentTimeSupplier.get());
         return new Annotation.Builder().setAnnotation(msg)
             .setCreateTime(currentTime)
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(startTime)
             .setEndTimestamp(endTime)
             .setJobId(jobId)
             .setModifiedTime(currentTime)
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
             .setEvent(Annotation.Event.DELAYED_DATA)
             .build();
@@ -312,7 +319,7 @@ class DatafeedJob {
             .setTimestamp(annotation.getTimestamp())
             .setEndTimestamp(annotation.getEndTimestamp())
             .setModifiedTime(new Date(currentTimeSupplier.get()))
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .build();
     }
 
@@ -370,7 +377,7 @@ class DatafeedJob {
                 extractedData = result.data();
                 searchInterval = result.searchInterval();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
+                LOGGER.error(() -> "[" + jobId + "] error while extracting data", e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -398,8 +405,8 @@ class DatafeedJob {
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
                     LOGGER.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] Processed another {} records with latest timestamp [{}]",
+                        () -> format(
+                            "[%s] Processed another %s records with latest timestamp [%s]",
                             jobId,
                             counts.getProcessedRecordCount(),
                             counts.getLatestRecordTimeStamp()
@@ -413,7 +420,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.error(() -> "[" + jobId + "] error while posting data", e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.

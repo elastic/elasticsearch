@@ -33,11 +33,18 @@ public class ByteArrayStreamInput extends StreamInput {
 
     @Override
     public int read() throws IOException {
+        if (limit - pos <= 0) {
+            return -1;
+        }
         return readByte() & 0xFF;
     }
 
     public void reset(byte[] bytes) {
         reset(bytes, 0, bytes.length);
+    }
+
+    public int length() {
+        return limit;
     }
 
     public int getPosition() {
@@ -54,12 +61,8 @@ public class ByteArrayStreamInput extends StreamInput {
         limit = offset + len;
     }
 
-    public int length() {
-        return limit;
-    }
-
     public void skipBytes(long count) {
-        pos += count;
+        pos += (int) count;
     }
 
     @Override

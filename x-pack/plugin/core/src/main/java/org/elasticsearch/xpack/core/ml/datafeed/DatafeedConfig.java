@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -278,7 +279,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = Collections.unmodifiableList(in.readStringList());
+            this.indices = in.readImmutableList(StreamInput::readString);
         } else {
             this.indices = null;
         }
@@ -288,13 +289,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
         if (in.readBoolean()) {
-            this.scriptFields = Collections.unmodifiableList(in.readList(SearchSourceBuilder.ScriptField::new));
+            this.scriptFields = in.readImmutableList(SearchSourceBuilder.ScriptField::new);
         } else {
             this.scriptFields = null;
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        this.headers = in.readImmutableMap(StreamInput::readString);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -543,16 +544,21 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final boolean forInternalStorage = params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false);
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         builder.field(JOB_ID.getPreferredName(), jobId);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
-            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
-            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-                assertNoAuthorizationHeader(headers);
-                builder.field(HEADERS.getPreferredName(), headers);
+            if (headers.isEmpty() == false) {
+                if (forInternalStorage) {
+                    assertNoAuthorizationHeader(headers);
+                    builder.field(HEADERS.getPreferredName(), headers);
+                } else {
+                    XContentUtils.addAuthorizationInfo(builder, headers);
+                }
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             if (chunkingConfig != null) {
@@ -786,7 +792,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.queryDelay = in.readOptionalTimeValue();
             this.frequency = in.readOptionalTimeValue();
             if (in.readBoolean()) {
-                this.indices = Collections.unmodifiableList(in.readStringList());
+                this.indices = in.readImmutableList(StreamInput::readString);
             } else {
                 this.indices = null;
             }
@@ -796,13 +802,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
             if (in.readBoolean()) {
-                this.scriptFields = Collections.unmodifiableList(in.readList(SearchSourceBuilder.ScriptField::new));
+                this.scriptFields = in.readImmutableList(SearchSourceBuilder.ScriptField::new);
             } else {
                 this.scriptFields = null;
             }
             this.scrollSize = in.readOptionalVInt();
             this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-            this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+            this.headers = in.readImmutableMap(StreamInput::readString);
             delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
             maxEmptySearches = in.readOptionalVInt();
             if (in.readBoolean()) {

@@ -38,6 +38,7 @@ PUT my-index
 }
 ----
 
+[role="child_attributes"]
 [[aggregate-metric-double-params]]
 ==== Parameters for `aggregate_metric_double` fields
 
@@ -57,20 +58,17 @@ Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
 `time_series_metric`::
-+
---
-experimental:[]
 (Optional, string)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 include::numeric.asciidoc[tag=time_series_metric]
-
-For `aggregate_metric_double` fields, this parameter accepts `counter`, `gauge`,
-and `summary`. You can't update this parameter for existing fields.
++
+.Valid `time_series_metric` values for `aggregate_metric_double` fields
+[%collapsible%open]
 ====
---
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+====
 
 [[aggregate-metric-double-uses]]
 ==== Uses
@@ -94,9 +92,11 @@ aggregation returns the sum of the values of all `value_count` sub-fields.
 and `value_count` metrics. To run an `avg` aggregation, the field must contain
 both `sum` and `value_count` metric sub-field.
 
-If you use an `aggregate_metric_double` field with other aggregations, the field
-uses the `default_metric` value, which behaves as a `double` field. The
-`default_metric` is also used in scripts and the following queries:
+Running any other aggregation on an `aggregate_metric_double` field will fail with
+an "unsupported aggregation" error.
+
+Finally, an `aggregate_metric_double` field supports the following queries for which
+it behaves as a `double` by delegating its behavior to its `default_metric` sub-field:
 
 * <<query-dsl-exists-query,`exists`>>
 * <<query-dsl-range-query,`range`>>
@@ -248,3 +248,60 @@ The search returns the following hit. The value of the `default_metric` field,
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+
+[[aggregate-metric-double-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`aggregate_metric-double` fields support <<synthetic-source,synthetic `_source`>> in their default
+configuration. Synthetic `_source` cannot be used together with <<ignore-malformed,`ignore_malformed`>>.
+
+For example:
+[source,console,id=synthetic-source-aggregate-metric-double-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "agg_metric": {
+        "type": "aggregate_metric_double",
+        "metrics": [ "min", "max", "sum", "value_count" ],
+        "default_metric": "max"
+      }
+    }
+  }
+}
+
+PUT idx/_doc/1
+{
+  "agg_metric": {
+    "min": -302.50,
+    "max": 702.30,
+    "sum": 200.0,
+    "value_count": 25
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "agg_metric": {
+    "min": -302.50,
+    "max": 702.30,
+    "sum": 200.0,
+    "value_count": 25
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

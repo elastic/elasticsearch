@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
@@ -88,7 +88,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> groupShardRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            DiscoveryNode node = randomFrom(nodes);
+            DiscoveryNode node = randomFrom(nodes.getAllNodes());
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED);
             groupShardRoutings.put(shardId, List.of(shardRouting));
             nodeToShards.computeIfAbsent(node, k -> new LinkedList<>()).add(shardRouting);
@@ -145,7 +145,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> shardToRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, nodes.size()), nodes).stream()
+            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, nodes.size()), nodes.getAllNodes()).stream()
                 .map(node -> TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED))
                 .toList();
             shardToRoutings.put(shardId, shardRoutings);
@@ -208,7 +208,12 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             assertThat(response.getTotalShards(), equalTo(numberOfShards));
             assertThat(response.getFailedShards(), equalTo(failedShards.size()));
             assertThat(response.getSuccessfulShards(), equalTo(numberOfShards - failedShards.size()));
-            assertThat(response.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+            if (numberOfShards == failedShards.size()) {
+                assertTrue(response.getStats().isEmpty());
+                assertThat(totalIndexSize.get(), equalTo(0L));
+            } else {
+                assertThat(response.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+            }
         } finally {
             stopped.set(true);
             handlingThread.join();
@@ -218,14 +223,13 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
     /**
      * Make sure that we don't hit StackOverflow if responses are replied on the same thread.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85760")
     public void testManyShards() {
         DiscoveryNodes discoNodes = newNodes(10);
         int numberOfShards = randomIntBetween(200, 10000);
         Map<ShardId, List<ShardRouting>> shardToRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, discoNodes.size()), discoNodes).stream()
+            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, discoNodes.size()), discoNodes.getAllNodes()).stream()
                 .map(node -> TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED))
                 .toList();
             shardToRoutings.put(shardId, shardRoutings);
@@ -257,13 +261,17 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         AnalyzeIndexDiskUsageResponse resp = future.actionGet();
         assertThat(resp.getTotalShards(), equalTo(numberOfShards));
         assertThat(resp.getSuccessfulShards(), equalTo(successfulShards.size()));
-        assertThat(resp.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+        if (successfulShards.isEmpty()) {
+            assertTrue(resp.getStats().isEmpty());
+        } else {
+            assertThat(resp.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+        }
     }
 
     private static DiscoveryNodes newNodes(int numNodes) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numNodes; i++) {
-            nodes.add(new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
+            nodes.add(DiscoveryNodeUtils.builder("node_" + i).roles(emptySet()).build());
         }
         return nodes.localNodeId("node_0").build();
 
@@ -350,7 +358,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
                 new MockTransport(),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                addr -> new DiscoveryNode("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                addr -> DiscoveryNodeUtils.builder("node_0").roles(emptySet()).build(),
                 null,
                 Collections.emptySet()
             );

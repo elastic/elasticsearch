@@ -519,10 +519,7 @@ public abstract class InternalOrder extends BucketOrder {
                 out.writeBoolean(aggregationOrder.order == SortOrder.ASC);
                 out.writeString(aggregationOrder.path().toString());
             } else if (order instanceof CompoundOrder compoundOrder) {
-                out.writeVInt(compoundOrder.orderElements.size());
-                for (BucketOrder innerOrder : compoundOrder.orderElements) {
-                    innerOrder.writeTo(out);
-                }
+                out.writeCollection(compoundOrder.orderElements);
             }
         }
 

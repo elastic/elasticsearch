@@ -25,7 +25,9 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(MapperBuilderContext.ROOT);
+        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
+            MapperBuilderContext.root(false)
+        );
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
         return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent());
@@ -72,7 +74,7 @@ public class DocumentMapper {
         return this.mappingLookup;
     }
 
-    public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
+    public ParsedDocument parse(SourceToParse source) throws DocumentParsingException {
         return documentParser.parseDocument(source, mappingLookup);
     }
 
@@ -90,20 +92,27 @@ public class DocumentMapper {
                 );
             }
         }
+
         settings.getMode().validateMapping(mappingLookup);
+        /*
+         * Build an empty source loader to validate that the mapping is compatible
+         * with the source loading strategy declared on the source field mapper.
+         */
+        sourceMapper().newSourceLoader(mapping());
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
             for (String match : mappingLookup.getMatchingFieldNames(path)) {
-                mappingLookup.getFieldType(match).validateMatchedRoutingPath();
+                mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
                 // object type is not allowed in the routing paths
                 if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
                         "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                            + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                             + "and without the [script] parameter. ["
                             + objectName
                             + "] was [object]."

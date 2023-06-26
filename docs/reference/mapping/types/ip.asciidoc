@@ -95,16 +95,10 @@ The following parameters are accepted by `ip` fields:
     (default).
 
 `time_series_dimension`::
+    (Optional, Boolean)
 +
 --
-experimental:[]
-(Optional, Boolean)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 include::keyword.asciidoc[tag=dimension]
-====
 --
 
 [[query-ip-fields]]
@@ -156,3 +150,51 @@ GET my-index-000001/_search
   }
 }
 --------------------------------------------------
+
+[[ip-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`ip` fields support <<synthetic-source,synthetic `_source`>> in their default
+configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `ip` fields and removes duplicates. For example:
+[source,console,id=synthetic-source-ip-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "ip": { "type": "ip" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "ip": ["192.168.0.1", "192.168.0.1", "10.10.12.123",
+         "2001:db8::1:0:0:1", "::afff:4567:890a"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "ip": ["::afff:4567:890a", "10.10.12.123", "192.168.0.1", "2001:db8::1:0:0:1"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+NOTE: IPv4 addresses are sorted as though they were IPv6 addresses prefixed by
+      `::ffff:0:0:0/96` as specified by
+      https://datatracker.ietf.org/doc/html/rfc6144[rfc6144].

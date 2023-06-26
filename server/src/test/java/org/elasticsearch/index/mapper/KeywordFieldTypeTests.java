@@ -19,20 +19,18 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -46,7 +44,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -104,13 +101,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        List<BytesRef> terms = new ArrayList<>();
-        terms.add(new BytesRef("foo"));
-        terms.add(new BytesRef("bar"));
+        BytesRef[] terms = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
         assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
-        assertEquals(new DocValuesTermsQuery("field", terms), ft2.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
+        assertEquals(SortedSetDocValuesField.newSlowSetQuery("field", terms), ft2.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
@@ -123,17 +118,17 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         {
             KeywordFieldType ft = new KeywordFieldType("field");
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
         }
         {
             KeywordFieldType ft = new KeywordFieldType("field", false, true, Map.of());
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
         }
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
             KeywordFieldType ft = new KeywordFieldType("field", fieldType);
-            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
         }
         {
             KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
@@ -218,7 +213,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).build(MapperBuilderContext.ROOT).fieldType();
+        MappedFieldType mapper = new KeywordFieldMapper.Builder("field", IndexVersion.CURRENT).build(MapperBuilderContext.root(false))
+            .fieldType();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(mapper, true));
@@ -226,8 +222,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
-        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).ignoreAbove(4)
-            .build(MapperBuilderContext.ROOT)
+        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", IndexVersion.CURRENT).ignoreAbove(4)
+            .build(MapperBuilderContext.root(false))
             .fieldType();
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
@@ -237,20 +233,20 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "field",
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
-            Version.CURRENT
-        ).normalizer("lowercase").build(MapperBuilderContext.ROOT).fieldType();
+            IndexVersion.CURRENT
+        ).normalizer("lowercase").build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));
 
-        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).nullValue("NULL")
-            .build(MapperBuilderContext.ROOT)
+        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", IndexVersion.CURRENT).nullValue("NULL")
+            .build(MapperBuilderContext.root(false))
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 
     private static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.ofEntries(
                 Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),

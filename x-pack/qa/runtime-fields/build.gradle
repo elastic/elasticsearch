@@ -21,16 +21,17 @@ tasks.named("test").configure { enabled = false }
 
 subprojects {
   if (project.name.startsWith('core-with-')) {
-    apply plugin: 'elasticsearch.internal-yaml-rest-test'
+    apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
     dependencies {
-      yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")
+      yamlRestTestImplementation project(":x-pack:qa:runtime-fields")
+      restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
     }
 
     restResources {
       restApi {
         include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
-          'search', 'async_search', 'graph', '*_point_in_time'
+          'search', 'async_search', 'graph', '*_point_in_time', 'scripts_painless_execute'
       }
       restTests {
         includeCore '*'
@@ -50,7 +51,7 @@ subprojects {
       def suites = [
         'async_search',
         'search',
-        'search.aggregation',
+        'aggregations',
         'search.highlight',
         'search.inner_hits',
         'search_shards',
@@ -69,10 +70,10 @@ subprojects {
       systemProperty 'tests.rest.blacklist',
         [
           /////// TO FIX ///////
-          'search.aggregation/40_range/Date range', //source only date field should also emit values for numbers, it expects strings only
+          'aggregations/range/Date range', //source only date field should also emit values for numbers, it expects strings only
           'search/115_multiple_field_collapsing/two levels fields collapsing', // Field collapsing on a runtime field does not work
           'field_caps/30_index_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
-          'search.aggregation/220_filters_bucket/cache busting', // runtime keyword does not support split_queries_on_whitespace
+          'aggregations/filters_bucket/cache busting', // runtime keyword does not support split_queries_on_whitespace
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
           //completion suggester does not return options when the context field is a geo_point runtime field
           'suggest/30_context/Multi contexts should work',
@@ -84,26 +85,42 @@ subprojects {
 
           /////// NOT SUPPORTED ///////
           'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values', // The plain highlighter is incompatible with the prefix queries that we make for runtime fields, use unified highlighter instead.
-          'search.aggregation/280_rare_terms/*', // Requires an index and we won't have it
-          'search.aggregation/22_terms_disable_opt/*', // Optimization requires an index and runtime fields don't have one
+          'aggregations/rare_terms/*', // Requires an index and we won't have it
+          'aggregations/terms_disable_opt/*', // Optimization requires an index and runtime fields don't have one
           // Runtime fields don't support sub-fields
-          'search.aggregation/10_histogram/*',
+          'aggregations/histogram/*',
           'suggest/50_completion_with_multi_fields/Search by suggestion on geofield-hash on sub field should work',
           // Runtime fields don't have global ords
           'analytics/nested_top_metrics_sort/*',
-          'search.aggregation/20_terms/string profiler via global ordinals filters implementation',
-          'search.aggregation/20_terms/string profiler via global ordinals native implementation',
-          'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
-          'search.aggregation/170_cardinality_metric/profiler string',
-          'search.aggregation/235_composite_sorted/*',
+          'aggregations/terms/string profiler via global ordinals filters implementation',
+          'aggregations/terms/string profiler via global ordinals native implementation',
+          'aggregations/terms/Global ordinals are loaded with the global_ordinals execution hint',
+          'aggregations/cardinality_metric/profiler string',
+          'aggregations/cardinality_metric/profiler string segment ords hint',
+          'aggregations/cardinality_metric/profiler string global ords hint',
+          'aggregations/cardinality_metric/profiler string direct hint',
+          'aggregations/cardinality_metric/profiler string save memory hint',
+          'aggregations/cardinality_metric/profiler string save time hint',
+          'aggregations/composite_sorted/*',
           // timeseries dimensions can't be runtime fields
-          'search.aggregation/450_time_series/*',
+          'aggregations/time_series/*',
           // The error messages are different
           'search/330_fetch_fields/error includes field name',
           'search/330_fetch_fields/error includes glob pattern',
           // we need a @timestamp field to be defined in index mapping
           'search/380_sort_segments_on_timestamp/*',
           'field_caps/40_time_series/*',
+          // Synthetic source needs doc values that runtime fields tests disable
+          'search/400_synthetic_source/*',
+          'search.highlight/50_synthetic_source/*',
+          'aggregations/top_hits/synthetic _source',
+          // Runtime fields produce a slightly different result for multi valued matrix_stats yaml tests:
+          // (this appears to always have been the case. muted when matrix_stats was moved from its own
+          // module to aggregations module)
+          'aggregations/matrix_stats_multi_value_field/Multi value field Min',
+          'aggregations/matrix_stats_multi_value_field/Multi value field Max',
+          'aggregations/matrix_stats_multi_value_field/Partially unmapped',
+          'aggregations/matrix_stats_multi_value_field/Partially unmapped with missing defaults',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

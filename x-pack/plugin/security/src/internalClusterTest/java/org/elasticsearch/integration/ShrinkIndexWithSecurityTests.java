@@ -7,11 +7,12 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
+
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -38,31 +39,19 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
             client().prepareIndex("bigindex").setSource("foo", "bar").get();
         }
 
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         final String mergeNode = discoveryNodes[0].getName();
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("bigindex")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true),
+            "bigindex"
+        );
 
         // wait for green and then shrink
         ensureGreen();
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareResizeIndex("bigindex", "shrunk_bigindex")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build())
-        );
+        assertAcked(indicesAdmin().prepareResizeIndex("bigindex", "shrunk_bigindex").setSettings(indexSettings(1, 0).build()));
 
         // verify all docs
         ensureGreen();

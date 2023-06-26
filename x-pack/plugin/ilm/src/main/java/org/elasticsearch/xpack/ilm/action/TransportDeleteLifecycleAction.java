@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,8 +32,12 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
@@ -60,52 +64,70 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
-            "delete-lifecycle-" + request.getPolicyName(),
-            new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    String policyToDelete = request.getPolicyName();
-                    List<String> indicesUsingPolicy = currentState.metadata()
-                        .indices()
-                        .values()
-                        .stream()
-                        .filter(idxMeta -> policyToDelete.equals(idxMeta.getLifecyclePolicyName()))
-                        .map(idxMeta -> idxMeta.getIndex().getName())
-                        .toList();
-                    if (indicesUsingPolicy.isEmpty() == false) {
-                        throw new IllegalArgumentException(
-                            "Cannot delete policy ["
-                                + request.getPolicyName()
-                                + "]. It is in use by one or more indices: "
-                                + indicesUsingPolicy
-                        );
-                    }
-                    ClusterState.Builder newState = ClusterState.builder(currentState);
-                    IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-                    if (currentMetadata == null || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
-                        throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
-                    }
-                    SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
-                    newPolicies.remove(request.getPolicyName());
-                    IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
-                    newState.metadata(
-                        Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build()
-                    );
-                    return newState.build();
-                }
-            },
-            newExecutor()
-        );
+        submitUnbatchedTask("delete-lifecycle-" + request.getPolicyName(), new DeleteLifecyclePolicyTask(request, listener));
+    }
+
+    public static class DeleteLifecyclePolicyTask extends AckedClusterStateUpdateTask {
+        private final Request request;
+
+        public DeleteLifecyclePolicyTask(Request request, ActionListener<AcknowledgedResponse> listener) {
+            super(request, listener);
+            this.request = request;
+        }
+
+        /**
+         * Used by the {@link ReservedClusterStateHandler} for ILM
+         * {@link ReservedLifecycleAction}
+         */
+        DeleteLifecyclePolicyTask(String policyName) {
+            this(new Request(policyName), null);
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) {
+            String policyToDelete = request.getPolicyName();
+            List<String> indicesUsingPolicy = currentState.metadata()
+                .indices()
+                .values()
+                .stream()
+                .filter(idxMeta -> policyToDelete.equals(idxMeta.getLifecyclePolicyName()))
+                .map(idxMeta -> idxMeta.getIndex().getName())
+                .toList();
+            if (indicesUsingPolicy.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Cannot delete policy [" + request.getPolicyName() + "]. It is in use by one or more indices: " + indicesUsingPolicy
+                );
+            }
+            ClusterState.Builder newState = ClusterState.builder(currentState);
+            IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            if (currentMetadata == null || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
+                throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
+            }
+            SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
+            newPolicies.remove(request.getPolicyName());
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(currentState));
+            newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
+            return newState.build();
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedLifecycleAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(Request request) {
+        return Set.of(request.getPolicyName());
     }
 }

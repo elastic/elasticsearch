@@ -11,12 +11,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
@@ -37,8 +38,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -78,10 +77,8 @@ public class GraphTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
+            indicesAdmin().prepareCreate("test")
+                .setSettings(indexSettings(2, 0))
                 .setMapping("decade", "type=keyword", "people", "type=keyword", "description", "type=text,fielddata=true")
         );
         createIndex("idx_unmapped");
@@ -99,19 +96,13 @@ public class GraphTests extends ESSingleNodeTestCase {
                 numDocs++;
             }
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
         // Ensure single segment with no deletes. Hopefully solves test instability in
         // issue https://github.com/elastic/x-pack-elasticsearch/issues/918
-        ForceMergeResponse actionGet = client().admin()
-            .indices()
-            .prepareForceMerge("test")
-            .setFlush(true)
-            .setMaxNumSegments(1)
-            .execute()
-            .actionGet();
-        client().admin().indices().prepareRefresh("test").get();
+        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        indicesAdmin().prepareRefresh("test").get();
         assertAllSuccessful(actionGet);
-        for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get("test")) {
+        for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get("test")) {
             ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {
                 assertEquals(1, shardSegments.getSegments().size());
@@ -146,7 +137,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         // Disable security otherwise authentication failures happen creating indices.
         Builder newSettings = Settings.builder();
         newSettings.put(super.nodeSettings());
-        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        newSettings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -222,22 +213,21 @@ public class GraphTests extends ESSingleNodeTestCase {
         assertNull("Elvis is a 3rd tier connection so should not be returned here", response.getVertex(Vertex.createId("people", "elvis")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55396")
     public void testTimedoutQueryCrawl() {
         GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
         grb.setTimeout(TimeValue.timeValueMillis(400));
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1); // members of beatles
-        // 00s friends of beatles
-        grb.createNextHop(QueryBuilders.termQuery("decade", "00s")).addVertexRequest("people").size(100).minDocCount(1);
         // A query that should cause a timeout
         ScriptQueryBuilder timeoutQuery = QueryBuilders.scriptQuery(
             new Script(ScriptType.INLINE, "mockscript", "graph_timeout", Collections.emptyMap())
         );
         grb.createNextHop(timeoutQuery).addVertexRequest("people").size(100).minDocCount(1);
+        // 00s friends of beatles
+        grb.createNextHop(QueryBuilders.termQuery("decade", "00s")).addVertexRequest("people").size(100).minDocCount(1);
 
         GraphExploreResponse response = grb.get();
-        assertTrue(response.isTimedOut());
+        assertTrue(Strings.toString(response), response.isTimedOut());
 
         checkVertexDepth(response, 0, "john", "paul", "george", "ringo");
 

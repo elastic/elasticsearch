@@ -1,11 +1,11 @@
-apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
 
 sourceSets {
   unsupportedJdkVersionEntrypoint
 }
 
 tasks.named(sourceSets.unsupportedJdkVersionEntrypoint.compileJavaTaskName).configure {
-  targetCompatibility = JavaVersion.VERSION_1_7
+  targetCompatibility = JavaVersion.VERSION_1_8
 }
 
 tasks.named("jar") {
@@ -22,6 +22,7 @@ tasks.named("jar") {
   }
 }
 
-["test", "javadoc"].each {
+// TODO revisit forbiddenApis issues
+["javadoc", "forbiddenApisMain", "forbiddenApisUnsupportedJdkVersionEntrypoint"].each {
   tasks.named(it).configure { enabled = false }
 }

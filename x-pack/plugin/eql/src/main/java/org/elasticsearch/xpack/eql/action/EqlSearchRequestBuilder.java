@@ -55,4 +55,9 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         request.query(query);
         return this;
     }
+
+    public EqlSearchRequestBuilder maxSamplesPerKey(int maxSamplesPerKey) {
+        request.maxSamplesPerKey(maxSamplesPerKey);
+        return this;
+    }
 }

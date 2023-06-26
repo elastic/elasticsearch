@@ -8,6 +8,10 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
@@ -28,13 +32,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
-public class JvmOptionsParserTests extends LaunchersTestCase {
+@WithoutSecurityManager
+public class JvmOptionsParserTests extends ESTestCase {
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
@@ -146,7 +146,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testMissingRootJvmOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         try {
             final JvmOptionsParser parser = new JvmOptionsParser();
             parser.readJvmOptionsFiles(config);
@@ -157,7 +157,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testReadRootJvmOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         final Path rootJvmOptions = config.resolve("jvm.options");
         Files.write(rootJvmOptions, List.of("# comment", "-Xms256m", "-Xmx256m"), StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
         if (randomBoolean()) {
@@ -170,7 +170,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testReadJvmOptionsDirectory() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         Files.createDirectory(config.resolve("jvm.options.d"));
         Files.write(
             config.resolve("jvm.options"),
@@ -190,7 +190,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testReadJvmOptionsDirectoryInOrder() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         Files.createDirectory(config.resolve("jvm.options.d"));
         Files.write(
             config.resolve("jvm.options"),
@@ -217,7 +217,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
 
     public void testReadJvmOptionsDirectoryIgnoresFilesNotNamedOptions() throws IOException,
         JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         Files.createFile(config.resolve("jvm.options"));
         Files.createDirectory(config.resolve("jvm.options.d"));
         Files.write(
@@ -232,7 +232,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testFileContainsInvalidLinesThrowsParserException() throws IOException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         final Path rootJvmOptions = config.resolve("jvm.options");
         Files.write(rootJvmOptions, List.of("XX:+UseG1GC"), StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
         try {
@@ -292,7 +292,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
 
         final int javaMajorVersion = randomIntBetween(8, Integer.MAX_VALUE);
         final int smallerJavaMajorVersion = randomIntBetween(7, javaMajorVersion - 1);
-        final String invalidRangeLine = String.format(Locale.ROOT, "%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
+        final String invalidRangeLine = Strings.format("%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
         try (StringReader sr = new StringReader(invalidRangeLine); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, invalidRangeLine));
         }
@@ -307,8 +307,8 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
         );
         try (StringReader sr = new StringReader(numberFormatExceptionsLine); BufferedReader br = new BufferedReader(sr)) {
             final Map<Integer, String> invalidLines = new HashMap<>(2);
-            invalidLines.put(1, String.format(Locale.ROOT, "%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
-            invalidLines.put(2, String.format(Locale.ROOT, "8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
+            invalidLines.put(1, Strings.format("%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
+            invalidLines.put(2, Strings.format("8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
             assertInvalidLines(br, invalidLines);
         }
 
@@ -322,7 +322,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
 
         final int lowerBound = randomIntBetween(9, 16);
         final int upperBound = randomIntBetween(8, lowerBound - 1);
-        final String upperBoundGreaterThanLowerBound = String.format(Locale.ROOT, "%d-%d-XX:+UseG1GC", lowerBound, upperBound);
+        final String upperBoundGreaterThanLowerBound = Strings.format("%d-%d-XX:+UseG1GC", lowerBound, upperBound);
         try (StringReader sr = new StringReader(upperBoundGreaterThanLowerBound); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, upperBoundGreaterThanLowerBound));
         }

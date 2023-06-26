@@ -20,8 +20,6 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -53,11 +51,11 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -98,7 +96,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -108,7 +105,7 @@ import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
-import static org.hamcrest.Matchers.anEmptyMap;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -453,7 +450,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
-     * to filter out outstanding tasks that are expected to be there.
+     * to filter out outstanding tasks that are expected to be there. In addition to the expected tasks that are defined by the filter we
+     * expect the list task to be there since it is created by the call and the health node task which is always running on the background.
      *
      * @param restClient the admin client
      * @param taskFilter  predicate used to filter tasks that are expected to be there
@@ -480,7 +478,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                         final StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
                             final String taskName = line.split("\\s+")[0];
-                            if (taskName.startsWith(ListTasksAction.NAME) || taskFilter.test(taskName)) {
+                            if (taskName.startsWith(ListTasksAction.NAME)
+                                || taskName.startsWith(HealthNode.TASK_NAME)
+                                || taskFilter.test(taskName)) {
                                 continue;
                             }
                             activeTasks++;
@@ -520,6 +520,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Returns whether to preserve the security indices created during this test on completion of this test.
+     * Defaults to {@code false}. Override this method if security indices should be preserved after the test,
+     * with the assumption that some other process or test will clean up the indices afterward.
+     * This is useful if the security entities need to be preserved between test runs
+     */
+    protected boolean preserveSecurityIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
      * Controls whether or not to preserve templates upon completion of this test. The default implementation is to delete not preserve
      * templates.
      *
@@ -527,6 +537,22 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected boolean preserveTemplatesUponCompletion() {
         return false;
+    }
+
+    /**
+     * Determines whether the system feature reset API should be invoked between tests. The default implementation is to reset
+     * all feature states, deleting system indices, system associated indices, and system data streams.
+     */
+    protected boolean resetFeatureStates() {
+        try {
+            // ML reset fails when ML is disabled in versions before 8.7
+            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
+                return false;
+            }
+        } catch (IOException e) {
+            throw new AssertionError("Failed to find a minimum node version.", e);
+        }
+        return true;
     }
 
     /**
@@ -595,6 +621,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
+            "profiling",
             "synthetics",
             "7-days-default",
             "30-days-default",
@@ -602,8 +629,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             "180-days-default",
             "365-days-default",
             ".fleet-actions-results-ilm-policy",
+            ".fleet-file-data-ilm-policy",
+            ".fleet-files-ilm-policy",
             ".deprecation-indexing-ilm-policy",
-            ".monitoring-8-ilm-policy"
+            ".monitoring-8-ilm-policy",
+            "behavioral_analytics-events-default_policy"
         );
     }
 
@@ -634,14 +664,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    /**
-     * Returns whether to wait to make absolutely certain that all snapshots
-     * have been deleted.
-     */
-    protected boolean waitForAllSnapshotsWiped() {
-        return false;
-    }
-
     private void wipeCluster() throws Exception {
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
@@ -662,23 +684,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeSearchableSnapshotsIndices();
         }
 
-        SetOnce<Map<String, List<Map<?, ?>>>> inProgressSnapshots = new SetOnce<>();
-        if (waitForAllSnapshotsWiped()) {
-            AtomicReference<Map<String, List<Map<?, ?>>>> snapshots = new AtomicReference<>();
-            try {
-                // Repeatedly delete the snapshots until there aren't any
-                assertBusy(() -> {
-                    snapshots.set(wipeSnapshots());
-                    assertThat(snapshots.get(), anEmptyMap());
-                }, 2, TimeUnit.MINUTES);
-                // At this point there should be no snaphots
-                inProgressSnapshots.set(snapshots.get());
-            } catch (AssertionError e) {
-                // This will cause an error at the end of this method, but do the rest of the cleanup first
-                inProgressSnapshots.set(snapshots.get());
-            }
-        } else {
-            inProgressSnapshots.set(wipeSnapshots());
+        wipeSnapshots();
+
+        if (resetFeatureStates()) {
+            final Request postRequest = new Request("POST", "/_features/_reset");
+            adminClient().performRequest(postRequest);
         }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
@@ -688,7 +698,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
-            wipeAllIndices();
+            wipeAllIndices(preserveSecurityIndicesUponCompletion());
         }
 
         // wipe index templates
@@ -721,17 +731,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(
-                                        new ParameterizedMessage("unable to remove multiple composable index templates {}", names),
-                                        e
-                                    );
+                                    logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
                                 }
                             } else {
                                 for (String name : names) {
                                     try {
                                         adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
                                     } catch (ResponseException e) {
-                                        logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                        logger.warn(() -> format("unable to remove composable index template %s", name), e);
                                     }
                                 }
                             }
@@ -755,17 +762,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                    logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
                                 }
                             } else {
                                 for (String componentTemplate : names) {
                                     try {
                                         adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                                     } catch (ResponseException e) {
-                                        logger.warn(
-                                            new ParameterizedMessage("unable to remove component template {}", componentTemplate),
-                                            e
-                                        );
+                                        logger.warn(() -> format("unable to remove component template %s", componentTemplate), e);
                                     }
                                 }
                             }
@@ -789,7 +793,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     try {
                         adminClient().performRequest(new Request("DELETE", "_template/" + name));
                     } catch (ResponseException e) {
-                        logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                        logger.debug(() -> format("unable to remove index template %s", name), e);
                     }
                 }
             } else {
@@ -818,8 +822,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         deleteAllNodeShutdownMetadata();
-
-        assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
     }
 
     /**
@@ -931,24 +933,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
+        wipeAllIndices(false);
+    }
+
+    protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
             // remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
+            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*"));
+            if (preserveSecurityIndices) {
+                indexPatterns.add("-.security-*");
+            }
+            final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
-            RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-                if (warnings.size() == 0) {
-                    return false;
-                } else if (warnings.size() > 1) {
-                    return true;
-                }
-                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
-                final String warning = warnings.get(0);
-                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                return isSystemIndexWarning == false;
-            }).build();
-            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1009,37 +1006,21 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Wipe fs snapshots we created one by one and all repositories so that the next test can create the repositories fresh and they'll
-     * start empty. There isn't an API to delete all snapshots. There is an API to delete all snapshot repositories but that leaves all of
-     * the snapshots intact in the repository.
-     * @return Map of repository name to list of snapshots found in unfinished state
+     * start empty.
      */
-    protected Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
-        final Map<String, List<Map<?, ?>>> inProgressSnapshots = new HashMap<>();
+    protected void wipeSnapshots() throws IOException {
         for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
             String repoType = (String) repoSpec.get("type");
             if (false == preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
-                Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
-                listRequest.addParameter("ignore_unavailable", "true");
-
-                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
-                for (Object snapshot : snapshots) {
-                    Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
-                    String name = (String) snapshotInfo.get("snapshot");
-                    if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
-                        inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
-                    }
-                    logger.debug("wiping snapshot [{}/{}]", repoName, name);
-                    adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));
-                }
+                adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/*"));
             }
             if (preserveReposUponCompletion() == false) {
                 deleteRepository(repoName);
             }
         }
-        return inProgressSnapshots;
     }
 
     protected void deleteRepository(String repoName) throws IOException {
@@ -1321,7 +1302,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+    /**
+     * Override this to configure the client with additional settings.
+     */
+    protected void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        doConfigureClient(builder, settings);
+    }
+
+    protected static void doConfigureClient(RestClientBuilder builder, Settings settings) throws IOException {
         String truststorePath = settings.get(TRUSTSTORE_PATH);
         String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
         String clientCertificatePath = settings.get(CLIENT_CERT_PATH);
@@ -1426,6 +1414,11 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
     }
 
     /**
@@ -1645,6 +1638,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 
+    protected static Map<String, Object> getIndexMapping(String index) throws IOException {
+        return entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_mapping")));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getIndexMappingAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexMapping(index);
+        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("mappings");
+    }
+
     protected static boolean indexExists(String index) throws IOException {
         Response response = client().performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
@@ -1813,11 +1816,21 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".deprecation-")) {
             return true;
         }
+        if (name.startsWith(".fleet-")) {
+            return true;
+        }
+        if (name.startsWith("behavioral_analytics-")) {
+            return true;
+        }
+        if (name.startsWith("profiling-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
+            case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
             case "logs":
             case "logs-settings":
@@ -1833,6 +1846,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
+            case "ecs@dynamic_templates":
                 return true;
             default:
                 return false;
@@ -2077,6 +2091,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertOK(response);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
+        }
+    }
+
+    private static boolean isMlEnabled() {
+        try {
+            adminClient().performRequest(new Request("GET", "_ml/info"));
+            return true;
+        } catch (IOException e) {
+            // do nothing, ML is disabled
+            return false;
         }
     }
 

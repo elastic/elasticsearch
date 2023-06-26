@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
@@ -18,11 +18,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,6 +35,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -38,6 +43,13 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PutRoleRequestTests extends ESTestCase {
+
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed by how components are initialized by the Security plugin
+        new ReservedRolesStore();
+    }
 
     public void testValidationErrorWithUnknownClusterPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
@@ -47,6 +59,17 @@ public class PutRoleRequestTests extends ESTestCase {
 
         // Fail
         assertValidationError("unknown cluster privilege [" + unknownClusterPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationErrorWithTooLongRoleName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(
+            randomAlphaOfLengthBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
+        );
+        request.cluster("manage_security");
+
+        // Fail
+        assertValidationError("Role names must be at least 1 and no more than " + NativeRealmValidationUtil.MAX_NAME_LENGTH, request);
     }
 
     public void testValidationSuccessWithCorrectClusterPrivilegeName() {
@@ -71,6 +94,41 @@ public class PutRoleRequestTests extends ESTestCase {
 
         // Fail
         assertValidationError("unknown index privilege [" + unknownIndexPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationErrorWithEmptyClustersInRemoteIndices() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.addRemoteIndex(
+            new String[] { randomAlphaOfLength(5), "" },
+            new String[] { randomAlphaOfLength(5) },
+            new String[] { "index", "write", "indices:data/read" },
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+        assertValidationError("remote index cluster alias cannot be an empty string", request);
+    }
+
+    public void testValidationSuccessWithCorrectRemoteIndexPrivilegeClusters() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        if (randomBoolean()) {
+            request.addRemoteIndex(
+                new String[] { randomAlphaOfLength(5), "*", "* " },
+                new String[] { randomAlphaOfLength(5) },
+                new String[] { "index", "write", "indices:data/read" },
+                null,
+                null,
+                null,
+                randomBoolean()
+            );
+        } else {
+            // Empty remote index section is valid
+            request.addRemoteIndex();
+        }
+        assertSuccessfulValidation(request);
     }
 
     public void testValidationSuccessWithCorrectIndexPrivilegeName() {
@@ -110,22 +168,59 @@ public class PutRoleRequestTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        final PutRoleRequest original = buildRandomRequest();
-
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             logger.info("Serializing with version {}", version);
-            out.setVersion(version);
+            out.setTransportVersion(version);
         }
+        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS);
+        final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        in.setVersion(out.getVersion());
+        in.setTransportVersion(out.getTransportVersion());
         final PutRoleRequest copy = new PutRoleRequest(in);
 
-        assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
+        final RoleDescriptor actual = copy.roleDescriptor();
+        final RoleDescriptor expected = original.roleDescriptor();
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+        );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeAdvancedRemoteClusterSecurity
+        );
+        out.setTransportVersion(version);
+
+        final PutRoleRequest original = buildRandomRequest(randomBoolean());
+        if (original.hasRemoteIndicesPrivileges()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + "] can't handle remote indices privileges and attempted to send to ["
+                        + version
+                        + "]"
+                )
+            );
+        } else {
+            original.writeTo(out);
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+            in.setTransportVersion(out.getTransportVersion());
+            final PutRoleRequest copy = new PutRoleRequest(in);
+            assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
+        }
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {
@@ -147,12 +242,15 @@ public class PutRoleRequestTests extends ESTestCase {
             .privileges(privileges)
             .resources(resources)
             .build();
-        request.addApplicationPrivileges(new ApplicationResourcePrivileges[] { privilege });
+        request.addApplicationPrivileges(privilege);
         return request;
     }
 
     private PutRoleRequest buildRandomRequest() {
+        return buildRandomRequest(true);
+    }
 
+    private PutRoleRequest buildRandomRequest(boolean allowRemoteIndices) {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
 
@@ -171,6 +269,20 @@ public class PutRoleRequestTests extends ESTestCase {
                 null,
                 randomBoolean()
             );
+        }
+
+        if (allowRemoteIndices) {
+            for (int i = randomIntBetween(0, 4); i > 0; i--) {
+                request.addRemoteIndex(
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), false, false),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), false, false),
+                    randomSubsetOf(randomIntBetween(1, 2), "read", "write", "index", "all").toArray(Strings.EMPTY_ARRAY),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
+                    null,
+                    randomBoolean()
+                );
+            }
         }
 
         final Supplier<String> stringWithInitialLowercase = () -> randomAlphaOfLength(1).toLowerCase(Locale.ROOT)

@@ -9,7 +9,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+
+import java.util.Map;
 
 /**
  * A mapper for the _id field.
@@ -21,14 +25,26 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 
-    protected IdFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
-        super(mappedFieldType, indexAnalyzer);
+    private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
+
+    protected IdFieldMapper(MappedFieldType mappedFieldType) {
+        super(mappedFieldType);
         assert mappedFieldType.isSearchable();
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return ANALYZERS;
     }
 
     @Override
     protected final String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 
     /**
@@ -44,10 +60,16 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String documentDescription(ParsedDocument parsedDocument);
 
     /**
+     * Build the {@code _id} to use on requests reindexing into indices using
+     * this {@code _id}.
+     */
+    public abstract String reindexId(String id);
+
+    /**
      * Create a {@link Field} to store the provided {@code _id} that "stores"
      * the {@code _id} so it can be fetched easily from the index.
      */
     public static Field standardIdField(String id) {
-        return new Field(NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+        return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
     }
 }

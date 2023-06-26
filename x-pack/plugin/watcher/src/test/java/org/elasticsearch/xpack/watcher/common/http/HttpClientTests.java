@@ -10,8 +10,6 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -50,7 +49,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -485,7 +483,7 @@ public class HttpClientTests extends ESTestCase {
             request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
         } else {
             // ensure that fromUrl acts the same way than the above builder
-            request = HttpRequest.builder().fromUrl(String.format(Locale.ROOT, "http://localhost:%s%s", webServer.getPort(), path)).build();
+            request = HttpRequest.builder().fromUrl(Strings.format("http://localhost:%s%s", webServer.getPort(), path)).build();
         }
         httpClient.execute(request);
 
@@ -541,7 +539,7 @@ public class HttpClientTests extends ESTestCase {
                     socket.getOutputStream().flush();
                 } catch (Exception e) {
                     hasExceptionHappened.set(e);
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error in writing non HTTP response"), e);
+                    logger.error("Error in writing non HTTP response", e);
                 }
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();
@@ -824,6 +822,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return String.format(Locale.ROOT, "http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 }

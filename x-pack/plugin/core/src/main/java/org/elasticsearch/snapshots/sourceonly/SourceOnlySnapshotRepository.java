@@ -8,7 +8,6 @@ package org.elasticsearch.snapshots.sourceonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -40,6 +39,7 @@ import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
@@ -53,6 +53,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * <p>
@@ -105,7 +107,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 metadataToSnapshot(finalizeSnapshotContext.updatedShardGenerations().indices(), finalizeSnapshotContext.clusterMetadata()),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext
+                finalizeSnapshotContext,
+                finalizeSnapshotContext::onDone
             )
         );
     }
@@ -148,7 +151,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
-            throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
+            context.onFailure(
+                new IllegalStateException(
+                    context.indexCommit()
+                        + " is not a regular index, but ["
+                        + unwrap.toString()
+                        + "]  and cannot be snapshotted into a source-only repository"
+                )
+            );
+            return;
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
@@ -163,7 +174,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     // do nothing;
                 }
             }, Store.OnClose.EMPTY);
-            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
+            Supplier<Query> querySupplier = mapperService.hasNested()
+                ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
+                : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot;
             snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
@@ -172,10 +185,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 snapshot.syncSnapshot(snapshotIndexCommit);
             } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.",
-                        snapPath
-                    ),
+                    () -> format("Existing staging directory [%s] appears corrupted and will be pruned and recreated.", snapPath),
                     e
                 );
                 Lucene.cleanLuceneIndex(overlayDir);
@@ -185,8 +195,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            toClose.add(store::decRef);
+            try (var ignored = context.withCommitRef()) {
+                // obtain commit ref first, ensuring the store is still open here, or else reporting aborted snapshots properly
+                store.incRef();
+                toClose.add(store::decRef);
+            }
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
@@ -196,15 +209,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     mapperService,
                     context.snapshotId(),
                     context.indexId(),
-                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose))),
                     context.stateIdentifier(),
                     context.status(),
                     context.getRepositoryMetaVersion(),
-                    context.userMetadata(),
+                    context.snapshotStartTime(),
                     context
                 )
             );
-        } catch (IOException e) {
+        } catch (Exception e) {
             try {
                 IOUtils.close(toClose);
             } catch (IOException ex) {

@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.docs-test'
@@ -20,8 +19,8 @@ tasks.named("buildRestTests").configure {
 }
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackProject('plugin').path)))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 restResources {
@@ -30,10 +29,23 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
-  extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
-  extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
-  extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
+// TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
+//  which require snapshot builds:
+// * RCS 2.0. cross_cluster_search is only available with untrusted_remote_cluster_feature_flag_registered set
+// * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
+// We disable these tests for snapshot builds to maintain release build coverage.
+tasks.named("yamlRestTest").configure {
+  if (BuildParams.isSnapshotBuild()) {
+    systemProperty 'tests.rest.blacklist', '*/get-builtin-privileges/*'
+  } else {
+    systemProperty 'tests.rest.blacklist', ['*/create-cross-cluster-api-key/*', '*/update-cross-cluster-api-key/*']
+  }
+}
+
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
+  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  extraConfigFile 'testClient.crt', project(':x-pack:plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
@@ -64,9 +76,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
 
-  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
-
   user username: 'test_admin'
+  user username: 'test_user'
 }
 
 tasks.named("buildRestTests").configure { buildRestTests ->
@@ -741,5 +752,96 @@ tasks.named("buildRestTests").configure { buildRestTests ->
         namespace: elastic
         service: fleet-server
         name: token42
+'''
+  setups['user_profiles'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackrea"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin" ],
+            "full_name" : "Jack Reacher",
+            "email" : "jackrea@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackspa"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "user" ],
+            "full_name" : "Jack Sparrow",
+            "email" : "jackspa@example.com"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackrea",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackspa",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  # jacknich
+  - do:
+      security.update_user_profile_data:
+        uid: "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
+        body: >
+          {
+            "labels": {
+              "direction": "north"
+            },
+            "data": {
+              "app1": {
+                "key1": "value1"
+              }
+            }
+          }
+  # jackrea
+  - do:
+      security.update_user_profile_data:
+        uid: "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0"
+        body: >
+          {
+            "labels": {
+              "direction": "west"
+            }
+          }
+  # jackspa
+  - do:
+      security.update_user_profile_data:
+        uid: "u_8RKO7AKfEbSiIHZkZZ2LJy2MUSDPWDr3tMI_CkIGApU_0"
+        body: >
+          {
+            "labels": {
+              "direction": "south"
+            }
+          }
 '''
 }

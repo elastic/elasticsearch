@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -22,11 +23,15 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -49,10 +54,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Abstracts the logic of managing versioned index templates and lifecycle policies for plugins that require such things.
+ * Abstracts the logic of managing versioned index templates, ingest pipelines and lifecycle policies for plugins that require such things.
  */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
@@ -64,6 +70,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ClusterService clusterService;
     protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
+    protected final ConcurrentMap<String, AtomicBoolean> pipelineCreationsInProgress = new ConcurrentHashMap<>();
 
     public IndexTemplateRegistry(
         Settings nodeSettings,
@@ -125,6 +132,15 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     /**
+     * Retrieves a list of {@link IngestPipelineConfig} that represents the ingest pipelines
+     * that should be installed and managed.
+     * @return The configurations for ingest pipelines that should be installed.
+     */
+    protected List<IngestPipelineConfig> getIngestPipelines() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Retrieves an identifier that is used to identify which plugin is asking for this.
      * @return A string ID for the plugin managing these templates.
      */
@@ -136,7 +152,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutTemplateFailure(String templateName, Exception e) {
-        logger.error(new ParameterizedMessage("error adding index template [{}] for [{}]", templateName, getOrigin()), e);
+        logger.error(() -> format("error adding index template [%s] for [%s]", templateName, getOrigin()), e);
     }
 
     /**
@@ -145,7 +161,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPolicyFailure(LifecyclePolicy policy, Exception e) {
-        logger.error(new ParameterizedMessage("error adding lifecycle policy [{}] for [{}]", policy.getName(), getOrigin()), e);
+        logger.error(() -> format("error adding lifecycle policy [%s] for [%s]", policy.getName(), getOrigin()), e);
     }
 
     @Override
@@ -169,15 +185,28 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return;
         }
 
+        if (isClusterReady(event) == false) {
+            return;
+        }
+
         // if this node is newer than the master node, we probably need to add the template, which might be newer than the
         // template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
         boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
 
         if (event.localNodeMaster() || localNodeVersionAfterMaster) {
+            addIngestPipelinesIfMissing(state);
             addTemplatesIfMissing(state);
             addIndexLifecyclePoliciesIfMissing(state);
         }
+    }
+
+    /**
+     * A method that can be overridden to add additional conditions to be satisfied
+     * before installing the template registry components.
+     */
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        return true;
     }
 
     /**
@@ -242,7 +271,14 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
                 ComponentTemplate currentTemplate = state.metadata().componentTemplates().get(templateName);
-                if (Objects.isNull(currentTemplate)) {
+                if (templateDependenciesSatisfied(state, newTemplate.getValue()) == false) {
+                    creationCheck.set(false);
+                    logger.trace(
+                        "not adding index template [{}] for [{}] because its required dependencies do not exist",
+                        templateName,
+                        getOrigin()
+                    );
+                } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding component template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putComponentTemplate(templateName, newTemplate.getValue(), creationCheck);
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getValue().version() > currentTemplate.version()) {
@@ -273,6 +309,32 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 );
             }
         }
+    }
+
+    /**
+     * Returns true if the cluster state contains all of the dependencies required by the provided component template
+     */
+    private static boolean templateDependenciesSatisfied(ClusterState state, ComponentTemplate indexTemplate) {
+        Template template = indexTemplate.template();
+        if (template == null) {
+            return true;
+        }
+        Settings settings = template.settings();
+        if (settings == null) {
+            return true;
+        }
+        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        String defaultPipeline = settings.get("index.default_pipeline");
+        if (defaultPipeline != null) {
+            if (ingestMetadata == null || ingestMetadata.getPipelines().containsKey(defaultPipeline) == false) {
+                return false;
+            }
+        }
+        String finalPipeline = settings.get("index.final_pipeline");
+        if (finalPipeline != null) {
+            return ingestMetadata != null && ingestMetadata.getPipelines().containsKey(finalPipeline);
+        }
+        return true;
     }
 
     private void addComposableTemplatesIfMissing(ClusterState state) {
@@ -327,7 +389,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * Returns true if the cluster state contains all of the component templates needed by the composable template
      */
     private static boolean componentTemplatesExist(ClusterState state, ComposableIndexTemplate indexTemplate) {
-        return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.composedOf());
+        return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
     }
 
     private void putLegacyTemplate(final IndexTemplateConfig config, final AtomicBoolean creationCheck) {
@@ -438,18 +500,19 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
-        Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
+        IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
         for (LifecyclePolicy policy : getPolicyConfigs()) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
                 policy.getName(),
                 key -> new AtomicBoolean(false)
             );
             if (creationCheck.compareAndSet(false, true)) {
-                final boolean policyNeedsToBeCreated = maybeMeta.flatMap(
-                    ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName()))
-                ).isPresent() == false;
-                if (policyNeedsToBeCreated) {
+                final LifecyclePolicy currentPolicy = metadata != null ? metadata.getPolicies().get(policy.getName()) : null;
+                if (Objects.isNull(currentPolicy)) {
                     logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
+                    putPolicy(policy, creationCheck);
+                } else if (isUpgradeRequired(currentPolicy, policy)) {
+                    logger.info("upgrading lifecycle policy [{}] for [{}]", policy.getName(), getOrigin());
                     putPolicy(policy, creationCheck);
                 } else {
                     logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists", policy.getName(), getOrigin());
@@ -457,6 +520,17 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 }
             }
         }
+    }
+
+    /**
+     * Determines whether an index lifecycle policy should be upgraded to a newer version.
+     *
+     * @param currentPolicy The current lifecycle policy. Never null.
+     * @param newPolicy The new lifecycle policy. Never null.
+     * @return <code>true</code> if <code>newPolicy</code> should replace <code>currentPolicy</code>.
+     */
+    protected boolean isUpgradeRequired(LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
+        return false;
     }
 
     private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {
@@ -504,4 +578,114 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }));
     }
 
+    private void addIngestPipelinesIfMissing(ClusterState state) {
+        for (IngestPipelineConfig requiredPipeline : getIngestPipelines()) {
+            final AtomicBoolean creationCheck = pipelineCreationsInProgress.computeIfAbsent(
+                requiredPipeline.getId(),
+                key -> new AtomicBoolean(false)
+            );
+
+            if (creationCheck.compareAndSet(false, true)) {
+                List<String> pipelineDependencies = requiredPipeline.getPipelineDependencies();
+                if (pipelineDependencies != null && pipelineDependenciesExist(state, pipelineDependencies) == false) {
+                    creationCheck.set(false);
+                    logger.trace(
+                        "not adding ingest pipeline [{}] for [{}] because its dependencies do not exist",
+                        requiredPipeline.getId(),
+                        getOrigin()
+                    );
+                } else {
+                    PipelineConfiguration existingPipeline = findInstalledPipeline(state, requiredPipeline.getId());
+                    if (existingPipeline != null) {
+                        Integer existingPipelineVersion = existingPipeline.getVersion();
+                        if (existingPipelineVersion == null || existingPipelineVersion < requiredPipeline.getVersion()) {
+                            logger.info(
+                                "upgrading ingest pipeline [{}] for [{}] from version [{}] to version [{}]",
+                                requiredPipeline.getId(),
+                                getOrigin(),
+                                existingPipelineVersion,
+                                requiredPipeline.getVersion()
+                            );
+                            putIngestPipeline(requiredPipeline, creationCheck);
+                        } else {
+                            creationCheck.set(false);
+                            logger.debug(
+                                "not adding ingest pipeline [{}] for [{}], because it already exists",
+                                requiredPipeline.getId(),
+                                getOrigin()
+                            );
+                        }
+                    } else {
+                        logger.debug(
+                            "adding ingest pipeline [{}] for [{}], because it doesn't exist",
+                            requiredPipeline.getId(),
+                            getOrigin()
+                        );
+                        putIngestPipeline(requiredPipeline, creationCheck);
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean pipelineDependenciesExist(ClusterState state, List<String> dependencies) {
+        for (String dependency : dependencies) {
+            if (findInstalledPipeline(state, dependency) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Nullable
+    private static PipelineConfiguration findInstalledPipeline(ClusterState state, String pipelineId) {
+        Optional<IngestMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IngestMetadata.TYPE));
+        return maybeMeta.map(ingestMetadata -> ingestMetadata.getPipelines().get(pipelineId)).orElse(null);
+    }
+
+    private void putIngestPipeline(final IngestPipelineConfig pipelineConfig, final AtomicBoolean creationCheck) {
+        final Executor executor = threadPool.generic();
+        executor.execute(() -> {
+            PutPipelineRequest request = new PutPipelineRequest(pipelineConfig.getId(), pipelineConfig.loadConfig(), XContentType.JSON);
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                getOrigin(),
+                request,
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        creationCheck.set(false);
+                        if (response.isAcknowledged() == false) {
+                            logger.error(
+                                "error adding ingest pipeline [{}] for [{}], request was not acknowledged",
+                                pipelineConfig.getId(),
+                                getOrigin()
+                            );
+                        } else {
+                            logger.info("adding ingest pipeline {}", pipelineConfig.getId());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        creationCheck.set(false);
+                        onPutPipelineFailure(pipelineConfig.getId(), e);
+                    }
+                },
+                (req, listener) -> client.execute(PutPipelineAction.INSTANCE, req, listener)
+            );
+        });
+    }
+
+    /**
+     * Called when creation of an ingest pipeline fails.
+     *
+     * @param pipelineId the pipeline that failed to be created.
+     * @param e The exception that caused the failure.
+     */
+    protected void onPutPipelineFailure(String pipelineId, Exception e) {
+        logger.error(() -> format("error adding ingest pipeline template [%s] for [%s]", pipelineId, getOrigin()), e);
+    }
 }

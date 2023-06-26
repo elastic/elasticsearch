@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
@@ -25,9 +25,9 @@ ext.docsFileTree = fileTree(projectDir) {
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
   if (BuildParams.inFipsJvm) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    // We don't support this component in FIPS 140
+    exclude 'reference/ingest/processors/attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment component
     exclude 'reference/cat/plugins.asciidoc'
   }
 }
@@ -58,12 +58,19 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "integTest"}.configureEach {
+testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
   }
+
+  // debug ccr test failures:
+  // https://github.com/elastic/elasticsearch/issues/95678
+  // https://github.com/elastic/elasticsearch/issues/94359
+  // https://github.com/elastic/elasticsearch/issues/96561
+  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
+  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
@@ -86,11 +93,14 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
-  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-City.mmdb")
-  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-Country.mmdb")
+  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("src/yamlRestTest/resources/GeoLite2-City.mmdb")
+  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("src/yamlRestTest/resources/GeoLite2-Country.mmdb")
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
 
   // build the cluster with all plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
@@ -101,16 +111,28 @@ testClusters.matching { it.name == "integTest"}.configureEach {
       return
     }
     // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
+    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
       return
     }
     plugin subproj.path
   }
 }
 
-tasks.named("integTest").configure {
+tasks.named("yamlRestTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
+  }
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+}
+
+// TODO: Remove the following when RCS feature is released
+// The get-builtin-privileges doc test does not include the new cluster privilege for RCS
+// So we disable the test if the build is a snapshot where unreleased feature is enabled by default
+tasks.named("yamlRestTest").configure {
+  if (BuildParams.isSnapshotBuild()) {
+    systemProperty 'tests.rest.blacklist', 'reference/rest-api/usage/*'
   }
 }
 
@@ -206,6 +228,57 @@ setups['my_data_stream'] = setups['my_data_stream_template'] + '''
 '''
 
 teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
+// Used for TSDS examples
+setups['tsds_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-weather-sensor-index-template
+        body: |
+          {
+            "index_patterns": [ "metrics-weather_sensors-*" ],
+            "data_stream": { },
+            "template": {
+              "settings": {
+                "index.mode": "time_series",
+                "index.routing_path": [ "sensor_id", "location" ]
+              },
+              "mappings": {
+                "properties": {
+                  "sensor_id": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  },
+                  "location": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            },
+            "priority": 500
+          }
+'''
+
+setups['tsds'] = setups['tsds_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/metrics-weather_sensors-dev'
+'''
+
+teardowns['tsds_cleanup'] = '''
   - do:
       raw:
         method: DELETE
@@ -1502,6 +1575,15 @@ setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'
             }
           }
 '''
+setups['setup_houseprices'] = '''
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+'''
 setups['setup_logdata'] = '''
   - do:
         indices.create:
@@ -1626,7 +1708,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
   }
 
   /* Load the actual events only if we're going to use them. */
-  File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File)
 
   doFirst {

@@ -13,7 +13,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Stream;
 
@@ -70,32 +69,36 @@ public class RemovePluginAction {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    public void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
+    public void execute(List<InstallablePlugin> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
         }
 
         ensurePluginsNotUsedByOtherPlugins(plugins);
 
-        for (PluginDescriptor plugin : plugins) {
+        for (InstallablePlugin plugin : plugins) {
             checkCanRemove(plugin);
         }
 
-        for (PluginDescriptor plugin : plugins) {
+        for (InstallablePlugin plugin : plugins) {
             removePlugin(plugin);
         }
     }
 
-    private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
+    private void ensurePluginsNotUsedByOtherPlugins(List<InstallablePlugin> plugins) throws IOException, UserException {
         // First make sure nothing extends this plugin
         final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
-        for (PluginsService.Bundle bundle : bundles) {
-            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (PluginDescriptor plugin : plugins) {
+
+        // We build a new map where the keys are plugins that extend plugins
+        // we want to remove and the values are the plugins we can't remove
+        // because of this dependency
+        Map<String, List<String>> pluginDependencyMap = PluginsUtils.getDependencyMapView(env.pluginsFile());
+        for (Map.Entry<String, List<String>> entry : pluginDependencyMap.entrySet()) {
+            for (String extendedPlugin : entry.getValue()) {
+                for (InstallablePlugin plugin : plugins) {
                     String pluginId = plugin.getId();
                     if (extendedPlugin.equals(pluginId)) {
-                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
+                        usedBy.computeIfAbsent(entry.getKey(), (_key -> new ArrayList<>())).add(pluginId);
                     }
                 }
             }
@@ -114,7 +117,7 @@ public class RemovePluginAction {
         throw new UserException(PLUGIN_STILL_USED, message.toString());
     }
 
-    private void checkCanRemove(PluginDescriptor plugin) throws UserException {
+    private void checkCanRemove(InstallablePlugin plugin) throws UserException {
         String pluginId = plugin.getId();
 
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
@@ -151,7 +154,7 @@ public class RemovePluginAction {
         }
     }
 
-    private void removePlugin(PluginDescriptor plugin) throws IOException {
+    private void removePlugin(InstallablePlugin plugin) throws IOException {
         final String pluginId = plugin.getId();
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
         final Path pluginConfigDir = env.configFile().resolve(pluginId);

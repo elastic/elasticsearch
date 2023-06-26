@@ -8,38 +8,39 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
-public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
+public class GetMappingsResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private final ImmutableOpenMap<String, MappingMetadata> mappings;
+    private final Map<String, MappingMetadata> mappings;
 
-    public GetMappingsResponse(ImmutableOpenMap<String, MappingMetadata> mappings) {
+    public GetMappingsResponse(Map<String, MappingMetadata> mappings) {
         this.mappings = mappings;
     }
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableMap(in.getTransportVersion().before(TransportVersion.V_8_0_0) ? i -> {
             int mappingCount = i.readVInt();
             assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
             if (mappingCount == 1) {
@@ -52,11 +53,11 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> mappings() {
+    public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
@@ -66,26 +67,30 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (final Map.Entry<String, MappingMetadata> indexEntry : getMappings().entrySet()) {
-            builder.startObject(indexEntry.getKey());
-            boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
-                builder.startObject(MAPPINGS.getPreferredName());
+    public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            Iterators.single((b, p) -> b.startObject()),
+            getMappings().entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {
+                builder.startObject(indexEntry.getKey());
+                boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+                if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
+                    builder.startObject(MAPPINGS.getPreferredName());
 
-                if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
-                    builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue().sourceAsMap());
+                    if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
+                        builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue().sourceAsMap());
+                    }
+                    builder.endObject();
+
+                } else if (indexEntry.getValue() != null) {
+                    builder.field(MAPPINGS.getPreferredName(), indexEntry.getValue().sourceAsMap());
+                } else {
+                    builder.startObject(MAPPINGS.getPreferredName()).endObject();
                 }
                 builder.endObject();
-
-            } else if (indexEntry.getValue() != null) {
-                builder.field(MAPPINGS.getPreferredName(), indexEntry.getValue().sourceAsMap());
-            } else {
-                builder.startObject(MAPPINGS.getPreferredName()).endObject();
-            }
-            builder.endObject();
-        }
-        return builder;
+                return builder;
+            }).iterator(),
+            Iterators.single((b, p) -> b.endObject())
+        );
     }
 
     @Override

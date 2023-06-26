@@ -4,9 +4,7 @@
 <titleabbrev>Simulate index</titleabbrev>
 ++++
 
-experimental[]
-
-Returns the index configuration that would be applied to the specified index from an 
+Returns the index configuration that would be applied to the specified index from an
 existing <<index-templates, index template>>.
 
 ////
@@ -64,6 +62,10 @@ Name of the index to simulate.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+`include_defaults`::
+(Optional, Boolean) Functionality in experimental:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
+
 [role="child_attributes"]
 [[simulate-index-api-response-body]]
 ==== {api-response-body-title}
@@ -110,7 +112,7 @@ access.
 overwrites the `routing` value for indexing operations.
 
 `is_hidden`::
-(Boolean) If `true`, the alias is <<hidden,hidden>>.
+(Boolean) If `true`, the alias is <<multi-hidden,hidden>>.
 
 `is_write_index`::
 (Boolean) If `true`, the index is the <<write-index,write index>> for the alias.

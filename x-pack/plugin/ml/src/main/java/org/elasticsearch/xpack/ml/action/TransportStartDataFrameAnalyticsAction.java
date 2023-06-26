@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -55,7 +53,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -92,6 +89,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -170,7 +168,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] received start request", request.getId()));
+        logger.debug(() -> "[" + request.getId() + "] received start request");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -250,7 +248,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             );
         }, listener::onFailure);
 
-        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
+        ExplainDataFrameAnalyticsAction.Request explainRequest = new ExplainDataFrameAnalyticsAction.Request(startContext.config);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,
@@ -487,8 +485,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                        () -> format(
+                            "[%s] timed out when starting task after [%s]. Assignment explanation [%s]",
                             task.getParams().getId(),
                             timeout,
                             predicate.assignmentExplanation
@@ -508,8 +506,9 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         );
                     } else {
                         listener.onFailure(
-                            new ElasticsearchException(
+                            new ElasticsearchStatusException(
                                 "Starting data frame analytics [{}] timed out after [{}]",
+                                RestStatus.REQUEST_TIMEOUT,
                                 task.getParams().getId(),
                                 timeout
                             )
@@ -619,8 +618,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                        () -> format(
+                            "[%s] Failed to cancel persistent task that could not be assigned due to [%s]",
                             persistentTask.getParams().getId(),
                             exception.getMessage()
                         ),
@@ -768,8 +767,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] failed to create internal index [{}]",
+                        () -> format(
+                            "[%s] failed to create internal index [%s]",
                             params.getId(),
                             InferenceIndexConstants.LATEST_INDEX_NAME
                         ),

@@ -413,6 +413,10 @@
       "max_num_threads" : {
         "type" : "integer"
       },
+      "_meta" : {
+        "type" : "object",
+        "enabled" : false
+      },
       "model_memory_limit": {
         "type" : "keyword"
       },

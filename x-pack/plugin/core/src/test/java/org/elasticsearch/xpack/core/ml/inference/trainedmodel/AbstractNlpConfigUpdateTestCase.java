@@ -8,16 +8,37 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 abstract class AbstractNlpConfigUpdateTestCase<T extends NlpConfigUpdate> extends AbstractBWCSerializationTestCase<T> {
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
+    }
 
     /**
      * @param expectedTokenization The tokenization update that will be provided
@@ -41,19 +62,27 @@ abstract class AbstractNlpConfigUpdateTestCase<T extends NlpConfigUpdate> extend
             final String tokenizationKind;
             final TokenizationUpdate update;
             final Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
-            int testCase = randomInt(2);
+            int testCase = randomInt(3);
             switch (testCase) {
                 case 0 -> {
                     tokenizationKind = "bert";
                     update = new BertTokenizationUpdate(truncate, null);
                 }
                 case 1 -> {
+                    tokenizationKind = "bert_ja";
+                    update = new BertJapaneseTokenizationUpdate(truncate, null);
+                }
+                case 2 -> {
                     tokenizationKind = "mpnet";
                     update = new MPNetTokenizationUpdate(truncate, null);
                 }
-                case 2 -> {
+                case 3 -> {
                     tokenizationKind = "roberta";
                     update = new RobertaTokenizationUpdate(truncate, null);
+                }
+                case 4 -> {
+                    tokenizationKind = "xlm_roberta";
+                    update = new XLMRobertaTokenizationUpdate(truncate, null);
                 }
                 default -> throw new UnsupportedOperationException("unexpected test case");
 
@@ -76,5 +105,17 @@ abstract class AbstractNlpConfigUpdateTestCase<T extends NlpConfigUpdate> extend
 
     void assertFromMapEquality(T expected, T parsedFromMap) {
         assertThat(parsedFromMap, equalTo(expected));
+    }
+
+    public void testNamedWriteableSerialization() throws IOException {
+        T testInstance = createTestInstance();
+        assertRoundTrip(testInstance);
+    }
+
+    private void assertRoundTrip(T update) throws IOException {
+        InferenceConfigUpdate roundTripped = copyNamedWriteable(update, writableRegistry(), InferenceConfigUpdate.class);
+        assertThat(roundTripped, not(sameInstance(update)));
+        assertThat(roundTripped, equalTo(update));
+        assertThat(roundTripped.hashCode(), equalTo(update.hashCode()));
     }
 }

@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 
@@ -35,25 +32,43 @@ public enum TaskType {
     FILL_MASK {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
-            return new FillMaskProcessor(tokenizer, (FillMaskConfig) config);
+            return new FillMaskProcessor(tokenizer);
         }
     },
     PASS_THROUGH {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
-            return new PassThroughProcessor(tokenizer, (PassThroughConfig) config);
+            return new PassThroughProcessor(tokenizer);
         }
     },
     TEXT_EMBEDDING {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
-            return new TextEmbeddingProcessor(tokenizer, (TextEmbeddingConfig) config);
+            return new TextEmbeddingProcessor(tokenizer);
         }
     },
     ZERO_SHOT_CLASSIFICATION {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
             return new ZeroShotClassificationProcessor(tokenizer, (ZeroShotClassificationConfig) config);
+        }
+    },
+    QUESTION_ANSWERING {
+        @Override
+        public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
+            return new QuestionAnsweringProcessor(tokenizer);
+        }
+    },
+    TEXT_SIMILARITY {
+        @Override
+        public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
+            return new TextSimilarityProcessor(tokenizer);
+        }
+    },
+    TEXT_EXPANSION {
+        @Override
+        public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
+            return new TextExpansionProcessor(tokenizer);
         }
     };
 

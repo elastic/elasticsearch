@@ -8,6 +8,8 @@
 
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.client.internal.Client;
@@ -35,7 +37,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -45,6 +46,8 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+
+    private static final Logger LOGGER = LogManager.getLogger(AbstractMultiClustersTestCase.class);
 
     private static volatile ClusterGroup clusterGroup;
 
@@ -121,23 +124,13 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         configureAndConnectsToRemoteClusters();
     }
 
-    @Override
-    public List<String> filteredWarnings() {
-        return Stream.concat(
-            super.filteredWarnings().stream(),
-            List.of(
-                "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing "
-                    + "multiple disks. This feature will be removed in a future release."
-            ).stream()
-        ).collect(Collectors.toList());
-    }
-
     @After
     public void assertAfterTest() throws Exception {
         for (InternalTestCluster cluster : clusters().values()) {
             cluster.wipe(Set.of());
             cluster.assertAfterTest();
         }
+        ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
     @AfterClass
@@ -176,12 +169,27 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     }
 
     protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
+        final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
         Settings.Builder settings = Settings.builder();
-        final String seed = seedNodes.stream().map(node -> {
+        final List<String> seedAdresses = seedNodes.stream().map(node -> {
             final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
             return transportService.boundAddress().publishAddress().toString();
-        }).collect(Collectors.joining(","));
-        settings.put("cluster.remote." + clusterAlias + ".seeds", seed);
+        }).toList();
+        if (randomBoolean()) {
+            LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
+            settings.putNull(remoteClusterSettingPrefix + "proxy_address")
+                .put(remoteClusterSettingPrefix + "mode", "sniff")
+                .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAdresses))
+                .build();
+        } else {
+            final String proxyNode = randomFrom(seedAdresses);
+            LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, seedNodes);
+            settings.putNull(remoteClusterSettingPrefix + "seeds")
+                .put(remoteClusterSettingPrefix + "mode", "proxy")
+                .put(remoteClusterSettingPrefix + "proxy_address", proxyNode)
+                .build();
+        }
+
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         assertBusy(() -> {
             List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())

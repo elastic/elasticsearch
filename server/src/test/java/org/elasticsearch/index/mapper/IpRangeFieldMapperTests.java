@@ -11,9 +11,11 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -52,6 +54,11 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         return false;
     }
 
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
     public void testStoreCidr() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip_range").field("store", true)));
@@ -62,18 +69,28 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", entry.getKey())));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(3, fields.length);
-            IndexableField dvField = fields[0];
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(3, fields.size());
+            IndexableField dvField = fields.get(0);
             assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
-            IndexableField pointField = fields[1];
+            IndexableField pointField = fields.get(1);
             assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
-            IndexableField storedField = fields[2];
+            IndexableField storedField = fields.get(2);
             assertTrue(storedField.fieldType().stored());
             String strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0"))
                 + " : "
                 + InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
             assertThat(storedField.stringValue(), containsString(strVal));
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

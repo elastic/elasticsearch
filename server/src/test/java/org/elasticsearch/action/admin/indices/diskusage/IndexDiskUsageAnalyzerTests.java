@@ -9,11 +9,14 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
-import org.apache.lucene.codecs.lucene91.Lucene91Codec;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.BinaryPoint;
@@ -21,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -41,13 +45,26 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
@@ -63,13 +80,34 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexDiskUsageAnalyzerTests extends ESTestCase {
+    private static final int DEFAULT_VECTOR_DIMENSION = 128;
+
+    protected static Directory createNewDirectory() {
+        final Directory dir = LuceneTestCase.newDirectory();
+        if (randomBoolean()) {
+            return new FilterDirectory(dir) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        analyzeDiskUsageAfterDeleteRandomDocuments(dir);
+                    } finally {
+                        super.close();
+                    }
+                }
+            };
+        } else {
+            return dir;
+        }
+    }
 
     public void testStoredFields() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -122,7 +160,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testTermVectors() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final FieldType fieldType = randomTermVectorsFieldType();
@@ -174,7 +212,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testBinaryPoints() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -210,8 +248,30 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testKnnVectors() throws Exception {
+        try (Directory dir = createNewDirectory()) {
+            final CodecMode codec = randomFrom(CodecMode.values());
+            VectorSimilarityFunction similarity = randomFrom(VectorSimilarityFunction.values());
+            int numDocs = between(1000, 5000);
+            int dimension = between(10, 200);
+
+            indexRandomly(dir, codec, numDocs, doc -> {
+                float[] vector = randomVector(dimension);
+                doc.add(new KnnFloatVectorField("vector", vector, similarity));
+            });
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            logger.info("--> stats {}", stats);
+
+            long dataBytes = (long) numDocs * dimension * Float.BYTES; // size of flat vector data
+            long indexBytesEstimate = (long) numDocs * (Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN / 4); // rough size of HNSW graph
+            assertThat("numDocs=" + numDocs + ";dimension=" + dimension, stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
+            long connectionOverhead = stats.total().getKnnVectorsBytes() - dataBytes;
+            assertThat("numDocs=" + numDocs, connectionOverhead, greaterThan(indexBytesEstimate));
+        }
+    }
+
     public void testTriangle() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -266,7 +326,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     public void testCompletionField() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(false)
-            .setCodec(new Lucene91Codec(Lucene91Codec.Mode.BEST_SPEED) {
+            .setCodec(new Lucene95Codec(Lucene95Codec.Mode.BEST_SPEED) {
                 @Override
                 public PostingsFormat getPostingsFormatForField(String field) {
                     if (field.startsWith("suggest_")) {
@@ -277,7 +337,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
             });
 
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, config)) {
                 int numDocs = randomIntBetween(100, 1000);
                 for (int i = 0; i < numDocs; i++) {
@@ -330,12 +390,12 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testMixedFields() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), IndexDiskUsageAnalyzerTests::addRandomFields);
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
-            try (Directory perFieldDir = newDirectory()) {
+            try (Directory perFieldDir = createNewDirectory()) {
                 rewriteIndexWithPerFieldCodec(dir, codec, perFieldDir);
                 final IndexDiskUsageStats perFieldStats = collectPerFieldStats(perFieldDir);
                 assertStats(stats, perFieldStats);
@@ -353,25 +413,25 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     enum CodecMode {
         BEST_SPEED {
             @Override
-            Lucene91Codec.Mode mode() {
-                return Lucene91Codec.Mode.BEST_SPEED;
+            Lucene95Codec.Mode mode() {
+                return Lucene95Codec.Mode.BEST_SPEED;
             }
         },
 
         BEST_COMPRESSION {
             @Override
-            Lucene91Codec.Mode mode() {
-                return Lucene91Codec.Mode.BEST_COMPRESSION;
+            Lucene95Codec.Mode mode() {
+                return Lucene95Codec.Mode.BEST_COMPRESSION;
             }
         };
 
-        abstract Lucene91Codec.Mode mode();
+        abstract Lucene95Codec.Mode mode();
     }
 
     static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields) throws IOException {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(randomBoolean())
-            .setCodec(new Lucene91Codec(codecMode.mode()));
+            .setCodec(new Lucene95Codec(codecMode.mode()));
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < numDocs; i++) {
                 final Document doc = new Document();
@@ -457,6 +517,21 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    static void addRandomKnnVectors(Document doc) {
+        int numFields = randomFrom(1, 3);
+        for (int f = 0; f < numFields; f++) {
+            doc.add(new KnnFloatVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
+        }
+    }
+
+    private static float[] randomVector(int dimension) {
+        float[] vec = new float[dimension];
+        for (int i = 0; i < vec.length; i++) {
+            vec[i] = randomFloat();
+        }
+        return vec;
+    }
+
     static void addRandomFields(Document doc) {
         if (randomBoolean()) {
             addRandomDocValuesField(doc);
@@ -486,11 +561,15 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         if (randomBoolean()) {
             addRandomTermVectors(doc);
         }
+        if (randomBoolean()) {
+            addRandomKnnVectors(doc);
+        }
     }
 
     static class FieldLookup {
         private final Map<String, FieldInfo> dvSuffixes = new HashMap<>();
         private final Map<String, FieldInfo> postingsSuffixes = new HashMap<>();
+        private final Map<String, FieldInfo> vectorSuffixes = new HashMap<>();
 
         FieldLookup(FieldInfos fieldInfos) {
             for (FieldInfo field : fieldInfos) {
@@ -503,6 +582,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                     String dvSuffix = attributes.get(PerFieldDocValuesFormat.PER_FIELD_SUFFIX_KEY);
                     if (dvSuffix != null) {
                         dvSuffixes.put(dvSuffix, field);
+                    }
+                    String vectorSuffix = attributes.get(PerFieldKnnVectorsFormat.PER_FIELD_SUFFIX_KEY);
+                    if (vectorSuffix != null) {
+                        vectorSuffixes.put(vectorSuffix, field);
                     }
                 }
             }
@@ -543,13 +626,20 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             assertThat("postingsSuffixes[" + postingsSuffixes + "] fileName[" + fileName + "]", field, notNullValue());
             return field.name;
         }
+
+        String getVectorsField(String fileName) {
+            final String suffix = parseSuffix(fileName);
+            final FieldInfo field = vectorSuffixes.get(suffix);
+            assertThat("vectorSuffixes[" + vectorSuffixes + "] fileName[" + fileName + "]", field, notNullValue());
+            return field.name;
+        }
     }
 
     static void rewriteIndexWithPerFieldCodec(Directory source, CodecMode mode, Directory dst) throws IOException {
         try (DirectoryReader reader = DirectoryReader.open(source)) {
             IndexWriterConfig config = new IndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setUseCompoundFile(randomBoolean())
-                .setCodec(new Lucene91Codec(mode.mode()) {
+                .setCodec(new Lucene95Codec(mode.mode()) {
                     @Override
                     public PostingsFormat getPostingsFormatForField(String field) {
                         return new Lucene90PostingsFormat();
@@ -558,6 +648,11 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                     @Override
                     public DocValuesFormat getDocValuesFormatForField(String field) {
                         return new Lucene90DocValuesFormat();
+                    }
+
+                    @Override
+                    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+                        return new Lucene95HnswVectorsFormat();
                     }
 
                     @Override
@@ -614,6 +709,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                         stats.addStoredField("_all_stored_fields", bytes);
                     case TVX, TVD -> stats.addTermVectors("_all_vectors_fields", bytes);
                     case NVD, NVM -> stats.addNorms("_all_norms_fields", bytes);
+                    case VEM, VEC, VEX -> stats.addKnnVectors(fieldLookup.getVectorsField(file), bytes);
                 }
             }
         } finally {
@@ -643,6 +739,8 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 0.01,
                 2048
             );
+
+            assertFieldStats(field, "knn vectors", actualField.getKnnVectorsBytes(), expectedField.getKnnVectorsBytes(), 0.01, 1024);
         }
         // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();
@@ -679,5 +777,70 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
     private static ShardId testShardId() {
         return new ShardId("test_index", "_na_", randomIntBetween(0, 3));
+    }
+
+    private static class RandomMatchQuery extends Query {
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new ConstantScoreWeight(this, 1.0f) {
+                @Override
+                public Scorer scorer(LeafReaderContext context) {
+                    final FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    for (int i = 0; i < bits.length(); i++) {
+                        if (randomBoolean()) {
+                            bits.set(i);
+                        }
+                    }
+                    return new ConstantScoreScorer(this, 1.0f, ScoreMode.COMPLETE_NO_SCORES, new BitSetIterator(bits, bits.length()));
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "RandomMatchQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+    }
+
+    /**
+     * Asserts that we properly handle situations where segments have FieldInfos, but associated documents are gone
+     */
+    private static void analyzeDiskUsageAfterDeleteRandomDocuments(Directory dir) throws IOException {
+        int iterations = between(5, 20);
+        for (int i = 0; i < iterations; i++) {
+            IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true);
+            final IndexWriter.DocStats docStats;
+            try (IndexWriter writer = new IndexWriter(dir, config); DirectoryReader reader = DirectoryReader.open(writer)) {
+                writer.deleteDocuments(new RandomMatchQuery());
+                writer.flush();
+                writer.commit();
+                docStats = writer.getDocStats();
+            }
+            IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            if (docStats.numDocs == 0) {
+                return;
+            }
+            assertThat(stats.total().getPointsBytes(), greaterThanOrEqualTo(0L));
+        }
     }
 }

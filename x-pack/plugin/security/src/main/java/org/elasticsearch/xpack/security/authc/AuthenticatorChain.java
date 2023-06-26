@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -29,11 +28,12 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.core.Strings.format;
 
 class AuthenticatorChain {
 
@@ -73,6 +73,7 @@ class AuthenticatorChain {
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
         final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+            assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
             return authentication;
         });
@@ -114,19 +115,19 @@ class AuthenticatorChain {
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
         // because of either a successful authentication or a not-continuable failure.
         final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
-            ActionListener.wrap(result -> {
+            listener.delegateFailureAndWrap((l, result) -> {
                 assert result.getStatus() != AuthenticationResult.Status.TERMINATE
                     : "terminate should already be handled by each individual authenticator";
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                    maybeLookupRunAsUser(context, result.getValue(), listener);
+                    maybeLookupRunAsUser(context, result.getValue(), l);
                 } else {
                     if (context.shouldHandleNullToken()) {
-                        handleNullToken(context, listener);
+                        handleNullToken(context, l);
                     } else {
-                        listener.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
+                        l.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
                     }
                 }
-            }, listener::onFailure),
+            }),
             getAuthenticatorConsumer(context, shouldExtractCredentials),
             allAuthenticators,
             context.getThreadContext(),
@@ -203,35 +204,28 @@ class AuthenticatorChain {
             return;
         }
 
-        // Run-as is supported for authentication with realm or api_key. Run-as for other authentication types is ignored.
-        // Both realm user and api_key can create tokens. They can also run-as another user and create tokens.
-        // In both cases, the created token will have a TOKEN authentication type and hence does not support run-as.
-        if (Authentication.AuthenticationType.REALM != authentication.getAuthenticationType()
-            && Authentication.AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
-            logger.info(
-                "ignore run-as header since it is currently not supported for authentication type [{}]",
-                authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
-            );
+        if (false == authentication.supportsRunAs(anonymousUser)) {
+            logger.info("ignore run-as header since it is currently not supported for authentication [{}]", authentication);
             finishAuthentication(context, authentication, listener);
             return;
         }
 
         // Now we have a valid runAsUsername
-        realmsAuthenticator.lookupRunAsUser(context, authentication, ActionListener.wrap(tuple -> {
+        realmsAuthenticator.lookupRunAsUser(context, authentication, listener.delegateFailureAndWrap((l, tuple) -> {
             final Authentication finalAuth;
             if (tuple == null) {
                 logger.debug(
                     "Cannot find run-as user [{}] for authenticated user [{}]",
                     runAsUsername,
-                    authentication.getUser().principal()
+                    authentication.getAuthenticatingSubject().getUser().principal()
                 );
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
                 finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);
             } else {
                 finalAuth = authentication.runAs(tuple.v1(), tuple.v2().realmRef());
             }
-            finishAuthentication(context, finalAuth, listener);
-        }, listener::onFailure));
+            finishAuthentication(context, finalAuth, l);
+        }));
     }
 
     /**
@@ -244,16 +238,10 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "caught exception while trying to read authentication from request [{}]",
-                    context.getRequest()
-                ),
-                e
-            );
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
-        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
+        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableHttpRequest) {
             throw context.getRequest().tamperedRequest();
         }
         return authentication;
@@ -329,9 +317,10 @@ class AuthenticatorChain {
      * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
     void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
-        if (authentication.getUser().enabled() == false || authentication.getUser().authenticatedUser().enabled() == false) {
+        if (authentication.getEffectiveSubject().getUser().enabled() == false
+            || authentication.getAuthenticatingSubject().getUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
-            logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
+            logger.debug("user [{}] is disabled. failing authentication", authentication.getEffectiveSubject().getUser());
             listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
         } else {
             writeAuthToContext(context, authentication, listener);
@@ -347,10 +336,7 @@ class AuthenticatorChain {
             authenticationSerializer.writeToContext(authentication, context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
-            logger.debug(
-                new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, context.getRequest()),
-                e
-            );
+            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);
             final ElasticsearchSecurityException ese = context.getRequest()
                 .exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken());
             addMetadata(context, ese);

@@ -30,7 +30,9 @@ A `normalize` aggregation looks like this in isolation:
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to normalize (see <<buckets-path-syntax, `buckets_path` syntax>> for more details) |Required |
 |`method` | The specific <<normalize_pipeline-method, method>> to apply | Required |
-|`format` |format to apply to the output value of this aggregation |Optional |`null`
+|`format` |{javadoc}/java.base/java/text/DecimalFormat.html[DecimalFormat pattern] for the
+output value. If specified, the formatted value is returned in the aggregation's
+`value_as_string` property |Optional |`null`
 |===
 
 ==== Methods
@@ -70,7 +72,7 @@ _mean_::
 
                 [4.63, 4.63, 9.63, 49.63, 9.63, 9.63, 19.63]
 
-_zscore_::
+_z-score_::
                 This method normalizes such that each value represents how far it is from the mean relative to the standard deviation
 
                 x' = (x - mean_x) / stdev_x

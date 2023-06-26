@@ -51,16 +51,6 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     }
 
     @Override
-    public float increment(long index, float inc) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        final byte[] page = pages[pageIndex];
-        final float newVal = (float) VH_PLATFORM_NATIVE_FLOAT.get(page, indexInPage << 2) + inc;
-        VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, newVal);
-        return newVal;
-    }
-
-    @Override
     public float get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);

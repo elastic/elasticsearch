@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -48,7 +47,7 @@ public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
         return new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringMigrateAlertsResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                return new RestResponse(RestStatus.OK, response.toXContent(builder, ToXContent.EMPTY_PARAMS));
             }
         };
     }

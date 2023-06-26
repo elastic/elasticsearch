@@ -1,0 +1,6 @@
+pr: 96407
+summary: Add `thread_pool` information to the cluster info endpoint
+area: Stats
+type: enhancement
+issues:
+ - 95393

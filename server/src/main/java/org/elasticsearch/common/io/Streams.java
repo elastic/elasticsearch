@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;
 import java.io.FilterInputStream;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -137,38 +136,6 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(Reader reader, char[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
-    public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
     /**
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
@@ -199,27 +166,6 @@ public abstract class Streams {
      */
     public static InputStream noCloseStream(InputStream stream) {
         return new FilterInputStream(stream) {
-            @Override
-            public void close() {
-                // noop
-            }
-        };
-    }
-
-    /**
-     * Wraps an {@link OutputStream} such that it's {@code close} method becomes a noop
-     *
-     * @param stream {@code OutputStream} to wrap
-     * @return wrapped {@code OutputStream}
-     */
-    public static OutputStream noCloseStream(OutputStream stream) {
-        return new FilterOutputStream(stream) {
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                out.write(b, off, len);
-            }
-
             @Override
             public void close() {
                 // noop
@@ -282,11 +228,6 @@ public abstract class Streams {
         @Override
         public void close() throws IOException {
             flush();
-        }
-
-        @Override
-        public void reset() throws IOException {
-            delegate.reset();
         }
 
         @Override

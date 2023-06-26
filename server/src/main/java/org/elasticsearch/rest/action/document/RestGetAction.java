@@ -17,6 +17,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -29,6 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
@@ -78,6 +81,9 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
+        if (request.paramAsBoolean("force_synthetic_source", false)) {
+            getRequest.setForceSyntheticSource(true);
+        }
 
         return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
             @Override

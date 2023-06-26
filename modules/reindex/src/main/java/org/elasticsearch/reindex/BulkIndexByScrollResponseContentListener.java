@@ -11,7 +11,6 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -38,7 +37,7 @@ public class BulkIndexByScrollResponseContentListener extends RestBuilderListene
         builder.startObject();
         response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
         builder.endObject();
-        return new BytesRestResponse(getStatus(response), builder);
+        return new RestResponse(getStatus(response), builder);
     }
 
     private RestStatus getStatus(BulkByScrollResponse response) {

@@ -1,17 +1,28 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
+coming::[{minor-version}]
+
 Here are the highlights of what's new and improved in {es} {minor-version}!
-ifeval::[\{release-state}\"!=\"unreleased\"]
+ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-endif::[]
 
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.1/release-highlights.html[8.1]
+{ref-bare}/8.9/release-highlights.html[8.9]
+| {ref-bare}/8.8/release-highlights.html[8.8]
+| {ref-bare}/8.7/release-highlights.html[8.7]
+| {ref-bare}/8.6/release-highlights.html[8.6]
+| {ref-bare}/8.5/release-highlights.html[8.5]
+| {ref-bare}/8.4/release-highlights.html[8.4]
+| {ref-bare}/8.3/release-highlights.html[8.3]
+| {ref-bare}/8.2/release-highlights.html[8.2]
+| {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
+
+endif::[]
 
 // The notable-highlights tag marks entries that
 // should be featured in the Stack Installation and Upgrade Guide:
@@ -22,9 +33,4 @@ Other versions:
 // Description.
 // end::notable-highlights[]
 
-
-[discrete]
-[[integrate_filtering_support_for_approximate_nearest_neighbor_search]]
-=== Integrate filtering support for approximate nearest neighbor search
-The {ref}/knn-search-api.html[_knn_search endpoint] now has a "filter" option that allows to return only the nearest documents that satisfy the provided filter
 

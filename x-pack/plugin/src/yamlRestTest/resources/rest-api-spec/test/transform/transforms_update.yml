@@ -188,6 +188,7 @@ setup:
   - match: { sync.time.field: "time" }
   - match: { sync.time.delay: "120m" }
   - match: { frequency: "5s" }
+  - is_true: authorization.roles
 
   - do:
       transform.get_transform:
@@ -205,6 +206,7 @@ setup:
   - match: { transforms.0.sync.time.field: "time" }
   - match: { transforms.0.sync.time.delay: "120m" }
   - match: { transforms.0.frequency: "5s" }
+  - is_true: transforms.0.authorization.roles
 
 ---
 "Test update retention policy":
@@ -235,6 +237,7 @@ setup:
   - match: { transforms.0.id: "updating-airline-transform" }
   - match: { transforms.0.retention_policy.time.field: "time" }
   - match: { transforms.0.retention_policy.time.max_age: "24h" }
+  - is_true: transforms.0.authorization.roles
 
   - do:
       transform.update_transform:
@@ -390,6 +393,7 @@ setup:
   - match: { _meta.baz.a1: 11 }
   - match: { _meta.baz.a2: 22 }
   - is_false: _meta.baz.a3
+  - is_true: authorization.roles
 
   - do:
       transform.get_transform:
@@ -401,6 +405,7 @@ setup:
   - match: { transforms.0._meta.baz.a1: 11 }
   - match: { transforms.0._meta.baz.a2: 22 }
   - is_false: transforms.0._meta.baz.a3
+  - is_true: transforms.0.authorization.roles
 
   - do:
       transform.update_transform:
@@ -421,6 +426,7 @@ setup:
   - is_false: _meta.baz.a1  # "baz.a1" disappeared as the metadata update is implemented as full replace
   - match: { _meta.baz.a2: 222 }
   - match: { _meta.baz.a3: 333 }
+  - is_true: authorization.roles
 
   - do:
       transform.get_transform:
@@ -432,3 +438,4 @@ setup:
   - is_false: transforms.0._meta.baz.a1
   - match: { transforms.0._meta.baz.a2: 222 }
   - match: { transforms.0._meta.baz.a3: 333 }
+  - is_true: transforms.0.authorization.roles

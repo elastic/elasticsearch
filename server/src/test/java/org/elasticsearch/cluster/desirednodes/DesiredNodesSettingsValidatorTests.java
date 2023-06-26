@@ -19,11 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
-import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodeList;
-import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodeListWithRandomSettings;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -40,18 +37,18 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             NODE_EXTERNAL_ID_SETTING,
             NODE_NAME_SETTING
         );
-        final Consumer<Settings.Builder> settingsProvider = settings -> {
-            if (randomBoolean()) {
-                settings.put("test.invalid_value", randomAlphaOfLength(10));
-            } else {
-                settings.put("test.invalid_range", randomFrom(-1, Integer.MAX_VALUE));
-            }
-        };
+        final Settings.Builder settings = Settings.builder();
+
+        if (randomBoolean()) {
+            settings.put("test.invalid_value", randomAlphaOfLength(10));
+        } else {
+            settings.put("test.invalid_range", randomFrom(-1, Integer.MAX_VALUE));
+        }
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
-        final List<DesiredNode> desiredNodes = randomDesiredNodeList(Version.CURRENT, settingsProvider);
+        final List<DesiredNode> desiredNodes = randomList(2, 10, () -> randomDesiredNode(Version.CURRENT, settings.build()));
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
         assertThat(exception.getMessage(), containsString("Nodes with ids"));
@@ -61,7 +58,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
     }
 
     public void testNodeVersionValidation() {
-        final List<DesiredNode> desiredNodes = List.of(randomDesiredNode(Version.CURRENT.previousMajor(), (settings) -> {}));
+        final List<DesiredNode> desiredNodes = List.of(randomDesiredNode(Version.CURRENT.previousMajor(), Settings.EMPTY));
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
@@ -76,7 +73,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
     public void testUnknownSettingsInKnownVersionsAreInvalid() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
-        final List<DesiredNode> desiredNodes = randomDesiredNodeList(Version.CURRENT, settings -> {});
+        final List<DesiredNode> desiredNodes = randomList(2, 10, () -> randomDesiredNode(Version.CURRENT, Settings.EMPTY));
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
         assertThat(exception.getMessage(), containsString("Nodes with ids"));
@@ -85,11 +82,18 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("unknown setting"));
     }
 
-    public void testSettingsInFutureVersionsAreNotValidated() {
+    public void testUnknownSettingsInFutureVersionsAreNotValidated() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
-        final List<DesiredNode> desiredNodes = randomDesiredNodeListWithRandomSettings(Version.fromString("99.9.0"));
+        final List<DesiredNode> desiredNodes = randomList(
+            1,
+            10,
+            () -> randomDesiredNode(
+                Version.fromString("99.9.0"),
+                Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build()
+            )
+        );
         validator.validate(desiredNodes);
     }
 
@@ -116,7 +120,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             int desiredNodeProcessors = 128;
             Settings nodeSettings = Settings.builder()
                 .put(NODE_EXTERNAL_ID_SETTING.getKey(), randomAlphaOfLength(10))
-                .put(NODE_PROCESSORS_SETTING.getKey(), desiredNodeProcessors + 1)
+                .put(NODE_PROCESSORS_SETTING.getKey(), desiredNodeProcessors + 1.1)
                 .build();
             final List<DesiredNode> desiredNodes = List.of(
                 new DesiredNode(nodeSettings, desiredNodeProcessors, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
@@ -128,7 +132,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
             assertThat(
                 exception.getSuppressed()[0].getMessage(),
-                containsString("Failed to parse value [129] for setting [node.processors] must be <= 128")
+                containsString("Failed to parse value [129.1] for setting [node.processors] must be <= 128.0")
             );
         }
 

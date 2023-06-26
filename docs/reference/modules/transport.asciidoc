@@ -7,7 +7,7 @@ independently of the <<http-settings,HTTP interface>>. Use the
 settings>> to configure both interfaces together.
 
 `transport.host`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 Sets the address of this node for transport traffic. The node will bind to this
 address and will also use it as its transport publish address. Accepts an IP
 address, a hostname, or a <<network-interface-values,special value>>.
@@ -17,7 +17,7 @@ transport and HTTP interfaces.
 Defaults to the address given by `network.host`.
 
 `transport.bind_host`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 The network address(es) to which the node should bind in order to listen for
 incoming transport connections. Accepts a list of IP addresses, hostnames, and
 <<network-interface-values,special values>>. Defaults to the address given by
@@ -27,7 +27,7 @@ binding, and you also require different binding configurations for the
 transport and HTTP interfaces.
 
 `transport.publish_host`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 The network address at which the node can be contacted by other nodes. Accepts
 an IP address, a hostname, or a <<network-interface-values,special value>>.
 Defaults to the address given by `transport.host` or `network.publish_host`.
@@ -36,19 +36,19 @@ different addresses for publishing and binding, and you also require different
 binding configurations for the transport and HTTP interfaces.
 
 `transport.publish_port`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, integer)
 The port of the <<modules-network-binding-publishing,transport publish
 address>>. Set this parameter only if you need the publish port to be
 different from `transport.port`. Defaults to the port assigned via
 `transport.port`.
 
 `transport.connect_timeout`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, <<time-units,time value>>)
 The connect timeout for initiating a new connection (in
 time setting format). Defaults to `30s`.
 
 `transport.compress`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 Set to `true`, `indexing_data`, or `false` to configure transport compression
 between nodes. The option `true` will compress all data. The option
 `indexing_data` will compress only the raw index data sent between nodes during
@@ -56,72 +56,71 @@ ingest, ccr following (excluding bootstrap), and operations based shard recovery
 (excluding transferring lucene files). Defaults to `indexing_data`.
 
 `transport.compression_scheme`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 Configures the compression scheme for `transport.compress`. The options are
 `deflate` or `lz4`. If `lz4` is configured and the remote node has not been
 upgraded to a version supporting `lz4`, the traffic will be sent uncompressed.
 Defaults to `lz4`.
 
-`transport.ping_schedule`::
-(<<static-cluster-setting,Static>>)
-Schedule a regular application-level ping message
-to ensure that transport connections between nodes are kept alive. Defaults to
-`5s` in the transport client and `-1` (disabled) elsewhere. It is preferable
-to correctly configure TCP keep-alives instead of using this feature, because
-TCP keep-alives apply to all kinds of long-lived connections and not just to
-transport connections.
-
-`transport.tcp.no_delay`::
-(<<static-cluster-setting,Static>>)
-Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
-setting. Defaults to `network.tcp.no_delay`.
-
 `transport.tcp.keep_alive`::
-(<<static-cluster-setting,Static>>)
-Configures the `SO_KEEPALIVE` option for this socket, which
-determines whether it sends TCP keepalive probes.
-Defaults to `network.tcp.keep_alive`.
+(<<static-cluster-setting,Static>>, boolean)
+Configures the `SO_KEEPALIVE` option for transport sockets, which determines
+whether they send TCP keepalive probes. Defaults to `network.tcp.keep_alive`.
 
 `transport.tcp.keep_idle`::
-(<<static-cluster-setting,Static>>)
-Configures the `TCP_KEEPIDLE` option for this socket, which
-determines the time in seconds that a connection must be idle before
-starting to send TCP keepalive probes. Defaults to `network.tcp.keep_idle` if set,
-or the system default otherwise.
-This value cannot exceed `300` seconds. In cases where the system default
-is higher than `300`, the value is automatically lowered to `300`. Only applicable on
-Linux and macOS, and requires Java 11 or newer.
+(<<static-cluster-setting,Static>>, integer)
+Configures the `TCP_KEEPIDLE` option for transport sockets, which determines
+the time in seconds that a connection must be idle before starting to send TCP
+keepalive probes. Defaults to `network.tcp.keep_idle` if set, or the system
+default otherwise. This value cannot exceed `300` seconds. In cases where the
+system default is higher than `300`, the value is automatically lowered to
+`300`. Only applicable on Linux and macOS.
 
 `transport.tcp.keep_interval`::
-(<<static-cluster-setting,Static>>)
-Configures the `TCP_KEEPINTVL` option for this socket,
-which determines the time in seconds between sending TCP keepalive probes.
-Defaults to `network.tcp.keep_interval` if set, or the system default otherwise.
-This value cannot exceed `300` seconds. In cases where the system default is higher than `300`,
-the value is automatically lowered to `300`. Only applicable on Linux and macOS,
-and requires Java 11 or newer.
+(<<static-cluster-setting,Static>>, integer)
+Configures the `TCP_KEEPINTVL` option for transport sockets, which determines
+the time in seconds between sending TCP keepalive probes. Defaults to
+`network.tcp.keep_interval` if set, or the system default otherwise. This value
+cannot exceed `300` seconds. In cases where the system default is higher than
+`300`, the value is automatically lowered to `300`. Only applicable on Linux
+and macOS.
 
 `transport.tcp.keep_count`::
-(<<static-cluster-setting,Static>>)
-Configures the `TCP_KEEPCNT` option for this socket, which
-determines the number of unacknowledged TCP keepalive probes that may be
-sent on a connection before it is dropped. Defaults to `network.tcp.keep_count`
-if set, or the system default otherwise. Only applicable on Linux and macOS, and
-requires Java 11 or newer.
+(<<static-cluster-setting,Static>>, integer)
+Configures the `TCP_KEEPCNT` option for transport sockets, which determines the
+number of unacknowledged TCP keepalive probes that may be sent on a connection
+before it is dropped. Defaults to `network.tcp.keep_count` if set, or the
+system default otherwise. Only applicable on Linux and macOS.
+
+`transport.tcp.no_delay`::
+(<<static-cluster-setting,Static>>, boolean)
+Configures the `TCP_NODELAY` option on transport sockets, which determines
+whether {wikipedia}/Nagle%27s_algorithm[TCP no delay] is enabled. Defaults to
+`true`.
 
 `transport.tcp.reuse_address`::
-(<<static-cluster-setting,Static>>)
-Should an address be reused or not. Defaults to `network.tcp.reuse_address`.
+(<<static-cluster-setting,Static>>, boolean)
+Configures the `SO_REUSEADDR` option for network sockets, which determines
+whether the address can be reused or not. Defaults to
+`network.tcp.reuse_address`.
 
 `transport.tcp.send_buffer_size`::
-(<<static-cluster-setting,Static>>)
-The size of the TCP send buffer (specified with <<size-units,size units>>).
-Defaults to `network.tcp.send_buffer_size`.
+(<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
+The size of the TCP send buffer for transport traffic. Defaults to
+`network.tcp.send_buffer_size`.
 
 `transport.tcp.receive_buffer_size`::
-(<<static-cluster-setting,Static>>)
-The size of the TCP receive buffer (specified with <<size-units,size units>>).
-Defaults to `network.tcp.receive_buffer_size`.
+(<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
+The size of the TCP receive buffer for transport traffic. Defaults to
+`network.tcp.receive_buffer_size`.
+
+`transport.ping_schedule`::
+(<<static-cluster-setting,Static>>, <<time-units,time value>>)
+Configures the time between sending application-level pings on all transport
+connections to promptly detect when a transport connection has failed. Defaults
+to `-1` meaning that application-level pings are not sent. You should use TCP
+keepalives (see `transport.tcp.keep_alive`) instead of application-level pings
+wherever possible.
 
 [[transport-profiles]]
 ===== Transport profiles
@@ -187,7 +186,7 @@ The `transport.compress` setting always configures local cluster request
 compression and is the fallback setting for remote cluster request compression.
 If you want to configure remote request compression differently than local
 request compression, you can set it on a per-remote cluster basis using the
-<<remote-cluster-settings,`cluster.remote.${cluster_alias}.transport.compress` setting>>.
+<<remote-clusters-settings,`cluster.remote.${cluster_alias}.transport.compress` setting>>.
 
 
 [[response-compression]]

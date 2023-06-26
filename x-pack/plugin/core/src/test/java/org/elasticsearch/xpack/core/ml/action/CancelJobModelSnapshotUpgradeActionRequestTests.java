@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction.Request;
 
-public class CancelJobModelSnapshotUpgradeActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class CancelJobModelSnapshotUpgradeActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -21,6 +21,11 @@ public class CancelJobModelSnapshotUpgradeActionRequestTests extends AbstractSer
             request.setAllowNoMatch(randomBoolean());
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

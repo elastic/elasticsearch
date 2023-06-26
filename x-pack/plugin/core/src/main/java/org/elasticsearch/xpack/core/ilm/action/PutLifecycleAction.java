@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
@@ -62,8 +63,12 @@ public class PutLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            this.policy.validate();
             ActionRequestValidationException err = null;
+            try {
+                this.policy.validate();
+            } catch (IllegalArgumentException iae) {
+                err = ValidateActions.addValidationError(iae.getMessage(), null);
+            }
             String phaseTimingErr = TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings(this.policy.getPhases().values());
             if (Strings.hasText(phaseTimingErr)) {
                 err = new ActionRequestValidationException();

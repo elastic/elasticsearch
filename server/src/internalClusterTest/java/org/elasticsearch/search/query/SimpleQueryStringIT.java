@@ -34,7 +34,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -65,7 +64,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockAnalysisPlugin.class);
+        return List.of(MockAnalysisPlugin.class);
     }
 
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {
@@ -340,7 +339,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("location", "Köln"));
         refresh();
@@ -387,7 +386,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("body", "Some Text"));
         refresh();

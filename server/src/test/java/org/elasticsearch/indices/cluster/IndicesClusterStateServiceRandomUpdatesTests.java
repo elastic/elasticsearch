@@ -8,8 +8,7 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -69,6 +69,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPA
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -106,7 +107,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     state = randomlyUpdateClusterState(state, clusterStateServiceMap, MockIndicesService::new);
                 } catch (AssertionError error) {
                     ClusterState finalState = state;
-                    logger.error(() -> new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
+                    logger.error(() -> format("failed to random change state. last good state: \n%s", finalState), error);
                     throw error;
                 }
             }
@@ -121,8 +122,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     indicesClusterStateService.applyClusterState(event);
                 } catch (AssertionError error) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "failed to apply change on [{}].\n ***  Previous state ***\n{}\n ***  New state ***\n{}",
+                        () -> format(
+                            "failed to apply change on [%s].\n ***  Previous state ***\n%s\n ***  New state ***\n%s",
                             node,
                             event.previousState(),
                             event.state()
@@ -157,7 +158,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // a cluster state derived from the initial state that includes a created index
         String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         ShardRoutingState[] replicaStates = new ShardRoutingState[randomIntBetween(0, 3)];
-        Arrays.fill(replicaStates, ShardRoutingState.INITIALIZING);
+        Arrays.fill(replicaStates, ShardRoutingState.UNASSIGNED);
         ClusterState stateWithIndex = ClusterStateCreationUtils.state(name, randomBoolean(), ShardRoutingState.INITIALIZING, replicaStates);
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
@@ -220,6 +221,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             ShardRoutingState.STARTED,
             ShardRoutingState.INITIALIZING
         );
+        state = ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(state.nodes().getLocalNodeId())).build();
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState previousState = ClusterState.builder(state)
@@ -247,6 +249,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
         state = cluster.closeIndices(state, closeIndexRequest);
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+        openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
         state = cluster.openIndices(state, openIndexRequest);
 
         localState = adaptClusterStateToLocalNode(state, node);
@@ -407,6 +410,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         int numberOfIndicesToOpen = randomInt(Math.min(1, state.metadata().indices().size()));
         for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metadata().indices().keySet().toArray(new String[0]))) {
             OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+            openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.openIndices(state, openIndexRequest);
         }
 
@@ -463,7 +467,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    state = cluster.addNode(state, createNode());
+                    state = cluster.addNode(state, createNode(), TransportVersion.current());
                     updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
@@ -476,7 +480,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     }
                     if (randomBoolean()) {
                         // and add it back
-                        state = cluster.addNode(state, discoveryNode);
+                        state = cluster.addNode(state, discoveryNode, TransportVersion.current());
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }
@@ -493,8 +497,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
-        final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, Version.CURRENT);
+        final String id = format("node_%03d", nodeIdGenerator.incrementAndGet());
+        return DiscoveryNodeUtils.builder(id).name(id).roles(roles).build();
     }
 
     private static ClusterState adaptClusterStateToLocalNode(ClusterState state, DiscoveryNode node) {

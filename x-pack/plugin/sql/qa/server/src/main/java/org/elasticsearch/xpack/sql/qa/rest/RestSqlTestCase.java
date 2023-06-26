@@ -1171,9 +1171,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         int size = 20;
         String[] docs = new String[size];
         for (int i = 0; i < size; i++) {
-            docs[i] = """
+            docs[i] = org.elasticsearch.core.Strings.format("""
                 {"text":"text%s", "number":%s}
-                """.formatted(i, i);
+                """, i, i);
         }
         index(docs);
 
@@ -1219,10 +1219,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            bulk.append("""
+            bulk.append(org.elasticsearch.core.Strings.format("""
                 {"index":{"_id":"%s"}}
                 {"text":"text%s", "number":%s}
-                """.formatted(i, i, i));
+                """, i, i, i));
         }
         request.setJsonEntity(bulk.toString());
         provisioningClient().performRequest(request);
@@ -1587,7 +1587,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
             String mode = randomMode();
             Map<String, Object> answer = toMap(runSql(query(sql).mode(mode)), mode);
-            List<String> expected = Arrays.asList("integTest", dataStreamName, "VIEW", "ALIAS");
+            List<String> expected = Arrays.asList("javaRestTest", dataStreamName, "VIEW", "ALIAS");
             @SuppressWarnings("unchecked")
             List<List<String>> rows = (List<List<String>>) (answer.get("rows"));
             assertTrue(rows.contains(expected));

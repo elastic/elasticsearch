@@ -21,7 +21,7 @@ public class TrimTokenFilterFactory extends AbstractTokenFilterFactory implement
     private static final String UPDATE_OFFSETS_KEY = "update_offsets";
 
     TrimTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         if (settings.get(UPDATE_OFFSETS_KEY) != null) {
             throw new IllegalArgumentException(UPDATE_OFFSETS_KEY + " is not supported anymore. Please fix your analysis chain");
         }

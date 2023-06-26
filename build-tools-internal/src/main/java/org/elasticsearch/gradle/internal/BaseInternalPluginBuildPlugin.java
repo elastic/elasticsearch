@@ -11,7 +11,8 @@ package org.elasticsearch.gradle.internal;
 import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -33,13 +34,13 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(PluginBuildPlugin.class);
+        project.getPluginManager().apply(JarHellPrecommitPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin
         project.getConfigurations().getByName("compileOnly").getDependencies().clear();
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
-
-        project.getPluginManager().apply(RestTestBasePlugin.class);
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into
@@ -47,24 +48,27 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         // We might want to port this into a general pattern later on.
         project.getExtensions()
             .getExtraProperties()
-            .set("addQaCheckDependencies", new Closure<Object>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
-                public void doCall(Object it) {
-                    project.afterEvaluate(project1 -> {
-                        // let check depend on check tasks of qa sub-projects
-                        final var checkTaskProvider = project1.getTasks().named("check");
-                        Optional<Project> qaSubproject = project1.getSubprojects()
-                            .stream()
-                            .filter(p -> p.getPath().equals(project1.getPath() + ":qa"))
-                            .findFirst();
-                        qaSubproject.ifPresent(
-                            qa -> qa.getSubprojects()
-                                .forEach(p -> checkTaskProvider.configure(task -> task.dependsOn(p.getPath() + ":check")))
-                        );
-                    });
+            .set("addQaCheckDependencies", new Closure<Project>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
+                public void doCall(Project proj) {
+                    // This is only a convenience for local developers so make this a noop when running in CI
+                    if (BuildParams.isCi() == false) {
+                        proj.afterEvaluate(project1 -> {
+                            // let check depend on check tasks of qa sub-projects
+                            final var checkTaskProvider = project1.getTasks().named("check");
+                            Optional<Project> qaSubproject = project1.getSubprojects()
+                                .stream()
+                                .filter(p -> p.getPath().equals(project1.getPath() + ":qa"))
+                                .findFirst();
+                            qaSubproject.ifPresent(
+                                qa -> qa.getSubprojects()
+                                    .forEach(p -> checkTaskProvider.configure(task -> task.dependsOn(p.getPath() + ":check")))
+                            );
+                        });
+                    }
                 }
 
                 public void doCall() {
-                    doCall(null);
+                    doCall();
                 }
             });
 

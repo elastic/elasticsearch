@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -50,6 +49,7 @@ import java.util.zip.InflaterInputStream;
 
 import javax.xml.parsers.DocumentBuilder;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
 
@@ -97,7 +97,7 @@ public class SamlAuthnRequestValidator {
             // verify if we know of this SP and get its credentials for signature verification
             final Element root = parseSamlMessage(inflate(decodeBase64(parsedQueryString.samlRequest)));
             if (samlFactory.elementNameMatches(root, "urn:oasis:names:tc:SAML:2.0:protocol", "AuthnRequest") == false) {
-                logAndRespond(new ParameterizedMessage("SAML message [{}] is not an AuthnRequest", samlFactory.text(root, 128)), listener);
+                logAndRespond("SAML message [" + samlFactory.text(root, 128) + "] is not an AuthnRequest", listener);
                 return;
             }
             final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);
@@ -126,7 +126,7 @@ public class SamlAuthnRequestValidator {
         if (parameters.isEmpty()) {
             throw new ElasticsearchSecurityException("Invalid Authentication Request query string (zero parameters)");
         }
-        logger.trace(new ParameterizedMessage("Parsed the following parameters from the query string: {}", parameters));
+        logger.trace(() -> format("Parsed the following parameters from the query string: %s", parameters));
         final String samlRequest = parameters.get("SAMLRequest");
         if (null == samlRequest) {
             throw new ElasticsearchSecurityException(
@@ -155,8 +155,8 @@ public class SamlAuthnRequestValidator {
             if (Strings.hasText(parsedQueryString.signature)) {
                 if (Strings.hasText(parsedQueryString.sigAlg) == false) {
                     logAndRespond(
-                        new ParameterizedMessage(
-                            "Query string [{}] contains a Signature but SigAlg parameter is missing",
+                        org.elasticsearch.core.Strings.format(
+                            "Query string [%s] contains a Signature but SigAlg parameter is missing",
                             parsedQueryString.queryString
                         ),
                         listener
@@ -166,9 +166,9 @@ public class SamlAuthnRequestValidator {
                 final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
                 if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
                     logAndRespond(
-                        new ParameterizedMessage(
+                        org.elasticsearch.core.Strings.format(
                             "Unable to validate signature of authentication request, "
-                                + "Service Provider [{}] hasn't registered signing credentials",
+                                + "Service Provider [%s] hasn't registered signing credentials",
                             sp.getEntityId()
                         ),
                         listener
@@ -177,8 +177,8 @@ public class SamlAuthnRequestValidator {
                 }
                 if (validateSignature(parsedQueryString, spSigningCredentials) == false) {
                     logAndRespond(
-                        new ParameterizedMessage(
-                            "Unable to validate signature of authentication request [{}] using credentials [{}]",
+                        org.elasticsearch.core.Strings.format(
+                            "Unable to validate signature of authentication request [%s] using credentials [%s]",
                             parsedQueryString.queryString,
                             samlFactory.describeCredentials(spSigningCredentials)
                         ),
@@ -188,8 +188,8 @@ public class SamlAuthnRequestValidator {
                 }
             } else if (Strings.hasText(parsedQueryString.sigAlg)) {
                 logAndRespond(
-                    new ParameterizedMessage(
-                        "Query string [{}] contains a SigAlg parameter but Signature is missing",
+                    org.elasticsearch.core.Strings.format(
+                        "Query string [%s] contains a SigAlg parameter but Signature is missing",
                         parsedQueryString.queryString
                     ),
                     listener
@@ -197,8 +197,8 @@ public class SamlAuthnRequestValidator {
                 return;
             } else {
                 logAndRespond(
-                    new ParameterizedMessage(
-                        "The Service Provider [{}] must sign authentication requests but no signature was found",
+                    org.elasticsearch.core.Strings.format(
+                        "The Service Provider [%s] must sign authentication requests but no signature was found",
                         sp.getEntityId()
                     ),
                     listener
@@ -218,11 +218,7 @@ public class SamlAuthnRequestValidator {
             authnState
         );
         logger.trace(
-            new ParameterizedMessage(
-                "Validated AuthnResponse from queryString [{}] and extracted [{}]",
-                parsedQueryString.queryString,
-                response
-            )
+            () -> format("Validated AuthnResponse from queryString [%s] and extracted [%s]", parsedQueryString.queryString, response)
         );
         listener.onResponse(response);
     }
@@ -268,10 +264,7 @@ public class SamlAuthnRequestValidator {
                 );
             } catch (InvalidKeyException | SignatureException e) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "Signature verification failed for credential [{}]",
-                        samlFactory.describeCredentials(Set.of(credential))
-                    ),
+                    () -> format("Signature verification failed for credential [%s]", samlFactory.describeCredentials(Set.of(credential))),
                     e
                 );
                 return false;
@@ -375,10 +368,6 @@ public class SamlAuthnRequestValidator {
     private void logAndRespond(String message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
         logger.debug(message);
         listener.onFailure(new ElasticsearchSecurityException(message));
-    }
-
-    private void logAndRespond(ParameterizedMessage message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
-        logAndRespond(message.getFormattedMessage(), listener);
     }
 
     private void logAndRespond(String message, Throwable e, ActionListener<SamlValidateAuthnRequestResponse> listener) {

@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.idp.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.tasks.Task;
@@ -20,7 +20,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -43,7 +42,6 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -159,21 +157,19 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         if (withSecondaryAuth) {
             new SecondaryAuthentication(
                 securityContext,
-                new Authentication(
-                    new User(
-                        "saml_enduser",
-                        new String[] { "saml_enduser_role" },
-                        "Saml Enduser",
-                        "samlenduser@elastic.co",
-                        new HashMap<>(),
-                        true
-                    ),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    Version.CURRENT,
-                    Authentication.AuthenticationType.API_KEY,
-                    Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(20))
-                )
+                AuthenticationTestHelper.builder()
+                    .apiKey()
+                    .user(
+                        new User(
+                            "saml_enduser",
+                            new String[] { "saml_enduser_role" },
+                            "Saml Enduser",
+                            "samlenduser@elastic.co",
+                            new HashMap<>(),
+                            true
+                        )
+                    )
+                    .build()
             ).writeToContext(threadContext);
         }
 
@@ -230,10 +226,10 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
     }
 
     private void assertContainsAttributeWithValue(String message, String attribute, String value) {
-        assertThat(message, containsString("""
+        assertThat(message, containsString(Strings.format("""
             <saml2:Attribute FriendlyName="%s" Name="https://saml.elasticsearch.org/attributes/%s" \
             NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml2:AttributeValue \
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xsd:string">%s</saml2:AttributeValue>\
-            </saml2:Attribute>""".formatted(attribute, attribute, value)));
+            </saml2:Attribute>""", attribute, attribute, value)));
     }
 }

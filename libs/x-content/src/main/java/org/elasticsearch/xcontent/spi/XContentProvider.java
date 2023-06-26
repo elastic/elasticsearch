@@ -8,13 +8,14 @@
 
 package org.elasticsearch.xcontent.spi;
 
+import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.internal.ProviderLocator;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * A provider for the XContent API.
@@ -72,6 +73,25 @@ public interface XContentProvider {
      * Returns the located provider instance.
      */
     static XContentProvider provider() {
-        return ProviderLocator.INSTANCE;
+        return Holder.INSTANCE;
+    }
+
+    /** A holder for the provider instance. */
+    class Holder {
+
+        private Holder() {}
+
+        private static final String PROVIDER_NAME = "x-content";
+
+        private static final String PROVIDER_MODULE_NAME = "org.elasticsearch.xcontent.impl";
+
+        private static final Set<String> MISSING_MODULES = Set.of("com.fasterxml.jackson.databind");
+
+        private static final XContentProvider INSTANCE = (new ProviderLocator<>(
+            PROVIDER_NAME,
+            XContentProvider.class,
+            PROVIDER_MODULE_NAME,
+            MISSING_MODULES
+        )).get();
     }
 }

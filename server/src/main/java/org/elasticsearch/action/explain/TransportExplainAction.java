@@ -23,6 +23,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
@@ -37,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.LongSupplier;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
@@ -71,7 +74,14 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(task, request, listener);
+        ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
+            request.query(rewrittenQuery);
+            super.doExecute(task, request, l);
+        });
+
+        assert request.query() != null;
+        LongSupplier timeProvider = () -> request.nowInMillis;
+        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider), rewriteListener);
     }
 
     @Override
@@ -91,7 +101,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        indexShard.awaitShardSearchActive(b -> {
+        indexShard.ensureShardSearchActive(b -> {
             try {
                 super.asyncShardOperation(request, shardId, listener);
             } catch (Exception ex) {

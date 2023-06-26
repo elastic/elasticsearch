@@ -8,10 +8,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -23,6 +22,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -39,6 +39,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexingPressure;
@@ -66,6 +68,8 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
+
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
@@ -76,6 +80,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final Consumer<Runnable> postWriteAction;
 
     @Inject
     public TransportShardBulkAction(
@@ -109,6 +114,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.postWriteAction = WriteAckDelay.create(settings, threadPool);
     }
 
     @Override
@@ -147,7 +153,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary));
+        }), listener, threadPool, executor(primary), postWriteRefresh, postWriteAction);
     }
 
     @Override
@@ -170,6 +176,34 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         ThreadPool threadPool,
         String executorName
+    ) {
+        performOnPrimary(
+            request,
+            primary,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            listener,
+            threadPool,
+            executorName,
+            null,
+            null
+        );
+    }
+
+    public static void performOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool,
+        String executorName,
+        @Nullable PostWriteRefresh postWriteRefresh,
+        @Nullable Consumer<Runnable> postWriteAction
     ) {
         new ActionRunnable<>(listener) {
 
@@ -242,9 +276,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getBulkShardRequest(),
                         context.buildShardResponse(),
                         context.getLocationToSync(),
-                        null,
                         context.getPrimary(),
-                        logger
+                        logger,
+                        postWriteRefresh,
+                        postWriteAction
                     )
                 );
             }
@@ -336,7 +371,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
-                logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
+                logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;
                 onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                 return true;
@@ -350,7 +385,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         @Override
                         public void onResponse(Void v) {
                             assert context.requiresWaitingForMappingUpdate();
-                            context.resetForExecutionForRetry();
+                            context.resetForMappingUpdateRetry();
                         }
 
                         @Override
@@ -390,8 +425,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (isUpdate
             && isFailed
             && isConflictException(executionResult.getFailure().getCause())
-            && context.getRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
-            context.resetForExecutionForRetry();
+            && context.getUpdateRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
+            context.resetForUpdateRetry();
             return;
         }
         final BulkItemResponse response;
@@ -400,17 +435,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             if (isFailed) {
                 final Exception failure = executionResult.getFailure().getCause();
-                final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
-                    "{} failed to execute bulk item ({}) {}",
-                    context.getPrimary().shardId(),
-                    opType.getLowercase(),
-                    docWriteRequest
-                );
+                Level level;
                 if (TransportShardBulkAction.isConflictException(failure)) {
-                    logger.trace(messageSupplier, failure);
+                    level = Level.TRACE;
                 } else {
-                    logger.debug(messageSupplier, failure);
+                    level = Level.DEBUG;
                 }
+                logger.log(
+                    level,
+                    () -> Strings.format(
+                        "%s failed to execute bulk item (%s) %s",
+                        context.getPrimary().shardId(),
+                        opType.getLowercase(),
+                        docWriteRequest
+                    ),
+                    failure
+                );
+
             }
             response = executionResult;
         }
@@ -512,7 +553,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final long startBulkTime = System.nanoTime();
             final Translog.Location location = performOnReplica(request, replica);
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
-            return new WriteReplicaResult<>(request, location, null, replica, logger);
+            return new WriteReplicaResult<>(request, location, null, replica, logger, postWriteAction);
         });
     }
 

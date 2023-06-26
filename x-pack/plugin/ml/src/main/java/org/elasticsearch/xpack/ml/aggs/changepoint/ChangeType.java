@@ -86,6 +86,56 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     /**
      * Indicates that no change has occurred
      */
+    class Indeterminable implements ChangeType {
+        public static final String NAME = "indeterminable";
+
+        private final String reason;
+
+        public Indeterminable(String reason) {
+            this.reason = reason;
+        }
+
+        public Indeterminable(StreamInput input) throws IOException {
+            this.reason = input.readString();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().field("reason", reason).endObject();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return getName();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(reason);
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Indeterminable that = (Indeterminable) o;
+            return Objects.equals(reason, that.reason);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(reason);
+        }
+    }
+
+    /**
+     * Indicates that no change has occurred
+     */
     class Stationary implements ChangeType {
         public static final String NAME = "stationary";
 

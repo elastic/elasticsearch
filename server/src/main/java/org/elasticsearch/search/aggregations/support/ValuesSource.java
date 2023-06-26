@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
@@ -89,7 +88,7 @@ public abstract class ValuesSource {
      * need to call it many times over the course of running the aggregation.
      * Other aggregations should feel free to call it once.
      */
-    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
+    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException;
 
     /**
      * Check if this values source supports using global and segment ordinals.
@@ -116,7 +115,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
             throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
@@ -152,6 +151,10 @@ public abstract class ValuesSource {
                     return LongUnaryOperator.identity();
                 }
 
+                @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return true;
+                }
             };
 
             @Override
@@ -222,9 +225,7 @@ public abstract class ValuesSource {
              * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
              */
-            public boolean supportsGlobalOrdinalsMapping() {
-                return true;
-            }
+            public abstract boolean supportsGlobalOrdinalsMapping();
 
             @Override
             public boolean hasOrdinals() {
@@ -247,8 +248,7 @@ public abstract class ValuesSource {
              * Get the maximum global ordinal. Requires {@link #globalOrdinalsValues}
              * so see the note about its performance.
              */
-            public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
-                IndexReader indexReader = indexSearcher.getIndexReader();
+            public long globalMaxOrd(IndexReader indexReader) throws IOException {
                 if (indexReader.leaves().isEmpty()) {
                     return 0;
                 } else {
@@ -487,7 +487,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             return Rounding::prepareForUnknown;
         }
 
@@ -685,7 +685,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             // TODO lookup the min and max rounding when appropriate
             return Rounding::prepareForUnknown;
         }
@@ -704,8 +704,8 @@ public abstract class ValuesSource {
         public static final GeoPoint EMPTY = new GeoPoint() {
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return DocValues.emptySortedNumeric();
             }
 
             @Override
@@ -722,11 +722,23 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
             throw new AggregationExecutionException("can't round a [GEO_POINT]");
         }
 
-        public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
+        /**
+         * Return geo-point values.
+         */
+        public final MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            return new MultiGeoPointValues(geoSortedNumericDocValues(context));
+        }
+
+        /**
+         * Return the internal representation of geo_point doc values as a {@link SortedNumericDocValues}.
+         * A point is encoded as a long that can be decoded by using
+         * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
+         */
+        public abstract SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
 
@@ -741,8 +753,9 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getGeoPointValues();
+            @Override
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getSortedNumericDocValues();
             }
         }
     }

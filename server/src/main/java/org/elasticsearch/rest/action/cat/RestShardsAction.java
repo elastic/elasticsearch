@@ -14,12 +14,14 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -38,7 +40,8 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
@@ -49,6 +52,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
 
     @Override
@@ -75,23 +79,30 @@ public class RestShardsAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+
+        final var clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
-            @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                indicesStatsRequest.all();
-                indicesStatsRequest.indices(indices);
-                client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
-                    }
-                });
-            }
-        });
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
+
+        return channel -> {
+            final var clusterStateFuture = new ListenableFuture<ClusterStateResponse>();
+            client.admin().cluster().state(clusterStateRequest, clusterStateFuture);
+            client.admin()
+                .indices()
+                .stats(
+                    new IndicesStatsRequest().all().indices(indices).indicesOptions(IndicesOptions.strictExpandHidden()),
+                    new RestResponseListener<Table>(channel) {
+                        @Override
+                        public RestResponse buildResponse(Table table) throws Exception {
+                            return RestTable.buildResponse(table, channel);
+                        }
+                    }.delegateFailure(
+                        (delegate, indicesStatsResponse) -> clusterStateFuture.addListener(
+                            delegate.map(clusterStateResponse -> buildTable(request, clusterStateResponse, indicesStatsResponse))
+                        )
+                    )
+                );
+        };
     }
 
     @Override
@@ -249,8 +260,7 @@ public class RestShardsAction extends AbstractCatAction {
     // package private for testing
     Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = getTableWithHeader(request);
-
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;
@@ -371,7 +381,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getSegments, ss -> new ByteSizeValue(0)));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, ss -> ByteSizeValue.ZERO));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getIndexWriterMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getVersionMapMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getBitsetMemory));

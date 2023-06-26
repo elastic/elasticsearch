@@ -202,8 +202,14 @@ public class Shell {
     private String readFileIfExists(Path path) throws IOException {
         if (Files.exists(path)) {
             long size = Files.size(path);
-            if (size > 100 * 1024) {
-                return "<<Too large to read: " + size + " bytes>>";
+            final int maxFileSize = 100 * 1024;
+            if (size > maxFileSize) {
+                // file is really big, truncate
+                try (var br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                    char[] buf = new char[maxFileSize];
+                    int nRead = br.read(buf);
+                    return new String(buf, 0, nRead) + "\n<<Too large to read (" + size + " bytes), truncated>>";
+                }
             }
             try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
                 return lines.collect(Collectors.joining("\n"));

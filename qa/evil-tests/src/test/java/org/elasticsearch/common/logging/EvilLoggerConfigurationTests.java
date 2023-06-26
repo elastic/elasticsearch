@@ -25,10 +25,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class EvilLoggerConfigurationTests extends ESTestCase {
@@ -52,7 +50,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             final Path configDir = getDataPath("config");
             final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
             final Environment environment = new Environment(settings, configDir);
-            LogConfigurator.configure(environment);
+            LogConfigurator.configure(environment, true);
 
             {
                 final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -90,7 +88,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put("logger.level", level)
             .build();
         final Environment environment = new Environment(settings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
 
         final String loggerName = "test";
         final Logger logger = LogManager.getLogger(loggerName);
@@ -105,7 +103,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put("logger.test_resolve_order", "TRACE")
             .build();
         final Environment environment = new Environment(settings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
 
         // args should overwrite whatever is in the config
         final String loggerName = "test_resolve_order";
@@ -117,7 +115,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Path configDir = getDataPath("hierarchy");
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         final Environment environment = new Environment(settings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
 
         assertThat(LogManager.getLogger("x").getLevel(), equalTo(Level.TRACE));
         assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
@@ -127,14 +125,6 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
 
         assertThat(LogManager.getLogger("x").getLevel(), equalTo(level));
         assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(level));
-    }
-
-    public void testMissingConfigFile() {
-        final Path configDir = getDataPath("does_not_exist");
-        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        final Environment environment = new Environment(settings, configDir);
-        UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment));
-        assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
     }
 
     public void testLoggingLevelsFromSettings() throws IOException, UserException {
@@ -149,12 +139,12 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put("logger.bar", barLevel.name())
             .build();
         final Environment environment = new Environment(settings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
 
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         final Map<String, LoggerConfig> loggerConfigs = config.getLoggers();
-        assertThat(loggerConfigs.size(), equalTo(3));
+        assertThat(loggerConfigs.size(), equalTo(5));
         assertThat(loggerConfigs, hasKey(""));
         assertThat(loggerConfigs.get("").getLevel(), equalTo(rootLevel));
         assertThat(loggerConfigs, hasKey("foo"));

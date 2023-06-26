@@ -80,7 +80,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         public FileInfo(StreamInput in) throws IOException {
-            this(in.readString(), new StoreFileMetadata(in), in.readOptionalWriteable(ByteSizeValue::new));
+            this(in.readString(), new StoreFileMetadata(in), in.readOptionalWriteable(ByteSizeValue::readFrom));
         }
 
         @Override
@@ -298,34 +298,29 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             BytesRef metaHash = new BytesRef();
             BytesRef writerUuid = UNAVAILABLE_WRITER_UUID;
             XContentParserUtils.ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser);
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String currentFieldName = parser.currentName();
-                    token = parser.nextToken();
-                    if (token.isValue()) {
-                        switch (currentFieldName) {
-                            case NAME -> name = parser.text();
-                            case PHYSICAL_NAME -> physicalName = parser.text();
-                            case LENGTH -> length = parser.longValue();
-                            case CHECKSUM -> checksum = parser.text();
-                            case PART_SIZE -> partSize = new ByteSizeValue(parser.longValue());
-                            case WRITTEN_BY -> writtenBy = parser.text();
-                            case META_HASH -> {
-                                metaHash.bytes = parser.binaryValue();
-                                metaHash.offset = 0;
-                                metaHash.length = metaHash.bytes.length;
-                            }
-                            case WRITER_UUID -> {
-                                writerUuid = new BytesRef(parser.binaryValue());
-                                assert writerUuid.length > 0;
-                            }
-                            default -> XContentParserUtils.throwUnknownField(currentFieldName, parser);
-                        }
-                    } else {
-                        XContentParserUtils.throwUnknownToken(token, parser);
-                    }
-                } else {
+            String currentFieldName;
+            while ((currentFieldName = parser.nextFieldName()) != null) {
+                token = parser.nextToken();
+                if (token.isValue() == false) {
                     XContentParserUtils.throwUnknownToken(token, parser);
+                }
+                switch (currentFieldName) {
+                    case NAME -> name = parser.text();
+                    case PHYSICAL_NAME -> physicalName = parser.text();
+                    case LENGTH -> length = parser.longValue();
+                    case CHECKSUM -> checksum = parser.text();
+                    case PART_SIZE -> partSize = ByteSizeValue.ofBytes(parser.longValue());
+                    case WRITTEN_BY -> writtenBy = parser.text();
+                    case META_HASH -> {
+                        metaHash.bytes = parser.binaryValue();
+                        metaHash.offset = 0;
+                        metaHash.length = metaHash.bytes.length;
+                    }
+                    case WRITER_UUID -> {
+                        writerUuid = new BytesRef(parser.binaryValue());
+                        assert writerUuid.length > 0;
+                    }
+                    default -> XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             }
 
@@ -365,8 +360,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      */
     private final String snapshot;
 
-    private final long indexVersion;
-
     private final long startTime;
 
     private final long time;
@@ -381,7 +374,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * Constructs new shard snapshot metadata from snapshot metadata
      *
      * @param snapshot              snapshot name
-     * @param indexVersion          index version
      * @param indexFiles            list of files in the shard
      * @param startTime             snapshot start time
      * @param time                  snapshot running time
@@ -390,7 +382,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      */
     public BlobStoreIndexShardSnapshot(
         String snapshot,
-        long indexVersion,
         List<FileInfo> indexFiles,
         long startTime,
         long time,
@@ -398,9 +389,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         long incrementalSize
     ) {
         assert snapshot != null;
-        assert indexVersion >= 0;
         this.snapshot = snapshot;
-        this.indexVersion = indexVersion;
         this.indexFiles = List.copyOf(indexFiles);
         this.startTime = startTime;
         this.time = time;
@@ -417,7 +406,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * @param time               time it took to create the clone
      */
     public BlobStoreIndexShardSnapshot asClone(String targetSnapshotName, long startTime, long time) {
-        return new BlobStoreIndexShardSnapshot(targetSnapshotName, indexVersion, indexFiles, startTime, time, 0, 0);
+        return new BlobStoreIndexShardSnapshot(targetSnapshotName, indexFiles, startTime, time, 0, 0);
     }
 
     /**
@@ -485,7 +474,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     private static final String NAME = "name";
-    private static final String INDEX_VERSION = "index_version";
     private static final String START_TIME = "start_time";
     private static final String TIME = "time";
     private static final String FILES = "files";
@@ -495,12 +483,15 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final String INCREMENTAL_SIZE = "total_size";
 
     private static final ParseField PARSE_NAME = new ParseField(NAME);
-    private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
     private static final ParseField PARSE_START_TIME = new ParseField(START_TIME);
     private static final ParseField PARSE_TIME = new ParseField(TIME);
     private static final ParseField PARSE_INCREMENTAL_FILE_COUNT = new ParseField(INCREMENTAL_FILE_COUNT);
     private static final ParseField PARSE_INCREMENTAL_SIZE = new ParseField(INCREMENTAL_SIZE);
     private static final ParseField PARSE_FILES = new ParseField(FILES);
+
+    // pre-8.9.0 versions included this (unused) field so we must accept its existence
+    private static final String INDEX_VERSION = "index_version";
+    private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -511,7 +502,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(NAME, snapshot);
-        builder.field(INDEX_VERSION, indexVersion);
+        builder.field(INDEX_VERSION, 0); // pre-8.9.0 versions require this field to be present and non-negative
         builder.field(START_TIME, startTime);
         builder.field(TIME, time);
         builder.field(INCREMENTAL_FILE_COUNT, incrementalFileCount);
@@ -532,7 +523,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      */
     public static BlobStoreIndexShardSnapshot fromXContent(XContentParser parser) throws IOException {
         String snapshot = null;
-        long indexVersion = -1;
         long startTime = 0;
         long time = 0;
         int incrementalFileCount = 0;
@@ -552,8 +542,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 if (PARSE_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
                     snapshot = parser.text();
                 } else if (PARSE_INDEX_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // The index-version is needed for backward compatibility with v 1.0
-                    indexVersion = parser.longValue();
+                    // pre-8.9.0 versions included this (unused) field so we must accept its existence
+                    parser.longValue();
                 } else if (PARSE_START_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                     startTime = parser.longValue();
                 } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -578,7 +568,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
         return new BlobStoreIndexShardSnapshot(
             snapshot,
-            indexVersion,
             indexFiles == null ? List.of() : indexFiles,
             startTime,
             time,

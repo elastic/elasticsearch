@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -52,8 +51,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -232,7 +233,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds(transformConfig1.getId(), PageParams.defaultParams(), true, listener),
+            listener -> transformConfigManager.expandTransformIds(
+                transformConfig1.getId(),
+                PageParams.defaultParams(),
+                null,
+                true,
+                listener
+            ),
             tuple(1L, tuple(singletonList("transform1_expand"), singletonList(transformConfig1))),
             null,
             null
@@ -243,6 +250,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1_expand,transform2_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
@@ -256,6 +264,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1*,transform2_expand,transform3_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
@@ -272,7 +281,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 3 ids _all
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", PageParams.defaultParams(), true, listener),
+            listener -> transformConfigManager.expandTransformIds("_all", PageParams.defaultParams(), null, true, listener),
             tuple(
                 3L,
                 tuple(
@@ -286,7 +295,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id _all with pagination
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(0, 1), true, listener),
+            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(0, 1), null, true, listener),
             tuple(3L, tuple(singletonList("transform1_expand"), singletonList(transformConfig1))),
             null,
             null
@@ -294,7 +303,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 2 later ids _all with pagination
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(1, 2), true, listener),
+            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(1, 2), null, true, listener),
             tuple(3L, tuple(Arrays.asList("transform2_expand", "transform3_expand"), Arrays.asList(transformConfig2, transformConfig3))),
             null,
             null
@@ -302,7 +311,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id explicitly that does not exist
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("unknown,unknown2", new PageParams(1, 2), true, listener),
+            listener -> transformConfigManager.expandTransformIds("unknown,unknown2", new PageParams(1, 2), null, true, listener),
             (Tuple<Long, Tuple<List<String>, List<TransformConfig>>>) null,
             null,
             e -> {
@@ -316,7 +325,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id implicitly that does not exist
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("unknown*", new PageParams(1, 2), false, listener),
+            listener -> transformConfigManager.expandTransformIds("unknown*", new PageParams(1, 2), null, false, listener),
             (Tuple<Long, Tuple<List<String>, List<TransformConfig>>>) null,
             null,
             e -> {
@@ -329,10 +338,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "001";
         String docId = TransformConfig.documentId(transformConfig2.getId());
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformConfig2.getId());
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -347,6 +353,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1_expand,transform2_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
@@ -367,25 +374,25 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(id);
             assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
         }
-        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
 
         // test recursive retrieval
         assertAsync(
-            listener -> transformConfigManager.expandAllTransformIds(false, 10, listener),
+            listener -> transformConfigManager.expandAllTransformIds(false, 10, null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), transformIds),
             null,
             null
         );
 
         assertAsync(
-            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
             null,
             null
         );
 
         assertAsync(
-            listener -> transformConfigManager.expandAllTransformIds(true, 10, listener),
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
             null,
             null
@@ -396,10 +403,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformId = "transform_42";
         String docId = TransformConfig.documentId(transformId);
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -409,9 +413,9 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             client().index(request).actionGet();
         }
 
-        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
         assertAsync(
-            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
             null,
             null
@@ -442,16 +446,16 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         );
 
         transformIds.add(oldTransformId);
-        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
         assertAsync(
-            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
             null,
             null
         );
 
         assertAsync(
-            listener -> transformConfigManager.expandAllTransformIds(true, 10, listener),
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
             null,
             null
@@ -516,7 +520,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // returned docs will be ordered by id
         expectedDocs.sort(Comparator.comparing(TransformStoredDoc::getId));
-        assertAsync(listener -> transformConfigManager.getTransformStoredDocs(ids, listener), expectedDocs, null, null);
+        assertAsync(listener -> transformConfigManager.getTransformStoredDocs(ids, null, listener), expectedDocs, null, null);
     }
 
     public void testDeleteOldTransformConfigurations() throws Exception {
@@ -524,10 +528,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformId = "transform_test_delete_old_configurations";
         String docId = TransformConfig.documentId(transformId);
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig("transform_test_delete_old_configurations");
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -547,7 +548,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformConfigurations(transformId, listener), true, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
         assertThat(
             client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
@@ -560,10 +561,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformId = "transform_test_delete_old_stored_documents";
         String docId = TransformStoredDoc.documentId(transformId);
         TransformStoredDoc transformStoredDoc = TransformStoredDocTests.randomTransformStoredDoc(transformId);
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformStoredDoc.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -583,7 +581,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             null
         );
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
         assertThat(
@@ -593,7 +591,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), 1L, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
         assertThat(
             client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
@@ -700,10 +698,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         TransformConfig transformConfigNew = TransformConfigTests.randomTransformConfig(transformId);
 
         // create config in old index
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfigOld.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -749,7 +744,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     private static ClusterState createClusterStateWithTransformIndex(String... indexes) throws IOException {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMapBuilder = new HashMap<>();
         Metadata.Builder metaBuilder = Metadata.builder();
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -780,7 +775,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         }
         csBuilder.routingTable(routingTableBuilder.build());
-        metaBuilder.indices(indexMapBuilder.build());
+        metaBuilder.indices(indexMapBuilder);
         csBuilder.metadata(metaBuilder.build());
 
         return csBuilder.build();

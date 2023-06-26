@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.Transports;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -135,11 +136,6 @@ public class HotThreads {
 
     public HotThreads ignoreIdleThreads(boolean ignoreIdleThreads) {
         this.ignoreIdleThreads = ignoreIdleThreads;
-        return this;
-    }
-
-    public HotThreads threadElementsSnapshotDelay(TimeValue threadElementsSnapshotDelay) {
-        this.threadElementsSnapshotDelay = threadElementsSnapshotDelay;
         return this;
     }
 
@@ -311,19 +307,24 @@ public class HotThreads {
                     String.format(
                         Locale.ROOT,
                         "%n%s memory allocated by thread '%s'%n",
-                        new ByteSizeValue(topThread.getAllocatedBytes()),
+                        ByteSizeValue.ofBytes(topThread.getAllocatedBytes()),
                         threadName
                     )
                 );
                 case CPU -> {
                     double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
-                    double percentOther = getTimeSharePercentage(topThread.getOtherTime());
+                    double percentOther = Transports.isTransportThread(threadName) && topThread.getCpuTime() == 0L
+                        ? 100.0
+                        : getTimeSharePercentage(topThread.getOtherTime());
+                    double percentTotal = (Transports.isTransportThread(threadName)) ? percentCpu : percentOther + percentCpu;
+                    String otherLabel = (Transports.isTransportThread(threadName)) ? "idle" : "other";
                     sb.append(
                         String.format(
                             Locale.ROOT,
-                            "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
-                            percentOther + percentCpu,
+                            "%n%4.1f%% [cpu=%1.1f%%, %s=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
+                            percentTotal,
                             percentCpu,
+                            otherLabel,
                             percentOther,
                             TimeValue.timeValueNanos(topThread.getCpuTime() + topThread.getOtherTime()),
                             interval,
@@ -417,8 +418,8 @@ public class HotThreads {
 
     static class ThreadTimeAccumulator {
         private final long threadId;
+        private final String threadName;
         private final TimeValue interval;
-
         private long cpuTime;
         private long blockedTime;
         private long waitedTime;
@@ -430,6 +431,7 @@ public class HotThreads {
             this.cpuTime = cpuTime;
             this.allocatedBytes = allocatedBytes;
             this.threadId = info.getThreadId();
+            this.threadName = info.getThreadName();
             this.interval = interval;
         }
 
@@ -462,6 +464,8 @@ public class HotThreads {
             // not running, or it has been asleep forever.
             if (getCpuTime() == 0) {
                 return 0;
+            } else if (Transports.isTransportThread(threadName)) {
+                return getCpuTime();
             }
             return Math.max(interval.nanos() - getWaitedTime() - getBlockedTime(), 0);
         }
@@ -473,7 +477,7 @@ public class HotThreads {
                 return 0;
             }
 
-            return Math.max(getRunnableTime() - getCpuTime(), 0);
+            return Math.max(interval.nanos() - getWaitedTime() - getBlockedTime() - getCpuTime(), 0);
         }
 
         public long getBlockedTime() {

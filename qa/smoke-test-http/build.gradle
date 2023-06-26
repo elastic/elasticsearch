@@ -6,15 +6,15 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+//apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  javaRestTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  javaRestTestImplementation project(':modules:rest-root')
 }
 
 testClusters.configureEach {
+  module ':modules:rest-root'
   setting 'xpack.security.enabled', 'false'
 }

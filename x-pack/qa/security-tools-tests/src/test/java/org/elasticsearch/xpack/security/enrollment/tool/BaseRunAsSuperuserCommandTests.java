@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
@@ -79,7 +80,7 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
     protected Command newCommand() {
         return new DummyRunAsSuperuserCommand(environment -> client, environment -> keyStoreWrapper) {
             @Override
-            protected Environment createEnv(OptionSet options) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return new Environment(BaseRunAsSuperuserCommandTests.this.settings, confDir);
             }
         };

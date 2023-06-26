@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
  * The server transport filter that should be used in nodes as it ensures that an incoming
  * request is properly authenticated and authorized
  */
-final class ServerTransportFilter {
+class ServerTransportFilter {
 
     private static final Logger logger = LogManager.getLogger(ServerTransportFilter.class);
 
@@ -100,20 +100,39 @@ final class ServerTransportFilter {
             }
         }
 
-        final Version version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
+        TransportVersion version = transportChannel.getVersion();
+        authenticate(securityAction, request, listener.delegateFailureAndWrap((l, authentication) -> {
             if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
+                    && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
                     securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
-                        authzService.authorize(replaced, securityAction, request, listener);
+                        authzService.authorize(replaced, securityAction, request, l);
                     });
                 } else {
-                    authzService.authorize(authentication, securityAction, request, listener);
+                    authzService.authorize(authentication, securityAction, request, l);
                 }
             } else {
-                listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                l.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure));
+        }));
     }
+
+    protected void authenticate(
+        final String securityAction,
+        final TransportRequest request,
+        final ActionListener<Authentication> authenticationListener
+    ) {
+        authcService.authenticate(securityAction, request, true, authenticationListener);
+    }
+
+    protected final ThreadContext getThreadContext() {
+        return threadContext;
+    }
+
+    // Package private for testing
+    boolean isExtractClientCert() {
+        return extractClientCert;
+    }
+
 }

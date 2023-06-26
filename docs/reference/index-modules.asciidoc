@@ -195,9 +195,9 @@ are ignored for this index.
     refresh. If this setting is not explicitly set, shards that haven't seen
     search traffic for at least `index.search.idle.after` seconds will not receive
     background refreshes until they receive a search request. Searches that hit an
-    idle shard where a refresh is pending will wait for the next background
-    refresh (within `1s`). This behavior aims to automatically optimize bulk
-    indexing in the default case when no searches are performed. In order to opt
+    idle shard where a refresh is pending will trigger a refresh as part of the
+    search operation for that shard only. This behavior aims to automatically optimize
+    bulk indexing in the default case when no searches are performed. In order to opt
     out of this behavior an explicit value of `1s` should set as the refresh
     interval.
 
@@ -292,6 +292,7 @@ Defaults to `*`, which matches all fields eligible for
 <<term-level-queries,term-level queries>>, excluding metadata fields.
 --
 
+[[index-routing-allocation-enable-setting]]
  `index.routing.allocation.enable`::
 
     Controls shard allocation for this index. It can be set to:
@@ -319,7 +320,7 @@ Defaults to `*`, which matches all fields eligible for
     Default <<ingest,ingest pipeline>> for the index. Index requests will fail
     if the default pipeline is set and the pipeline does not exist. The default may be
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
-    no ingest pipeline should be run.
+    no default ingest pipeline will run.
 
 [[index-final-pipeline]]
 `index.final_pipeline`::
@@ -327,7 +328,7 @@ Final <<ingest,ingest pipeline>> for the index. Indexing requests
 will fail if the final pipeline is set and the pipeline does not exist.
 The final pipeline always runs after the request pipeline (if specified) and
 the default pipeline (if it exists). The special pipeline name `_none`
-indicates no ingest pipeline will run.
+indicates no final ingest pipeline will run.
 +
 NOTE: You can't use a final pipeline to change the `_index` field. If the
 pipeline attempts to change the `_index` field, the indexing request will fail.

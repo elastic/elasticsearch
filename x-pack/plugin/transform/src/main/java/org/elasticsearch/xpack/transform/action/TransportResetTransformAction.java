@@ -102,9 +102,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        final SetOnce<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> transformConfigAndVersionHolder = new SetOnce<>();
-
-        // <6> Reset transform
+        // <4> Reset transform
         ActionListener<TransformUpdater.UpdateResult> updateTransformListener = ActionListener.wrap(
             unusedUpdateResult -> transformConfigManager.resetTransform(request.getId(), ActionListener.wrap(resetResponse -> {
                 logger.debug("[{}] reset transform", request.getId());
@@ -114,55 +112,34 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             listener::onFailure
         );
 
-        // <5> Upgrade transform to the latest version
-        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(unusedDeleteDestIndexResponse -> {
-            final ClusterState clusterState = clusterService.state();
-            TransformUpdater.updateTransform(
-                securityContext,
-                indexNameExpressionResolver,
-                clusterState,
-                settings,
-                client,
-                transformConfigManager,
-                transformConfigAndVersionHolder.get().v1(),
-                TransformConfigUpdate.EMPTY,
-                transformConfigAndVersionHolder.get().v2(),
-                false, // defer validation
-                false, // dry run
-                false, // check access
-                request.timeout(),
-                updateTransformListener
-            );
-        }, listener::onFailure);
-
-        // <4> Delete destination index if it was created by transform.
-        ActionListener<Boolean> isDestinationIndexCreatedByTransformListener = ActionListener.wrap(isDestinationIndexCreatedByTransform -> {
-            if (isDestinationIndexCreatedByTransform == false) {
-                // Destination index was created outside of transform, we don't delete it and just move on.
-                deleteDestIndexListener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
-            String destIndex = transformConfigAndVersionHolder.get().v1().getDestination().getIndex();
-            DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
-            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteDestIndexRequest, deleteDestIndexListener);
-        }, listener::onFailure);
-
-        // <3> Check if the destination index was created by transform
-        ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfigurationListener = ActionListener.wrap(
+        // <3> Upgrade transform to the latest version
+        ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> deleteDestIndexListener = ActionListener.wrap(
             transformConfigAndVersion -> {
-                transformConfigAndVersionHolder.set(transformConfigAndVersion);
-                String destIndex = transformConfigAndVersion.v1().getDestination().getIndex();
-                TransformIndex.isDestinationIndexCreatedByTransform(client, destIndex, isDestinationIndexCreatedByTransformListener);
+                final ClusterState clusterState = clusterService.state();
+                TransformUpdater.updateTransform(
+                    securityContext,
+                    indexNameExpressionResolver,
+                    clusterState,
+                    settings,
+                    client,
+                    transformConfigManager,
+                    auditor,
+                    transformConfigAndVersion.v1(),
+                    TransformConfigUpdate.EMPTY,
+                    transformConfigAndVersion.v2(),
+                    false, // defer validation
+                    false, // dry run
+                    false, // check access
+                    request.timeout(),
+                    updateTransformListener
+                );
             },
             listener::onFailure
         );
 
-        // <2> Fetch transform configuration
+        // <2> Delete destination index if it was created by the transform
         ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(
-            unusedStopResponse -> transformConfigManager.getTransformConfigurationForUpdate(
-                request.getId(),
-                getTransformConfigurationListener
-            ),
+            unusedStopResponse -> deleteDestinationIndexIfCreatedByTheTransform(request.getId(), deleteDestIndexListener),
             listener::onFailure
         );
 
@@ -173,6 +150,44 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         }
         StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, false, null, true, false);
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
+    }
+
+    private void deleteDestinationIndexIfCreatedByTheTransform(
+        String transformId,
+        ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> listener
+    ) {
+        final SetOnce<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> transformConfigAndVersionHolder = new SetOnce<>();
+
+        // <4> Send the fetched config to the caller
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
+            unusedDeleteIndexResponse -> listener.onResponse(transformConfigAndVersionHolder.get()),
+            listener::onFailure
+        );
+
+        // <3> Delete destination index if it was created by transform
+        ActionListener<Boolean> isDestinationIndexCreatedByTransformListener = ActionListener.wrap(isDestinationIndexCreatedByTransform -> {
+            if (isDestinationIndexCreatedByTransform == false) {
+                // Destination index was created outside of transform, we don't delete it and just move on.
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            String destIndex = transformConfigAndVersionHolder.get().v1().getDestination().getIndex();
+            DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
+            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteDestIndexRequest, finalListener);
+        }, listener::onFailure);
+
+        // <2> Check if the destination index was created by transform
+        ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfigurationListener = ActionListener.wrap(
+            transformConfigAndVersion -> {
+                transformConfigAndVersionHolder.set(transformConfigAndVersion);
+                String destIndex = transformConfigAndVersion.v1().getDestination().getIndex();
+                TransformIndex.isDestinationIndexCreatedByTransform(client, destIndex, isDestinationIndexCreatedByTransformListener);
+            },
+            listener::onFailure
+        );
+
+        // <1> Fetch transform configuration
+        transformConfigManager.getTransformConfigurationForUpdate(transformId, getTransformConfigurationListener);
     }
 
     @Override

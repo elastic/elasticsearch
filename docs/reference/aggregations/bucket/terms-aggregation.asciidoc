@@ -107,7 +107,7 @@ or <<binary, `binary`>>.
 
 NOTE: By default, you cannot run a `terms` aggregation on a `text` field. Use a
 `keyword` <<multi-fields,sub-field>> instead. Alternatively, you can enable
-<<fielddata,`fielddata`>> on the `text` field to create buckets for the field's
+<<fielddata-mapping-param,`fielddata`>> on the `text` field to create buckets for the field's
 <<analysis,analyzed>> terms. Enabling `fielddata` can significantly increase
 memory usage.
 
@@ -208,34 +208,30 @@ determined and is given a value of -1 to indicate this.
 [[search-aggregations-bucket-terms-aggregation-order]]
 ==== Order
 
-By default, the `terms` aggregation orders terms by descending document `_count`.
-Use the `order` parameter to specify a different sort order.
+By default, the `terms` aggregation orders terms by descending document
+`_count`.  This produces a bounded <<terms-agg-doc-count-error,document count>>
+error that {es} can report.
 
-WARNING: Avoid using `"order": { "_count": "asc" }`. If you need to find rare
+You can use the `order` parameter to specify a different sort order, but we
+don't recommend it.  It is extremely easy to create a terms ordering that will
+just return wrong results, and not obvious to see when you have done so.
+Change this only with caution.
+
+WARNING: Especially avoid using `"order": { "_count": "asc" }`. If you need to find rare
 terms, use the
 <<search-aggregations-bucket-rare-terms-aggregation,`rare_terms`>> aggregation
 instead. Due to the way the `terms` aggregation
 <<search-aggregations-bucket-terms-aggregation-shard-size,gets terms from
 shards>>, sorting by ascending doc count often produces inaccurate results.
 
-If you really must, this is how you sort on doc count ascending:
 
-[source,console,id=terms-aggregation-count-example]
---------------------------------------------------
-GET /_search
-{
-  "aggs": {
-    "genres": {
-      "terms": {
-        "field": "genre",
-        "order": { "_count": "asc" }
-      }
-    }
-  }
-}
---------------------------------------------------
+===== Ordering by the term value
+In this case, the buckets are ordered by the actual term values, such as
+lexicographic order for keywords or numerically for numbers. This sorting is
+safe in both ascending and descending directions, and produces accurate
+results.
 
-Ordering the buckets alphabetically by their terms in an ascending manner:
+Example of ordering the buckets alphabetically by their terms in an ascending manner:
 
 [source,console,id=terms-aggregation-asc-example]
 --------------------------------------------------
@@ -252,13 +248,23 @@ GET /_search
 }
 --------------------------------------------------
 
-WARNING: Test any sorts on sub-aggregations before using them in production.
-Sorting on a sub-aggregation may return errors or inaccurate results. For
-example, due to the way the `terms` aggregation
+===== Ordering by a sub aggregation
+
+WARNING: Sorting by a sub aggregation generally produces incorrect ordering, due to the way the `terms` aggregation
 <<search-aggregations-bucket-terms-aggregation-shard-size,gets results from
-shards>>, sorting on a `max` sub-aggregation in _ascending_ order often produces
-inaccurate results. However, sorting on a `max` sub-aggregation in _descending_
-order is typically safe.
+shards>>.
+
+There are two cases when sub-aggregation ordering is safe and returns correct
+results: sorting by a maximum in descending order, or sorting by a minimum in
+ascending order. These approaches work because they align with the behavior of
+sub aggregations. That is, if you're looking for the largest maximum or the
+smallest minimum, the global answer (from combined shards) must be included in
+one of the local shard answers. Conversely, the smallest maximum and largest
+minimum wouldn't be accurately computed.
+
+Note also that in these cases, the ordering is correct but the doc counts and
+non-ordering sub aggregations may still have errors (and {es} does not calculate a
+bound for those errors).
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 
@@ -383,6 +389,27 @@ their `doc_count` in descending order.
 
 NOTE: In the event that two buckets share the same values for all order criteria the bucket's term value is used as a
 tie-breaker in ascending alphabetical order to prevent non-deterministic ordering of buckets.
+
+===== Ordering by count ascending
+
+Ordering terms by ascending document `_count` produces an unbounded error that
+{es} can't accurately report. We therefore strongly recommend against using
+`"order": { "_count": "asc" }` as shown in the following example:
+
+[source,console,id=terms-aggregation-count-example]
+--------------------------------------------------
+GET /_search
+{
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "_count": "asc" }
+      }
+    }
+  }
+}
+--------------------------------------------------
 
 ==== Minimum document count
 

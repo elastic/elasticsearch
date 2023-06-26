@@ -200,6 +200,11 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         }
 
         @Override
+        public int docValueCount() {
+            return documentOrds.length;
+        }
+
+        @Override
         public BytesRef lookupOrd(long ord) {
             return allTerms[(int) ord];
         }

@@ -88,9 +88,9 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState2.setStep(step);
         stepKey = Step.getCurrentStepKey(lifecycleState2.build());
         assertNotNull(stepKey);
-        assertEquals(phase, stepKey.getPhase());
-        assertEquals(action, stepKey.getAction());
-        assertEquals(step, stepKey.getName());
+        assertEquals(phase, stepKey.phase());
+        assertEquals(action, stepKey.action());
+        assertEquals(step, stepKey.name());
 
         phase = randomAlphaOfLength(20);
         action = randomAlphaOfLength(20);
@@ -181,7 +181,9 @@ public class LifecycleExecutionStateTests extends ESTestCase {
                 newState.setSnapshotName(randomValueOtherThan(toMutate.snapshotName(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 14:
-                newState.setRollupIndexName(randomValueOtherThan(toMutate.rollupIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setDownsampleIndexName(
+                    randomValueOtherThan(toMutate.downsampleIndexName(), () -> randomAlphaOfLengthBetween(5, 20))
+                );
                 break;
             case 15:
                 newState.setIsAutoRetryableError(randomValueOtherThan(toMutate.isAutoRetryableError(), ESTestCase::randomBoolean));

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.apache.commons.codec.binary.Hex;
 import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -23,30 +22,21 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -193,7 +183,7 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     @TaskAction
-    public void checkDependencies() throws IOException, NoSuchAlgorithmException {
+    public void checkDependencies() {
         if (dependencies == null) {
             throw new GradleException("No dependencies variable defined.");
         }
@@ -214,12 +204,9 @@ public class DependencyLicensesTask extends DefaultTask {
         Map<String, Boolean> licenses = new HashMap<>();
         Map<String, Boolean> notices = new HashMap<>();
         Map<String, Boolean> sources = new HashMap<>();
-        Set<File> shaFiles = new HashSet<>();
         for (File file : licensesDirAsFile.listFiles()) {
             String name = file.getName();
-            if (name.endsWith(SHA_EXTENSION)) {
-                shaFiles.add(file);
-            } else if (name.endsWith("-LICENSE") || name.endsWith("-LICENSE.txt")) {
+            if (name.endsWith("-LICENSE") || name.endsWith("-LICENSE.txt")) {
                 // TODO: why do we support suffix of LICENSE *and* LICENSE.txt??
                 licenses.put(name, false);
             } else if (name.contains("-NOTICE") || name.contains("-NOTICE.txt")) {
@@ -233,18 +220,13 @@ public class DependencyLicensesTask extends DefaultTask {
         notices.keySet().removeAll(ignoreFiles);
         sources.keySet().removeAll(ignoreFiles);
 
-        checkDependencies(licenses, notices, sources, shaFiles);
+        checkDependencies(licenses, notices, sources);
 
         licenses.forEach((item, exists) -> failIfAnyMissing(item, exists, "license"));
 
         notices.forEach((item, exists) -> failIfAnyMissing(item, exists, "notice"));
 
         sources.forEach((item, exists) -> failIfAnyMissing(item, exists, "sources"));
-
-        if (shaFiles.isEmpty() == false) {
-            throw new GradleException("Unused sha files found: \n" + joinFilenames(shaFiles));
-        }
-
     }
 
     // This is just a marker output folder to allow this task being up-to-date.
@@ -261,18 +243,10 @@ public class DependencyLicensesTask extends DefaultTask {
         }
     }
 
-    private void checkDependencies(
-        Map<String, Boolean> licenses,
-        Map<String, Boolean> notices,
-        Map<String, Boolean> sources,
-        Set<File> shaFiles
-    ) throws NoSuchAlgorithmException, IOException {
+    private void checkDependencies(Map<String, Boolean> licenses, Map<String, Boolean> notices, Map<String, Boolean> sources) {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");
-
-            validateSha(shaFiles, dependency, jarName, depName);
-
             String dependencyName = getDependencyName(mappings, depName);
             logger.info("mapped dependency name {} to {} for license/notice check", depName, dependencyName);
             checkFile(dependencyName, jarName, licenses, "LICENSE");
@@ -284,24 +258,6 @@ public class DependencyLicensesTask extends DefaultTask {
                 checkFile(dependencyName, jarName, sources, "SOURCES");
             }
         }
-    }
-
-    private void validateSha(Set<File> shaFiles, File dependency, String jarName, String depName) throws NoSuchAlgorithmException,
-        IOException {
-        if (ignoreShas.contains(depName)) {
-            // local deps should not have sha files!
-            if (getShaFile(jarName).exists()) {
-                throw new GradleException("SHA file " + getShaFile(jarName) + " exists for ignored dependency " + depName);
-            }
-        } else {
-            logger.info("Checking sha for {}", jarName);
-            checkSha(dependency, jarName, shaFiles);
-        }
-    }
-
-    private String joinFilenames(Set<File> shaFiles) {
-        List<String> names = shaFiles.stream().map(File::getName).collect(Collectors.toList());
-        return String.join("\n", names);
     }
 
     public static String getDependencyName(Map<String, String> mappings, String dependencyName) {
@@ -317,30 +273,6 @@ public class DependencyLicensesTask extends DefaultTask {
             return mapped.get(i);
         }
         return dependencyName;
-    }
-
-    private void checkSha(File jar, String jarName, Set<File> shaFiles) throws NoSuchAlgorithmException, IOException {
-        File shaFile = getShaFile(jarName);
-        if (shaFile.exists() == false) {
-            throw new GradleException("Missing SHA for " + jarName + ". Run \"gradle updateSHAs\" to create them");
-        }
-
-        // TODO: shouldn't have to trim, sha files should not have trailing newline
-        byte[] fileBytes = Files.readAllBytes(shaFile.toPath());
-        String expectedSha = new String(fileBytes, StandardCharsets.UTF_8).trim();
-
-        String sha = getSha1(jar);
-
-        if (expectedSha.equals(sha) == false) {
-            final String exceptionMessage = String.format(Locale.ROOT, """
-                SHA has changed! Expected %s for %s but got %s.
-                This usually indicates a corrupt dependency cache or artifacts changed upstream.
-                Either wipe your cache, fix the upstream artifact, or delete %s and run updateShas
-                """, expectedSha, jarName, sha, shaFile);
-
-            throw new GradleException(exceptionMessage);
-        }
-        shaFiles.remove(shaFile);
     }
 
     private void checkFile(String name, String jarName, Map<String, Boolean> counters, String type) {
@@ -373,29 +305,6 @@ public class DependencyLicensesTask extends DefaultTask {
     @Input
     public LinkedHashMap<String, String> getMappings() {
         return new LinkedHashMap<>(mappings);
-    }
-
-    File getShaFile(String jarName) {
-        return new File(licensesDir.get().getAsFile(), jarName + SHA_EXTENSION);
-    }
-
-    @Internal
-    Set<File> getShaFiles() {
-        File licenseDirAsFile = licensesDir.get().getAsFile();
-        File[] array = licenseDirAsFile.listFiles();
-        if (array == null) {
-            throw new GradleException("\"" + licenseDirAsFile.getPath() + "\" isn't a valid directory");
-        }
-
-        return Arrays.stream(array).filter(file -> file.getName().endsWith(SHA_EXTENSION)).collect(Collectors.toSet());
-    }
-
-    String getSha1(File file) throws IOException, NoSuchAlgorithmException {
-        byte[] bytes = Files.readAllBytes(file.toPath());
-
-        MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        char[] encoded = Hex.encodeHex(digest.digest(bytes));
-        return String.copyValueOf(encoded);
     }
 
 }

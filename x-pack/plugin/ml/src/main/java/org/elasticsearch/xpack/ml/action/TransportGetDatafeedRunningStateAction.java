@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetDatafeedRunningStateAction extends TransportTasksAction<
     TransportStartDatafeedAction.DatafeedTask,
@@ -77,6 +79,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
 
     @Override
     protected void taskOperation(
+        CancellableTask actionTask,
         Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<Response> listener
@@ -135,9 +138,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
             .toArray(String[]::new);
 
         if (nodesOfConcern.length == 0) {
-            logger.debug(
-                () -> new ParameterizedMessage("Unable to find executor nodes for datafeed tasks {}", request.getDatafeedTaskIds())
-            );
+            logger.debug(() -> format("Unable to find executor nodes for datafeed tasks %s", request.getDatafeedTaskIds()));
 
             taskResponseListener.onResponse(new Response(Collections.emptyMap()));
             return;

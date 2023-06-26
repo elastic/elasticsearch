@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -37,7 +38,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,7 +47,7 @@ import java.util.Set;
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
-    private static final Set<Setting<?>> ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS = Set.of(
+    public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Set.of(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
@@ -71,8 +71,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_DATA_PATH_SETTING,
         IndexMetadata.INDEX_HIDDEN_SETTING,
         IndexMetadata.INDEX_FORMAT_SETTING,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
+        IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME,
+        IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID,
+        IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -88,6 +89,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
@@ -95,6 +97,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
         IndexSortConfig.INDEX_SORT_FIELD_SETTING,
         IndexSortConfig.INDEX_SORT_ORDER_SETTING,
         IndexSortConfig.INDEX_SORT_MISSING_SETTING,
@@ -102,6 +105,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
+        IndexSettings.INDEX_FAST_REFRESH_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
@@ -131,6 +135,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
         IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
@@ -161,6 +166,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
         DataTier.TIER_PREFERENCE_SETTING,
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
+        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
+        IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
+        IndexSettings.PREFER_ILM_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
@@ -173,23 +183,23 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 }
             }
         }, Property.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", Property.IndexScope)
-    ); // this allows analysis settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
 
-    public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = builtInIndexSettings();
+        // TSDB index settings
+        IndexSettings.MODE,
+        IndexMetadata.INDEX_ROUTING_PATH,
+        IndexSettings.TIME_SERIES_START_TIME,
+        IndexSettings.TIME_SERIES_END_TIME,
 
-    private static Set<Setting<?>> builtInIndexSettings() {
-        if (false == IndexSettings.isTimeSeriesModeEnabled()) {
-            return ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS;
-        }
-        Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
-        result.add(IndexSettings.MODE);
-        result.add(IndexMetadata.INDEX_ROUTING_PATH);
-        result.add(IndexSettings.TIME_SERIES_START_TIME);
-        result.add(IndexSettings.TIME_SERIES_END_TIME);
-        result.add(IndexSettings.LOOK_AHEAD_TIME);
-        return Set.copyOf(result);
-    }
+        // Legacy index settings we must keep around for BWC from 7.x
+        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
+        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
+        Store.FORCE_RAM_TERM_DICT
+    );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
@@ -231,6 +241,19 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 return true;
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
+        }
+    }
+
+    @Override
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
+        IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        // At various stages in settings verification we will perform validation without having the
+        // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
+        // error out on those validations, we will check with the creation version present at index
+        // creation time, as well as on index update settings.
+        if (indexVersion.equals(IndexVersion.ZERO) == false
+            && (indexVersion.before(IndexVersion.V_7_0_0) || indexVersion.onOrAfter(IndexVersion.V_8_0_0))) {
+            throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }
 }

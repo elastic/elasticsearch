@@ -9,18 +9,18 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -34,6 +34,8 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This service is responsible for verifying index metadata when an index is introduced
@@ -50,6 +52,7 @@ public class IndexMetadataVerifier {
     private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
+    private final ClusterService clusterService;
     private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
@@ -57,12 +60,14 @@ public class IndexMetadataVerifier {
 
     public IndexMetadataVerifier(
         Settings settings,
+        ClusterService clusterService,
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
         ScriptCompiler scriptCompiler
     ) {
         this.settings = settings;
+        this.clusterService = clusterService;
         this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
@@ -88,7 +93,7 @@ public class IndexMetadataVerifier {
         newMetadata = removeTierFiltering(newMetadata);
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
-        newMetadata = archiveBrokenIndexSettings(newMetadata);
+        newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
         checkMappingsCompatibility(newMetadata);
         return newMetadata;
     }
@@ -139,16 +144,14 @@ public class IndexMetadataVerifier {
 
             IndexSettings indexSettings = new IndexSettings(indexMetadata, this.settings);
 
-            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap = new AbstractMap<
-                String,
-                TriFunction<Settings, Version, ScriptService, Similarity>>() {
+            final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarityMap = new AbstractMap<>() {
                 @Override
                 public boolean containsKey(Object key) {
                     return true;
                 }
 
                 @Override
-                public TriFunction<Settings, Version, ScriptService, Similarity> get(Object key) {
+                public TriFunction<Settings, IndexVersion, ScriptService, Similarity> get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
                     return (settings, version, scriptService) -> new BM25Similarity();
                 }
@@ -156,7 +159,7 @@ public class IndexMetadataVerifier {
                 // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate
                 // over all similarities
                 @Override
-                public Set<Entry<String, TriFunction<Settings, Version, ScriptService, Similarity>>> entrySet() {
+                public Set<Entry<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>>> entrySet() {
                     return Collections.emptySet();
                 }
             };
@@ -168,33 +171,22 @@ public class IndexMetadataVerifier {
                 }
             });
 
-            final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
-                @Override
-                public NamedAnalyzer get(Object key) {
-                    assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return new NamedAnalyzer((String) key, AnalyzerScope.INDEX, fakeDefault.analyzer());
-                }
-
-                // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
-                // over all analyzers to close them
-                @Override
-                public Set<Entry<String, NamedAnalyzer>> entrySet() {
-                    return Collections.emptySet();
-                }
-            };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
+            try (
                 MapperService mapperService = new MapperService(
+                    clusterService,
                     indexSettings,
-                    fakeIndexAnalzyers,
+                    (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
                     parserConfiguration,
                     similarityService,
                     mapperRegistry,
                     () -> null,
-                    indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
                     scriptService
-                );
+                )
+            ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
+
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
             throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
@@ -204,27 +196,54 @@ public class IndexMetadataVerifier {
     /**
      * Identify invalid or unknown index settings and archive them. This leniency allows Elasticsearch to load
      * indices even if they contain old settings that are no longer valid.
+     *
+     * When we find an invalid setting on a system index, we simply remove it instead of archiving. System indices
+     * are managed by Elasticsearch and manual modification of settings is limited and sometimes impossible.
      */
-    IndexMetadata archiveBrokenIndexSettings(IndexMetadata indexMetadata) {
+    IndexMetadata archiveOrDeleteBrokenIndexSettings(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
-        final Settings newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
-            settings,
-            e -> logger.warn(
-                "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
-                indexMetadata.getIndex(),
-                e.getKey(),
-                e.getValue()
-            ),
-            (e, ex) -> logger.warn(
-                () -> new ParameterizedMessage(
-                    "{} ignoring invalid index setting: [{}] with value [{}]; archiving",
+        final Settings newSettings;
+
+        if (indexMetadata.isSystem()) {
+            newSettings = indexScopedSettings.deleteUnknownOrInvalidSettings(
+                settings,
+                e -> logger.warn(
+                    "{} deleting unknown system index setting: [{}] with value [{}]",
                     indexMetadata.getIndex(),
                     e.getKey(),
                     e.getValue()
                 ),
-                ex
-            )
-        );
+                (e, ex) -> logger.warn(
+                    () -> format(
+                        "%s deleting invalid system index setting: [%s] with value [%s]",
+                        indexMetadata.getIndex(),
+                        e.getKey(),
+                        e.getValue()
+                    ),
+                    ex
+                )
+            );
+        } else {
+            newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
+                settings,
+                e -> logger.warn(
+                    "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
+                    indexMetadata.getIndex(),
+                    e.getKey(),
+                    e.getValue()
+                ),
+                (e, ex) -> logger.warn(
+                    () -> format(
+                        "%s ignoring invalid index setting: [%s] with value [%s]; archiving",
+                        indexMetadata.getIndex(),
+                        e.getKey(),
+                        e.getValue()
+                    ),
+                    ex
+                )
+            );
+        }
+
         if (newSettings != settings) {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         } else {

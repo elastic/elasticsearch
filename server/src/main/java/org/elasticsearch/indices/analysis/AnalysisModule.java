@@ -18,27 +18,26 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
 import org.elasticsearch.index.analysis.LowercaseNormalizerProvider;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
-import org.elasticsearch.index.analysis.StopAnalyzerProvider;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
+import org.elasticsearch.indices.analysis.wrappers.StableApiWrappers;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,13 +67,18 @@ public final class AnalysisModule {
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
 
-    public AnalysisModule(Environment environment, List<AnalysisPlugin> plugins) throws IOException {
-        NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = setupCharFilters(plugins);
+    public AnalysisModule(Environment environment, List<AnalysisPlugin> plugins, StablePluginsRegistry stablePluginRegistry)
+        throws IOException {
+        NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = setupCharFilters(plugins, stablePluginRegistry);
         NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> hunspellDictionaries = setupHunspellDictionaries(plugins);
         hunspellService = new HunspellService(environment.settings(), environment, hunspellDictionaries.getRegistry());
-        NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService);
-        NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
-        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
+        NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(
+            plugins,
+            hunspellService,
+            stablePluginRegistry
+        );
+        NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins, stablePluginRegistry);
+        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins, stablePluginRegistry);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
 
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
@@ -104,9 +108,14 @@ public final class AnalysisModule {
         return analysisRegistry;
     }
 
-    private static NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(List<AnalysisPlugin> plugins) {
+    private static NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(
+        List<AnalysisPlugin> plugins,
+        StablePluginsRegistry stablePluginRegistry
+    ) {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = new NamedRegistry<>("char_filter");
         charFilters.extractAndRegister(plugins, AnalysisPlugin::getCharFilters);
+
+        charFilters.register(StableApiWrappers.oldApiForStableCharFilterFactory(stablePluginRegistry));
         return charFilters;
     }
 
@@ -118,7 +127,8 @@ public final class AnalysisModule {
 
     private static NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(
         List<AnalysisPlugin> plugins,
-        HunspellService hunspellService
+        HunspellService hunspellService,
+        StablePluginsRegistry stablePluginRegistry
     ) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
@@ -126,7 +136,7 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
+                if (indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "standard_deprecation",
@@ -135,7 +145,7 @@ public final class AnalysisModule {
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
                 }
-                return new AbstractTokenFilterFactory(indexSettings, name, settings) {
+                return new AbstractTokenFilterFactory(name, settings) {
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
                         return tokenStream;
@@ -157,6 +167,8 @@ public final class AnalysisModule {
         );
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
+        tokenFilters.register(StableApiWrappers.oldApiForTokenFilterFactory(stablePluginRegistry));
+
         return tokenFilters;
     }
 
@@ -241,22 +253,26 @@ public final class AnalysisModule {
         return unmodifiableMap(preConfiguredTokenizers.getRegistry());
     }
 
-    private static NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
+    private static NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(
+        List<AnalysisPlugin> plugins,
+        StablePluginsRegistry stablePluginRegistry
+    ) {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
+        tokenizers.register(StableApiWrappers.oldApiForTokenizerFactory(stablePluginRegistry));
         return tokenizers;
     }
 
-    private static NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupAnalyzers(List<AnalysisPlugin> plugins) {
+    private static NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupAnalyzers(
+        List<AnalysisPlugin> plugins,
+        StablePluginsRegistry stablePluginRegistry
+    ) {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = new NamedRegistry<>("analyzer");
         analyzers.register("default", StandardAnalyzerProvider::new);
         analyzers.register("standard", StandardAnalyzerProvider::new);
-        analyzers.register("simple", SimpleAnalyzerProvider::new);
-        analyzers.register("stop", StopAnalyzerProvider::new);
-        analyzers.register("whitespace", WhitespaceAnalyzerProvider::new);
-        analyzers.register("keyword", KeywordAnalyzerProvider::new);
         analyzers.extractAndRegister(plugins, AnalysisPlugin::getAnalyzers);
+        analyzers.register(StableApiWrappers.oldApiForAnalyzerFactory(stablePluginRegistry));
         return analyzers;
     }
 

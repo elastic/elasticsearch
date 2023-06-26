@@ -1,0 +1,32 @@
+{
+  "security.bulk_update_api_keys": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-bulk-update-api-keys.html",
+      "description": "Updates the attributes of multiple existing API keys."
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/api_key/_bulk_update",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The API key request to update the attributes of multiple API keys.",
+      "required": true
+    }
+  }
+}

@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -131,8 +131,8 @@ public class LicenseInstallationIT extends ESRestTestCase {
     private License generateRandomLicense(String licenseId, long expiryDate) throws Exception {
         int version = randomIntBetween(VERSION_NO_FEATURE_TYPE, VERSION_CURRENT);
         License.LicenseType type = version < VERSION_ENTERPRISE
-            ? randomValueOtherThan(License.LicenseType.ENTERPRISE, () -> randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES))
-            : randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES);
+            ? randomValueOtherThan(License.LicenseType.ENTERPRISE, () -> randomFrom(LicenseSettings.ALLOWABLE_UPLOAD_TYPES))
+            : randomFrom(LicenseSettings.ALLOWABLE_UPLOAD_TYPES);
         final License.Builder builder = License.builder()
             .uid(licenseId)
             .version(version)

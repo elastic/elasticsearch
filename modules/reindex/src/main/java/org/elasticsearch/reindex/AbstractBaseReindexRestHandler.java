@@ -11,14 +11,15 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -63,7 +64,10 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        return sendTask(client.getLocalNodeId(), client.executeLocally(action, internal, LoggingTaskListener.instance()));
+        final var responseFuture = new ListenableActionFuture<BulkByScrollResponse>();
+        final var task = client.executeLocally(action, internal, responseFuture);
+        responseFuture.addListener(new LoggingTaskListener<>(task));
+        return sendTask(client.getLocalNodeId(), task);
     }
 
     /**
@@ -109,7 +113,7 @@ public abstract class AbstractBaseReindexRestHandler<
                 builder.startObject();
                 builder.field("task", localNodeId + ":" + task.getId());
                 builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }
         };
     }

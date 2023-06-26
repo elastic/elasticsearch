@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -54,7 +53,7 @@ public final class ScrollHelper {
                     clearScrollRequest,
                     ActionListener.wrap(
                         (r) -> {},
-                        e -> LOGGER.warn(new ParameterizedMessage("clear scroll failed for scroll id [{}]", response.getScrollId()), e)
+                        e -> LOGGER.warn(() -> "clear scroll failed for scroll id [" + response.getScrollId() + "]", e)
                     )
                 );
             }

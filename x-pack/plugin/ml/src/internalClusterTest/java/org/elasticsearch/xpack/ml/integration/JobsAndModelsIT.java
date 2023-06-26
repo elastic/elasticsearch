@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -125,12 +126,16 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
                     BertTokenizer.UNKNOWN_TOKEN,
                     BertTokenizer.PAD_TOKEN
                 ),
+                List.of(),
                 List.of()
             )
         ).actionGet();
 
-        client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(model.getModelId()))
-            .actionGet();
+        logger.info("starting deployment: " + model.getModelId());
+        client().execute(
+            StartTrainedModelDeploymentAction.INSTANCE,
+            new StartTrainedModelDeploymentAction.Request(model.getModelId(), model.getModelId())
+        ).actionGet();
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
@@ -175,15 +180,39 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
         String lastMlNodeName = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
-        // Here we make the assumption that models are assigned before persistent tasks.
-        // The reason this holds follows. Allocation service is a plugin component listening to
-        // cluster states updates. Persistent tasks have executors that listen to cluster
-        // states. Plugin components get created before persistent task executors. Thus,
-        // the allocation service will be producing each cluster state updates first.
-        // As this assumption might be critical, the test should break if the assumption
-        // breaks to give us a warning about potential impact.
+        // Wait until either the job or the model is assigned
+        assertBusy(() -> {
+            GetTrainedModelsStatsAction.Response modelStatsResponse = client().execute(
+                GetTrainedModelsStatsAction.INSTANCE,
+                new GetTrainedModelsStatsAction.Request(model.getModelId())
+            ).actionGet();
+            GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = modelStatsResponse.getResources().results().get(0);
+            GetJobsStatsAction.Response jobStatsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
+            GetJobsStatsAction.Response.JobStats jobStats = jobStatsResponse.getResponse().results().get(0);
 
-        // Wait until the model is assigned
+            boolean isModelAssigned = modelStats.getDeploymentStats().getNodeStats().isEmpty() == false;
+            boolean isJobAssigned = jobStats.getNode() != null;
+            assertThat(isJobAssigned ^ isModelAssigned, is(true));
+
+            if (isJobAssigned) {
+                assertThat(jobStats.getNode().getName(), equalTo(lastMlNodeName));
+                assertThat(modelStats.getDeploymentStats().getReason(), containsString("insufficient available memory"));
+            } else {
+                assertThat(modelStats.getDeploymentStats().getNodeStats().get(0).getNode().getName(), equalTo(lastMlNodeName));
+                assertThat(jobStats.getAssignmentExplanation(), containsString("insufficient available memory"));
+            }
+        });
+
+        // Start another new ML node
+        logger.info("Starting dedicated ml node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
+        ensureStableCluster();
+
+        // Wait until both the job and the model are assigned
+        // and check they are not on the same node
         assertBusy(() -> {
             GetTrainedModelsStatsAction.Response modelStatsResponse = client().execute(
                 GetTrainedModelsStatsAction.INSTANCE,
@@ -191,17 +220,15 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
             ).actionGet();
             GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = modelStatsResponse.getResources().results().get(0);
             assertThat(modelStats.getDeploymentStats().getNodeStats().isEmpty(), is(false));
-            assertThat(modelStats.getDeploymentStats().getNodeStats().get(0).getNode().getName(), equalTo(lastMlNodeName));
-        });
+            GetJobsStatsAction.Response jobStatsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
+            GetJobsStatsAction.Response.JobStats jobStats = jobStatsResponse.getResponse().results().get(0);
+            assertThat(jobStats.getNode(), is(notNullValue()));
 
-        // Check the job is unassigned due to insufficient memory
-        GetJobsStatsAction.Response jobStatsResponse = client().execute(
-            GetJobsStatsAction.INSTANCE,
-            new GetJobsStatsAction.Request(job.getId())
-        ).actionGet();
-        GetJobsStatsAction.Response.JobStats jobStats = jobStatsResponse.getResponse().results().get(0);
-        assertThat(jobStats.getNode(), is(nullValue()));
-        assertThat(jobStats.getAssignmentExplanation(), containsString("insufficient available memory"));
+            assertThat(jobStats.getNode(), is(not(equalTo(modelStats.getDeploymentStats().getNodeStats().get(0).getNode()))));
+        });
 
         // Clean up
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();

@@ -10,7 +10,6 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.settings.Setting;
@@ -26,6 +25,7 @@ import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AllPermission;
@@ -206,6 +206,7 @@ final class BootstrapChecks {
         checks.add(new EarlyAccessCheck());
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
+        checks.add(new ByteOrderCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -448,11 +449,11 @@ final class BootstrapChecks {
                     try {
                         return parseProcSysVmMaxMapCount(rawProcSysVmMaxMapCount);
                     } catch (final NumberFormatException e) {
-                        logger.warn(() -> new ParameterizedMessage("unable to parse vm.max_map_count [{}]", rawProcSysVmMaxMapCount), e);
+                        logger.warn(() -> "unable to parse vm.max_map_count [" + rawProcSysVmMaxMapCount + "]", e);
                     }
                 }
             } catch (final IOException e) {
-                logger.warn(() -> new ParameterizedMessage("I/O exception while trying to read [{}]", path), e);
+                logger.warn(() -> "I/O exception while trying to read [" + path + "]", e);
             }
             return -1;
         }
@@ -701,6 +702,21 @@ final class BootstrapChecks {
                         .collect(Collectors.joining(", "))
                 )
             );
+        }
+    }
+
+    static class ByteOrderCheck implements BootstrapCheck {
+
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            if (nativeByteOrder() != ByteOrder.LITTLE_ENDIAN) {
+                return BootstrapCheckResult.failure("Little-endian native byte order is required to run Elasticsearch");
+            }
+            return BootstrapCheckResult.success();
+        }
+
+        ByteOrder nativeByteOrder() {
+            return ByteOrder.nativeOrder();
         }
     }
 }

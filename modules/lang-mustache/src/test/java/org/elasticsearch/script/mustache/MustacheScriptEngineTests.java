@@ -18,8 +18,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +37,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     }
 
     public void testSimpleParameterReplace() {
-        Map<String, String> compileParams = Collections.singletonMap("content_type", "application/json");
+        Map<String, String> compileParams = Map.of("content_type", "application/json");
         {
             String template = """
                 GET _search
@@ -61,8 +60,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     }
                   }
                 }""";
-            Map<String, Object> vars = new HashMap<>();
-            vars.put("boost_val", "0.3");
+            Map<String, Object> vars = Map.of("boost_val", "0.3");
             String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
             assertEquals("""
                 GET _search
@@ -108,9 +106,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     }
                   }
                 }""";
-            Map<String, Object> vars = new HashMap<>();
-            vars.put("boost_val", "0.3");
-            vars.put("body_val", "\"quick brown\"");
+            Map<String, Object> vars = Map.of("boost_val", "0.3", "body_val", "\"quick brown\"");
             String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
             assertEquals("""
                 GET _search
@@ -136,12 +132,66 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
+    public void testChangingDelimiters() {
+        Map<String, String> compileParams = Map.of("content_type", "application/json");
+        {
+            String template = """
+                GET _search
+                {
+                  "query": {
+                    "match": {
+                      "content": "{{query_string}}"
+                    }
+                  },
+                  "highlight": {
+                    {{=<% %>=}}
+                    "pre_tags": [
+                      "{{{{"
+                    ],
+                    "post_tags": [
+                      "}}}}"
+                    ],
+                    <%={{ }}=%>
+                    "fields": {
+                      "content": {},
+                      "title": {}
+                    }
+                  }
+                }""";
+            Map<String, Object> vars = Map.of("query_string", "test");
+            String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
+            assertEquals("""
+                GET _search
+                {
+                  "query": {
+                    "match": {
+                      "content": "test"
+                    }
+                  },
+                  "highlight": {
+                   \s
+                    "pre_tags": [
+                      "{{{{"
+                    ],
+                    "post_tags": [
+                      "}}}}"
+                    ],
+                   \s
+                    "fields": {
+                      "content": {},
+                      "title": {}
+                    }
+                  }
+                }""", o);
+        }
+    }
+
     public void testSimple() throws IOException {
         String templateString = """
             {"source":{"match_{{template}}": {}},"params":{"template":"all"}}""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Map.of());
         TemplateScript TemplateScript = compiled.newInstance(script.getParams());
         assertThat(TemplateScript.execute(), equalTo("{\"match_all\":{}}"));
     }
@@ -157,9 +207,77 @@ public class MustacheScriptEngineTests extends ESTestCase {
             }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Map.of());
         TemplateScript TemplateScript = compiled.newInstance(script.getParams());
         assertThat(TemplateScript.execute(), equalTo("{ \"match_all\":{} }"));
+    }
+
+    private static class TestReflection {
+
+        private final int privateField = 1;
+
+        public final int publicField = 2;
+
+        private int getPrivateMethod() {
+            return 3;
+        }
+
+        public int getPublicMethod() {
+            return 4;
+        }
+
+        @Override
+        public String toString() {
+            return List.of(privateField, publicField, getPrivateMethod(), getPublicMethod()).toString();
+        }
+    }
+
+    /**
+     * BWC test for some odd reflection edge-cases. It's not really expected that customer code would be exercising this,
+     * but maybe it's out there! Who knows!?
+     *
+     * If we change this, we should *know* that we're changing it.
+     */
+    @SuppressWarnings({ "deprecation", "removal" })
+    public void testReflection() {
+        Map<String, Object> vars = Map.of("obj", new TestReflection());
+
+        {
+            // non-reflective access calls toString
+            String templateString = "{{obj}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo("[1, 2, 3, 4]"));
+        }
+        {
+            // accessing a field/method that *doesn't* exist will give an empty result
+            String templateString = "{{obj.missing}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
+        {
+            // accessing a private field that does exist will give an empty result
+            String templateString = "{{obj.privateField}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
+        {
+            // accessing a private method that does exist will give an empty result
+            String templateString = "{{obj.privateMethod}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
+        {
+            // accessing a public field that does exist will give an empty result
+            String templateString = "{{obj.publicField}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
+        {
+            // accessing a public method that does exist will give an empty result
+            String templateString = "{{obj.publicMethod}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
     }
 
     public void testEscapeJson() throws IOException {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -20,7 +19,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -35,6 +33,9 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import java.util.List;
 import java.util.SortedMap;
 
+import static java.lang.Thread.currentThread;
+import static org.elasticsearch.ExceptionsHelper.formatStackTrace;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -69,8 +70,7 @@ public class AnnotationIndex {
     ) {
 
         final ActionListener<Boolean> annotationsIndexCreatedListener = ActionListener.wrap(success -> {
-            final ClusterHealthRequest request = Requests.clusterHealthRequest(READ_ALIAS_NAME)
-                .waitForYellowStatus()
+            final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
                 client,
@@ -107,7 +107,7 @@ public class AnnotationIndex {
             finalListener::onFailure
         );
 
-        final ActionListener<String> createAliasListener = ActionListener.wrap(currentIndexName -> {
+        final ActionListener<String> createAliasListener = finalListener.delegateFailureAndWrap((finalDelegate, currentIndexName) -> {
             final IndicesAliasesRequestBuilder requestBuilder = client.admin()
                 .indices()
                 .prepareAliases()
@@ -128,13 +128,10 @@ public class AnnotationIndex {
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 requestBuilder.request(),
-                ActionListener.<AcknowledgedResponse>wrap(
-                    r -> checkMappingsListener.onResponse(r.isAcknowledged()),
-                    finalListener::onFailure
-                ),
+                finalDelegate.<AcknowledgedResponse>delegateFailureAndWrap((l, r) -> checkMappingsListener.onResponse(r.isAcknowledged())),
                 client.admin().indices()::aliases
             );
-        }, finalListener::onFailure);
+        });
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
         // Also, don't do this if there's a reset in progress or if ML upgrade mode is enabled.
@@ -149,11 +146,11 @@ public class AnnotationIndex {
             IndexAbstraction currentIndexAbstraction = mlLookup.get(LATEST_INDEX_NAME);
             if (currentIndexAbstraction == null) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "Creating [{}] because [{}] exists; trace {}",
+                    () -> format(
+                        "Creating [%s] because [%s] exists; trace %s",
                         LATEST_INDEX_NAME,
                         mlLookup.firstKey(),
-                        org.elasticsearch.ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace())
+                        formatStackTrace(currentThread().getStackTrace())
                     )
                 );
 

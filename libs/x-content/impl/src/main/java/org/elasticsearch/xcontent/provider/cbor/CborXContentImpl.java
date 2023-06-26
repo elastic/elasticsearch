@@ -50,6 +50,7 @@ public final class CborXContentImpl implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
         cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        cborFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         cborXContent = new CborXContentImpl();
     }
 

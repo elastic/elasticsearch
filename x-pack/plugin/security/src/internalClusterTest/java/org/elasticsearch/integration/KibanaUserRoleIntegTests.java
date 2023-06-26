@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -38,7 +38,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     @Override
     public String configRoles() {
-        return """
+        return Strings.format("""
             %s
             my_kibana_user:
               indices:
@@ -46,7 +46,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                   privileges:
                     - view_index_metadata
                     - read
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     @Override
@@ -65,9 +65,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
-        GetFieldMappingsResponse response = client().admin()
-            .indices()
-            .prepareGetFieldMappings()
+        GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings()
             .addIndices("logstash-*")
             .setFields("*")
             .includeDefaults(true)
@@ -89,11 +87,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
-        ValidateQueryResponse response = client().admin()
-            .indices()
-            .prepareValidateQuery(index)
-            .setQuery(QueryBuilders.termQuery(field, "bar"))
-            .get();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery(index).setQuery(QueryBuilders.termQuery(field, "bar")).get();
         assertThat(response.isValid(), is(true));
 
         response = client().filterWithHeader(
@@ -133,7 +127,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex().setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
 
         response = client().filterWithHeader(
@@ -151,7 +145,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         GetMappingsResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
         ).admin().indices().prepareGetMappings("logstash-*").get();
-        ImmutableOpenMap<String, MappingMetadata> mappingsMap = response.getMappings();
+        Map<String, MappingMetadata> mappingsMap = response.getMappings();
         assertNotNull(mappingsMap);
         assertNotNull(mappingsMap.get(index));
         MappingMetadata mappingMetadata = mappingsMap.get(index);

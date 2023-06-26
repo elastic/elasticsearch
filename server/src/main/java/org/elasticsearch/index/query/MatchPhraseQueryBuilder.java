@@ -10,7 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -145,38 +145,44 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         if (analyzer != null) {
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(SLOP_FIELD.getPreferredName(), slop);
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        printBoostAndQueryName(builder);
+        if (slop != MatchQueryParser.DEFAULT_PHRASE_SLOP) {
+            builder.field(SLOP_FIELD.getPreferredName(), slop);
+        }
+        if (zeroTermsQuery != MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
-        if (sec == null) {
-            return this;
-        }
+    protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+        return doIndexMetadataRewrite(searchExecutionContext);
+    }
+
+    @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
         // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
-        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(context);
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
-            return termQueryBuilder.rewrite(sec);
+            return termQueryBuilder.rewrite(context);
+        } else {
+            return this;
         }
-        return this;
     }
 
-    private NamedAnalyzer configuredAnalyzer(SearchExecutionContext context) {
+    private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);
         }
         MappedFieldType mft = context.getFieldType(fieldName);
         if (mft != null) {
-            return mft.getTextSearchInfo().getSearchAnalyzer();
+            return mft.getTextSearchInfo().searchAnalyzer();
         }
         return null;
     }
@@ -284,7 +290,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

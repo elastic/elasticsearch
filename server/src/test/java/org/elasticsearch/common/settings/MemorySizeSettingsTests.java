@@ -30,7 +30,7 @@ public class MemorySizeSettingsTests extends ESTestCase {
         assertMemorySizeSetting(
             PageCacheRecycler.LIMIT_HEAP_SETTING,
             "cache.recycler.page.limit.heap",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.1))
+            ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.1))
         );
     }
 
@@ -38,7 +38,7 @@ public class MemorySizeSettingsTests extends ESTestCase {
         assertMemorySizeSetting(
             IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
             "indices.memory.index_buffer_size",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.1))
+            ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.1))
         );
     }
 
@@ -46,7 +46,7 @@ public class MemorySizeSettingsTests extends ESTestCase {
         assertMemorySizeSetting(
             IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
             "indices.queries.cache.size",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.1))
+            ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.1))
         );
     }
 
@@ -54,7 +54,7 @@ public class MemorySizeSettingsTests extends ESTestCase {
         assertMemorySizeSetting(
             IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
             "indices.requests.cache.size",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.01))
+            ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.01))
         );
     }
 
@@ -69,22 +69,22 @@ public class MemorySizeSettingsTests extends ESTestCase {
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             "indices.breaker.total.limit",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * defaultTotalPercentage))
+            ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * defaultTotalPercentage))
         );
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
             "indices.breaker.fielddata.limit",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4))
+            ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4))
         );
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
             "indices.breaker.request.limit",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.6))
+            ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.6))
         );
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             "network.breaker.inflight_requests.limit",
-            new ByteSizeValue((JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()))
+            ByteSizeValue.ofBytes((JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()))
         );
     }
 
@@ -92,7 +92,7 @@ public class MemorySizeSettingsTests extends ESTestCase {
         assertMemorySizeSetting(
             IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
             "indices.fielddata.cache.size",
-            new ByteSizeValue(-1)
+            ByteSizeValue.ofBytes(-1)
         );
     }
 
@@ -104,10 +104,10 @@ public class MemorySizeSettingsTests extends ESTestCase {
         Settings settingWithPercentage = Settings.builder().put(settingKey, "25%").build();
         assertThat(
             setting.get(settingWithPercentage),
-            equalTo(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.25)))
+            equalTo(ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.25)))
         );
         Settings settingWithBytesValue = Settings.builder().put(settingKey, "1024b").build();
-        assertThat(setting.get(settingWithBytesValue), equalTo(new ByteSizeValue(1024)));
+        assertThat(setting.get(settingWithBytesValue), equalTo(ByteSizeValue.ofBytes(1024)));
     }
 
 }

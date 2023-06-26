@@ -17,14 +17,11 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import java.util.Collections;
@@ -82,53 +79,6 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
-    public void testInternalUser() {
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        TransportDeleteUserAction action = new TransportDeleteUserAction(
-            Settings.EMPTY,
-            mock(ActionFilters.class),
-            usersStore,
-            transportService
-        );
-
-        DeleteUserRequest request = new DeleteUserRequest(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
-            @Override
-            public void onResponse(DeleteUserResponse response) {
-                responseRef.set(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        verifyNoMoreInteractions(usersStore);
-    }
-
     public void testReservedUser() {
         final User reserved = randomFrom(new ElasticUser(true), new KibanaUser(true));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -171,7 +121,14 @@ public class TransportDeleteUserActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
-        final User user = new User("joe");
+        testValidUser(new User("joe"));
+    }
+
+    public void testValidUserWithInternalUsername() {
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
+    }
+
+    private void testValidUser(User user) {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -269,4 +226,5 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         assertThat(throwableRef.get(), sameInstance(e));
         verify(usersStore, times(1)).deleteUser(eq(request), anyActionListener());
     }
+
 }

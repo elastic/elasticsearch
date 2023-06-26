@@ -10,15 +10,11 @@ package org.elasticsearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -32,9 +28,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
-import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.script.UpsertCtxMap;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -58,7 +55,7 @@ public class UpdateHelper {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
         final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
@@ -87,25 +84,16 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
-        Map<String, Object> ctx = Maps.newMapWithExpectedSize(3);
-        // Tell the script that this is a create and not an update
-        ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());
-        ctx.put(ContextFields.SOURCE, upsertDoc);
-        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
-        ctx = executeScript(script, ctx);
-
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
-
+    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Script script, UpsertCtxMap ctxMap) {
+        ctxMap = executeScript(script, ctxMap);
+        UpdateOpType operation = UpdateOpType.lenientFromString(ctxMap.getMetadata().getOp(), logger, script.getIdOrCode());
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
             logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
             operation = UpdateOpType.NONE;
         }
 
-        return new Tuple<>(operation, newSource);
+        return new Tuple<>(operation, ctxMap.getSource());
     }
 
     /**
@@ -120,13 +108,19 @@ public class UpdateHelper {
         if (request.scriptedUpsert() && request.script() != null) {
             // Run the script to perform the create logic
             IndexRequest upsert = request.upsertRequest();
-            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(
-                upsert.sourceAsMap(),
-                request.script,
-                nowInMillis
+            UpsertCtxMap ctxMap = new UpsertCtxMap(
+                getResult.getIndex(),
+                getResult.getId(),
+                UpdateOpType.CREATE.toString(),
+                nowInMillis.getAsLong(),
+                upsert.sourceAsMap()
             );
+            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(request.script, ctxMap);
             switch (upsertResult.v1()) {
-                case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
+                case CREATE -> {
+                    String index = request.index();
+                    indexRequest = new IndexRequest(index).source(upsertResult.v2());
+                }
                 case NONE -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
@@ -214,8 +208,8 @@ public class UpdateHelper {
             );
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
-            final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
-                .id(request.id())
+            String index = request.index();
+            final IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
                 .setIfSeqNo(getResult.getSeqNo())
@@ -237,29 +231,27 @@ public class UpdateHelper {
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
-        final Map<String, Object> sourceAsMap = sourceAndContent.v2();
 
-        Map<String, Object> ctx = Maps.newMapWithExpectedSize(16);
-        ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
-        ctx.put(ContextFields.INDEX, getResult.getIndex());
-        ctx.put(ContextFields.TYPE, MapperService.SINGLE_MAPPING_NAME);
-        ctx.put(ContextFields.ID, getResult.getId());
-        ctx.put(ContextFields.VERSION, getResult.getVersion());
-        ctx.put(ContextFields.ROUTING, routing);
-        ctx.put(ContextFields.SOURCE, sourceAsMap);
-        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
-
-        ctx = executeScript(request.script, ctx);
-
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
+        UpdateCtxMap ctxMap = executeScript(
+            request.script,
+            new UpdateCtxMap(
+                getResult.getIndex(),
+                getResult.getId(),
+                getResult.getVersion(),
+                routing,
+                MapperService.SINGLE_MAPPING_NAME,
+                UpdateOpType.INDEX.toString(), // The default operation is "index"
+                nowInMillis.getAsLong(),
+                sourceAndContent.v2()
+            )
+        );
+        UpdateOpType operation = UpdateOpType.lenientFromString(ctxMap.getMetadata().getOp(), logger, request.script.getIdOrCode());
+        final Map<String, Object> updatedSourceAsMap = ctxMap.getSource();
 
         switch (operation) {
             case INDEX -> {
-                final IndexRequest indexRequest = Requests.indexRequest(request.index())
-                    .id(request.id())
+                String index = request.index();
+                final IndexRequest indexRequest = new IndexRequest(index).id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .setIfSeqNo(getResult.getSeqNo())
@@ -270,8 +262,8 @@ public class UpdateHelper {
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {
-                DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
-                    .id(request.id())
+                String index = request.index();
+                DeleteRequest deleteRequest = new DeleteRequest(index).id(request.id())
                     .routing(routing)
                     .setIfSeqNo(getResult.getSeqNo())
                     .setIfPrimaryTerm(getResult.getPrimaryTerm())
@@ -307,21 +299,22 @@ public class UpdateHelper {
         }
     }
 
-    private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
+    private <T extends UpdateCtxMap> T executeScript(Script script, T ctxMap) {
         try {
             if (scriptService != null) {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                UpdateScript executableScript = factory.newInstance(script.getParams(), ctx);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), ctxMap);
                 executableScript.execute();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);
         }
-        return ctx;
+        return ctxMap;
     }
 
     /**
      * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
+     * // TODO can we pass a Source here rather than Map, XcontentType and BytesReference?
      */
     public static GetResult extractGetResult(
         final UpdateRequest request,
@@ -336,22 +329,9 @@ public class UpdateHelper {
         if (request.fetchSource() == null || request.fetchSource().fetchSource() == false) {
             return null;
         }
-
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-            SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setSource(source);
-            Object value = sourceLookup.filter(request.fetchSource());
-            try {
-                final int initialCapacity = sourceAsBytes != null ? Math.min(1024, sourceAsBytes.length()) : 1024;
-                BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-                try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
-                    builder.value(value);
-                    sourceFilteredAsBytes = BytesReference.bytes(builder);
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchException("Error filtering source", e);
-            }
+        if (request.fetchSource().hasFilter()) {
+            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(request.fetchSource().filter()).internalSourceRef();
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
@@ -429,6 +409,7 @@ public class UpdateHelper {
                     return UpdateOpType.INDEX;
                 case "delete":
                     return UpdateOpType.DELETE;
+                case "noop":
                 case "none":
                     return UpdateOpType.NONE;
                 default:

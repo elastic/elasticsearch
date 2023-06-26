@@ -15,54 +15,33 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testJavaPattern() throws Exception {
         Function<String, ZonedDateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSXX", ZoneOffset.UTC, Locale.ROOT);
-        DateIndexNameProcessor processor = createProcessor(
-            "_field",
-            Collections.singletonList(function),
-            ZoneOffset.UTC,
-            "events-",
-            "y",
-            "yyyyMMdd"
-        );
-        IngestDocument document = new IngestDocument(
-            "_index",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("_field", "2016-04-25T12:24:20.101Z")
-        );
+        DateIndexNameProcessor processor = createProcessor("_field", List.of(function), ZoneOffset.UTC, "events-", "y", "yyyyMMdd");
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", "2016-04-25T12:24:20.101Z"));
         processor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
     }
 
     public void testTAI64N() throws Exception {
         Function<String, ZonedDateTime> function = DateFormat.Tai64n.getFunction(null, ZoneOffset.UTC, null);
-        DateIndexNameProcessor dateProcessor = createProcessor(
-            "_field",
-            Collections.singletonList(function),
-            ZoneOffset.UTC,
-            "events-",
-            "m",
-            "yyyyMMdd"
-        );
+        DateIndexNameProcessor dateProcessor = createProcessor("_field", List.of(function), ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument(
             "_index",
             "_id",
+            1,
             null,
             null,
-            null,
-            Collections.singletonMap("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024")
+            Map.of("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024")
         );
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20121222||/m{yyyyMMdd|UTC}}>"));
@@ -70,34 +49,20 @@ public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testUnixMs() throws Exception {
         Function<String, ZonedDateTime> function = DateFormat.UnixMs.getFunction(null, ZoneOffset.UTC, null);
-        DateIndexNameProcessor dateProcessor = createProcessor(
-            "_field",
-            Collections.singletonList(function),
-            ZoneOffset.UTC,
-            "events-",
-            "m",
-            "yyyyMMdd"
-        );
-        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", "1000500"));
+        DateIndexNameProcessor dateProcessor = createProcessor("_field", List.of(function), ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", "1000500"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
 
-        document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", 1000500L));
+        document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", 1000500L));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
     public void testUnix() throws Exception {
         Function<String, ZonedDateTime> function = DateFormat.Unix.getFunction(null, ZoneOffset.UTC, null);
-        DateIndexNameProcessor dateProcessor = createProcessor(
-            "_field",
-            Collections.singletonList(function),
-            ZoneOffset.UTC,
-            "events-",
-            "m",
-            "yyyyMMdd"
-        );
-        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", "1000.5"));
+        DateIndexNameProcessor dateProcessor = createProcessor("_field", List.of(function), ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", "1000.5"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
@@ -111,14 +76,14 @@ public class DateIndexNameProcessorTests extends ESTestCase {
 
         DateIndexNameProcessor dateProcessor = createProcessor(
             "_field",
-            Collections.singletonList(dateTimeFunction),
+            List.of(dateTimeFunction),
             ZoneOffset.UTC,
             indexNamePrefix,
             dateRounding,
             indexNameFormat
         );
 
-        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", date));
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", date));
         dateProcessor.execute(document);
 
         assertThat(

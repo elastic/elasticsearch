@@ -8,15 +8,19 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,6 +39,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -520,13 +525,11 @@ public class BucketScriptIT extends ESIntegTestCase {
 
     public void testStoredScript() {
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutStoredScript()
+            clusterAdmin().preparePutStoredScript()
                 .setId("my_script")
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
                 .setContent(
-                    new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\"," + " \"source\": \"my_script\" } }"),
+                    new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\", \"source\": \"my_script\" } }"),
                     XContentType.JSON
                 )
         );
@@ -815,6 +818,155 @@ public class BucketScriptIT extends ESIntegTestCase {
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
                 assertThat(seriesArithmeticValue, equalTo(field2SumValue + field3SumValue + field4SumValue));
+            }
+        }
+    }
+
+    public void testInlineScriptWithMultiValueAggregationIllegalBucketsPaths() {
+        try {
+            client().prepareSearch("idx")
+                .addAggregation(
+                    histogram("histo").field(FIELD_1_NAME)
+                        .interval(interval)
+                        .subAggregation(percentiles("field2Percentile").field(FIELD_2_NAME).percentiles(10, 50, 90))
+                        .subAggregation(percentiles("field3Percentile").field(FIELD_3_NAME).percentiles(10, 50, 90))
+                        .subAggregation(percentiles("field4Percentile").field(FIELD_4_NAME).percentiles(10, 50, 90))
+                        .subAggregation(
+                            bucketScript(
+                                "seriesArithmetic",
+                                new Script(
+                                    ScriptType.INLINE,
+                                    CustomScriptPlugin.NAME,
+                                    "_value0 + _value1 + _value2",
+                                    Collections.emptyMap()
+                                ),
+                                "field2Percentile",
+                                "field3Percentile",
+                                "field4Percentile"
+                            )
+                        )
+                )
+                .get();
+
+            fail("Illegal bucketsPaths was provided but no exception was thrown.");
+        } catch (Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause == null) {
+                throw e;
+            } else if (cause instanceof SearchPhaseExecutionException) {
+                SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
+                Throwable rootCause = spee.getRootCause();
+                if ((rootCause instanceof AggregationExecutionException) == false) {
+                    throw e;
+                }
+            } else if ((cause instanceof AggregationExecutionException) == false) {
+                throw e;
+            }
+        }
+    }
+
+    public void testInlineScriptWithMultiValueAggregation() {
+        int percentile = 90;
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(percentiles("field2Percentile").field(FIELD_2_NAME).percentiles(percentile))
+                    .subAggregation(percentiles("field3Percentile").field(FIELD_3_NAME).percentiles(percentile))
+                    .subAggregation(percentiles("field4Percentile").field(FIELD_4_NAME).percentiles(percentile))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Percentile",
+                            "field3Percentile",
+                            "field4Percentile"
+                        )
+                    )
+            )
+            .get();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            if (bucket.getDocCount() == 0) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, nullValue());
+            } else {
+                Percentiles field2Percentile = bucket.getAggregations().get("field2Percentile");
+                assertThat(field2Percentile, notNullValue());
+                double field2PercentileValue = field2Percentile.value(String.valueOf(percentile));
+                Percentiles field3Percentile = bucket.getAggregations().get("field3Percentile");
+                assertThat(field3Percentile, notNullValue());
+                double field3PercentileValue = field3Percentile.value(String.valueOf(percentile));
+                Percentiles field4Percentile = bucket.getAggregations().get("field4Percentile");
+                assertThat(field4Percentile, notNullValue());
+                double field4PercentileValue = field4Percentile.value(String.valueOf(percentile));
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertThat(seriesArithmeticValue, equalTo(field2PercentileValue + field3PercentileValue + field4PercentileValue));
+            }
+        }
+    }
+
+    public void testInlineScriptWithMultiValueAggregationDifferentBucketsPaths() {
+        int percentile10 = 10;
+        int percentile50 = 50;
+        int percentile90 = 90;
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(percentiles("field2Percentile").field(FIELD_2_NAME))
+                    .subAggregation(
+                        percentiles("field3Percentile").field(FIELD_3_NAME).percentiles(percentile10, percentile50, percentile90)
+                    )
+                    .subAggregation(percentiles("field4Percentile").field(FIELD_4_NAME).percentiles(percentile90))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Percentile.10",
+                            "field3Percentile.50",
+                            "field4Percentile"
+                        )
+                    )
+            )
+            .get();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            if (bucket.getDocCount() == 0) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, nullValue());
+            } else {
+                Percentiles field2Percentile = bucket.getAggregations().get("field2Percentile");
+                assertThat(field2Percentile, notNullValue());
+                double field2PercentileValue = field2Percentile.value(String.valueOf(percentile10));
+                Percentiles field3Percentile = bucket.getAggregations().get("field3Percentile");
+                assertThat(field3Percentile, notNullValue());
+                double field3PercentileValue = field3Percentile.value(String.valueOf(percentile50));
+                Percentiles field4Percentile = bucket.getAggregations().get("field4Percentile");
+                assertThat(field4Percentile, notNullValue());
+                double field4PercentileValue = field4Percentile.value(String.valueOf(percentile90));
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertThat(seriesArithmeticValue, equalTo(field2PercentileValue + field3PercentileValue + field4PercentileValue));
             }
         }
     }

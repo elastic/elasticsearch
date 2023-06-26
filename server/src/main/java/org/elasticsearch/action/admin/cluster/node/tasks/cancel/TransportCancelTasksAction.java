@@ -22,8 +22,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Transport action that can be used to cancel currently running cancellable tasks.
@@ -59,13 +59,13 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
-    protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
+    protected List<CancellableTask> processTasks(CancelTasksRequest request) {
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             CancellableTask task = taskManager.getCancellableTask(request.getTargetTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
-                    operation.accept(task);
+                    return List.of(task);
                 } else {
                     throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support this operation");
                 }
@@ -78,16 +78,23 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 }
             }
         } else {
+            final var tasks = new ArrayList<CancellableTask>();
             for (CancellableTask task : taskManager.getCancellableTasks().values()) {
                 if (request.match(task)) {
-                    operation.accept(task);
+                    tasks.add(task);
                 }
             }
+            return tasks;
         }
     }
 
     @Override
-    protected void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        CancelTasksRequest request,
+        CancellableTask cancellableTask,
+        ActionListener<TaskInfo> listener
+    ) {
         String nodeId = clusterService.localNode().getId();
         taskManager.cancelTaskAndDescendants(
             cancellableTask,

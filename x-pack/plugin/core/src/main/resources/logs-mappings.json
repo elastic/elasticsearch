@@ -1,14 +1,21 @@
 {
   "template": {
     "mappings": {
+      "date_detection": false,
       "properties": {
-        "data_stream": {
-          "properties": {
-            "type": {
-              "type": "constant_keyword",
-              "value": "logs"
-            }
-          }
+        "@timestamp": {
+          "type": "date",
+          "ignore_malformed": false
+        },
+        "data_stream.type": {
+          "type": "constant_keyword",
+          "value": "logs"
+        },
+        "data_stream.dataset": {
+          "type": "constant_keyword"
+        },
+        "data_stream.namespace": {
+          "type": "constant_keyword"
         }
       }
     }

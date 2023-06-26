@@ -99,9 +99,9 @@ SHOW TABLES;
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
-integTest      |library        |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest      |library        |TABLE     |INDEX
 
 // end::showTables
 ;
@@ -112,7 +112,7 @@ SHOW TABLES LIKE 'emp';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeExact
 ;
@@ -123,8 +123,8 @@ SHOW TABLES LIKE 'emp%';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
 
 // end::showTablesLikeWildcard
 ;
@@ -136,7 +136,7 @@ SHOW TABLES LIKE 'em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeOneChar
 ;
@@ -147,7 +147,7 @@ SHOW TABLES LIKE '%em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeMixed
 ;
@@ -170,8 +170,8 @@ SHOW TABLES "*,-l*";
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
 
 // end::showTablesEsMultiIndex
 ;
@@ -186,10 +186,10 @@ SHOW TABLES INCLUDE FROZEN;
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |archive        |TABLE     |FROZEN INDEX
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
-integTest      |library        |TABLE     |INDEX
+javaRestTest      |archive        |TABLE     |FROZEN INDEX
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest      |library        |TABLE     |INDEX
 
 // end::showTablesIncludeFrozen
 ;
@@ -249,6 +249,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_FORMAT      |SCALAR
 DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
@@ -1513,12 +1514,12 @@ SELECT languages, PERCENTILE(salary, 95) AS "95th" FROM emp
 
    languages   |      95th       
 ---------------+-----------------
-null           |74999.0          
-1              |72790.5          
-2              |71924.70000000001
-3              |73638.25         
-4              |72115.59999999999
-5              |61071.7       
+null           |74482.4          
+1              |71122.8          
+2              |70271.4
+3              |71926.0          
+4              |69352.15
+5              |56371.0       
 // end::aggPercentile
 ;
 
@@ -1530,12 +1531,12 @@ SELECT languages, PERCENTILE(salary / 12.0, 95) AS "95th" FROM emp
 
    languages   |       95th
 ---------------+------------------
-null           |6249.916666666667
-1              |6065.875
-2              |5993.725
-3              |6136.520833333332
-4              |6009.633333333332
-5              |5089.3083333333325
+null           |6206.866666666667
+1              |5926.9
+2              |5855.949999999999
+3              |5993.833333333333
+4              |5779.345833333333
+5              |4697.583333333333
 // end::aggPercentileScalars
 ;
 
@@ -1548,14 +1549,14 @@ SELECT
 FROM emp 
 GROUP BY languages;
 
-   languages   | 97.3_TDigest  |   97.3_HDR    
----------------+---------------+---------------
-null           |74999.0        |74992.0        
-1              |73717.0        |73712.0        
-2              |73530.238      |69936.0        
-3              |74970.0        |74992.0        
-4              |74572.0        |74608.0        
-5              |66117.118      |56368.0        
+   languages   | 97.3_TDigest    |   97.3_HDR    
+---------------+-----------------+---------------
+null           |74720.036        |74992.0        
+1              |72316.132        |73712.0        
+2              |71792.436        |69936.0        
+3              |73326.23999999999|74992.0        
+4              |71753.281        |74608.0        
+5              |61176.16000000001|56368.0        
 // end::aggPercentileWithPercentileConfig
 ;
 
@@ -1570,7 +1571,7 @@ null           |73.65766569962062
 2              |88.88005607010643
 3              |79.43662623295829
 4              |85.70446389643493
-5              |100.0      
+5              |96.79075152940749      
 // end::aggPercentileRank
 ;
 
@@ -1606,7 +1607,7 @@ null           |73.66          |80.0
 2              |88.88          |89.47          
 3              |79.44          |76.47          
 4              |85.7           |83.33          
-5              |100.0          |95.24          
+5              |96.79          |95.24          
 // end::aggPercentileRankWithPercentileConfig
 ;
 
@@ -2904,6 +2905,36 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 // end::dateTimeFormatTime
 ;
 
+dateFormatDate
+// tag::dateFormatDate
+SELECT DATE_FORMAT(CAST('2020-04-05' AS DATE), '%d/%m/%Y') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::dateFormatDate
+;
+
+dateFormatDateTime
+// tag::dateFormatDateTime
+SELECT DATE_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), '%d/%m/%Y %H:%i:%s.%f') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.987654
+// end::dateFormatDateTime
+;
+
+dateFormatTime
+// tag::dateFormatTime
+SELECT DATE_FORMAT(CAST('23:22:33.987' AS TIME), '%H %i %s.%f') AS "time";
+
+      time
+------------------
+23 22 33.987000
+// end::dateFormatTime
+;
+
 toCharDate
 // tag::toCharDate
 SELECT TO_CHAR(CAST('2020-04-05' AS DATE), 'DD/MM/YYYY') AS "date";
@@ -3190,7 +3221,7 @@ SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
 
 formatDate
 // tag::formatDate
-SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/yyyy') AS "date";
 
       date
 ------------------
@@ -3200,7 +3231,7 @@ SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
 
 formatDateTime
 // tag::formatDateTime
-SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.ff') AS "datetime";
+SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/yyyy HH:mm:ss.ff') AS "datetime";
 
       datetime
 ------------------

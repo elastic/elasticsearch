@@ -1,0 +1,12 @@
+pluginManagement {
+    includeBuild "../build-conventions"
+    includeBuild "../build-tools"
+}
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        buildLibs {
+            from(files("../gradle/build.versions.toml"))
+        }
+    }
+}

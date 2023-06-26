@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,9 +21,11 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +42,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class GetSnapshotsResponseTests extends ESTestCase {
@@ -60,7 +62,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             (out, value) -> value.writeTo(out),
             GetSnapshotsResponse::new,
-            Version.CURRENT
+            TransportVersion.current()
         );
 
     }
@@ -162,7 +164,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             .asMatchPredicate()
             .or(Pattern.compile("snapshots\\.\\d+\\.index_details").asMatchPredicate())
             .or(Pattern.compile("failures\\.*").asMatchPredicate());
-        xContentTester(this::createParser, this::createTestInstance, params, this::doParseInstance).numberOfTestRuns(1)
+        chunkedXContentTester(this::createParser, (XContentType t) -> createTestInstance(), params, this::doParseInstance).numberOfTestRuns(
+            1
+        )
             .supportsUnknownFields(true)
             .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
             .randomFieldsExcludeFilter(predicate)
@@ -171,6 +175,10 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             // ElasticsearchException, whose xContent creation/parsing are not stable.
             .assertToXContentEquivalence(false)
             .test();
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> response.getSnapshots().size() + 2);
     }
 
 }

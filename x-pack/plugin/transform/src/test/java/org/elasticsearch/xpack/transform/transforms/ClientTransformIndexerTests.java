@@ -20,7 +20,9 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -37,7 +39,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -52,7 +53,9 @@ import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -111,11 +114,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test", searchRequest);
         indexer.doSearch(
             namedSearchRequest,
-            ActionListener.wrap(
-                // A search of zero indices should return null rather than attempt to search all indices
-                ESTestCase::assertNull,
-                e -> fail(e.getMessage())
-            )
+            // A search of zero indices should return null rather than attempt to search all indices
+            ActionTestUtils.assertNoFailureListener(ESTestCase::assertNull)
         );
     }
 
@@ -132,7 +132,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(SchedulerEngine.class)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -160,10 +160,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 false
             );
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+", response.pointInTimeId());
+            });
 
             assertEquals(1L, client.getPitContextCounter());
 
@@ -174,40 +173,34 @@ public class ClientTransformIndexerTests extends ESTestCase {
             indexer.onStop();
             assertEquals(0L, client.getPitContextCounter());
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id++", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+++", response.pointInTimeId());
+            });
 
             assertEquals(1L, client.getPitContextCounter());
 
             indexer.onStop();
             assertEquals(0L, client.getPitContextCounter());
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id++", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+++", response.pointInTimeId());
+            });
 
             assertEquals(1L, client.getPitContextCounter());
 
@@ -232,7 +225,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(SchedulerEngine.class)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -307,7 +300,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(SchedulerEngine.class)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -538,7 +531,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(IndexBasedTransformConfigManager.class),
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
-                mock(SchedulerEngine.class)
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

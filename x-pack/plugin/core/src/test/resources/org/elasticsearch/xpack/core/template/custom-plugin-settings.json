@@ -1,0 +1,17 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "default_pipeline": "custom-plugin-default_pipeline",
+        "final_pipeline": "custom-plugin-final_pipeline"
+      }
+    }
+  },
+  "_meta": {
+    "description": "settings for my application logs",
+    "managed": true
+  },
+  "version": ${xpack.custom_plugin.template.version}
+}

@@ -8,16 +8,10 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Utilities for use during bootstrap. This is public so that tests may use these methods.
@@ -27,32 +21,9 @@ public class BootstrapUtil {
     // no construction
     private BootstrapUtil() {}
 
-    /**
-     * Read from an InputStream up to the first carriage return or newline,
-     * returning no more than maxLength characters.
-     */
-    public static SecureString readPassphrase(InputStream stream) throws IOException {
-        SecureString passphrase;
-
-        try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-            passphrase = new SecureString(Terminal.readLineToCharArray(reader));
-        }
-
-        if (passphrase.length() == 0) {
-            passphrase.close();
-            throw new IllegalStateException("Keystore passphrase required but none provided.");
-        }
-
-        return passphrase;
-    }
-
-    public static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
-        return loadSecureSettings(initialEnv, System.in);
-    }
-
-    public static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
+    public static SecureSettings loadSecureSettings(Environment initialEnv, SecureString keystorePassword) throws BootstrapException {
         try {
-            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin));
+            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> keystorePassword);
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

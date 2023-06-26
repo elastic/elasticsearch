@@ -38,6 +38,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -71,7 +73,8 @@ class S3Service implements Closeable {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
-            System::getProperty
+            System::getProperty,
+            Clock.systemUTC()
         );
     }
 
@@ -221,7 +224,12 @@ class S3Service implements Closeable {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
                 return new PrivilegedAWSCredentialsProvider(
-                    new AWSCredentialsProviderChain(webIdentityTokenCredentialsProvider, new EC2ContainerCredentialsProviderWrapper())
+                    new AWSCredentialsProviderChain(
+                        List.of(
+                            new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER),
+                            new ErrorLoggingCredentialsProvider(new EC2ContainerCredentialsProviderWrapper(), LOGGER)
+                        )
+                    )
                 );
             } else {
                 logger.debug("Using instance profile credentials");
@@ -294,7 +302,8 @@ class S3Service implements Closeable {
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
             SystemEnvironment systemEnvironment,
-            JvmEnvironment jvmEnvironment
+            JvmEnvironment jvmEnvironment,
+            Clock clock
         ) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
@@ -315,14 +324,19 @@ class S3Service implements Closeable {
                 throw new IllegalStateException("Unable to read a Web Identity Token symlink in the config directory");
             }
             String roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN_ENV_VAR);
-            String roleSessionName = systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME_ENV_VAR);
-            if (roleArn == null || roleSessionName == null) {
+            if (roleArn == null) {
                 LOGGER.warn(
                     "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
-                        + "variable is set, but either AWS_ROLE_ARN or AWS_ROLE_SESSION_NAME are missing"
+                        + "variable is set, but either AWS_ROLE_ARN is missing"
                 );
                 return;
             }
+            String roleSessionName = Objects.requireNonNullElseGet(
+                systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME_ENV_VAR),
+                // Mimic the default behaviour of the AWS SDK in case the session name is not set
+                // See `com.amazonaws.auth.WebIdentityTokenCredentialsProvider#45`
+                () -> "aws-sdk-java-" + clock.millis()
+            );
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
             // Custom system property used for specifying a mocked version of the STS for testing
@@ -363,6 +377,37 @@ class S3Service implements Closeable {
         public void shutdown() throws IOException {
             if (credentialsProvider != null) {
                 IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
+            }
+        }
+    }
+
+    static class ErrorLoggingCredentialsProvider implements AWSCredentialsProvider {
+
+        private final AWSCredentialsProvider delegate;
+        private final Logger logger;
+
+        ErrorLoggingCredentialsProvider(AWSCredentialsProvider delegate, Logger logger) {
+            this.delegate = Objects.requireNonNull(delegate);
+            this.logger = Objects.requireNonNull(logger);
+        }
+
+        @Override
+        public AWSCredentials getCredentials() {
+            try {
+                return delegate.getCredentials();
+            } catch (Exception e) {
+                logger.error(() -> "Unable to load credentials from " + delegate, e);
+                throw e;
+            }
+        }
+
+        @Override
+        public void refresh() {
+            try {
+                delegate.refresh();
+            } catch (Exception e) {
+                logger.error(() -> "Unable to refresh " + delegate, e);
+                throw e;
             }
         }
     }

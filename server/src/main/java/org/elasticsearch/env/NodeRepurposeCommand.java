@@ -48,7 +48,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     void testExecute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        execute(terminal, options, env);
+        execute(terminal, options, env, null);
     }
 
     @Override
@@ -63,7 +63,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
+    protected void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         assert DiscoveryNode.canContainData(env.settings()) == false;
 
         if (DiscoveryNode.isMasterNode(env.settings()) == false) {
@@ -74,13 +74,13 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     private static void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+        NodeEnvironment.DataPath[] nodeDataPaths = toDataPaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePaths);
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodeDataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting index metadata paths");
-        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodePaths);
+        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodeDataPaths);
 
         Set<Path> indexPaths = uniqueParentPaths(shardDataPaths, indexMetadataPaths);
 
@@ -114,10 +114,10 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     private static void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+        NodeEnvironment.DataPath[] nodeDataPaths = toDataPaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePaths);
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodeDataPaths);
         if (shardDataPaths.isEmpty()) {
             terminal.println(NO_SHARD_DATA_TO_CLEAN_UP_FOUND);
             return;

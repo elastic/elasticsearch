@@ -10,7 +10,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,22 +18,28 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
-    static ClusterState setLocalNode(final ClusterState clusterState, DiscoveryNode localNode) {
+    public static ClusterState setLocalNode(ClusterState clusterState, DiscoveryNode localNode, TransportVersion transportVersion) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+            .putTransportVersion(localNode.getId(), transportVersion)
             .build();
     }
 
-    static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(final ClusterState clusterState, final ClusterSettings clusterSettings) {
+    public static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(
+        final ClusterState clusterState,
+        final ClusterSettings clusterSettings
+    ) {
         final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
 
         metadataBuilder.persistentSettings(
@@ -59,17 +65,12 @@ public class ClusterStateUpdaters {
 
     private static void logInvalidSetting(final String settingType, final Map.Entry<String, String> e, final IllegalArgumentException ex) {
         logger.warn(
-            () -> new ParameterizedMessage(
-                "ignoring invalid {} setting: [{}] with value [{}]; archiving",
-                settingType,
-                e.getKey(),
-                e.getValue()
-            ),
+            () -> format("ignoring invalid %s setting: [%s] with value [%s]; archiving", settingType, e.getKey(), e.getValue()),
             ex
         );
     }
 
-    static ClusterState recoverClusterBlocks(final ClusterState state) {
+    public static ClusterState recoverClusterBlocks(final ClusterState state) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
 
         if (Metadata.SETTING_READ_ONLY_SETTING.get(state.metadata().settings())) {
@@ -87,9 +88,9 @@ public class ClusterStateUpdaters {
         return ClusterState.builder(state).blocks(blocks).build();
     }
 
-    static ClusterState updateRoutingTable(final ClusterState state) {
+    static ClusterState updateRoutingTable(final ClusterState state, ShardRoutingRoleStrategy shardRoutingRoleStrategy) {
         // initialize all index routing tables as empty
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, state.routingTable());
         for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
             routingTableBuilder.addAsRecovery(indexMetadata);
         }

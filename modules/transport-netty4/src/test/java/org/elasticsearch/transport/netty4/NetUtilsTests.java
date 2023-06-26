@@ -8,17 +8,38 @@
 
 package org.elasticsearch.transport.netty4;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.channels.NetworkChannel;
+import java.nio.channels.SocketChannel;
+
+import static org.hamcrest.Matchers.hasItem;
+
 public class NetUtilsTests extends ESTestCase {
 
-    public void testExtendedSocketOptions() {
-        assumeTrue("JDK possibly not supported", Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK"));
+    public void testExtendedSocketOptions() throws IOException {
+        assertTrue(
+            "jdk.net module not resolved",
+            ModuleLayer.boot().modules().stream().map(Module::getName).anyMatch(nm -> nm.equals("jdk.net"))
+        );
+
         assumeTrue("Platform possibly not supported", IOUtils.LINUX || IOUtils.MAC_OS_X);
-        assertNotNull(NetUtils.getTcpKeepIdleSocketOptionOrNull());
-        assertNotNull(NetUtils.getTcpKeepIntervalSocketOptionOrNull());
-        assertNotNull(NetUtils.getTcpKeepCountSocketOptionOrNull());
+        try (var channel = networkChannel()) {
+            var options = channel.supportedOptions();
+            assertThat(options, hasItem(NetUtils.getTcpKeepIdleSocketOption()));
+            assertThat(options, hasItem(NetUtils.getTcpKeepIntervalSocketOption()));
+            assertThat(options, hasItem(NetUtils.getTcpKeepCountSocketOption()));
+        }
+    }
+
+    private static NetworkChannel networkChannel() {
+        try {
+            return SocketChannel.open();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

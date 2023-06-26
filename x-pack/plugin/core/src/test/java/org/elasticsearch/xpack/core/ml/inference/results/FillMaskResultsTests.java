@@ -25,13 +25,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMaskResults> {
-    @Override
-    protected Writeable.Reader<FillMaskResults> instanceReader() {
-        return FillMaskResults::new;
-    }
 
-    @Override
-    protected FillMaskResults createTestInstance() {
+    public static FillMaskResults createRandomResults() {
         int numResults = randomIntBetween(0, 3);
         List<TopClassEntry> resultList = new ArrayList<>();
         for (int i = 0; i < numResults; i++) {
@@ -45,6 +40,21 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
             randomDouble(),
             randomBoolean()
         );
+    }
+
+    @Override
+    protected Writeable.Reader<FillMaskResults> instanceReader() {
+        return FillMaskResults::new;
+    }
+
+    @Override
+    protected FillMaskResults createTestInstance() {
+        return createRandomResults();
+    }
+
+    @Override
+    protected FillMaskResults mutateInstance(FillMaskResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @SuppressWarnings("unchecked")

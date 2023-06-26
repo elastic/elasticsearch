@@ -24,11 +24,6 @@ public interface FloatArray extends BigArray {
     float set(long index, float value);
 
     /**
-     * Increment value at the given index by <code>inc</code> and return the value.
-     */
-    float increment(long index, float inc);
-
-    /**
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
     void fill(long fromIndex, long toIndex, float value);

@@ -9,17 +9,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 
 /**
  * A mapper that indexes the field names of a document under <code>_field_names</code>. This mapper is typically useful in order
@@ -44,15 +42,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
         public static final Explicit<Boolean> ENABLED = Explicit.IMPLICIT_TRUE;
-        public static final FieldType FIELD_TYPE = new FieldType();
 
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
     }
 
     private static FieldNamesFieldMapper toType(FieldMapper in) {
@@ -73,8 +63,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         private final boolean createdOnOrAfterV8;
 
-        Builder(Version indexVersionCreated) {
-            this(indexVersionCreated.onOrAfter(Version.V_8_0_0));
+        Builder(IndexVersion indexVersionCreated) {
+            this(indexVersionCreated.onOrAfter(IndexVersion.V_8_0_0));
         }
 
         Builder(boolean createdOnOrAfterV8) {
@@ -83,8 +73,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(enabled);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { enabled };
         }
 
         @Override
@@ -111,7 +101,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.indexVersionCreated().onOrAfter(Version.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
+        c -> c.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
         c -> new Builder(c.indexVersionCreated())
     );
 
@@ -184,7 +174,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             return;
         }
         assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
-        context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
+        context.doc().add(new StringField(NAME, field, Field.Store.NO));
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {
@@ -197,4 +187,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

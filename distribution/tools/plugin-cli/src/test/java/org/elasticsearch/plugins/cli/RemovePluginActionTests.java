@@ -12,6 +12,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -28,6 +29,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -87,10 +89,10 @@ public class RemovePluginActionTests extends ESTestCase {
 
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
-        MockTerminal terminal = new MockTerminal();
-        final List<PluginDescriptor> plugins = pluginIds == null
+        MockTerminal terminal = MockTerminal.create();
+        final List<InstallablePlugin> plugins = pluginIds == null
             ? null
-            : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
+            : pluginIds.stream().map(InstallablePlugin::new).collect(Collectors.toList());
         new RemovePluginAction(terminal, env, purge).execute(plugins);
         return terminal;
     }
@@ -232,24 +234,18 @@ public class RemovePluginActionTests extends ESTestCase {
     public void testRemoveUninstalledPluginErrors() throws Exception {
         UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertEquals("plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins", e.getMessage());
+        assertThat(e.getMessage(), containsString("plugin [fake] not found"));
 
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         new MockRemovePluginCommand(env) {
-            protected boolean addShutdownHook() {
-                return false;
-            }
-        }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal);
+        }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
         try (
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))
         ) {
             assertThat(errorReader.readLine(), equalTo(""));
-            assertThat(
-                errorReader.readLine(),
-                equalTo("ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins")
-            );
+            assertThat(errorReader.readLine(), containsString("plugin [fake] not found"));
             assertThat(reader.readLine(), nullValue());
             assertThat(errorReader.readLine(), nullValue());
         }

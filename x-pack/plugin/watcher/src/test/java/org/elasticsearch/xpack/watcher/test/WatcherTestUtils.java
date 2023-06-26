@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
@@ -179,13 +181,19 @@ public final class WatcherTestUtils {
         httpRequest.method(HttpMethod.POST);
         httpRequest.path(new TextTemplate("/foobarbaz/{{ctx.watch_id}}"));
         httpRequest.body(new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits"));
+
+        WebhookService webhookService = new WebhookService(
+            Settings.EMPTY,
+            httpClient,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         actions.add(
             new ActionWrapper(
                 "_webhook",
                 actionThrottler,
                 null,
                 null,
-                new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine),
+                new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, webhookService, engine),
                 null,
                 null
             )

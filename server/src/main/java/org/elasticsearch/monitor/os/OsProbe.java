@@ -11,6 +11,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
@@ -463,6 +464,13 @@ public class OsProbe {
      * nr_throttled} is the number of times tasks in the given control group have been throttled, and {@code throttled_time} is the total
      * time in nanoseconds for which tasks in the given control group have been throttled.
      *
+     * If the burst feature of the scheduler is enabled, the statistics contain an additional two fields of the form
+     * <blockquote><pre>
+     * nr_bursts \d+
+     * burst_time
+     * </pre></blockquote>
+     * These additional fields are currently ignored.
+     *
      * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
@@ -470,7 +478,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && lines.size() == 3;
+        assert lines != null && (lines.size() == 3 || lines.size() == 5);
         return lines;
     }
 
@@ -684,7 +692,7 @@ public class OsProbe {
                 // `cpuacct` was merged with `cpu` in v2
                 final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
 
-                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec");
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec") * 1000; // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
@@ -693,7 +701,7 @@ public class OsProbe {
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),
                     cpuStatsMap.get("nr_throttled"),
-                    cpuStatsMap.get("throttled_usec")
+                    cpuStatsMap.get("throttled_usec") * 1000
                 );
 
                 cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);
@@ -755,11 +763,11 @@ public class OsProbe {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+    OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
             refreshInterval,
             Runtime.getRuntime().availableProcessors(),
-            allocatedProcessors,
+            processors,
             Constants.OS_NAME,
             getPrettyName(),
             Constants.OS_ARCH,

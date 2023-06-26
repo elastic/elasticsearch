@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -16,7 +17,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -35,12 +38,20 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedModelDeploymentAction.Response> {
 
     public static final InferTrainedModelDeploymentAction INSTANCE = new InferTrainedModelDeploymentAction();
 
-    // TODO Review security level
+    /**
+     * Do not call this action directly, use InferModelAction instead
+     * which will perform various checks and set the node the request
+     * should execute on.
+     *
+     * The action is poorly named as once it was publicly accessible
+     * and exposed through a REST API now it _must_ only called internally.
+     */
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
@@ -56,7 +67,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
      */
     public static class Request extends BaseTasksRequest<Request> {
 
-        public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
         public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
@@ -65,7 +75,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
-            PARSER.declareString(Request.Builder::setDeploymentId, DEPLOYMENT_ID);
+            PARSER.declareString(Request.Builder::setId, InferModelAction.Request.DEPLOYMENT_ID);
             PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
             PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
             PARSER.declareNamedObject(
@@ -75,40 +85,89 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             );
         }
 
-        public static Request.Builder parseRequest(String deploymentId, XContentParser parser) {
+        public static Request.Builder parseRequest(String id, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
-            if (deploymentId != null) {
-                builder.setDeploymentId(deploymentId);
+            if (id != null) {
+                builder.setId(id);
             }
             return builder;
         }
 
-        private final String deploymentId;
+        private String id;
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
+        private boolean highPriority = false;
+        // textInput added for uses that accept a query string
+        // and do know which field the model expects to find its
+        // input and so cannot construct a document.
+        private final List<String> textInput;
 
-        public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
-            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
-            this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
+        public static Request forDocs(String id, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
+            return new Request(
+                ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID),
+                update,
+                ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
+                null,
+                false,
+                inferenceTimeout
+            );
+        }
+
+        public static Request forTextInput(String id, InferenceConfigUpdate update, List<String> textInput, TimeValue inferenceTimeout) {
+            return new Request(
+                ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID),
+                update,
+                List.of(),
+                ExceptionsHelper.requireNonNull(textInput, "inference text input"),
+                false,
+                inferenceTimeout
+            );
+        }
+
+        // for tests
+        Request(
+            String id,
+            InferenceConfigUpdate update,
+            List<Map<String, Object>> docs,
+            List<String> textInput,
+            boolean highPriority,
+            TimeValue inferenceTimeout
+        ) {
+            this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
+            this.docs = docs;
+            this.textInput = textInput;
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
+            this.highPriority = highPriority;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            deploymentId = in.readString();
-            docs = Collections.unmodifiableList(in.readList(StreamInput::readMap));
+            id = in.readString();
+            docs = in.readImmutableList(StreamInput::readMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+                highPriority = in.readBoolean();
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                textInput = in.readOptionalStringList();
+            } else {
+                textInput = null;
+            }
         }
 
-        public String getDeploymentId() {
-            return deploymentId;
+        public String getId() {
+            return id;
         }
 
         public List<Map<String, Object>> getDocs() {
             return docs;
+        }
+
+        public List<String> getTextInput() {
+            return textInput;
         }
 
         public InferenceConfigUpdate getUpdate() {
@@ -117,6 +176,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public TimeValue getInferenceTimeout() {
             return inferenceTimeout == null ? DEFAULT_TIMEOUT : inferenceTimeout;
+        }
+
+        public void setId(String id) {
+            this.id = id;
         }
 
         /**
@@ -129,18 +192,22 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return null;
         }
 
+        public void setHighPriority(boolean highPriority) {
+            this.highPriority = highPriority;
+        }
+
+        public boolean isHighPriority() {
+            return highPriority;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
             if (docs == null) {
                 validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null", validationException);
             } else {
-                if (docs.isEmpty()) {
-                    validationException = addValidationError("at least one document is required", validationException);
-                }
-                if (docs.size() > 1) {
-                    // TODO support multiple docs
-                    validationException = addValidationError("multiple documents are not supported", validationException);
+                if (docs.isEmpty() && textInput == null) {
+                    validationException = addValidationError("at least one document is required ", validationException);
                 }
             }
             return validationException;
@@ -149,15 +216,21 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(deploymentId);
+            out.writeString(id);
             out.writeCollection(docs, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+                out.writeBoolean(highPriority);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                out.writeOptionalStringCollection(textInput);
+            }
         }
 
         @Override
         public boolean match(Task task) {
-            return StartTrainedModelDeploymentAction.TaskMatcher.match(task, deploymentId);
+            return StartTrainedModelDeploymentAction.TaskMatcher.match(task, id);
         }
 
         @Override
@@ -165,28 +238,37 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
-            return Objects.equals(deploymentId, that.deploymentId)
+            return Objects.equals(id, that.id)
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
-                && Objects.equals(inferenceTimeout, that.inferenceTimeout);
+                && Objects.equals(inferenceTimeout, that.inferenceTimeout)
+                && Objects.equals(highPriority, that.highPriority)
+                && Objects.equals(textInput, that.textInput);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, update, docs, inferenceTimeout);
+            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", this.id), parentTaskId, headers);
         }
 
         public static class Builder {
 
-            private String deploymentId;
+            private String id;
             private List<Map<String, Object>> docs;
             private TimeValue timeout;
             private InferenceConfigUpdate update;
+            private boolean skipQueue = false;
+            private List<String> textInput;
 
             private Builder() {}
 
-            public Builder setDeploymentId(String deploymentId) {
-                this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
+            public Builder setId(String id) {
+                this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
                 return this;
             }
 
@@ -209,42 +291,63 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
+            public Builder setTextInput(List<String> textInput) {
+                this.textInput = textInput;
+                return this;
+            }
+
+            public Builder setSkipQueue(boolean skipQueue) {
+                this.skipQueue = skipQueue;
+                return this;
+            }
+
             public Request build() {
-                return new Request(deploymentId, update, docs, timeout);
+                return new Request(id, update, docs, textInput, skipQueue, timeout);
             }
         }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private final InferenceResults results;
+        private final List<InferenceResults> results;
 
-        public Response(InferenceResults result) {
+        public Response(List<InferenceResults> results) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.results = Objects.requireNonNull(result);
+            this.results = Objects.requireNonNull(results);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            results = in.readNamedWriteable(InferenceResults.class);
-        }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            results.toXContent(builder, params);
-            builder.endObject();
-            return builder;
+            // Multiple results added in 8.6.1
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
+                results = in.readNamedWriteableList(InferenceResults.class);
+            } else {
+                results = List.of(in.readNamedWriteable(InferenceResults.class));
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeNamedWriteable(results);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
+                out.writeNamedWriteableList(results);
+            } else {
+                out.writeNamedWriteable(results.get(0));
+            }
         }
 
-        public InferenceResults getResults() {
+        public List<InferenceResults> getResults() {
             return results;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            results.get(0).toXContent(builder, params);
+            builder.endObject();
+            return builder;
         }
     }
 }

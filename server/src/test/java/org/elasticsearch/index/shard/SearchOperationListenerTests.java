@@ -115,7 +115,12 @@ public class SearchOperationListenerTests extends ESTestCase {
         SearchOperationListener throwingListener = (SearchOperationListener) Proxy.newProxyInstance(
             SearchOperationListener.class.getClassLoader(),
             new Class<?>[] { SearchOperationListener.class },
-            (a, b, c) -> { throw new RuntimeException(); }
+            (prox, method, args) -> {
+                if (method.getName().equals("toString")) {
+                    return "test-listener";
+                }
+                throw new RuntimeException();
+            }
         );
         int throwingListeners = 0;
         final List<SearchOperationListener> indexingOperationListeners = new ArrayList<>(Arrays.asList(listener, listener));

@@ -17,12 +17,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
-/**
- * Aggregator factories are responsible for creating the per-shard aggregator instances.  They should select the aggregator instance type
- * based on the type of the data being aggregated (using the {@link org.elasticsearch.search.aggregations.support.ValuesSourceRegistry}
- * when appropriate), and any optimizations that factory can make.  The factory layer is the correct place for heuristics to select
- * different operating modes (such as using Global Ordinals or not).
- */
 public abstract class AggregatorFactory {
     protected final String name;
     protected final AggregatorFactory parent;
@@ -100,5 +94,4 @@ public abstract class AggregatorFactory {
     public String getStatsSubtype() {
         return OTHER_SUBTYPE;
     }
-
 }

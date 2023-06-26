@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionParser;
 
-import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -162,6 +162,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(false));
+            verifyExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -183,6 +184,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(true));
+            verifyExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -208,6 +210,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "balkan.beast", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(false));
+            verifyExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -259,10 +262,17 @@ public class AutoConfigureNodeTests extends ESTestCase {
         return false;
     }
 
+    private void verifyExtendedKeyUsage(X509Certificate httpCertificate) throws Exception {
+        List<String> extendedKeyUsage = httpCertificate.getExtendedKeyUsage();
+        assertEquals("Only one extended key usage expected for HTTP certificate.", 1, extendedKeyUsage.size());
+        String expectedServerAuthUsage = KeyPurposeId.id_kp_serverAuth.toASN1Primitive().toString();
+        assertEquals("Expected serverAuth extended key usage.", expectedServerAuthUsage, extendedKeyUsage.get(0));
+    }
+
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir, Settings settings) throws Exception {
         final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", configDir).put(settings).build());
         // runs the command to auto-generate the config files and the keystore
-        new AutoConfigureNode(false).execute(new MockTerminal(), new OptionParser().parse(), env);
+        new AutoConfigureNode(false).execute(MockTerminal.create(), new OptionParser().parse(), env, null);
 
         KeyStoreWrapper nodeKeystore = KeyStoreWrapper.load(configDir.resolve("config"));
         nodeKeystore.decrypt(new char[0]); // the keystore is always bootstrapped with an empty password
@@ -280,8 +290,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
         return (X509Certificate) httpKeystore.getCertificate("http");
     }
 
-    @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")
     private void deleteDirectory(Path directory) throws IOException {
-        FileUtils.deleteDirectory(directory.toFile());
+        IOUtils.rm(directory);
     }
 }

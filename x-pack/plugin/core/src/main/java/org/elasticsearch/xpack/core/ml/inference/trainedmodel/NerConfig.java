@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,10 +22,19 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
 public class NerConfig implements NlpConfig {
+
+    public static boolean validIOBTag(String label) {
+        return label.toUpperCase(Locale.ROOT).startsWith("I-")
+            || label.toUpperCase(Locale.ROOT).startsWith("B-")
+            || label.toUpperCase(Locale.ROOT).startsWith("I_")
+            || label.toUpperCase(Locale.ROOT).startsWith("B_")
+            || label.toUpperCase(Locale.ROOT).startsWith("O");
+    }
 
     public static final String NAME = "ner";
 
@@ -80,6 +90,22 @@ public class NerConfig implements NlpConfig {
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.classificationLabels = classificationLabels == null ? Collections.emptyList() : classificationLabels;
+        if (this.classificationLabels.isEmpty() == false) {
+            List<String> badLabels = this.classificationLabels.stream().filter(l -> validIOBTag(l) == false).toList();
+            if (badLabels.isEmpty() == false) {
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] only allows IOB tokenization tagging for classification labels; provided {}",
+                    NAME,
+                    badLabels
+                );
+            }
+            if (this.classificationLabels.stream().noneMatch(l -> l.toUpperCase(Locale.ROOT).equals("O"))) {
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] only allows IOB tokenization tagging for classification labels; missing outside label [O]",
+                    NAME
+                );
+            }
+        }
         this.resultsField = resultsField;
         if (this.tokenization.span != -1) {
             throw ExceptionsHelper.badRequestException(
@@ -131,8 +157,13 @@ public class NerConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     @Override

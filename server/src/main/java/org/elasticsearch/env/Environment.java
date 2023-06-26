@@ -24,7 +24,6 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -40,21 +39,10 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.listSetting(
-        "path.data",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.stringListSetting("path.data", Property.NodeScope);
     public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.listSetting(
-        "path.repo",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.stringListSetting("path.repo", Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
-    public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
 
@@ -77,9 +65,6 @@ public class Environment {
     private final Path libFile;
 
     private final Path logsFile;
-
-    /** Path to the PID file (can be null if no PID file is configured) **/
-    private final Path pidFile;
 
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile;
@@ -138,12 +123,6 @@ public class Environment {
             logsFile = homeFile.resolve("logs");
         }
 
-        if (NODE_PIDFILE_SETTING.exists(settings)) {
-            pidFile = PathUtils.get(NODE_PIDFILE_SETTING.get(settings)).toAbsolutePath().normalize();
-        } else {
-            pidFile = null;
-        }
-
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
         modulesFile = homeFile.resolve("modules");
@@ -166,10 +145,7 @@ public class Environment {
             assert sharedDataFile != null;
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
-        if (NODE_PIDFILE_SETTING.exists(settings)) {
-            assert pidFile != null;
-            finalSettings.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile.toString());
-        }
+
         this.settings = finalSettings.build();
     }
 
@@ -284,13 +260,6 @@ public class Environment {
         return logsFile;
     }
 
-    /**
-     * The PID file location (can be null if no PID file is configured)
-     */
-    public Path pidFile() {
-        return pidFile;
-    }
-
     /** Path to the default temp directory used by the JDK */
     public Path tmpFile() {
         return tmpFile;
@@ -378,7 +347,6 @@ public class Environment {
         assertEquals(actual.libFile(), expected.libFile(), "libFile");
         assertEquals(actual.modulesFile(), expected.modulesFile(), "modulesFile");
         assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
-        assertEquals(actual.pidFile(), expected.pidFile(), "pidFile");
         assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
     }
 

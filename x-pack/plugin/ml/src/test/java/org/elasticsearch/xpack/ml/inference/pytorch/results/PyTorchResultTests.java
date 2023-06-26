@@ -16,10 +16,22 @@ public class PyTorchResultTests extends AbstractXContentTestCase<PyTorchResult> 
 
     @Override
     protected PyTorchResult createTestInstance() {
-        return new PyTorchResult(
-            randomBoolean() ? null : PyTorchInferenceResultTests.createRandom(),
-            randomBoolean() ? null : ThreadSettingsTests.createRandom()
-        );
+        String requestId = randomAlphaOfLength(5);
+        int type = randomIntBetween(0, 3);
+        return switch (type) {
+            case 0 -> new PyTorchResult(
+                requestId,
+                randomBoolean(),
+                randomNonNegativeLong(),
+                PyTorchInferenceResultTests.createRandom(),
+                null,
+                null,
+                null
+            );
+            case 1 -> new PyTorchResult(requestId, null, null, null, ThreadSettingsTests.createRandom(), null, null);
+            case 2 -> new PyTorchResult(requestId, null, null, null, null, AckResultTests.createRandom(), null);
+            default -> new PyTorchResult(requestId, null, null, null, null, null, ErrorResultTests.createRandom());
+        };
     }
 
     @Override

@@ -11,9 +11,12 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
@@ -54,12 +57,13 @@ import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
-@CacheableTask
-public class ThirdPartyAuditTask extends DefaultTask {
+import static org.gradle.api.JavaVersion.VERSION_20;
+import static org.gradle.api.JavaVersion.VERSION_21;
 
-    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
-        "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
-    );
+@CacheableTask
+public abstract class ThirdPartyAuditTask extends DefaultTask {
+
+    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile("DEBUG: Class '(.*)' cannot be loaded \\(.*\\)\\.");
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile("\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)");
     private static final int SIG_KILL_EXIT_VALUE = 137;
@@ -78,9 +82,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private File signatureFile;
 
-    private String javaHome;
-
-    private FileCollection jdkJarHellClasspath;
+    private Property<String> javaHome;
 
     private final Property<JavaVersion> targetCompatibility;
 
@@ -93,10 +95,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private final ProjectLayout projectLayout;
 
     private FileCollection classpath;
-
-    private FileCollection jarsToScan;
-
-    private FileCollection forbiddenApisClasspath;
 
     @Inject
     public ThirdPartyAuditTask(
@@ -111,6 +109,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.fileSystemOperations = fileSystemOperations;
         this.projectLayout = projectLayout;
         this.targetCompatibility = objectFactory.property(JavaVersion.class);
+        this.javaHome = objectFactory.property(String.class);
     }
 
     @Input
@@ -120,13 +119,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @InputFiles
     @PathSensitive(PathSensitivity.NAME_ONLY)
-    public FileCollection getForbiddenAPIsClasspath() {
-        return forbiddenApisClasspath;
-    }
-
-    public void setForbiddenAPIsClasspath(FileCollection forbiddenApisClasspath) {
-        this.forbiddenApisClasspath = forbiddenApisClasspath;
-    }
+    public abstract ConfigurableFileCollection getForbiddenAPIsClasspath();
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -138,14 +131,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.signatureFile = signatureFile;
     }
 
-    @Input
-    @Optional
-    public String getJavaHome() {
+    @Internal
+    public Property<String> getJavaHome() {
         return javaHome;
-    }
-
-    public void setJavaHome(String javaHome) {
-        this.javaHome = javaHome;
     }
 
     @Internal
@@ -161,13 +149,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jdk jar hell.
     // We only care about the runtime classpath ABI here.
     @CompileClasspath
-    public FileCollection getJdkJarHellClasspath() {
-        return jdkJarHellClasspath.filter(File::exists);
-    }
-
-    public void setJdkJarHellClasspath(FileCollection jdkJarHellClasspath) {
-        this.jdkJarHellClasspath = jdkJarHellClasspath;
-    }
+    abstract ConfigurableFileCollection getJdkJarHellClasspath();
 
     public void ignoreMissingClasses(String... classesOrPackages) {
         if (classesOrPackages.length == 0) {
@@ -207,13 +189,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @Classpath
     @SkipWhenEmpty
-    public FileCollection getJarsToScan() {
-        return jarsToScan;
-    }
+    public abstract ConfigurableFileCollection getJarsToScan();
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
-        Set<File> jars = jarsToScan.getFiles();
+        Set<File> jars = getJarsToScan().getFiles();
         extractJars(jars, getJarExpandDir());
         final String forbiddenApisOutput = runForbiddenAPIsCli();
         final Set<String> missingClasses = new TreeSet<>();
@@ -354,13 +334,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
         ExecResult result = execOperations.javaexec(spec -> {
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
-            spec.classpath(forbiddenApisClasspath, classpath);
+            spec.classpath(getForbiddenAPIsClasspath(), classpath);
+            // Enable explicitly for each release as appropriate. Just JDK 20/21 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21)) {
+                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            }
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
-            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
+            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
                 spec.setStandardOutput(new NullOutputStream());
@@ -380,16 +364,27 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return forbiddenApisOutput;
     }
 
+    /** Returns true iff the build Java version is the same as the given version. */
+    private boolean isJavaVersion(JavaVersion version) {
+        if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            if (version.equals(BuildParams.getRuntimeJavaVersion())) {
+                return true;
+            }
+        } else if (version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion())) {
+            return true;
+        }
+        return false;
+    }
+
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = execOperations.javaexec(spec -> {
-            spec.classpath(jdkJarHellClasspath, classpath);
-
+            spec.classpath(getJdkJarHellClasspath(), classpath);
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.setStandardOutput(standardOut);
         });
@@ -407,7 +402,4 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.classpath = classpath;
     }
 
-    public void setJarsToScan(FileCollection jarsToScan) {
-        this.jarsToScan = jarsToScan;
-    }
 }

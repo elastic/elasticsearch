@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
@@ -79,8 +78,8 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
                 builder.field("cluster_name", response.getClusterName().value());
                 response.toXContent(builder, channel.request());
                 builder.endObject();
-                nodesRequestBuilder.request().closePassword();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                nodesRequestBuilder.request().close();
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

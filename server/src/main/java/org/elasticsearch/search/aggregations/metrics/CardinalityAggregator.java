@@ -21,11 +21,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -40,48 +40,84 @@ import java.util.function.BiConsumer;
 /**
  * An aggregator that computes approximate counts of unique values.
  */
-public abstract class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
+public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
-    protected final int precision;
-    protected final ValuesSourceConfig valuesSourceConfig;
+    private final int precision;
+    private final CardinalityAggregatorFactory.ExecutionMode executionMode;
     private final ValuesSource valuesSource;
-
-    // Expensive to initialize, so we only initialize it when we have an actual value source
-    @Nullable
-    protected final HyperLogLogPlusPlus counts;
+    private final HyperLogLogPlusPlus counts;
 
     private Collector collector;
 
-    protected int emptyCollectorsUsed;
-    protected int ordinalsCollectorsUsed;
-    protected int ordinalsCollectorsOverheadTooHigh;
-    protected int stringHashingCollectorsUsed;
+    private int emptyCollectorsUsed;
+    private int numericCollectorsUsed;
+    private int ordinalsCollectorsUsed;
+    private int ordinalsCollectorsOverheadTooHigh;
+    private int stringHashingCollectorsUsed;
 
     public CardinalityAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
+        CardinalityAggregatorFactory.ExecutionMode executionMode,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
-        this.valuesSourceConfig = valuesSourceConfig;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.executionMode = executionMode;
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+    }
+
+    private Collector pickCollector(LeafReaderContext ctx) throws IOException {
+        if (valuesSource instanceof ValuesSource.Numeric source) {
+            MurmurHash3Values hashValues = source.isFloatingPoint()
+                ? MurmurHash3Values.hash(source.doubleValues(ctx))
+                : MurmurHash3Values.hash(source.longValues(ctx));
+            numericCollectorsUsed++;
+            return new DirectCollector(counts, hashValues);
+        }
+
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals source) {
+            final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
+            final long maxOrd = ordinalValues.getValueCount();
+            if (maxOrd == 0) {
+                emptyCollectorsUsed++;
+                return new EmptyCollector();
+            }
+
+            if (executionMode.useSegmentOrdinals(maxOrd, precision)) {
+                ordinalsCollectorsUsed++;
+                return new OrdinalsCollector(counts, ordinalValues, bigArrays());
+            }
+
+            if (executionMode.isHeuristicBased()) {
+                // if we could have used segment ordinals, and it was our heuristic that made the choice not to, increment the counter
+                ordinalsCollectorsOverheadTooHigh++;
+            }
+        }
+
+        stringHashingCollectorsUsed++;
+        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
     }
 
     @Override
-    public abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        postCollectLastCollector();
 
-    protected void postCollectLastCollector() throws IOException {
+        collector = pickCollector(aggCtx.getLeafReaderContext());
+        return collector;
+    }
+
+    private void postCollectLastCollector() throws IOException {
         if (collector != null) {
             try {
                 collector.postCollect();
@@ -99,12 +135,12 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public double metric(long owningBucketOrd) {
-        return counts == null ? 0 : counts.cardinality(owningBucketOrd);
+        return counts.cardinality(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
+        if (owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
         // We need to build a copy because the returned Aggregation needs remain usable after
@@ -115,7 +151,7 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, metadata());
+        return InternalCardinality.empty(name, metadata());
     }
 
     @Override
@@ -127,18 +163,19 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("empty_collectors_used", emptyCollectorsUsed);
+        add.accept("numeric_collectors_used", numericCollectorsUsed);
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 
-    protected abstract static class Collector extends LeafBucketCollector implements Releasable {
+    private abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
     }
 
-    protected static class EmptyCollector extends Collector {
+    private static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {
@@ -156,7 +193,7 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
         }
     }
 
-    protected static class DirectCollector extends Collector {
+    private static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
         private final HyperLogLogPlusPlus counts;
@@ -188,7 +225,7 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
 
     }
 
-    protected static class OrdinalsCollector extends Collector {
+    static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 

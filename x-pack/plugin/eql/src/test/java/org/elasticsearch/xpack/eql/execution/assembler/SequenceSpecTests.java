@@ -11,12 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -38,6 +39,8 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -46,9 +49,9 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class SequenceSpecTests extends ESTestCase {
 
@@ -56,6 +59,8 @@ public class SequenceSpecTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "sequences.series-spec";
+
+    private static final String KEY_FIELD_NAME = "key";
 
     private final List<Map<Integer, Tuple<String, String>>> events;
     private final List<List<String>> matches;
@@ -95,7 +100,7 @@ public class SequenceSpecTests extends ESTestCase {
     static class KeyExtractor extends EmptyHitExtractor {
         @Override
         public String extract(SearchHit hit) {
-            return hit.getId();
+            return hit.getFields().get(KEY_FIELD_NAME).getValues().get(0).toString();
         }
     }
 
@@ -108,7 +113,7 @@ public class SequenceSpecTests extends ESTestCase {
         }
     }
 
-    class TestCriterion extends Criterion<BoxedQueryRequest> {
+    class TestCriterion extends SequenceCriterion {
         private final int ordinal;
         private boolean unused = true;
 
@@ -130,6 +135,7 @@ public class SequenceSpecTests extends ESTestCase {
                 tsExtractor,
                 tbExtractor,
                 implicitTbExtractor,
+                false,
                 false
             );
             this.ordinal = ordinal;
@@ -180,8 +186,11 @@ public class SequenceSpecTests extends ESTestCase {
 
             for (Entry<Integer, Tuple<String, String>> entry : events.entrySet()) {
                 Tuple<String, String> value = entry.getValue();
+                Map<String, DocumentField> documentFields = new HashMap<>();
+                documentFields.put(KEY_FIELD_NAME, new DocumentField(KEY_FIELD_NAME, Collections.singletonList(value.v1())));
                 // save the timestamp both as docId (int) and as id (string)
-                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString(), null, null);
+                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString());
+                searchHit.addDocumentFields(documentFields, Map.of());
                 hits.add(searchHit);
             }
         }
@@ -223,7 +232,7 @@ public class SequenceSpecTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -250,7 +259,7 @@ public class SequenceSpecTests extends ESTestCase {
 
     public void test() throws Exception {
         int stages = events.size();
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
         // pass the items for each query through the Criterion
         for (int i = 0; i < stages; i++) {
             // set the index as size in the search source
@@ -258,13 +267,20 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         // convert the results through a test specific payload
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
+        SequenceMatcher matcher = new SequenceMatcher(
+            stages,
+            false,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(stages, false),
+            NOOP_CIRCUIT_BREAKER
+        );
 
         QueryClient testClient = new TestQueryClient();
-        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);
+        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher, Collections.emptyList());
 
         // finally make the assertion at the end of the listener
-        window.execute(wrap(this::checkResults, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        window.execute(ActionTestUtils.assertNoFailureListener(this::checkResults));
     }
 
     private void checkResults(Payload payload) {

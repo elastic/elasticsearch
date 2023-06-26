@@ -42,14 +42,13 @@ each checkpoint.
 [IMPORTANT]
 ====
 
-* When {es} {security-features} are enabled, your {transform} remembers which
-roles the user who updated it had at the time of update and runs with those
-privileges.
-* You must use {kib} or this API to update a {transform}. Do not update a
-{transform} directly via `.transform-internal*` indices using the {es} index API.
-If {es} {security-features} are enabled, do not give users any privileges on
-`.transform-internal*` indices. If you used {transforms} prior 7.5, also do not
-give users any privileges on `.data-frame-internal*` indices.
+* Your {transform} remembers which roles the user who updated it had at the time
+of update and runs with those privileges. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used instead.
+* You must use {kib} or this API to update a {transform}. Directly updating any
+{transform} internal, system, or hidden indices is not supported and may cause
+permanent failure.
 
 ====
 
@@ -92,6 +91,26 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
 `index`:::
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+//Begin aliases
+`aliases`:::
+(Optional, array of objects)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases]
++
+.Properties of `aliases`
+[%collapsible%open]
+=====
+
+`alias`::::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-alias]
+
+`move_on_creation`::::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-move-on-creation]
+
+=====
+//End aliases
 
 `pipeline`:::
 (Optional, string)
@@ -143,21 +162,27 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
-`dates_as_epoch_millis`:::
-(Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
-`docs_per_second`:::
-(Optional, float)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `align_checkpoints`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `deduce_mappings`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+`num_failure_retries`:::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-num-failure-retries]
+`unattended`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-unattended]
 ====
 //End settings
 
@@ -263,49 +288,57 @@ When the {transform} is updated, you receive the updated configuration:
 [source,console-result]
 ----
 {
-  "id": "simple-kibana-ecomm-pivot",
-  "source": {
-    "index": ["kibana_sample_data_ecommerce"],
-    "query": {
-      "term": {
-        "geoip.continent_name": {
-          "value": "Asia"
+  "id" : "simple-kibana-ecomm-pivot",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "version" : "8.4.0",
+  "create_time" : 1656113450613,
+  "source" : {
+    "index" : [
+      "kibana_sample_data_ecommerce"
+    ],
+    "query" : {
+      "term" : {
+        "geoip.continent_name" : {
+          "value" : "Asia"
         }
       }
     }
   },
-  "pivot": {
-    "group_by": {
-      "customer_id": {
-        "terms": {
-          "field": "customer_id"
+  "dest" : {
+    "index" : "kibana_sample_data_ecommerce_transform_v2",
+    "pipeline" : "add_timestamp_pipeline"
+  },
+  "frequency" : "15m",
+  "sync" : {
+    "time" : {
+      "field" : "order_date",
+      "delay" : "120s"
+    }
+  },
+  "pivot" : {
+    "group_by" : {
+      "customer_id" : {
+        "terms" : {
+          "field" : "customer_id"
         }
       }
     },
-    "aggregations": {
-      "max_price": {
-        "max": {
-          "field": "taxful_total_price"
+    "aggregations" : {
+      "max_price" : {
+        "max" : {
+          "field" : "taxful_total_price"
         }
       }
     }
   },
-  "description": "Maximum priced ecommerce data by customer_id in Asia",
-  "dest": {
-    "index": "kibana_sample_data_ecommerce_transform_v2",
-    "pipeline": "add_timestamp_pipeline"
-  },
-  "frequency": "15m",
-  "sync": {
-    "time": {
-      "field": "order_date",
-      "delay": "120s"
-    }
-  },
-  "settings": { },
-  "version": "7.5.0",
-  "create_time": 1518808660505
+  "description" : "Maximum priced ecommerce data by customer_id in Asia",
+  "settings" : { }
 }
 ----
-// TESTRESPONSE[s/"version": "7.5.0"/"version": $body.version/]
-// TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]
+// TESTRESPONSE[s/"version" : "8.4.0"/"version" : $body.version/]
+// TESTRESPONSE[s/"create_time" : 1656113450613/"create_time" : $body.create_time/]
+// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]

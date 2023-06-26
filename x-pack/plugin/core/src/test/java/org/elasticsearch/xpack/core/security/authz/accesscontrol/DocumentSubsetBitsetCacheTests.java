@@ -15,24 +15,23 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.BitSetIterator;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -70,7 +69,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -83,6 +81,9 @@ import static org.mockito.Mockito.when;
 public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     private static final int FIELD_COUNT = 10;
+    // This value is based on the internal implementation details of lucene's FixedBitSet
+    // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
+    private static final long EXPECTED_BYTES_PER_BIT_SET = 56;
     private ExecutorService singleThreadExecutor;
 
     @Before
@@ -137,12 +138,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     public void testCacheRespectsMemoryLimit() throws Exception {
-        // This value is based on the internal implementation details of lucene's FixedBitSet
-        // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
-        final long expectedBytesPerBitSet = 56;
-
         // Enough to hold exactly 2 bit-sets in the cache
-        final long maxCacheBytes = expectedBytesPerBitSet * 2;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET * 2;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -158,29 +155,29 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 final Query query = queryBuilder.toQuery(searchExecutionContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
                 assertThat(bitSet, notNullValue());
-                assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
+                assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
 
                 // The first time through we have 1 entry, after that we have 2
                 final int expectedCount = i == 1 ? 1 : 2;
                 assertThat(cache.entryCount(), equalTo(expectedCount));
-                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * expectedBytesPerBitSet));
+                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_BIT_SET));
 
                 // Older queries should get evicted, but the query from last iteration should still be cached
                 if (previousQuery != null) {
                     assertThat(cache.getBitSet(previousQuery, leafContext), sameInstance(previousBitSet));
                     assertThat(cache.entryCount(), equalTo(expectedCount));
-                    assertThat(cache.ramBytesUsed(), equalTo(expectedCount * expectedBytesPerBitSet));
+                    assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_BIT_SET));
                 }
                 previousQuery = query;
                 previousBitSet = bitSet;
 
                 assertThat(cache.getBitSet(queryBuilder.toQuery(searchExecutionContext), leafContext), sameInstance(bitSet));
                 assertThat(cache.entryCount(), equalTo(expectedCount));
-                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * expectedBytesPerBitSet));
+                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_BIT_SET));
             }
 
             assertThat(cache.entryCount(), equalTo(2));
-            assertThat(cache.ramBytesUsed(), equalTo(2 * expectedBytesPerBitSet));
+            assertThat(cache.ramBytesUsed(), equalTo(2 * EXPECTED_BYTES_PER_BIT_SET));
 
             cache.clear("testing");
 
@@ -190,12 +187,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     public void testLogWarningIfBitSetExceedsCacheSize() throws Exception {
-        // This value is based on the internal implementation details of lucene's FixedBitSet
-        // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
-        final long expectedBytesPerBitSet = 56;
-
         // Enough to hold less than 1 bit-sets in the cache
-        final long maxCacheBytes = expectedBytesPerBitSet - expectedBytesPerBitSet / 3;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET - EXPECTED_BYTES_PER_BIT_SET / 3;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -214,7 +207,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                     cache.getClass().getName(),
                     Level.WARN,
                     "built a DLS BitSet that uses ["
-                        + expectedBytesPerBitSet
+                        + EXPECTED_BYTES_PER_BIT_SET
                         + "] bytes; the DLS BitSet cache has a maximum size of ["
                         + maxCacheBytes
                         + "] bytes; this object cannot be cached and will need to be rebuilt for each use;"
@@ -227,7 +220,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 final Query query = queryBuilder.toQuery(searchExecutionContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
                 assertThat(bitSet, notNullValue());
-                assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
+                assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
             });
 
             mockAppender.assertAllExpectationsMatched();
@@ -238,12 +231,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     public void testLogMessageIfCacheFull() throws Exception {
-        // This value is based on the internal implementation details of lucene's FixedBitSet
-        // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
-        final long expectedBytesPerBitSet = 56;
-
         // Enough to hold slightly more than 1 bit-sets in the cache
-        final long maxCacheBytes = expectedBytesPerBitSet + expectedBytesPerBitSet / 3;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 3;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -272,7 +261,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                     final Query query = queryBuilder.toQuery(searchExecutionContext);
                     final BitSet bitSet = cache.getBitSet(query, leafContext);
                     assertThat(bitSet, notNullValue());
-                    assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
+                    assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
                 }
             });
 
@@ -311,12 +300,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     public void testIndexLookupIsClearedWhenBitSetIsEvicted() throws Exception {
-        // This value is based on the internal implementation details of lucene's FixedBitSet
-        // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
-        final long expectedBytesPerBitSet = 56;
-
         // Enough to hold slightly more than 1 bit-set in the cache
-        final long maxCacheBytes = expectedBytesPerBitSet + expectedBytesPerBitSet / 2;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 2;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -359,18 +344,13 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51914")
     public void testCacheUnderConcurrentAccess() throws Exception {
-        // This value is based on the internal implementation details of lucene's FixedBitSet
-        // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
-        final long expectedBytesPerBitSet = 56;
-
-        final int concurrentThreads = randomIntBetween(5, 15);
+        final int concurrentThreads = randomIntBetween(5, 8);
         final int numberOfIndices = randomIntBetween(3, 8);
 
         // Force cache evictions by setting the size to be less than the number of distinct queries we search on.
         final int maxCacheCount = randomIntBetween(FIELD_COUNT / 2, FIELD_COUNT * 3 / 4);
-        final long maxCacheBytes = expectedBytesPerBitSet * maxCacheCount;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET * maxCacheCount;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -396,27 +376,39 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 final CountDownLatch start = new CountDownLatch(concurrentThreads);
                 final CountDownLatch end = new CountDownLatch(concurrentThreads);
                 final Set<BitSet> uniqueBitSets = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+                final AtomicReference<Throwable> exceptionInThread = new AtomicReference<>();
                 for (int thread = 0; thread < concurrentThreads; thread++) {
                     threads.submit(() -> {
-                        start.countDown();
-                        start.await(100, TimeUnit.MILLISECONDS);
-                        for (int loop = 0; loop < 15; loop++) {
-                            for (int field = 1; field <= FIELD_COUNT; field++) {
-                                final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + field, "value-" + field);
-                                final TestIndexContext randomContext = randomFrom(contexts);
-                                final Query query = queryBuilder.toQuery(randomContext.searchExecutionContext);
-                                final BitSet bitSet = cache.getBitSet(query, randomContext.leafReaderContext);
-                                assertThat(bitSet, notNullValue());
-                                assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
-                                uniqueBitSets.add(bitSet);
+                        try {
+                            start.countDown();
+                            if (false == start.await(100, TimeUnit.MILLISECONDS)) {
+                                // We still proceed even when some threads are not ready. All threads being ready increases the chance
+                                // of them running concurrently and competing for caching. But this is not guaranteed either way.
+                                logger.info("[{}] out of [{}] worker threads are ready", start.getCount(), concurrentThreads);
                             }
+                            for (int loop = 0; loop < 5; loop++) {
+                                for (int field = 1; field <= FIELD_COUNT; field++) {
+                                    final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + field, "value-" + field);
+                                    final TestIndexContext randomContext = randomFrom(contexts);
+                                    final Query query = queryBuilder.toQuery(randomContext.searchExecutionContext);
+                                    final BitSet bitSet = cache.getBitSet(query, randomContext.leafReaderContext);
+                                    assertThat(bitSet, notNullValue());
+                                    assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
+                                    uniqueBitSets.add(bitSet);
+                                }
+                            }
+                            end.countDown();
+                        } catch (Throwable e) {
+                            logger.warn("caught exception in worker thread", e);
+                            exceptionInThread.compareAndSet(null, e);
                         }
-                        end.countDown();
                         return null;
                     });
                 }
 
-                assertTrue("Query threads did not complete in expected time", end.await(1, TimeUnit.SECONDS));
+                if (false == end.await(1, TimeUnit.SECONDS)) {
+                    fail("Query threads did not complete in expected time. Possible exception [" + exceptionInThread.get() + "]");
+                }
 
                 threads.shutdown();
                 assertTrue("Cleanup thread did not complete in expected time", threads.awaitTermination(3, TimeUnit.SECONDS));
@@ -429,6 +421,62 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 // Even under concurrent pressure, the cache should hit the expected size
                 assertThat(cache.entryCount(), is(maxCacheCount));
                 assertThat(cache.ramBytesUsed(), is(maxCacheBytes));
+            });
+        } finally {
+            threads.shutdown();
+        }
+    }
+
+    public void testCleanupWorksWhenIndexIsClosing() throws Exception {
+        // Enough to hold slightly more than 1 bit-set in the cache
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 2;
+        final Settings settings = Settings.builder()
+            .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
+            .build();
+        final ExecutorService threads = Executors.newFixedThreadPool(1);
+        final ExecutorService cleanupExecutor = Mockito.mock(ExecutorService.class);
+        final CountDownLatch cleanupReadyLatch = new CountDownLatch(1);
+        final CountDownLatch cleanupCompleteLatch = new CountDownLatch(1);
+        final CountDownLatch indexCloseLatch = new CountDownLatch(1);
+        final AtomicReference<Throwable> cleanupException = new AtomicReference<>();
+        when(cleanupExecutor.submit(any(Runnable.class))).thenAnswer(inv -> {
+            final Runnable runnable = (Runnable) inv.getArguments()[0];
+            return threads.submit(() -> {
+                try {
+                    cleanupReadyLatch.countDown();
+                    assertTrue("index close did not completed in expected time", indexCloseLatch.await(1, TimeUnit.SECONDS));
+                    runnable.run();
+                } catch (Throwable e) {
+                    logger.warn("caught error in cleanup thread", e);
+                    cleanupException.compareAndSet(null, e);
+                } finally {
+                    cleanupCompleteLatch.countDown();
+                }
+                return null;
+            });
+        });
+
+        final DocumentSubsetBitsetCache cache = new DocumentSubsetBitsetCache(settings, cleanupExecutor);
+        assertThat(cache.entryCount(), equalTo(0));
+        assertThat(cache.ramBytesUsed(), equalTo(0L));
+
+        try {
+            runTestOnIndex((searchExecutionContext, leafContext) -> {
+                final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
+                final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
+                assertThat(bitSet1, notNullValue());
+
+                // Second query should trigger a cache eviction
+                final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
+                final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
+                assertThat(bitSet2, notNullValue());
+
+                final IndexReader.CacheKey indexKey = leafContext.reader().getCoreCacheHelper().getKey();
+                assertTrue("cleanup did not trigger in expected time", cleanupReadyLatch.await(1, TimeUnit.SECONDS));
+                cache.onClose(indexKey);
+                indexCloseLatch.countDown();
+                assertTrue("cleanup did not complete in expected time", cleanupCompleteLatch.await(1, TimeUnit.SECONDS));
+                assertThat("caught error in cleanup thread: " + cleanupException.get(), cleanupException.get(), nullValue());
             });
         } finally {
             threads.shutdown();
@@ -479,43 +527,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             });
             assertThat(cache.entryCount(), equalTo(0));
             assertThat(cache.ramBytesUsed(), equalTo(0L));
-        }
-    }
-
-    public void testRoleBitSets() throws Exception {
-        int maxDocs = randomIntBetween(1, 1024);
-        int numDocs = 0;
-        FixedBitSet matches = new FixedBitSet(maxDocs);
-        for (int i = 0; i < maxDocs; i++) {
-            if (numDocs < maxDocs && randomBoolean()) {
-                numDocs++;
-                matches.set(i);
-            }
-        }
-        DocIdSetIterator it = new BitSetIterator(matches, randomIntBetween(0, numDocs));
-        BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
-        assertThat(bitSet.cardinality(), equalTo(numDocs));
-        assertThat(bitSet.length(), equalTo(maxDocs));
-        for (int i = 0; i < maxDocs; i++) {
-            assertThat(bitSet.get(i), equalTo(matches.get(i)));
-            assertThat(bitSet.nextSetBit(i), equalTo(matches.nextSetBit(i)));
-            assertThat(bitSet.prevSetBit(i), equalTo(matches.prevSetBit(i)));
-        }
-    }
-
-    public void testMatchAllRoleBitSet() throws Exception {
-        int maxDocs = randomIntBetween(1, 128);
-        FixedBitSet matches = new FixedBitSet(maxDocs);
-        for (int i = 0; i < maxDocs; i++) {
-            matches.set(i);
-        }
-        DocIdSetIterator it = new BitSetIterator(matches, randomNonNegativeLong());
-        BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
-        assertThat(bitSet, instanceOf(MatchAllRoleBitSet.class));
-        for (int i = 0; i < maxDocs; i++) {
-            assertTrue(bitSet.get(i));
-            assertThat(bitSet.nextSetBit(i), equalTo(matches.nextSetBit(i)));
-            assertThat(bitSet.prevSetBit(i), equalTo(matches.prevSetBit(i)));
         }
     }
 
@@ -592,6 +603,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 shardId.id(),
                 0,
                 indexSettings,
+                ClusterSettings.createBuiltInClusterSettings(),
                 null,
                 null,
                 null,

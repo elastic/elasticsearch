@@ -11,7 +11,8 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,7 +23,12 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetadata> {
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasKey;
+
+public class ScriptMetadataTests extends AbstractChunkedSerializingTestCase<ScriptMetadata> {
 
     public void testGetScript() throws Exception {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
@@ -47,7 +53,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         assertEquals("{\"field\":\"value\"}", scriptMetadata.getStoredScript("source_template").getSource());
     }
 
-    public void testDiff() throws Exception {
+    public void testDiff() {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
         builder.storeScript("1", StoredScriptSource.parse(new BytesArray("""
             {"script":{"lang":"mustache","source":{"foo":"abc"}}}"""), XContentType.JSON));
@@ -66,12 +72,10 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         ScriptMetadata scriptMetadata2 = builder.build();
 
         ScriptMetadata.ScriptMetadataDiff diff = (ScriptMetadata.ScriptMetadataDiff) scriptMetadata2.diff(scriptMetadata1);
-        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size());
-        assertEquals("3", ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0));
-        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size());
-        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().get("2"));
-        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size());
-        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
+        DiffableUtils.MapDiff<?, ?, ?> pipelinesDiff = (DiffableUtils.MapDiff) diff.pipelines;
+        assertThat(pipelinesDiff.getDeletes(), contains("3"));
+        assertThat(Maps.ofEntries(pipelinesDiff.getDiffs()), allOf(aMapWithSize(1), hasKey("2")));
+        assertThat(Maps.ofEntries(pipelinesDiff.getUpserts()), allOf(aMapWithSize(1), hasKey("4")));
 
         ScriptMetadata result = (ScriptMetadata) diff.apply(scriptMetadata1);
         assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1").getSource());

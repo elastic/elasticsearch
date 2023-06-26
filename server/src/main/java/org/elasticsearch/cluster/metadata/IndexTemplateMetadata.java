@@ -11,8 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +28,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,9 +68,9 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     private final Settings settings;
 
     // the mapping source should always include the type as top level
-    private final ImmutableOpenMap<String, CompressedXContent> mappings;
+    private final Map<String, CompressedXContent> mappings;
 
-    private final ImmutableOpenMap<String, AliasMetadata> aliases;
+    private final Map<String, AliasMetadata> aliases;
 
     public IndexTemplateMetadata(
         String name,
@@ -79,8 +78,8 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         Integer version,
         List<String> patterns,
         Settings settings,
-        ImmutableOpenMap<String, CompressedXContent> mappings,
-        ImmutableOpenMap<String, AliasMetadata> aliases
+        Map<String, CompressedXContent> mappings,
+        Map<String, AliasMetadata> aliases
     ) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
@@ -139,11 +138,11 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         return this.mappings();
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> aliases() {
+    public Map<String, AliasMetadata> aliases() {
         return this.aliases;
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> getAliases() {
+    public Map<String, AliasMetadata> getAliases() {
         return this.aliases;
     }
 
@@ -206,16 +205,9 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeString(name);
         out.writeInt(order);
         out.writeStringCollection(patterns);
-        Settings.writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, CompressedXContent> cursor : mappings.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(aliases.size());
-        for (AliasMetadata aliasMetadata : aliases.values()) {
-            aliasMetadata.writeTo(out);
-        }
+        settings.writeTo(out);
+        out.writeMap(mappings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }
 
@@ -246,14 +238,14 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
 
         private Settings settings = Settings.EMPTY;
 
-        private final ImmutableOpenMap.Builder<String, CompressedXContent> mappings;
+        private final Map<String, CompressedXContent> mappings;
 
-        private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
+        private final Map<String, AliasMetadata> aliases;
 
         public Builder(String name) {
             this.name = name;
-            mappings = ImmutableOpenMap.builder();
-            aliases = ImmutableOpenMap.builder();
+            mappings = new HashMap<>();
+            aliases = new HashMap<>();
         }
 
         public Builder(IndexTemplateMetadata indexTemplateMetadata) {
@@ -263,8 +255,8 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
             patterns(indexTemplateMetadata.patterns());
             settings(indexTemplateMetadata.settings());
 
-            mappings = ImmutableOpenMap.builder(indexTemplateMetadata.mappings);
-            aliases = ImmutableOpenMap.builder(indexTemplateMetadata.aliases());
+            mappings = new HashMap<>(indexTemplateMetadata.mappings);
+            aliases = new HashMap<>(indexTemplateMetadata.aliases());
         }
 
         public Builder order(int order) {
@@ -313,7 +305,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
 
         public IndexTemplateMetadata build() {
-            return new IndexTemplateMetadata(name, order, version, indexPatterns, settings, mappings.build(), aliases.build());
+            return new IndexTemplateMetadata(name, order, version, indexPatterns, settings, Map.copyOf(mappings), Map.copyOf(aliases));
         }
 
         /**
@@ -323,14 +315,14 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
-        public static void toXContentWithTypes(
+        public static XContentBuilder toXContentWithTypes(
             IndexTemplateMetadata indexTemplateMetadata,
             XContentBuilder builder,
             ToXContent.Params params
         ) throws IOException {
             builder.startObject(indexTemplateMetadata.name());
             toInnerXContent(indexTemplateMetadata, builder, params, true);
-            builder.endObject();
+            return builder.endObject();
         }
 
         /**
@@ -447,11 +439,10 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
-                                    .put(mappingType, parser.mapOrdered())
-                                    .map();
-                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
+                                builder.putMapping(
+                                    currentFieldName,
+                                    Strings.toString(XContentFactory.jsonBuilder().map(Map.of(currentFieldName, parser.mapOrdered())))
+                                );
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -21,6 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.time.Instant;
 import java.util.concurrent.ExecutionException;
@@ -50,6 +49,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 
@@ -136,8 +136,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         } catch (ElasticsearchTimeoutException e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "get from cache index timed out after [5s], retrieving from blob store instead [id={}]",
+                    () -> format(
+                        "get from cache index timed out after [5s], retrieving from blob store instead [id=%s]",
                         generateId(repository, snapshotId, indexId, shardId, name, range)
                     ),
                     e
@@ -192,9 +192,9 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 // In case the blob cache system index is unavailable, we indicate it's not ready and move on. We do not fail the request:
                 // a failure here is not fatal since the data exists in the blob store, so we can simply indicate the cache is not ready.
                 if (isExpectedCacheGetException(e)) {
-                    logger.debug(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    logger.debug(() -> "failed to retrieve cached blob from system index [" + index + "]", e);
                 } else {
-                    logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    logger.warn(() -> "failed to retrieve cached blob from system index [" + index + "]", e);
                     assert false : e;
                 }
                 listener.onResponse(CachedBlob.CACHE_NOT_READY);
@@ -281,7 +281,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
+                        logger.debug(() -> "failure in cache fill: [" + request.id() + "]", e);
                         wrappedListener.onFailure(e);
                     }
                 });
@@ -292,7 +292,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 }
             }
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("cache fill failure: [{}]", id), e);
+            logger.warn(() -> "cache fill failure: [" + id + "]", e);
             listener.onFailure(e);
         }
     }
@@ -373,8 +373,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 });
             } catch (ExecutionException e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{} failed to log information about exceeding file type [{}] with length [{}]",
+                    () -> format(
+                        "%s failed to log information about exceeding file type [%s] with length [%s]",
                         shardId,
                         extension,
                         length

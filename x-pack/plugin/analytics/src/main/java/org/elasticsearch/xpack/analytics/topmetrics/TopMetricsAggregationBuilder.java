@@ -6,17 +6,19 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry.RegistryKey;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -49,7 +51,12 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
         registry.registerUsage(NAME);
-        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), TopMetricsAggregator::buildNumericMetricValues, false);
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.NUMERIC, TimeSeriesValuesSourceType.COUNTER),
+            TopMetricsAggregator::buildNumericMetricValues,
+            false
+        );
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
@@ -94,6 +101,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.parserBuilder(
             true,
+            false,
             false,
             false,
             false
@@ -163,6 +171,13 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
+    public TopMetricsAggregationBuilder subAggregations(Builder subFactories) {
+        throw new AggregationInitializationException(
+            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+        );
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TopMetricsAggregationBuilder(this, factoriesBuilder, metadata);
     }
@@ -221,7 +236,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_7_0;
     }
 }

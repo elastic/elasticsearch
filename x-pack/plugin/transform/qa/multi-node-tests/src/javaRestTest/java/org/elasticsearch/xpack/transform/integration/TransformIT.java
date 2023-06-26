@@ -13,15 +13,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -36,9 +39,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
 @SuppressWarnings("removal")
@@ -134,7 +140,7 @@ public class TransformIT extends TransformRestTestCase {
             indexName
         ).setPivotConfig(createPivotConfig(groups, aggs))
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .setSettings(new SettingsConfig(null, null, null, false, null, null))
+            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
@@ -215,7 +221,7 @@ public class TransformIT extends TransformRestTestCase {
         putPipeline.setEntity(new StringEntity(Strings.toString(pipelineBuilder), ContentType.APPLICATION_JSON));
         assertOK(client().performRequest(putPipeline));
 
-        String update = """
+        String update = Strings.format("""
             {
                 "description": "updated config",
                 "dest": {
@@ -223,8 +229,8 @@ public class TransformIT extends TransformRestTestCase {
                    "pipeline": "%s"
                 }
             }
-            """.formatted(dest, pipelineId);
-        updateConfig(id, update);
+            """, dest, pipelineId);
+        updateConfig(id, update, RequestOptions.DEFAULT);
 
         // index some more docs
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
@@ -263,6 +269,35 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(config.getId());
     }
 
+    public void testRetentionPolicyDelete() throws Exception {
+        String indexName = "retention-index";
+        String transformId = "transform-retention-update";
+        String dest = "retention-policy-dest";
+        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        TransformConfig config = createTransformConfigBuilder(transformId, dest, QueryConfig.matchAll(), indexName).setPivotConfig(
+            createPivotConfig(groups, aggs)
+        )
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setRetentionPolicyConfig(new TimeRetentionPolicyConfig("timestamp", TimeValue.timeValueDays(1)))
+            .build();
+        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+        assertThat(getTransform(transformId), hasKey("retention_policy"));
+        String update = """
+            {
+                "retention_policy": null
+            }
+            """;
+        updateConfig(transformId, update, RequestOptions.DEFAULT);
+        assertThat(getTransform(transformId), not(hasKey("retention_policy")));
+    }
+
     public void testStopWaitForCheckpoint() throws Exception {
         String indexName = "wait-for-checkpoint-reviews";
         String transformId = "transform-wait-for-checkpoint";
@@ -289,6 +324,12 @@ public class TransformIT extends TransformRestTestCase {
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
+
+        // wait until transform has been triggered and indexed at least 1 document
+        assertBusy(() -> {
+            var stateAndStats = getTransformStats(config.getId());
+            assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), greaterThan(1));
+        });
 
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
         stopTransform(transformId, false, null, true);
@@ -353,7 +394,7 @@ public class TransformIT extends TransformRestTestCase {
         ).setPivotConfig(createPivotConfig(groups, aggs))
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             // set requests per second and page size low enough to fail the test if update does not succeed,
-            .setSettings(new SettingsConfig(10, 1F, null, false, null, null))
+            .setSettings(new SettingsConfig.Builder().setMaxPageSearchSize(20).setRequestsPerSecond(1F).setAlignCheckpoints(false).build())
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
@@ -367,16 +408,16 @@ public class TransformIT extends TransformRestTestCase {
         // test randomly: with explicit settings and reset to default
         String reqsPerSec = randomBoolean() ? "1000" : "null";
         String maxPageSize = randomBoolean() ? "1000" : "null";
-        String update = """
+        String update = Strings.format("""
             {
                 "settings" : {
                     "docs_per_second": %s,
                     "max_page_search_size": %s
                 }
             }
-            """.formatted(reqsPerSec, maxPageSize);
+            """, reqsPerSec, maxPageSize);
 
-        updateConfig(config.getId(), update);
+        updateConfig(config.getId(), update, RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), equalTo("started"));
@@ -410,19 +451,62 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(config.getId());
     }
 
+    public void testStartTransform_GivenTimeout_Returns408() throws Exception {
+        String indexName = "start-transform-timeout-index";
+        String transformId = "start-transform-timeout";
+        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
+        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+        groups.put("by-business", new TermsGroupSource("business_id", null, false));
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        TransformConfig config = createTransformConfigBuilder(transformId, indexName + "-dest", QueryConfig.matchAll(), indexName)
+            .setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+            .build();
+
+        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addParameter("timeout", "1nanos").build())
+        );
+
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+        assertThat(e.getMessage(), containsString("Starting transform [" + transformId + "] timed out after [1nanos]"));
+
+        // After we've verified that the _start call timed out, we stop the transform (which might have been started despite timeout).
+        try {
+            stopTransform(transformId);
+        } catch (ResponseException e2) {
+            // It can be that the _stop call timed out because of the race condition, i.e.: the _stop call executed *before* the _start call
+            // because of how threads were scheduled by the generic thread pool and now the current transform state is STARTED.
+            // In such a case, we repeat the _stop call to make the transform STOPPED.
+            assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+            assertThat(e2.getMessage(), containsString("Could not stop the transforms [" + transformId + "] as they timed out [30s]."));
+            stopTransform(transformId);
+        }
+    }
+
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
         StringBuilder bulkBuilder = new StringBuilder();
         for (int i = 0; i < 25; i++) {
-            bulkBuilder.append("""
+            bulkBuilder.append(Strings.format("""
                 {"create":{"_index":"%s"}}
-                """.formatted(index));
+                """, index));
 
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;
 
-            String source = """
+            String source = Strings.format("""
                 {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
-                """.formatted(userId, i, business, stars, timestamp);
+                """, userId, i, business, stars, timestamp);
             bulkBuilder.append(source);
         }
         bulkBuilder.append("\r\n");

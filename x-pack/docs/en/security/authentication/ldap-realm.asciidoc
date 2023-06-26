@@ -9,7 +9,7 @@ Lightweight Directory Access Protocol (LDAP) server to authenticate users. See
 LDAP stores users and groups hierarchically, similar to the way folders are
 grouped in a file system. An LDAP directory's hierarchy is built from containers
 such as the _organizational unit_ (`ou`), _organization_ (`o`), and
-_domain controller_ (`dc`).
+_domain component_ (`dc`).
 
 The path to an entry is a _Distinguished Name_ (DN) that uniquely identifies a
 user or group. User and group names typically have attributes such as a

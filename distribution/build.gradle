@@ -11,7 +11,7 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
-import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -25,6 +25,18 @@ plugins {
 
 configurations {
   log4jConfig
+  dependencyInfos {
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
+    }
+  }
+}
+
+def thisProj = project
+rootProject.allprojects { proj ->
+    proj.plugins.withType(DependenciesInfoPlugin) {
+      thisProj.dependencies.add("dependencyInfos", project.dependencies.project(path: proj.path))
+    }
 }
 
 /*****************************************************************************
@@ -33,8 +45,7 @@ configurations {
 
 // Concatenates the dependencies CSV files into a single file
 tasks.register("generateDependenciesReport", ConcatFilesTask) {
-  dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
-  files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
+  files = configurations.dependencyInfos
   headerLine = "name,version,url,license,sourceURL"
   target = new File(providers.systemProperty('csv')
                       .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
@@ -103,6 +114,14 @@ def processExternalTestOutputsTaskProvider = tasks.register("processExternalTest
 // All transport modules are included so that they may be randomized for testing
 def processIntegTestOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
   into integTestOutputs
+}
+
+def integTestConfigFiles = fileTree("${integTestOutputs}/config") {
+  builtBy processIntegTestOutputsTaskProvider
+}
+
+def integTestBinFiles = fileTree("${integTestOutputs}/bin") {
+  builtBy processIntegTestOutputsTaskProvider
 }
 
 def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
@@ -177,7 +196,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
-  if (module.name.startsWith('transport-')) {
+  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
@@ -230,7 +249,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -249,10 +268,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
+    // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
+    libs project(':libs:elasticsearch-preallocate')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
     libsServerCli project(':distribution:tools:server-cli')
+    libsWindowsServiceCli project(':distribution:tools:windows-service-cli')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
@@ -278,6 +300,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/server-cli') {
           from(configurations.libsServerCli)
         }
+        into('tools/windows-service-cli') {
+          from(configurations.libsWindowsServiceCli)
+        }
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)
         }
@@ -294,7 +319,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsAnsiConsole)
         }
       }
-
 
     modulesFiles = { platform ->
       copySpec {
@@ -344,7 +368,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           filter("tokens" : expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
-        from defaultConfigFiles
+        from isTestDistro ? integTestConfigFiles : defaultConfigFiles
       }
     }
 
@@ -374,7 +398,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          from(defaultBinFiles)
+          from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
           }
@@ -581,4 +605,9 @@ artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
   type 'file'
   name 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
+}
+
+tasks.named('resolveAllDependencies') {
+  // We don't want to build all our distribution artifacts when priming our dependency cache
+  configs = []
 }

@@ -102,7 +102,7 @@ final class RemoteResponseParsers {
                 // For BWC with nodes pre 7.0
                 return p.longValue();
             }
-        }, new ParseField("total"), ValueType.OBJECT_OR_LONG);
+        }, new ParseField("total"), ValueType.OBJECT_OR_NUMBER);
         HITS_PARSER.declareObjectArray(constructorArg(), HIT_PARSER, new ParseField("hits"));
     }
 

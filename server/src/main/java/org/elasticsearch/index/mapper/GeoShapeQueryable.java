@@ -44,7 +44,12 @@ public interface GeoShapeQueryable {
     Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... luceneGeometries);
 
     default Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, Geometry shape) {
-        final LatLonGeometry[] luceneGeometries = toQuantizeLuceneGeometry(fieldName, context, shape, relation);
+        final LatLonGeometry[] luceneGeometries;
+        try {
+            luceneGeometries = toQuantizeLuceneGeometry(shape, relation);
+        } catch (IllegalArgumentException e) {
+            throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
+        }
         if (luceneGeometries.length == 0) {
             return new MatchNoDocsQuery();
         }
@@ -82,12 +87,7 @@ public interface GeoShapeQueryable {
      * transforms an Elasticsearch {@link Geometry} into a lucene {@link LatLonGeometry} and quantize
      * the latitude and longitude values to match the values on the index.
      */
-    private static LatLonGeometry[] toQuantizeLuceneGeometry(
-        String name,
-        SearchExecutionContext context,
-        Geometry geometry,
-        ShapeRelation relation
-    ) {
+    static LatLonGeometry[] toQuantizeLuceneGeometry(Geometry geometry, ShapeRelation relation) {
         if (geometry == null) {
             return new LatLonGeometry[0];
         }
@@ -130,7 +130,7 @@ public interface GeoShapeQueryable {
                     if (relation == ShapeRelation.WITHIN) {
                         // Line geometries and WITHIN relation is not supported by Lucene. Throw an error here
                         // to have same behavior for runtime fields.
-                        throw new QueryShardException(context, "Field [" + name + "] found an unsupported shape Line");
+                        throw new IllegalArgumentException("found an unsupported shape Line");
                     }
                     geometries.add(new org.apache.lucene.geo.Line(quantizeLats(line.getLats()), quantizeLons(line.getLons())));
                 }
@@ -139,7 +139,7 @@ public interface GeoShapeQueryable {
 
             @Override
             public Void visit(LinearRing ring) {
-                throw new QueryShardException(context, "Field [" + name + "] found an unsupported shape LinearRing");
+                throw new IllegalArgumentException("Found an unsupported shape LinearRing");
             }
 
             @Override

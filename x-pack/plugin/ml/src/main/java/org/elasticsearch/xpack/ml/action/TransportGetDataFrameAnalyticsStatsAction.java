@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -31,7 +30,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -68,6 +69,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -112,7 +114,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         for (QueryPage<Stats> task : tasks) {
             stats.addAll(task.results());
         }
-        Collections.sort(stats, Comparator.comparing(Stats::getId));
+        stats.sort(Comparator.comparing(Stats::getId));
         return new GetDataFrameAnalyticsStatsAction.Response(
             taskFailures,
             nodeFailures,
@@ -122,6 +124,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
 
     @Override
     protected void taskOperation(
+        CancellableTask actionTask,
         GetDataFrameAnalyticsStatsAction.Request request,
         DataFrameAnalyticsTask task,
         ActionListener<QueryPage<Stats>> listener
@@ -156,6 +159,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         GetDataFrameAnalyticsStatsAction.Request request,
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
     ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(getResponse -> {
@@ -169,6 +173,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                 runningTasksStatsResponse -> gatherStatsForStoppedTasks(
                     getResponse.getResources().results(),
                     runningTasksStatsResponse,
+                    parentTaskId,
                     ActionListener.wrap(finalResponse -> {
 
                         // While finalResponse has all the stats objects we need, we should report the count
@@ -190,12 +195,14 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         getRequest.setResourceId(request.getId());
         getRequest.setAllowNoResources(request.isAllowNoMatch());
         getRequest.setPageParams(request.getPageParams());
+        getRequest.setParentTask(parentTaskId);
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, getRequest, getResponseListener);
     }
 
     void gatherStatsForStoppedTasks(
         List<DataFrameAnalyticsConfig> configs,
         GetDataFrameAnalyticsStatsAction.Response runningTasksResponse,
+        TaskId parentTaskId,
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
     ) {
         List<DataFrameAnalyticsConfig> stoppedConfigs = determineStoppedConfigs(configs, runningTasksResponse.getResponse().results());
@@ -210,7 +217,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         for (int i = 0; i < stoppedConfigs.size(); i++) {
             final int slot = i;
             DataFrameAnalyticsConfig config = stoppedConfigs.get(i);
-            searchStats(config, ActionListener.wrap(stats -> {
+            searchStats(config, parentTaskId, ActionListener.wrap(stats -> {
                 jobStats.set(slot, stats);
                 if (counter.decrementAndGet() == 0) {
                     if (searchException.get() != null) {
@@ -219,7 +226,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                     }
                     List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
                     allTasksStats.addAll(jobStats.asList());
-                    Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
+                    allTasksStats.sort(Comparator.comparing(Stats::getId));
                     listener.onResponse(
                         new GetDataFrameAnalyticsStatsAction.Response(
                             new QueryPage<>(allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
@@ -241,7 +248,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         return configs.stream().filter(config -> startedTasksIds.contains(config.getId()) == false).collect(Collectors.toList());
     }
 
-    private void searchStats(DataFrameAnalyticsConfig config, ActionListener<Stats> listener) {
+    private void searchStats(DataFrameAnalyticsConfig config, TaskId parentTaskId, ActionListener<Stats> listener) {
         logger.debug("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
@@ -255,6 +262,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), OutlierDetectionStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), ClassificationStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), RegressionStats.TYPE_VALUE));
+        multiSearchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(
             client,
@@ -268,8 +276,8 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                     if (itemResponse.isFailure()) {
                         SearchRequest itemRequest = multiSearchRequest.requests().get(i);
                         logger.error(
-                            new ParameterizedMessage(
-                                "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
+                            () -> format(
+                                "[%s] Item failure encountered during multi search for request [indices=%s, source=%s]: %s",
                                 config.getId(),
                                 itemRequest.indices(),
                                 itemRequest.source(),
@@ -367,7 +375,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         DiscoveryNode node = null;
         String assignmentExplanation = null;
         if (analyticsTask != null) {
-            node = clusterState.nodes().get(analyticsTask.getExecutorNode());
+            node = analyticsTask.getExecutorNode() != null ? clusterState.nodes().get(analyticsTask.getExecutorNode()) : null;
             assignmentExplanation = analyticsTask.getAssignment().getExplanation();
         }
         return new GetDataFrameAnalyticsStatsAction.Response.Stats(

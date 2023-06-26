@@ -52,7 +52,7 @@ logs.
 * The master may appear busy due to frequent cluster state updates.
 
 To troubleshoot a cluster in this state, first ensure the cluster has a
-<<modules-discovery-troubleshooting,stable master>>. Next, focus on the nodes
+<<discovery-troubleshooting,stable master>>. Next, focus on the nodes
 unexpectedly leaving the cluster ahead of all other issues. It will not be
 possible to solve other issues until the cluster has a stable master node and
 stable node membership.
@@ -62,23 +62,33 @@ tools only offer a view of the state of the cluster at a single point in time.
 Instead, look at the cluster logs to see the pattern of behaviour over time.
 Focus particularly on logs from the elected master. When a node leaves the
 cluster, logs for the elected master include a message like this (with line
-breaks added for clarity):
+breaks added to make it easier to read):
 
 [source,text]
 ----
-[2022-03-21T11:02:35,513][INFO ][o.e.c.s.MasterService    ]
-    [instance-0000000000] node-left[
-        {instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}
-            reason: disconnected,
-        {tiebreaker-0000000003}{UNw_RuazQCSBskWZV8ID_w}{bltyVOQ-RNu20OQfTHSLtA}{172.27.161.154}{172.27.161.154:19251}{mv}
-            reason: disconnected
-        ], term: 14, version: 1653415, ...
+[2022-03-21T11:02:35,513][INFO ][o.e.c.c.NodeLeftExecutor] [instance-0000000000]
+    node-left: [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}]
+    with reason [disconnected]
 ----
 
-This message says that the `MasterService` on the elected master
-(`instance-0000000000`) is processing a `node-left` task. It lists the nodes
-that are being removed and the reasons for their removal. Other nodes may log
-similar messages, but report fewer details:
+This message says that the `NodeLeftExecutor` on the elected master
+(`instance-0000000000`) processed a `node-left` task, identifying the node that
+was removed and the reason for its removal. When the node joins the cluster
+again, logs for the elected master will include a message like this (with line
+breaks added to make it easier to read):
+
+[source,text]
+----
+[2022-03-21T11:02:59,892][INFO ][o.e.c.c.NodeJoinExecutor] [instance-0000000000]
+    node-join: [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{UNw_RuazQCSBskWZV8ID_w}{172.27.47.21}{172.27.47.21:19054}{m}]
+    with reason [joining after restart, removed [24s] ago with reason [disconnected]]
+----
+
+This message says that the `NodeJoinExecutor` on the elected master
+(`instance-0000000000`) processed a `node-join` task, identifying the node that
+was added to the cluster and the reason for the task.
+
+Other nodes may log similar messages, but report fewer details:
 
 [source,text]
 ----
@@ -89,9 +99,10 @@ similar messages, but report fewer details:
     }, term: 14, version: 1653415, reason: Publication{term=14, version=1653415}
 ----
 
-Focus on the one from the `MasterService` which is only emitted on the elected
-master, since it contains more details. If you don't see the messages from the
-`MasterService`, check that:
+These messages are not especially useful for troubleshooting, so focus on the
+ones from the `NodeLeftExecutor` and `NodeJoinExecutor` which are only emitted
+on the elected master and which contain more details. If you don't see the
+messages from the `NodeLeftExecutor` and `NodeJoinExecutor`, check that:
 
 * You're looking at the logs for the elected master node.
 
@@ -104,18 +115,14 @@ start or stop following the elected master. You can use these messages to
 determine each node's view of the state of the master over time.
 
 If a node restarts, it will leave the cluster and then join the cluster again.
-When it rejoins, the `MasterService` will log that it is processing a
-`node-join` task. You can tell from the master logs that the node was restarted
-because the `node-join` message will indicate that it is
-`joining after restart`. In older {es} versions, you can also determine that a
-node restarted by looking at the second "ephemeral" ID in the `node-left` and
-subsequent `node-join` messages. This ephemeral ID is different each time the
-node starts up. If a node is unexpectedly restarting, you'll need to look at
-the node's logs to see why it is shutting down.
+When it rejoins, the `NodeJoinExecutor` will log that it processed a
+`node-join` task indicating that the node is `joining after restart`. If a node
+is unexpectedly restarting, look at the node's logs to see why it is shutting
+down.
 
 If the node did not restart then you should look at the reason for its
-departure in the `node-left` message, which is reported after each node. There
-are three possible reasons:
+departure more closely. Each reason has different troubleshooting steps,
+described below. There are three possible reasons:
 
 * `disconnected`: The connection from the master node to the removed node was
 closed.
@@ -133,6 +140,10 @@ to <<modules-discovery-settings>> for information about the settings which
 control this mechanism.
 
 ===== Diagnosing `disconnected` nodes
+
+Nodes typically leave the cluster with reason `disconnected` when they shut
+down, but if they rejoin the cluster without restarting then there is some
+other problem.
 
 {es} is designed to run on a fairly reliable network. It opens a number of TCP
 connections between nodes and expects these connections to remain open forever.
@@ -190,9 +201,31 @@ logger.org.elasticsearch.cluster.coordination.LagDetector: DEBUG
 
 When this logger is enabled, {es} will attempt to run the
 <<cluster-nodes-hot-threads>> API on the faulty node and report the results in
-the logs on the elected master.
+the logs on the elected master. The results are compressed, encoded, and split
+into chunks to avoid truncation:
+
+[source,text]
+----
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 1]: H4sIAAAAAAAA/x...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 2]: p7x3w1hmOQVtuV...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 3]: v7uTboMGDbyOy+...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 4]: 4tse0RnPnLeDNN...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines)
+----
+
+To reconstruct the output, base64-decode the data and decompress it using
+`gzip`. For instance, on Unix-like systems:
+
+[source,sh]
+----
+cat lagdetector.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
+----
 
 ===== Diagnosing `follower check retry count exceeded` nodes
+
+Nodes sometimes leave the cluster with reason `follower check retry count
+exceeded` when they shut down, but if they rejoin the cluster without
+restarting then there is some other problem.
 
 {es} needs every node to respond to network messages successfully and
 reasonably quickly. If a node rejects requests or does not respond at all then
@@ -331,12 +364,54 @@ other delays on such a connection.
 * Long waits for particular threads to be available can be identified by taking
 stack dumps (for example, using `jstack`) or a profiling trace (for example,
 using Java Flight Recorder) in the few seconds leading up to a node departure.
++
+By default the follower checks will time out after 30s, so if node departures
+are unpredictable then capture stack dumps every 15s to be sure that at least
+one stack dump was taken at the right time.
++
 The <<cluster-nodes-hot-threads>> API sometimes yields useful information, but
 bear in mind that this API also requires a number of `transport_worker` and
 `generic` threads across all the nodes in the cluster. The API may be affected
 by the very problem you're trying to diagnose. `jstack` is much more reliable
-since it doesn't require any JVM threads. The threads involved in the follower
-checks are `transport_worker` and `cluster_coordination` threads, for which
-there should never be a long wait. There may also be evidence of long waits for
-threads in the {es} logs. Refer to <<modules-network-threading-model>> for more
-information.
+since it doesn't require any JVM threads.
++
+The threads involved in the follower checks are `transport_worker` and
+`cluster_coordination` threads, for which there should never be a long wait.
+There may also be evidence of long waits for threads in the {es} logs. See
+<<modules-network-threading-model>> for more information.
+
+===== Diagnosing `ShardLockObtainFailedException` failures
+
+If a node leaves and rejoins the cluster then {es} will usually shut down and
+re-initialize its shards. If the shards do not shut down quickly enough then
+{es} may fail to re-initialize them due to a `ShardLockObtainFailedException`.
+
+To gather more information about the reason for shards shutting down slowly,
+configure the following logger:
+
+[source,yaml]
+----
+logger.org.elasticsearch.env.NodeEnvironment: DEBUG
+----
+
+When this logger is enabled, {es} will attempt to run the
+<<cluster-nodes-hot-threads>> API whenever it encounters a
+`ShardLockObtainFailedException`. The results are compressed, encoded, and
+split into chunks to avoid truncation:
+
+[source,text]
+----
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 1]: H4sIAAAAAAAA/x...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 2]: p7x3w1hmOQVtuV...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 3]: v7uTboMGDbyOy+...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 4]: 4tse0RnPnLeDNN...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines)
+----
+
+To reconstruct the output, base64-decode the data and decompress it using
+`gzip`. For instance, on Unix-like systems:
+
+[source,sh]
+----
+cat shardlock.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
+----

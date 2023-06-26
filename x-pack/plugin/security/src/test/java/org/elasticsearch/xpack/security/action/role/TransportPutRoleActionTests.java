@@ -28,9 +28,11 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,6 +55,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutRoleActionTests extends ESTestCase {
+
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed by how components are initialized by the Security plugin
+        new ReservedRolesStore();
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -120,12 +129,19 @@ public class TransportPutRoleActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(instanceOf(IllegalArgumentException.class)));
-        assertThat(throwableRef.get().getMessage(), containsString("is reserved and cannot be modified"));
+        assertThat(throwableRef.get().getMessage(), containsString("is reserved and may not be used"));
         verifyNoMoreInteractions(rolesStore);
     }
 
     public void testValidRole() {
-        final String roleName = randomFrom("admin", "dept_a", "restricted");
+        testValidRole(randomFrom("admin", "dept_a", "restricted"));
+    }
+
+    public void testValidRoleWithInternalRoleName() {
+        testValidRole(AuthenticationTestHelper.randomInternalRoleName());
+    }
+
+    private void testValidRole(String roleName) {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,

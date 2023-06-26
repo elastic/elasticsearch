@@ -8,27 +8,28 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -40,7 +41,7 @@ import java.util.stream.Collectors;
  */
 public class NodesShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
-    public static final Version NODE_SHUTDOWN_VERSION = Version.V_7_13_0;
+    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersion.V_7_13_0;
     public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
@@ -53,12 +54,9 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     });
 
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> SingleNodeShutdownMetadata.parse(p),
-            v -> { throw new IllegalArgumentException("ordered " + NODES_FIELD.getPreferredName() + " are not supported"); },
-            NODES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> SingleNodeShutdownMetadata.parse(p), v -> {
+            throw new IllegalArgumentException("ordered " + NODES_FIELD.getPreferredName() + " are not supported");
+        }, NODES_FIELD);
     }
 
     public static NodesShutdownMetadata fromXContent(XContentParser parser) {
@@ -69,23 +67,14 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return new NodeShutdownMetadataDiff(in);
     }
 
-    public static Optional<NodesShutdownMetadata> getShutdowns(final ClusterState state) {
-        assert state != null : "cluster state should never be null";
-        return Optional.of(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
-    }
-
-    public static NodesShutdownMetadata getShutdownsOrEmpty(final ClusterState state) {
-        return getShutdowns(state).orElse(EMPTY);
-    }
-
     private final Map<String, SingleNodeShutdownMetadata> nodes;
 
     public NodesShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {
-        this.nodes = Collections.unmodifiableMap(nodes);
+        this.nodes = Map.copyOf(nodes);
     }
 
     public NodesShutdownMetadata(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, SingleNodeShutdownMetadata::new));
+        this(in.readImmutableMap(SingleNodeShutdownMetadata::new));
     }
 
     @Override
@@ -96,8 +85,43 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     /**
      * @return A map of NodeID to shutdown metadata.
      */
-    public Map<String, SingleNodeShutdownMetadata> getAllNodeMetadataMap() {
+    public Map<String, SingleNodeShutdownMetadata> getAll() {
         return nodes;
+    }
+
+    /**
+     * @return a set of all node ids that might be restarting or shutting down
+     */
+    public Set<String> getAllNodeIds() {
+        return nodes.keySet();
+    }
+
+    /**
+     * @return a shutdown entry for the node if exists with any shutdown type
+     */
+    @Nullable
+    public SingleNodeShutdownMetadata get(String nodeId) {
+        return nodes.get(nodeId);
+    }
+
+    /**
+     * Returns true if the given node is marked as shutting down with any shutdown type.
+     */
+    public boolean contains(String nodeId) {
+        return get(nodeId) != null;
+    }
+
+    /**
+     * @return a shutdown entry for the node if exists and matches the supplied type
+     */
+    @Nullable
+    public SingleNodeShutdownMetadata get(String nodeId, SingleNodeShutdownMetadata.Type type) {
+        var shutdown = get(nodeId);
+        return shutdown != null && shutdown.getType() == type ? shutdown : null;
+    }
+
+    public boolean contains(String nodeId, SingleNodeShutdownMetadata.Type type) {
+        return get(nodeId, type) != null;
     }
 
     /**
@@ -138,7 +162,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         return NODE_SHUTDOWN_VERSION;
     }
 
@@ -156,9 +180,8 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(NODES_FIELD.getPreferredName(), nodes);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentValuesMap(NODES_FIELD.getPreferredName(), nodes);
     }
 
     /**
@@ -202,10 +225,9 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return NODE_SHUTDOWN_VERSION;
         }
 
     }
-
 }

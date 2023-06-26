@@ -19,7 +19,7 @@ import org.elasticsearch.ElasticsearchException;
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
     public void testPrefixQuery() {
-        MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
+        MappedFieldType ft = IgnoredFieldMapper.FIELD_TYPE;
 
         Query expected = new PrefixQuery(new Term("_ignored", new BytesRef("foo*")));
         assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_CONTEXT));
@@ -36,7 +36,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
+        MappedFieldType ft = IgnoredFieldMapper.FIELD_TYPE;
 
         Query expected = new RegexpQuery(new Term("_ignored", new BytesRef("foo?")));
         assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_CONTEXT));
@@ -49,7 +49,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
+        MappedFieldType ft = IgnoredFieldMapper.FIELD_TYPE;
 
         Query expected = new WildcardQuery(new Term("_ignored", new BytesRef("foo*")));
         assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_CONTEXT));

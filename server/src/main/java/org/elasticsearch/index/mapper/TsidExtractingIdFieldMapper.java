@@ -9,8 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -19,36 +18,26 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
  * {@code _tsid} and {@code @timestamp}.
  */
 public class TsidExtractingIdFieldMapper extends IdFieldMapper {
-    public static final FieldType FIELD_TYPE = new FieldType();
     /**
      * Maximum length of the {@code _tsid} in the {@link #documentDescription}.
      */
     static final int DESCRIPTION_TSID_LIMIT = 1000;
-
-    static {
-        FIELD_TYPE.setTokenized(false);
-        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        FIELD_TYPE.setStored(true);  // TODO reconstruct the id on fetch from tsid and timestamp
-        FIELD_TYPE.setOmitNorms(true);
-        FIELD_TYPE.freeze();
-    }
 
     public static final TsidExtractingIdFieldMapper INSTANCE = new TsidExtractingIdFieldMapper();
 
@@ -99,37 +88,27 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
         }
     }
 
     private TsidExtractingIdFieldMapper() {
-        super(new IdFieldType(), Lucene.KEYWORD_ANALYZER);
+        super(new IdFieldType());
     }
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, BytesRef tsid) {
-        IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampFields.length == 0) {
+    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
+        List<IndexableField> timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        if (timestampFields.isEmpty()) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
             );
         }
-        long timestamp = timestampFields[0].numericValue().longValue();
-
-        Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-
+        long timestamp = timestampFields.get(0).numericValue().longValue();
         byte[] suffix = new byte[16];
-        ByteUtils.writeLongLE(hash.h1, suffix, 0);
-        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
-
-        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
-        // TODO it'd be way faster to use the fields that we've extract here rather than the source or parse the tsid
-        String id = indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix);
-        assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
+        String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
         /*
          * Make sure that _id from extracting the tsid matches that _id
          * from extracting the _source. This should be true for all valid
@@ -139,9 +118,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
          * at all we just skip the assertion because we can't be sure
          * it always must pass.
          */
+        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
         assert context.getDynamicMappers().isEmpty() == false
             || context.getDynamicRuntimeFields().isEmpty() == false
             || id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
+        assert context.getDynamicMappers().isEmpty() == false
+            || context.getDynamicRuntimeFields().isEmpty() == false
+            || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
 
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
             throw new IllegalArgumentException(
@@ -157,7 +140,33 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         context.id(id);
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
-        context.doc().add(new Field(NAME, uidEncoded, FIELD_TYPE));
+        context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+    }
+
+    public static String createId(
+        boolean dynamicMappersExists,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid,
+        long timestamp,
+        byte[] suffix
+    ) {
+        Hash128 hash = new Hash128();
+        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
+
+        ByteUtils.writeLongLE(hash.h1, suffix, 0);
+        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
+
+        String id = routingBuilder.createId(suffix, () -> {
+            if (dynamicMappersExists == false) {
+                throw new IllegalStateException(
+                    "Didn't find any fields to include in the routing which would be fine if there are"
+                        + " dynamic mapping waiting but we couldn't find any of those either!"
+                );
+            }
+            return 0;
+        });
+        assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
+        return id;
     }
 
     @Override
@@ -196,5 +205,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             return tsid;
         }
         return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
+    }
+
+    @Override
+    public String reindexId(String id) {
+        // null the _id so we recalculate it on write
+        return null;
     }
 }

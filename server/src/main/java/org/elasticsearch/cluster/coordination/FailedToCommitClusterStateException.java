@@ -13,7 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Thrown when failing to publish a cluster state. See {@link ClusterStatePublisher} for more details.
+ * Thrown when a cluster state publication fails to commit the new cluster state. If publication fails then a new master is elected but the
+ * update might or might not take effect, depending on whether or not the newly-elected master accepted the published state that failed to
+ * be committed.
+ *
+ * See {@link ClusterStatePublisher} for more details.
  */
 public class FailedToCommitClusterStateException extends ElasticsearchException {
 

@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -155,10 +155,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             taskId
         );
         final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
-        action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(r -> {
+        action.shardOperationOnPrimary(request, indexShard, res.delegateFailureAndWrap((l, r) -> {
             assertNotNull(r);
-            res.onResponse(null);
-        }, res::onFailure));
+            l.onResponse(null);
+        }));
         try {
             res.get();
         } catch (InterruptedException e) {
@@ -170,7 +170,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        doNothing().when(indexShard).flush(flushRequest.capture());
+        doReturn(true).when(indexShard).flush(flushRequest.capture());
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));
@@ -234,7 +234,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final long primaryTerm = indexMetadata.primaryTerm(0);
 
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
-        final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
+        final Set<String> trackedShards = shardRoutingTable.getPromotableAllocationIds();
 
         List<ShardRouting> unavailableShards = randomSubsetOf(randomIntBetween(1, nbReplicas), shardRoutingTable.replicaShards());
         IndexShardRoutingTable.Builder shardRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardRoutingTable);

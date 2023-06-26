@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -41,7 +40,7 @@ public class NodeClient extends AbstractClient {
 
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}.
      */
     private Supplier<String> localNodeId;
     private Transport.Connection localConnection;
@@ -115,27 +114,13 @@ public class NodeClient extends AbstractClient {
             transportAction(action),
             request,
             localConnection,
-            new ActionResponseTaskListener<>(listener)
+            new SafelyWrappedActionListener<>(listener)
         );
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}.
-     * Prefer this method if you need access to the task when listening for the response.
-     *
-     * @throws TaskCancelledException if the request's parent task has been cancelled already
-     */
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
-        ActionType<Response> action,
-        Request request,
-        TaskListener<Response> listener
-    ) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, listener);
-    }
-
-    /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}.
      */
     public String getLocalNodeId() {
         return localNodeId.get();
@@ -167,10 +152,10 @@ public class NodeClient extends AbstractClient {
         return namedWriteableRegistry;
     }
 
-    private record ActionResponseTaskListener<Response> (ActionListener<Response> listener) implements TaskListener<Response> {
+    private record SafelyWrappedActionListener<Response>(ActionListener<Response> listener) implements ActionListener<Response> {
 
         @Override
-        public void onResponse(Task task, Response response) {
+        public void onResponse(Response response) {
             try {
                 listener.onResponse(response);
             } catch (Exception e) {
@@ -180,7 +165,7 @@ public class NodeClient extends AbstractClient {
         }
 
         @Override
-        public void onFailure(Task task, Exception e) {
+        public void onFailure(Exception e) {
             try {
                 listener.onFailure(e);
             } catch (Exception ex) {

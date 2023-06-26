@@ -22,6 +22,15 @@
         "expiration": {
           "type": "date"
         },
+        "start_time": {
+          "type": "date"
+        },
+        "minimum_execution_duration": {
+          "type": "integer"
+        },
+        "rollout_duration_seconds": {
+          "type": "integer"
+        },
         "input_type": {
           "type": "keyword"
         },
@@ -36,6 +45,16 @@
         },
         "user_id" : {
           "type": "keyword"
+        },
+        "signed" : {
+          "properties": {
+            "data" : {
+              "type": "binary"
+            },
+            "signature" : {
+              "type": "binary"
+            }
+          }
         }
       }
     }

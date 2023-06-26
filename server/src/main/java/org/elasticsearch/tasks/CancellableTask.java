@@ -103,11 +103,11 @@ public class CancellableTask extends Task {
      * @return {@code true} if the task is cancelled and the listener was notified, otherwise {@code false}.
      */
     public final <T> boolean notifyIfCancelled(ActionListener<T> listener) {
+        if (isCancelled == false) {
+            return false;
+        }
         final TaskCancelledException taskCancelledException;
         synchronized (this) {
-            if (isCancelled() == false) {
-                return false;
-            }
             taskCancelledException = getTaskCancelledException();
         } // NB releasing the mutex before notifying the listener
         listener.onFailure(taskCancelledException);

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -26,7 +27,9 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMa
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
@@ -335,6 +338,71 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
 
         assertThat(e.getMessage(), equalTo("index [" + missingIndex + "] not found"));
+    }
+
+    public void testRemoveBrokenBackingIndexReference() {
+        var dataStreamName = "my-logs";
+        var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        var original = state.getMetadata().dataStreams().get(dataStreamName);
+        var broken = new DataStream(
+            original.getName(),
+            List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
+            original.getGeneration(),
+            original.getMetadata(),
+            original.isHidden(),
+            original.isReplicated(),
+            original.isSystem(),
+            original.isAllowCustomRouting(),
+            original.getIndexMode(),
+            original.getLifecycle()
+        );
+        var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
+
+        var result = MetadataDataStreamsService.modifyDataStream(
+            brokenState,
+            List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
+            this::getMapperService
+        );
+        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices().get(0), equalTo(original.getIndices().get(1)));
+    }
+
+    public void testRemoveBackingIndexThatDoesntExist() {
+        var dataStreamName = "my-logs";
+        var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+
+        String indexToRemove = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                state,
+                List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove)),
+                this::getMapperService
+            )
+        );
+        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
+    }
+
+    public void testUpdateLifecycle() {
+        String dataStream = randomAlphaOfLength(5);
+        DataLifecycle dataLifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        {
+            // Remove lifecycle
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), null);
+            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            assertNotNull(updatedDataStream);
+            assertThat(updatedDataStream.getLifecycle(), nullValue());
+            before = after;
+        }
+
+        {
+            // Set lifecycle
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), dataLifecycle);
+            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            assertNotNull(updatedDataStream);
+            assertThat(updatedDataStream.getLifecycle(), equalTo(dataLifecycle));
+        }
     }
 
     private MapperService getMapperService(IndexMetadata im) {

@@ -8,7 +8,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -103,7 +102,11 @@ final class FetchSearchPhase extends SearchPhase {
         final boolean isScrollSearch = context.getRequest().scroll() != null;
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
-        final boolean queryAndFetchOptimization = queryResults.length() == 1;
+        // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
+        // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
+        final boolean queryAndFetchOptimization = queryResults.length() == 1
+            && context.getRequest().hasKnnSearch() == false
+            && reducedQueryPhase.rankCoordinatorContext() == null;
         final Runnable finishPhase = () -> moveToNextPhase(
             queryResults,
             reducedQueryPhase,
@@ -219,10 +222,7 @@ final class FetchSearchPhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception e) {
                         try {
-                            logger.debug(
-                                () -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.contextId()),
-                                e
-                            );
+                            logger.debug(() -> "[" + fetchSearchRequest.contextId() + "] Failed to execute fetch phase", e);
                             progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
                             counter.onFailure(shardIndex, shardTarget, e);
                         } finally {

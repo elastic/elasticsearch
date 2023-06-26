@@ -55,10 +55,7 @@ public final class SimulateDocumentVerboseResult implements SimulateDocumentResu
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(processorResults.size());
-        for (SimulateProcessorResult result : processorResults) {
-            result.writeTo(out);
-        }
+        out.writeCollection(processorResults);
     }
 
     public List<SimulateProcessorResult> getProcessorResults() {

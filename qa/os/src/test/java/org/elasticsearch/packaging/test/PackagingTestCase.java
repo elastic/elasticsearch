@@ -204,20 +204,26 @@ public abstract class PackagingTestCase extends Assert {
         // move log file so we can avoid false positives when grepping for
         // messages in logs during test
         if (installation != null && failed == false) {
+
             if (Files.exists(installation.logs)) {
                 Path logFile = installation.logs.resolve("elasticsearch.log");
                 String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
                 if (Files.exists(logFile)) {
                     Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
-                    FileUtils.mv(logFile, newFile);
+                    try {
+                        FileUtils.mv(logFile, newFile);
+                    } catch (Exception e) {
+                        // There was a problem cleaning up log files. This usually means Windows wackiness
+                        // where something still has the file open. Here we dump what we can of the log files to see
+                        // if ES is still running.
+                        dumpDebug();
+                        throw e;
+                    }
                 }
                 for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
                     Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
                     FileUtils.mv(rotatedLogFile, newRotatedLogFile);
                 }
-            }
-            if (Files.exists(Archives.getPowershellErrorPath(installation))) {
-                FileUtils.rmWithRetries(Archives.getPowershellErrorPath(installation));
             }
         }
 
@@ -258,26 +264,33 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
+     * Prints all available information about the installed Elasticsearch process, including pid, logs and stdout/stderr.
+     */
+    protected void dumpDebug() {
+        if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+            String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+            logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+            sh.runIgnoreExitCode("jstack " + pid);
+        }
+        if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+        }
+        if (Files.exists(installation.logs.resolve("output.out"))) {
+            logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
+        }
+        if (Files.exists(installation.logs.resolve("output.err"))) {
+            logger.warn("Stderr:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.err")));
+        }
+    }
+
+    /**
      * Starts and stops elasticsearch, and performs assertions while it is running.
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
         } catch (Exception e) {
-            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
-                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
-                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
-                sh.runIgnoreExitCode("jstack " + pid);
-            }
-            if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
-                logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
-            }
-            if (Files.exists(installation.logs.resolve("output.out"))) {
-                logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
-            }
-            if (Files.exists(installation.logs.resolve("output.err"))) {
-                logger.warn("Stderr:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.err")));
-            }
+            dumpDebug();
             throw e;
         }
 
@@ -416,19 +429,6 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(result.stderr(), containsString("Job for elasticsearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout(), anyOf(stringMatchers));
-
-        } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
-
-            // In Windows, we have written our stdout and stderr to files in order to run
-            // in the background
-            String wrapperPid = result.stdout().trim();
-            sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
-            sh.runIgnoreExitCode(
-                "Get-EventSubscriber | "
-                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
-                    + "Unregister-Event -Force"
-            );
-            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), anyOf(stringMatchers));
 
         } else {
 
@@ -702,5 +702,4 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
         }
     }
-
 }

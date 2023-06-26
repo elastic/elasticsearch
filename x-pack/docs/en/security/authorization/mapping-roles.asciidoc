@@ -2,17 +2,35 @@
 [[mapping-roles]]
 === Mapping users and groups to roles
 
-If you authenticate users with the `native` or `file` realms, you can manage
-role assignment by using the <<managing-native-users,user management APIs>> or
-the <<users-command,users>> command-line tool respectively.
+Role mapping is supported by all realms except `native` and `file`.
 
-For other types of realms, you must create _role-mappings_ that define which
-roles should be assigned to each user based on their username, groups, or
-other metadata.
+The native and file realms assign roles directly to users.
+Native realms use <<managing-native-users,user management APIs>>.
+File realms use <<roles-management-file,File-based role management>>.
+
+You can map roles through the
+<<mapping-roles-api, Role mapping API>> (recommended) or a <<mapping-roles-file, Role mapping file>>.
+
+
+The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and SAML realms support the
+<<mapping-roles-api, Role mapping API>>. Only PKI, LDAP, and AD realms
+support <<mapping-roles-file, Role mapping files>>.
+
+The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and
+SAML realms also support <<authorization_realms,delegated authorization>>.
+You can either map roles for a realm or use delegated authorization; you cannot use both simultaneously.
+
+To use role mapping, you create roles and role mapping rules.
+Role mapping rules can be based on realm name, realm type, username, groups,
+other user metadata, or combinations of those values.
 
 NOTE: When <<anonymous-access,anonymous access>> is enabled, the roles
 of the anonymous user are assigned to all the other users as well.
 
+If there are role-mapping rules created through the API as well as a role mapping file,
+the rules are combined.
+It's possible for a single user to have some roles that were mapped through the API,
+and others assigned based on the role mapping file.
 You can define role-mappings via an
 <<mapping-roles-api, API>> or manage them through <<mapping-roles-file, files>>.
 These two sources of role-mapping are combined inside of the {es}
@@ -21,17 +39,18 @@ possible for a single user to have some roles that have been mapped through
 the API, and other roles that are mapped through files.
 
 NOTE: Users with no roles assigned will be unauthorized for any action.
+In other words, they may be able to authenticate, but they will have no roles.
+No roles means no privileges, and no privileges means no authorizations to
+make requests.
 
-When you use role-mappings, you assign existing roles to users.
+When you use role mappings to assign roles to users, the roles must exist.
+There are two sources of roles.
 The available roles should either be added using the
 <<security-role-apis,role management APIs>> or defined in the
 <<roles-management-file,roles file>>. Either role-mapping method can use
 either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles
 (and likewise for file-based role-mappings).
-
-TIP: The PKI, LDAP, Kerberos, OpenID Connect, JWT, and SAML realms support using
-<<authorization_realms,authorization realms>> as an alternative to role mapping.
 
 [[mapping-roles-api]]
 ==== Using the role mapping API
@@ -67,7 +86,7 @@ this is a common setting in Elasticsearch, changing its value might effect other
 schedules in the system.
 
 While the _role mapping APIs_ is the preferred way to manage role mappings, using
-the `role_mappings.yml` file becomes useful in a couple of use cases:
+the `role_mapping.yml` file becomes useful in a couple of use cases:
 
 . If you want to define fixed role mappings that no one (besides an administrator
 with physical access to the {es} nodes) would be able to change.
@@ -77,7 +96,7 @@ need to have their roles mapped to them even when the cluster is RED. For instan
 an administrator that authenticates via LDAP or PKI and gets assigned an
 administrator role so that they can perform corrective actions.
 
-Please note however, that the role_mappings.yml file is provided
+Please note however, that the `role_mapping.yml` file is provided
 as a minimal administrative function and is not intended to cover and be used to
 define roles for all use cases.
 

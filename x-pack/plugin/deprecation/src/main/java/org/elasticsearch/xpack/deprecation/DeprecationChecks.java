@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -26,21 +27,23 @@ import java.util.stream.Collectors;
  */
 public class DeprecationChecks {
 
-    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.stringListSetting(
         "deprecation.skip_deprecated_settings",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     private DeprecationChecks() {}
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.emptyList();
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.unmodifiableList(
+        Arrays.asList(ClusterDeprecationChecks::checkShards)
+    );
 
     static final List<
         NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS = List
             .of(
+                NodeDeprecationChecks::checkMultipleDataPaths,
+                NodeDeprecationChecks::checkDataPathsList,
                 NodeDeprecationChecks::checkSharedDataPathSetting,
                 NodeDeprecationChecks::checkReservedPrefixedRealmNames,
                 NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
@@ -86,7 +89,8 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
                 NodeDeprecationChecks::checkEqlEnabledSetting,
-                NodeDeprecationChecks::checkNodeAttrData
+                NodeDeprecationChecks::checkNodeAttrData,
+                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting
             );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
@@ -94,7 +98,8 @@ public class DeprecationChecks {
         IndexDeprecationChecks::translogRetentionSettingCheck,
         IndexDeprecationChecks::checkIndexDataPath,
         IndexDeprecationChecks::storeTypeSettingCheck,
-        IndexDeprecationChecks::frozenIndexSettingCheck
+        IndexDeprecationChecks::frozenIndexSettingCheck,
+        IndexDeprecationChecks::deprecatedCamelCasePattern
     );
 
     /**

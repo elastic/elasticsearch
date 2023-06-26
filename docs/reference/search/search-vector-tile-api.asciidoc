@@ -24,7 +24,7 @@ PUT my-index
 
 PUT my-index/_doc/0?refresh
 {
-  "my-geo-field": "37.3864953,-122.0863176"
+  "my-geo-field": "POINT (-122.0863176 37.3864953)"
 }
 ----
 ////
@@ -50,7 +50,7 @@ https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification].
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<remote-clusters-security>>.
 
 [[search-vector-tile-api-path-params]]
 ==== {api-path-parms-title}
@@ -100,6 +100,11 @@ aggregation uses the `<zoom>/<x>/<y>` tile as a bounding box.
 <<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation
 on the `<field>`. The search only includes this aggregation if the
 `exact_bounds` parameter is `true`.
+
+* If the optional parameter `with_labels` is true, the internal search will include
+a dynamic runtime field that calls the `getLabelPosition` function of the geometry doc value.
+This enables the generation of new point features containing suggested geometry labels,
+so that, for example, multi-polygons will have only one label.
 
 For example, {es} may translate a vector tile search API request with a
 `grid_agg` argument of `geotile` and an `exact_bounds` argument of `true`
@@ -217,13 +222,10 @@ Defaults to `5`.
 [%collapsible%open]
 ====
 `geotile` (Default)::
-<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>>
-aggregation.
+<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>> aggregation.
 
 `geohex`::
 <<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.
-If you specify this value, the `<field>` must be a <<geo-point,`geo_point`>>
-field.
 ====
 // end::grid-agg[]
 
@@ -353,6 +355,24 @@ If `true`, the exact number of hits is returned at the cost of some performance.
 If `false`, the response does not include the total number of hits matching the query.
 // end::track_total_hits[]
 
+// tag::with_labels[]
+`with_labels`::
+(Optional, Boolean)
+If true, the hits and aggs layers will contain additional point features representing
+suggested label positions for the original features.
+* `Point` and `MultiPoint` features will have one of the points selected.
+* `Polygon` and `MultiPolygon` features will have a single point generated,
+either the centroid, if it is within the polygon, or another point within the
+polygon selected from the <<geoshape-indexing-approach,sorted triangle-tree>>.
+* `LineString` features will likewise provide a roughly central point selected
+from the <<geoshape-indexing-approach,triangle-tree>>.
+* The aggregation results will provide one central point for each aggregation bucket.
+
++
+All attributes from the original features will also be copied to the new label features.
+In addition, the new features will be distinguishable using the tag `_mvt_label_position`.
+// end::with_labels[]
+
 [role="child_attributes"]
 [[search-vector-tile-api-request-body]]
 ==== {api-request-body-title}
@@ -421,6 +441,8 @@ By default, the API calculates a bounding box for each feature. It sorts
 features based on this box's diagonal length, from longest to shortest.
 
 include::search-vector-tile-api.asciidoc[tag=track_total_hits]
+
+include::search-vector-tile-api.asciidoc[tag=with_labels]
 
 [role="child_attributes"]
 [[search-vector-tile-api-response]]
@@ -664,13 +686,13 @@ PUT museums
 
 POST museums/_bulk?refresh
 { "index": { "_id": "1" } }
-{ "location": "52.374081,4.912350", "name": "NEMO Science Museum",  "price": 1750, "included": true }
+{ "location": "POINT (4.912350 52.374081)", "name": "NEMO Science Museum",  "price": 1750, "included": true }
 { "index": { "_id": "2" } }
-{ "location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis", "price": 1500, "included": false }
+{ "location": "POINT (4.901618 52.369219)", "name": "Museum Het Rembrandthuis", "price": 1500, "included": false }
 { "index": { "_id": "3" } }
-{ "location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum", "price":1650, "included": true }
+{ "location": "POINT (4.914722 52.371667)", "name": "Nederlands Scheepvaartmuseum", "price":1650, "included": true }
 { "index": { "_id": "4" } }
-{ "location": "52.371667,4.914722", "name": "Amsterdam Centre for Architecture", "price":0, "included": true }
+{ "location": "POINT (4.914722 52.371667)", "name": "Amsterdam Centre for Architecture", "price":0, "included": true }
 ----
 
 The following request searches the index for `location` values that intersect

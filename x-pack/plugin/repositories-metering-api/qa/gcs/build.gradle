@@ -5,40 +5,25 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.apache.tools.ant.filters.ReplaceTokens
 
-import java.nio.file.Files
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
-
-final Project fixture = project(':test:fixtures:gcs-fixture')
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
-}
-
-restResources {
-  restApi {
-    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
-  }
+  clusterModules project(':modules:repository-gcs')
+  clusterModules project(xpackModule('repositories-metering-api'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
+  javaRestTestImplementation(project(':test:fixtures:gcs-fixture'))
 }
 
 boolean useFixture = false
-
 String gcsServiceAccount = System.getenv("google_storage_service_account")
 String gcsBucket = System.getenv("google_storage_bucket")
 String gcsBasePath = System.getenv("google_storage_base_path")
-
 File serviceAccountFile = null
+
 if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
-  serviceAccountFile = new File(project.buildDir, 'generated-resources/service_account_test.json')
   gcsBucket = 'bucket'
   gcsBasePath = 'integration_test'
   useFixture = true
@@ -48,73 +33,15 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
-}
-
-/** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
-tasks.register("createServiceAccountFile") {
-  doLast {
-    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(2048)
-    KeyPair keyPair = keyPairGenerator.generateKeyPair()
-    String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
-
-    serviceAccountFile.parentFile.mkdirs()
-    serviceAccountFile.setText("{\n" +
-      '  "type": "service_account",\n' +
-      '  "project_id": "integration_test",\n' +
-      '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
-      '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
-      '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
-      '  "client_id": "123456789101112130594"\n' +
-      '}', 'UTF-8')
-  }
-}
-
-def fixtureAddress = { f ->
-  assert useFixture: 'closure should not be used without a fixture'
-  int ephemeralPort = project(':test:fixtures:gcs-fixture').postProcessFixture.ext."test.fixtures.${f}.tcp.80"
-  assert ephemeralPort > 0
-  'http://127.0.0.1:' + ephemeralPort
-}
-
-Map<String, Object> expansions = [
-  'bucket'   : gcsBucket,
-  'base_path': gcsBasePath + "_integration_tests"
-]
-
-tasks.named("processTestResources").configure {
-  inputs.properties(expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
-}
-
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(fixture.path, 'gcs-fixture-repositories-metering')
-}
-
-tasks.named("integTest").configure {
-  if (useFixture) {
-    dependsOn "createServiceAccountFile"
-  }
+tasks.named("javaRestTest").configure {
+  systemProperty 'test.google.fixture', Boolean.toString(useFixture)
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_metering" + BuildParams.testSeed
-}
-
-testClusters.matching { it.name == "integTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-
-  keystore 'gcs.client.repositories_metering.credentials_file', serviceAccountFile, IGNORE_VALUE
-  if (useFixture) {
-    /* Use a closure on the string to delay evaluation until tests are executed */
-    setting 'gcs.client.repositories_metering.endpoint', { "${-> fixtureAddress('gcs-fixture-repositories-metering')}" }, IGNORE_VALUE
-    setting 'gcs.client.repositories_metering.token_uri', { "${-> fixtureAddress('gcs-fixture-repositories-metering')}/o/oauth2/token" }, IGNORE_VALUE
-  } else {
-    println "Using an external service to test " + project.name
+  if (useFixture == false) {
+    systemProperty 'test.google.account', serviceAccountFile
   }
 }
 
 tasks.register("gcsThirdPartyTest").configure {
-  dependsOn integTest
+  dependsOn "javaRestTest"
 }

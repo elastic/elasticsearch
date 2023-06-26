@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -38,9 +39,17 @@ public final class TextParams {
         public Analyzers(
             IndexAnalyzers indexAnalyzers,
             Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
-            Function<FieldMapper, Integer> positionGapInitFunction
+            Function<FieldMapper, Integer> positionGapInitFunction,
+            IndexVersion indexCreatedVersion
         ) {
-            this.indexAnalyzer = Parameter.analyzerParam("analyzer", false, analyzerInitFunction, indexAnalyzers::getDefaultIndexAnalyzer)
+
+            this.indexAnalyzer = Parameter.analyzerParam(
+                "analyzer",
+                indexCreatedVersion.isLegacyIndexVersion(),
+                analyzerInitFunction,
+                indexAnalyzers::getDefaultIndexAnalyzer,
+                indexCreatedVersion
+            )
                 .setSerializerCheck(
                     (id, ic, a) -> id
                         || ic
@@ -51,7 +60,7 @@ public final class TextParams {
             this.searchAnalyzer = Parameter.analyzerParam(
                 "search_analyzer",
                 true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(),
+                m -> m.fieldType().getTextSearchInfo().searchAnalyzer(),
                 () -> {
                     if (indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
@@ -60,14 +69,15 @@ public final class TextParams {
                         }
                     }
                     return indexAnalyzer.get();
-                }
+                },
+                indexCreatedVersion
             )
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.searchQuoteAnalyzer = Parameter.analyzerParam(
                 "search_quote_analyzer",
                 true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(),
+                m -> m.fieldType().getTextSearchInfo().searchQuoteAnalyzer(),
                 () -> {
                     if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
@@ -76,7 +86,8 @@ public final class TextParams {
                         }
                     }
                     return searchAnalyzer.get();
-                }
+                },
+                indexCreatedVersion
             ).addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.positionIncrementGap = Parameter.intParam(
                 "position_increment_gap",

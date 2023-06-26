@@ -6,18 +6,21 @@ esplugin {
   name 'searchable-snapshots'
   description 'A plugin for the searchable snapshots functionality'
   classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'blob-cache']
 }
 archivesBaseName = 'x-pack-searchable-snapshots'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  implementation project(path: 'preallocate')
+  compileOnly project(path: xpackModule('blob-cache'))
+  testImplementation(testArtifact(project(xpackModule('blob-cache'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(project(path: xpackModule('shutdown')))
+  internalClusterTestImplementation(project(path: xpackModule('snapshot-based-recoveries')))
   internalClusterTestImplementation(project(path: ':modules:reindex'))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 tasks.named("internalClusterTest").configure {
   // Reduce the buffer size per cache-fetch thread to keep direct memory usage under control.

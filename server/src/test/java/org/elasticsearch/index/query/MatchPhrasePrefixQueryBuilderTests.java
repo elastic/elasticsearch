@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -68,12 +69,12 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "match_phrase_prefix" : {
                     "%s" : "%s"
                 }
-            }""".formatted(matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
+            }""", matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
         alternateVersions.put(contentString, matchPhrasePrefixQuery);
         return alternateVersions;
     }
@@ -141,11 +142,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             {
               "match_phrase_prefix" : {
                 "message" : {
-                  "query" : "this is a test",
-                  "slop" : 0,
-                  "max_expansions" : 50,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "query" : "this is a test"
                 }
               }
             }""";
@@ -166,10 +163,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
               "match_phrase_prefix" : {
                 "message" : {
                   "query" : "this is a test",
-                  "slop" : 0,
-                  "max_expansions" : 10,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "max_expansions" : 10
                 }
               }
             }""";

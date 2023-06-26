@@ -7,18 +7,22 @@
  */
 package org.elasticsearch.gradle.internal;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-
-import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
 
-public class EmptyDirTaskTests extends GradleUnitTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
+public class EmptyDirTaskTests {
+
+    @Test
     public void testCreateEmptyDir() throws Exception {
         Project project = ProjectBuilder.builder().build();
         EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);
@@ -40,8 +44,9 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         newEmptyFolder.delete();
     }
 
+    @Test
     public void testCreateEmptyDirNoPermissions() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = ProjectBuilder.builder().build();
         EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);

@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
     public void testSqlClearCursorAction() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").get());
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         int indexSize = randomIntBetween(100, 300);
         logger.info("Indexing {} records", indexSize);
@@ -52,7 +52,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
     }
 
     public void testAutoCursorCleanup() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").get());
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         int indexSize = randomIntBetween(100, 300);
         logger.info("Indexing {} records", indexSize);
@@ -91,15 +91,6 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
     }
 
     private long getNumberOfSearchContexts() {
-        return client().admin()
-            .indices()
-            .prepareStats("test")
-            .clear()
-            .setSearch(true)
-            .get()
-            .getIndex("test")
-            .getTotal()
-            .getSearch()
-            .getOpenContexts();
+        return indicesAdmin().prepareStats("test").clear().setSearch(true).get().getIndex("test").getTotal().getSearch().getOpenContexts();
     }
 }

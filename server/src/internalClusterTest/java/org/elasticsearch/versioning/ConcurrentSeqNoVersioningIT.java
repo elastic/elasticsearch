@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.versioning;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -52,6 +51,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -262,10 +262,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             if (version.compareTo(partition.latestSuccessfulVersion()) <= 0) {
                                 historyResponse.accept(new FailureHistoryOutput());
                             }
-                            logger.info(
-                                new ParameterizedMessage("Received failure for request [{}], version [{}]", indexRequest, version),
-                                e
-                            );
+                            Version versionToLog = version;
+                            logger.info(() -> format("Received failure for request [%s], version [%s]", indexRequest, versionToLog), e);
                             if (stop) {
                                 // interrupt often comes as a RuntimeException so check to stop here too.
                                 return;
@@ -337,7 +335,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         public String toString() {
-            return "{" + "primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
+            return "{primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
         }
 
         public Version nextSeqNo(int increment) {

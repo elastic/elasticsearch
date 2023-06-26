@@ -9,12 +9,12 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +28,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,9 +54,8 @@ public class NodeService implements Closeable {
     private final SearchTransportService searchTransportService;
     private final IndexingPressure indexingPressure;
     private final AggregationUsageService aggregationUsageService;
-    private final StatsRequestLimiter statsRequestLimiter;
-
     private final Coordinator coordinator;
+    private final RepositoriesService repositoriesService;
 
     NodeService(
         Settings settings,
@@ -75,7 +75,7 @@ public class NodeService implements Closeable {
         SearchTransportService searchTransportService,
         IndexingPressure indexingPressure,
         AggregationUsageService aggregationUsageService,
-        StatsRequestLimiter statsRequestLimiter
+        RepositoriesService repositoriesService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -93,7 +93,7 @@ public class NodeService implements Closeable {
         this.searchTransportService = searchTransportService;
         this.indexingPressure = indexingPressure;
         this.aggregationUsageService = aggregationUsageService;
-        this.statsRequestLimiter = statsRequestLimiter;
+        this.repositoriesService = repositoriesService;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -105,6 +105,7 @@ public class NodeService implements Closeable {
         boolean threadPool,
         boolean transport,
         boolean http,
+        boolean remoteClusterServer,
         boolean plugin,
         boolean ingest,
         boolean aggs,
@@ -112,6 +113,7 @@ public class NodeService implements Closeable {
     ) {
         return new NodeInfo(
             Version.CURRENT,
+            TransportVersion.current(),
             Build.CURRENT,
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,
@@ -121,6 +123,7 @@ public class NodeService implements Closeable {
             threadPool ? this.threadPool.info() : null,
             transport ? transportService.info() : null,
             http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,
+            remoteClusterServer ? transportService.getRemoteClusterService().info() : null,
             plugin ? (pluginService == null ? null : pluginService.info()) : null,
             ingest ? (ingestService == null ? null : ingestService.info()) : null,
             aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
@@ -144,7 +147,7 @@ public class NodeService implements Closeable {
         boolean adaptiveSelection,
         boolean scriptCache,
         boolean indexingPressure,
-        boolean statsRequests
+        boolean repositoriesStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -166,7 +169,7 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,
-            statsRequests ? this.statsRequestLimiter.stats() : null
+            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null
         );
     }
 

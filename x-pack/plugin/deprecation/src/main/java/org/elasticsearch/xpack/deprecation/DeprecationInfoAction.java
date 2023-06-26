@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -153,13 +153,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             super(in);
             clusterSettingsIssues = in.readList(DeprecationIssue::new);
             nodeSettingsIssues = in.readList(DeprecationIssue::new);
-            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
-            if (in.getVersion().before(Version.V_7_11_0)) {
+            indexSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
+            if (in.getTransportVersion().before(TransportVersion.V_7_11_0)) {
                 List<DeprecationIssue> mlIssues = in.readList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
                 pluginSettingsIssues.put("ml_settings", mlIssues);
             } else {
-                pluginSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+                pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             }
         }
 
@@ -204,7 +204,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             out.writeList(clusterSettingsIssues);
             out.writeList(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getVersion().before(Version.V_7_11_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_7_11_0)) {
                 out.writeList(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
             } else {
                 out.writeMapOfLists(pluginSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
@@ -263,6 +263,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
             List<String> skipTheseDeprecatedSettings
         ) {
+            assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
             // Allow system index access here to prevent deprecation warnings when we call this API
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
             ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
@@ -310,7 +311,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         metadataBuilder.persistentSettings(
             metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
         );
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesBuilder = ImmutableOpenMap.builder(state.getMetadata().indices());
+        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().indices());
         for (String indexName : indexNames) {
             IndexMetadata indexMetadata = state.getMetadata().index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
@@ -319,7 +320,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             filteredIndexMetadataBuilder.settings(filteredSettings);
             indicesBuilder.put(indexName, filteredIndexMetadataBuilder.build());
         }
-        metadataBuilder.indices(indicesBuilder.build());
+        metadataBuilder.indices(indicesBuilder);
         clusterStateBuilder.metadata(metadataBuilder);
         return clusterStateBuilder.build();
     }

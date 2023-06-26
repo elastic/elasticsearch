@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -139,9 +139,9 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     () -> Map.of(
                         randomAlphaOfLength(5),
                         randomInt(),
-                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(6),
                         randomBoolean(),
-                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(7),
                         randomAlphaOfLength(10)
                     )
                 );
@@ -155,6 +155,11 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     @Override
     protected EqlSearchResponse createTestInstance() {
         return randomEqlSearchResponse(XContentType.JSON);
+    }
+
+    @Override
+    protected EqlSearchResponse mutateInstance(EqlSearchResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -241,7 +246,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     }
 
     @Override
-    protected EqlSearchResponse mutateInstanceForVersion(EqlSearchResponse instance, Version version) {
+    protected EqlSearchResponse mutateInstanceForVersion(EqlSearchResponse instance, TransportVersion version) {
         List<Event> mutatedEvents = mutateEvents(instance.hits().events(), version);
 
         List<Sequence> sequences = instance.hits().sequences();
@@ -263,13 +268,15 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         );
     }
 
-    private List<Event> mutateEvents(List<Event> original, Version version) {
+    private List<Event> mutateEvents(List<Event> original, TransportVersion version) {
         if (original == null || original.isEmpty()) {
             return original;
         }
         List<Event> mutatedEvents = new ArrayList<>(original.size());
         for (Event e : original) {
-            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), version.onOrAfter(Version.V_7_13_0) ? e.fetchFields() : null));
+            mutatedEvents.add(
+                new Event(e.index(), e.id(), e.source(), version.onOrAfter(TransportVersion.V_7_13_0) ? e.fetchFields() : null)
+            );
         }
         return mutatedEvents;
     }

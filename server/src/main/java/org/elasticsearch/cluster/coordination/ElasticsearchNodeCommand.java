@@ -14,8 +14,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterModule;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +38,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -44,6 +47,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -131,14 +135,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return Tuple.tuple(bestOnDiskState.currentTerm, clusterState(env, bestOnDiskState));
     }
 
-    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
+    protected void processDataPaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
-            final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            final Path[] dataPaths = Arrays.stream(lock.getDataPaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             if (dataPaths.length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths, options, env);
+            processDataPaths(terminal, dataPaths, options, env);
         } catch (LockObtainFailedException e) {
             throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
@@ -153,10 +157,10 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    public final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         terminal.println(STOP_WARNING_MSG);
         if (validateBeforeLock(terminal, env)) {
-            processNodePaths(terminal, options, env);
+            processDataPaths(terminal, options, env);
         }
     }
 
@@ -177,16 +181,16 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
      * @param options the command line options
      * @param env the env of the node to process
      */
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
+    protected abstract void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
         UserException;
 
-    protected static NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
-        return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
+    protected static NodeEnvironment.DataPath[] toDataPaths(Path[] paths) {
+        return Arrays.stream(paths).map(ElasticsearchNodeCommand::createDataPath).toArray(NodeEnvironment.DataPath[]::new);
     }
 
-    private static NodeEnvironment.NodePath createNodePath(Path path) {
+    private static NodeEnvironment.DataPath createDataPath(Path path) {
         try {
-            return new NodeEnvironment.NodePath(path);
+            return new NodeEnvironment.DataPath(path);
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to investigate path [" + path + "]", e);
         }
@@ -216,7 +220,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             assert false;
             throw new UnsupportedOperationException();
         }
@@ -228,15 +232,15 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.mapContents(contents);
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+            return Iterators.single(((builder, params) -> builder.mapContents(contents)));
         }
     }
 
     public static class UnknownCondition extends Condition<Object> {
 
         public UnknownCondition(String name, Object value) {
-            super(name);
+            super(name, null);
             this.value = value;
         }
 
@@ -258,6 +262,12 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
         @Override
         public Result evaluate(Stats stats) {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Type type() {
             assert false;
             throw new UnsupportedOperationException();
         }

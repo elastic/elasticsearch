@@ -23,13 +23,12 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
@@ -95,49 +94,6 @@ public class TransportPutUserActionTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
-    public void testSystemUser() {
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
-
-        PutUserRequest request = new PutUserRequest();
-        request.username(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
-            @Override
-            public void onResponse(PutUserResponse response) {
-                responseRef.set(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        verifyNoMoreInteractions(usersStore);
-    }
-
     public void testReservedUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
@@ -188,7 +144,18 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
-        final User user = new User("joe");
+        testValidUser(new User("joe"));
+    }
+
+    public void testValidUserWithInternalUsername() {
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
+    }
+
+    public void testValidUserWithMaxLengthUsername() {
+        testValidUser(new User(randomValidUsername(NativeRealmValidationUtil.MAX_NAME_LENGTH)));
+    }
+
+    private void testValidUser(User user) {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -220,7 +187,7 @@ public class TransportPutUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
             public void onResponse(PutUserResponse response) {
                 responseRef.set(response);
@@ -238,7 +205,21 @@ public class TransportPutUserActionTests extends ESTestCase {
         verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
     }
 
-    public void testInvalidUser() {
+    public void testInvalidUserWithSpecialChars() {
+        testInvalidUser(new User("fóóbár"));
+    }
+
+    public void testInvalidUserWithExtraLongUsername() {
+        testInvalidUser(
+            new User(
+                randomValidUsername(
+                    randomIntBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
+                )
+            )
+        );
+    }
+
+    private void testInvalidUser(User user) {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -252,7 +233,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
 
         final PutUserRequest request = new PutUserRequest();
-        request.username("fóóbár");
+        request.username(user.principal());
         request.roles("bar");
         ActionRequestValidationException validation = request.validate();
         assertNull(validation);
@@ -262,6 +243,39 @@ public class TransportPutUserActionTests extends ESTestCase {
         validation = expectThrows(ActionRequestValidationException.class, responsePlainActionFuture::actionGet);
         assertThat(validation.validationErrors(), contains(containsString("must be")));
         assertThat(validation.validationErrors().size(), is(1));
+    }
+
+    /**
+     * Generates a random username whose length is exactly as given {@code length}.
+     */
+    private String randomValidUsername(int length) {
+        assert length >= 1 : "username length cannot be less than 1";
+
+        final char[] username = new char[length];
+
+        // First character cannot be a whitespace.
+        username[0] = chooseValidNonWhitespaceCharacter();
+
+        if (length == 1) {
+            return String.valueOf(username);
+        }
+
+        for (int i = 1; i < length - 1; i++) {
+            username[i] = chooseValidCharacter();
+        }
+
+        // Last character cannot be a whitespace.
+        username[length - 1] = chooseValidNonWhitespaceCharacter();
+
+        return String.valueOf(username);
+    }
+
+    private static char chooseValidCharacter() {
+        return randomFrom(Validation.VALID_NAME_CHARS);
+    }
+
+    private static char chooseValidNonWhitespaceCharacter() {
+        return randomValueOtherThan(' ', () -> chooseValidCharacter());
     }
 
     public void testException() {

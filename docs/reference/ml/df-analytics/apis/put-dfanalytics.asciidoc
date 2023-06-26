@@ -105,7 +105,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`),
-categorical (`ip` or `keyword`), or boolean. There must be no more than 30
+categorical (`ip` or `keyword`), or boolean. There must be no more than 100
 different values in this field.
 
 `downsample_factor`::::
@@ -507,6 +507,10 @@ necessary to complete the analysis at the cost of using more CPU.
 Note that the process may use additional threads for operational
 functionality other than the analysis itself.
 
+`_meta`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=meta]
+
 `model_memory_limit`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
@@ -664,34 +668,43 @@ The API returns the following result:
 [source,console-result]
 ----
 {
-  "id": "loganalytics",
-  "description": "Outlier detection on log data",
-  "source": {
-    "index": [ "logdata" ],
-    "query": {
-      "match_all": {}
+  "id" : "loganalytics",
+  "create_time" : 1656364565517,
+  "version" : "8.4.0",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "description" : "Outlier detection on log data",
+  "source" : {
+    "index" : [
+      "logdata"
+    ],
+    "query" : {
+      "match_all" : { }
     }
   },
-  "dest": {
-    "index": "logdata_out",
-    "results_field": "ml"
+  "dest" : {
+    "index" : "logdata_out",
+    "results_field" : "ml"
   },
-  "analysis": {
-    "outlier_detection": {
-      "compute_feature_influence": true,
-      "outlier_fraction": 0.05,
-      "standardization_enabled": true
+  "analysis" : {
+    "outlier_detection" : {
+      "compute_feature_influence" : true,
+      "outlier_fraction" : 0.05,
+      "standardization_enabled" : true
     }
   },
-  "model_memory_limit": "1gb",
-  "create_time": 1562265491319,
-  "version": "8.0.0",
-  "allow_lazy_start": false,
-  "max_num_threads": 1
+  "model_memory_limit" : "1gb",
+  "allow_lazy_start" : false,
+  "max_num_threads" : 1
 }
+
 ----
-// TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+// TESTRESPONSE[s/1656364565517/$body.$_path/]
+// TESTRESPONSE[s/"version" : "8.4.0"/"version": $body.version/]
+// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]
 
 
 [[ml-put-dfanalytics-example-r]]
@@ -718,7 +731,7 @@ PUT _ml/data_frame/analytics/house_price_regression_analysis
     }
 }
 --------------------------------------------------
-// TEST[skip:TBD]
+// TEST[setup:setup_houseprices]
 
 
 The API returns the following result:
@@ -727,6 +740,13 @@ The API returns the following result:
 ----
 {
   "id" : "house_price_regression_analysis",
+  "create_time" : 1656364845151,
+  "version" : "8.4.0",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
   "source" : {
     "index" : [
       "houses_sold_last_10_yrs"
@@ -742,17 +762,23 @@ The API returns the following result:
   "analysis" : {
     "regression" : {
       "dependent_variable" : "price",
-      "training_percent" : 100
+      "prediction_field_name" : "price_prediction",
+      "training_percent" : 100.0,
+      "randomize_seed" : -3578554885299300212,
+      "loss_function" : "mse",
+      "early_stopping_enabled" : true
     }
   },
   "model_memory_limit" : "1gb",
-  "create_time" : 1567168659127,
-  "version" : "8.0.0",
-  "allow_lazy_start" : false
+  "allow_lazy_start" : false,
+  "max_num_threads" : 1
 }
+
 ----
-// TESTRESPONSE[s/1567168659127/$body.$_path/]
-// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+// TESTRESPONSE[s/1656364845151/$body.$_path/]
+// TESTRESPONSE[s/"version" : "8.4.0"/"version": $body.version/]
+// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]
+// TESTRESPONSE[s/-3578554885299300212/$body.$_path/]
 
 
 The following example creates a job and specifies a training percent:

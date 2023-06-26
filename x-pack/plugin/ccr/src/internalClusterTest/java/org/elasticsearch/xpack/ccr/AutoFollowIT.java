@@ -6,22 +6,32 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,9 +60,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -67,7 +80,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(FakeSystemIndex.class)).collect(Collectors.toList());
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(FakeSystemIndex.class, DataStreamsPlugin.class)).toList();
     }
 
     public static class FakeSystemIndex extends Plugin implements SystemIndexPlugin {
@@ -75,7 +88,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test index"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "test index"));
         }
 
         @Override
@@ -278,7 +291,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.getParameters().setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.getParameters().setMaxReadRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(500));
@@ -290,10 +303,10 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.getParameters().setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.getParameters().setMaxWriteBufferSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            request.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            request.getParameters().setMaxWriteRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
 
         request.setName("my-pattern");
@@ -621,6 +634,98 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
     }
 
+    public void testAutoFollowDatastreamWithClosingFollowerIndex() throws Exception {
+        final String datastream = "logs-1";
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("template-id");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("logs-*"),
+                new Template(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build(),
+                    null,
+                    null
+                ),
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            )
+        );
+        assertAcked(leaderClient().execute(PutComposableIndexTemplateAction.INSTANCE, request).get());
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(datastream);
+        assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
+        leaderClient().prepareIndex(datastream)
+            .setCreate(true)
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .get();
+
+        PutAutoFollowPatternAction.Request followRequest = new PutAutoFollowPatternAction.Request();
+        followRequest.setName("pattern-1");
+        followRequest.setRemoteCluster("leader_cluster");
+        followRequest.setLeaderIndexPatterns(List.of("logs-*"));
+        followRequest.setFollowIndexNamePattern("{{leader_index}}");
+        assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, followRequest).get().isAcknowledged());
+
+        logger.info("--> roll over once and wait for the auto-follow to pick up the new index");
+        leaderClient().admin().indices().prepareRolloverIndex("logs-1").get();
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+        });
+
+        ensureFollowerGreen("*");
+
+        final RolloverResponse rolloverResponse = leaderClient().admin().indices().prepareRolloverIndex(datastream).get();
+        final String indexInDatastream = rolloverResponse.getOldIndex();
+
+        logger.info("--> closing [{}] on follower so it will be re-opened by crr", indexInDatastream);
+        assertAcked(followerClient().admin().indices().prepareClose(indexInDatastream).setMasterNodeTimeout(TimeValue.MAX_VALUE).get());
+
+        logger.info("--> deleting and recreating index [{}] on leader to change index uuid on leader", indexInDatastream);
+        assertAcked(leaderClient().admin().indices().prepareDelete(indexInDatastream).get());
+        assertAcked(
+            leaderClient().admin()
+                .indices()
+                .prepareCreate(indexInDatastream)
+                .setMapping(MetadataIndexTemplateService.DEFAULT_TIMESTAMP_MAPPING.toString())
+                .get()
+        );
+        leaderClient().prepareIndex(indexInDatastream)
+            .setCreate(true)
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .get();
+        leaderClient().execute(
+            ModifyDataStreamsAction.INSTANCE,
+            new ModifyDataStreamsAction.Request(List.of(DataStreamAction.addBackingIndex(datastream, indexInDatastream)))
+        ).get();
+
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(3L));
+        });
+
+        final Metadata metadata = followerClient().admin().cluster().prepareState().get().getState().metadata();
+        final DataStream dataStream = metadata.dataStreams().get(datastream);
+        assertTrue(dataStream.getIndices().stream().anyMatch(i -> i.getName().equals(indexInDatastream)));
+        assertEquals(IndexMetadata.State.OPEN, metadata.index(indexInDatastream).getState());
+        ensureFollowerGreen("*");
+        final IndicesStatsResponse stats = followerClient().admin().indices().prepareStats(datastream).get();
+        assertThat(stats.getIndices(), aMapWithSize(2));
+
+        assertAcked(leaderClient().admin().indices().prepareDelete(indexInDatastream).get());
+        assertAcked(followerClient().admin().indices().prepareDelete(indexInDatastream).setMasterNodeTimeout(TimeValue.MAX_VALUE).get());
+        ensureFollowerGreen("*");
+        final IndicesStatsResponse statsAfterDelete = followerClient().admin().indices().prepareStats(datastream).get();
+        assertThat(statsAfterDelete.getIndices(), aMapWithSize(1));
+        assertThat(statsAfterDelete.getIndices(), hasKey(rolloverResponse.getNewIndex()));
+    }
+
     private void putAutoFollowPatterns(String name, String[] patterns) {
         putAutoFollowPatterns(name, patterns, Collections.emptyList());
     }
@@ -683,8 +788,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
             }
             final AutoFollowStats finalAutoFollowStats = autoFollowStats;
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "AssertionError when waiting for auto-follower, auto-follow stats are: {}",
+                () -> format(
+                    "AssertionError when waiting for auto-follower, auto-follow stats are: %s",
                     finalAutoFollowStats != null ? Strings.toString(finalAutoFollowStats) : "null"
                 ),
                 ae

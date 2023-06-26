@@ -80,11 +80,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     private static final ActionListener<Void> ASSERTING_DONE_LISTENER = ActionTestUtils.assertNoFailureListener(r -> {});
 
     private final ShardId shardId = new ShardId("index", "_na_", 0);
-    private final Settings idxSettings = Settings.builder()
-        .put("index.number_of_shards", 1)
-        .put("index.number_of_replicas", 0)
-        .put("index.version.created", Version.CURRENT.id)
-        .build();
+    private final Settings idxSettings = indexSettings(Version.CURRENT, 1, 0).build();
 
     private IndexMetadata indexMetadata() throws IOException {
         return IndexMetadata.builder("index").putMapping("""
@@ -213,12 +209,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 // since at least 1 item passed, the tran log location should exist,
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
                 // and the response should exist and match the item count
-                assertThat(result.finalResponseIfSuccessful, notNullValue());
-                assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
+                assertThat(result.replicationResponse, notNullValue());
+                assertThat(result.replicationResponse.getResponses(), arrayWithSize(items.length));
 
                 // check each response matches the input item, including the rejection
                 for (int i = 0; i < items.length; i++) {
-                    BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
+                    BulkItemResponse response = result.replicationResponse.getResponses()[i];
                     assertThat(response.getItemId(), equalTo(i));
                     assertThat(response.getIndex(), equalTo("index"));
                     assertThat(response.getId(), equalTo("id_" + i));
@@ -281,6 +277,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
+        assertThat(context.getUpdateRetryCounter(), equalTo(0));
 
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
 
@@ -576,7 +573,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     public void testUpdateRequestWithConflictFailure() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
-        DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        int retries = randomInt(4);
+        DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            .retryOnConflict(retries);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
         IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -603,16 +602,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
-
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(
-            context,
-            updateHelper,
-            threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(),
-            listener -> listener.onResponse(null),
-            ASSERTING_DONE_LISTENER
-        );
+
+        for (int i = 0; i < retries + 1; i++) {
+            assertTrue(context.hasMoreOperationsToExecute());
+            TransportShardBulkAction.executeBulkItemRequest(
+                context,
+                updateHelper,
+                threadPool::absoluteTimeInMillis,
+                new NoopMappingUpdatePerformer(),
+                listener -> listener.onResponse(null),
+                ASSERTING_DONE_LISTENER
+            );
+        }
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());

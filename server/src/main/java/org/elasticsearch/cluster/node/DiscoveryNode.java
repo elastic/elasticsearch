@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -17,13 +18,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
@@ -36,7 +40,43 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
  */
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
+    /**
+     * Name of the setting used to enable stateless.
+     */
+    public static final String STATELESS_ENABLED_SETTING_NAME = "stateless.enabled";
+
+    /**
+     * Check if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set to {@code true}, indicating that the node is
+     * part of a stateless deployment. When no settings are provided this method falls back to the value of the stateless feature flag;
+     * this is convenient for testing purpose as well as all behaviors that rely on node roles to be enabled/disabled by default when no
+     * settings are provided.
+     *
+     * @param settings the node settings
+     * @return true if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set
+     */
+    public static boolean isStateless(final Settings settings) {
+        if (settings.isEmpty() == false) {
+            return settings.getAsBoolean(STATELESS_ENABLED_SETTING_NAME, false);
+        } else {
+            // Fallback on stateless feature flag when no settings are provided
+            return DiscoveryNodeRole.hasStatelessFeatureFlag();
+        }
+    }
+
+    /**
+     * Check if the serverless feature flag is present and set to {@code true}, indicating that the node is
+     * part of a serverless deployment.
+     *
+     * @return true if the serverless feature flag is present and set
+     */
+    public static boolean isServerless() {
+        return DiscoveryNodeRole.hasServerlessFeatureFlag();
+    }
+
     static final String COORDINATING_ONLY = "coordinating_only";
+    public static final TransportVersion EXTERNAL_ID_VERSION = TransportVersion.V_8_3_0;
+    public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
+        .thenComparing(DiscoveryNode::getId);
 
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
         // this method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized
@@ -109,48 +149,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
-
-    /**
-     * Creates a new {@link DiscoveryNode}
-     * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
-     * </p>
-     *
-     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
-     * @param address          the nodes transport address
-     * @param version          the version of the node
-     */
-    public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
-    }
-
-    /**
-     * Creates a new {@link DiscoveryNode}
-     * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
-     * </p>
-     *
-     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
-     * @param address          the nodes transport address
-     * @param attributes       node attributes
-     * @param roles            node roles
-     * @param version          the version of the node
-     */
-    public DiscoveryNode(
-        String id,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        Version version
-    ) {
-        this("", id, address, attributes, roles, version);
-    }
+    private final Set<String> roleNames;
+    private final String externalId;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -169,12 +169,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        @Nullable Version version
     ) {
         this(
             nodeName,
@@ -208,7 +208,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         String ephemeralId,
         String hostName,
@@ -216,7 +216,41 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        @Nullable Version version
+    ) {
+        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}.
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
+     * @param externalId       the external id used to identify this node by external systems
+     */
+    public DiscoveryNode(
+        @Nullable String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        @Nullable Version version,
+        @Nullable String externalId
     ) {
         if (nodeName != null) {
             this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
@@ -237,14 +271,34 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.attributes = Map.copyOf(attributes);
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
             : "Node roles must not be provided as attributes but saw attributes " + attributes;
-        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
+        final TreeSet<DiscoveryNodeRole> sortedRoles = new TreeSet<>();
+        final String[] roleNames = new String[roles.size()];
+        int i = 0;
+        for (DiscoveryNodeRole role : roles) {
+            sortedRoles.add(role);
+            roleNames[i++] = role.roleName();
+        }
+        this.roles = Collections.unmodifiableSortedSet(sortedRoles);
+        this.roleNames = Set.of(roleNames);
+        this.externalId = Objects.requireNonNullElse(externalId, this.nodeName);
     }
 
     /** Creates a DiscoveryNode representing the local node. */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
+        return new DiscoveryNode(
+            Node.NODE_NAME_SETTING.get(settings),
+            nodeId,
+            UUIDs.randomBase64UUID(),
+            publishAddress.address().getHostString(),
+            publishAddress.getAddress(),
+            publishAddress,
+            attributes,
+            roles,
+            Version.CURRENT,
+            Node.NODE_EXTERNAL_ID_SETTING.get(settings)
+        );
     }
 
     /** extract node roles from the given settings */
@@ -266,9 +320,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.hostName = readStringLiteral.read(in);
         this.hostAddress = readStringLiteral.read(in);
         this.address = new TransportAddress(in);
-        this.attributes = Collections.unmodifiableMap(in.readMap(readStringLiteral, readStringLiteral));
+        this.attributes = in.readImmutableMap(readStringLiteral, readStringLiteral);
         int rolesSize = in.readVInt();
         final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
+        final String[] roleNames = new String[rolesSize];
         for (int i = 0; i < rolesSize; i++) {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
@@ -276,16 +331,34 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             final Optional<DiscoveryNodeRole> maybeRole = DiscoveryNodeRole.maybeGetRoleFromRoleName(roleName);
             if (maybeRole.isEmpty()) {
                 roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                roleNames[i] = roleName;
             } else {
                 final DiscoveryNodeRole role = maybeRole.get();
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                 assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
                     : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
                 roles.add(role);
+                roleNames[i] = role.roleName();
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
         this.version = Version.readVersion(in);
+        if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
+            this.externalId = readStringLiteral.read(in);
+        } else {
+            this.externalId = nodeName;
+        }
+        this.roleNames = Set.of(roleNames);
+    }
+
+    /**
+     * Check if node has the role with the given {@code roleName}.
+     *
+     * @param roleName role name to check
+     * @return true if node has the role of the given name
+     */
+    public boolean hasRole(String roleName) {
+        return this.roleNames.contains(roleName);
     }
 
     @Override
@@ -297,13 +370,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         out.writeString(hostAddress);
         address.writeTo(out);
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeVInt(roles.size());
-        for (final DiscoveryNodeRole role : roles) {
-            out.writeString(role.roleName());
-            out.writeString(role.roleNameAbbreviation());
-            out.writeBoolean(role.canContainData());
-        }
+        out.writeCollection(roles, (o, role) -> {
+            o.writeString(role.roleName());
+            o.writeString(role.roleNameAbbreviation());
+            o.writeBoolean(role.canContainData());
+        });
         Version.writeVersion(version, out);
+        if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
+            out.writeString(externalId);
+        }
     }
 
     /**
@@ -336,6 +411,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public String getName() {
         return this.nodeName;
+    }
+
+    /**
+     * The external id used to identify this node by external systems
+     */
+    public String getExternalId() {
+        return externalId;
     }
 
     /**
@@ -444,13 +526,31 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         stringBuilder.append('{').append(nodeId).append('}');
         stringBuilder.append('{').append(ephemeralId).append('}');
+        if (externalId.length() > 0) {
+            stringBuilder.append('{').append(externalId).append('}');
+        }
         stringBuilder.append('{').append(hostName).append('}');
         stringBuilder.append('{').append(address).append('}');
         if (roles.isEmpty() == false) {
             stringBuilder.append('{');
-            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+            appendRoleAbbreviations(stringBuilder, "");
             stringBuilder.append('}');
         }
+        stringBuilder.append('{').append(version).append('}');
+    }
+
+    public void appendRoleAbbreviations(StringBuilder stringBuilder, String ifEmpty) {
+        if (roles.isEmpty()) {
+            stringBuilder.append(ifEmpty);
+        } else {
+            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+        }
+    }
+
+    public String getRoleAbbreviationString() {
+        final var stringBuilder = new StringBuilder();
+        appendRoleAbbreviations(stringBuilder, "-");
+        return stringBuilder.toString();
     }
 
     public String descriptionWithoutAttributes() {
@@ -465,21 +565,45 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         builder.field("name", getName());
         builder.field("ephemeral_id", getEphemeralId());
         builder.field("transport_address", getAddress().toString());
-
-        builder.startObject("attributes");
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-
+        builder.field("external_id", getExternalId());
+        builder.stringStringMap("attributes", attributes);
         builder.startArray("roles");
         for (DiscoveryNodeRole role : roles) {
             builder.value(role.roleName());
         }
         builder.endArray();
-
+        builder.field("version", version);
         builder.endObject();
         return builder;
     }
 
+    public DiscoveryNode withTransportAddress(TransportAddress transportAddress) {
+        return new DiscoveryNode(
+            getName(),
+            getId(),
+            getEphemeralId(),
+            getHostName(),
+            getHostAddress(),
+            transportAddress,
+            getAttributes(),
+            getRoles(),
+            getVersion(),
+            getExternalId()
+        );
+    }
+
+    /**
+     * Deduplicate the given string that must be a node id or node name.
+     * This method accepts {@code null} input for which it returns {@code null} for convenience when used in deserialization code.
+     *
+     * @param nodeIdentifier node name or node id or {@code null}
+     * @return deduplicated string or {@code null} on null input
+     */
+    @Nullable
+    public static String deduplicateNodeIdentifier(@Nullable String nodeIdentifier) {
+        if (nodeIdentifier == null) {
+            return null;
+        }
+        return nodeStringDeduplicator.deduplicate(nodeIdentifier);
+    }
 }

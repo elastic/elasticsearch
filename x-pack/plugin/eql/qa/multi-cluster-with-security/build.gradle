@@ -1,11 +1,9 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('eql:qa:common'))
+  javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
 }
 
 def remoteClusterReg = testClusters.register('remote-cluster')  {
@@ -20,7 +18,7 @@ def remoteClusterReg = testClusters.register('remote-cluster')  {
   user username: "test_user", password: "x-pack-test-password"
 }
 
-def integTestClusterReg = testClusters.register('integTest')  {
+def integTestClusterReg = testClusters.register('javaRestTest')  {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
@@ -41,7 +39,7 @@ tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
   }
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   dependsOn 'startRemoteCluster'
   useCluster remoteClusterReg
   doFirst {
@@ -50,4 +48,4 @@ tasks.named("integTest").configure {
     nonInputProperties.systemProperty 'tests.rest.cluster.remote.password', "x-pack-test-password"
   }
 }
-tasks.named("check").configure {dependsOn("integTest") } // run these tests as part of the "check" task
+tasks.named("check").configure {dependsOn("javaRestTest") } // run these tests as part of the "check" task

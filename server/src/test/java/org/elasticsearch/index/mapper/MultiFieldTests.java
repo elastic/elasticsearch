@@ -13,8 +13,10 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -206,5 +208,55 @@ public class MultiFieldTests extends MapperServiceTestCase {
             exception.getMessage(),
             equalTo("Failed to parse mapping: Field name [raw.foo] which is a multi field of [field] cannot contain '.'")
         );
+    }
+
+    public void testUnknownLegacyFieldsUnderKnownRootField() throws Exception {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("subfield").field("type", "unknown").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name.subfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+    }
+
+    public void testUnmappedLegacyFieldsUnderKnownRootField() throws Exception {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("subfield").field("type", CompletionFieldMapper.CONTENT_TYPE).endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name.subfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+    }
+
+    public void testFieldsUnderUnknownRootField() throws Exception {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "unknown");
+            b.startObject("fields");
+            b.startObject("subfield").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name.subfield"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+    }
+
+    public void testFieldsUnderUnmappedRootField() throws Exception {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", CompletionFieldMapper.CONTENT_TYPE);
+            b.startObject("fields");
+            b.startObject("subfield").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name.subfield"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 }

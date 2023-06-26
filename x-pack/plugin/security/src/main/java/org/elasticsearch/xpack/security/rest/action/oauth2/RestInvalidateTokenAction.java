@@ -11,10 +11,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest handler for handling access token invalidation requests
  */
+@ServerlessScope(Scope.INTERNAL)
 public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_token", a -> {
@@ -89,7 +91,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
                     @Override
                     public RestResponse buildResponse(InvalidateTokenResponse invalidateResp, XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
-                        return new BytesRestResponse(invalidateResp.getResult().getRestStatus(), builder);
+                        return new RestResponse(invalidateResp.getResult().getRestStatus(), builder);
                     }
                 }
             );

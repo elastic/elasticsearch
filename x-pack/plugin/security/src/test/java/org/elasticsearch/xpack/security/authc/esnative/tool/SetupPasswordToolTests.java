@@ -80,7 +80,12 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public ExpectedException thrown = ExpectedException.none();
 
     @Before
-    public void setSecretsAndKeyStore() throws Exception {
+    public void setupSecretsAndKeystore() throws Exception {
+        resetSecretsAndKeyStore(null);
+    }
+
+    public void resetSecretsAndKeyStore(String promptResponse) throws Exception {
+        terminal.reset();
         // sometimes we fall back to the keystore seed as this is the default when a new node starts
         boolean useFallback = randomBoolean();
         bootstrapPassword = useFallback
@@ -92,6 +97,9 @@ public class SetupPasswordToolTests extends CommandTestCase {
         usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         if (usedKeyStore.hasPassword()) {
             terminal.addSecretInput("keystore-password");
+        }
+        if (promptResponse != null) {
+            terminal.addTextInput(promptResponse);
         }
 
         this.httpClient = mock(CommandLineHttpClient.class);
@@ -195,7 +203,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         if (randomBoolean()) {
             execute("auto", "-b", "true");
         } else {
-            terminal.addTextInput("Y");
+            resetSecretsAndKeyStore("Y");
             execute("auto");
         }
         if (usedKeyStore.hasPassword()) {
@@ -462,6 +470,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testRedCluster() throws Exception {
+        resetSecretsAndKeyStore("n");
         URL url = new URL(httpClient.getDefaultURL());
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
@@ -495,7 +504,6 @@ public class SetupPasswordToolTests extends CommandTestCase {
             )
         ).thenReturn(httpResponse);
 
-        terminal.addTextInput("n");
         try {
             execute(randomBoolean() ? "auto" : "interactive");
             fail("Should have thrown exception");
@@ -544,9 +552,9 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testInteractiveSetup() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
+        resetSecretsAndKeyStore("Y");
 
-        terminal.addTextInput("Y");
+        URL url = new URL(httpClient.getDefaultURL());
         execute("interactive");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
@@ -668,22 +676,12 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
             @Override
             protected AutoSetup newAutoSetup() {
-                return new AutoSetup() {
-                    @Override
-                    protected Map<String, String> captureSystemProperties() {
-                        return mockSystemProperties(createTempDir());
-                    }
-                };
+                return new AutoSetup();
             }
 
             @Override
             protected InteractiveSetup newInteractiveSetup() {
-                return new InteractiveSetup() {
-                    @Override
-                    protected Map<String, String> captureSystemProperties() {
-                        return mockSystemProperties(createTempDir());
-                    }
-                };
+                return new InteractiveSetup();
             }
 
         };

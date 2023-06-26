@@ -6,6 +6,9 @@
 # or 'openjdk' followed by the major release number.
 
 ES_RUNTIME_JAVA:
+  - graalvm-ce17
   - openjdk17
   - openjdk18
   - openjdk19
+  - openjdk20
+  - openjdk21

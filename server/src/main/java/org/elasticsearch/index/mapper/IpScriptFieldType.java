@@ -19,6 +19,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -39,14 +40,19 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, IpFieldScript.CONTEXT) {
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, IpFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return new IpScriptFieldType(name, factory, getScript(), meta());
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            IpFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return new IpScriptFieldType(name, factory, getScript(), meta(), onScriptError);
         }
 
         @Override
@@ -60,10 +66,16 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         }
     });
 
-    IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    IpScriptFieldType(
+        String name,
+        IpFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -91,8 +103,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public IpScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new IpScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), IpDocValuesField::new);
+    public IpScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new IpScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), IpDocValuesField::new);
     }
 
     @Override
@@ -186,8 +198,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         byte upper[] = addr.getAddress();
         for (int i = prefixLength; i < 8 * lower.length; i++) {
             int m = 1 << (7 - (i & 7));
-            lower[i >> 3] &= ~m;
-            upper[i >> 3] |= m;
+            lower[i >> 3] &= (byte) ~m;
+            upper[i >> 3] |= (byte) m;
         }
         // Force the terms into IPv6
         BytesRef lowerBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(lower)));

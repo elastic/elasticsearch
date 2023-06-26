@@ -9,11 +9,9 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -25,8 +23,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -42,13 +42,17 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -67,7 +71,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
     private final SnapshotFilesProvider snapshotFilesProvider;
-    private final MultiFileWriter multiFileWriter;
+    private volatile MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
@@ -79,7 +83,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
-    private volatile boolean recoveryMonitorEnabled = true;
+    private final AtomicInteger recoveryMonitorBlocks = new AtomicInteger();
 
     @Nullable // if we're not downloading files from snapshots in this recovery or we're retrying
     private volatile Releasable snapshotFileDownloadsPermit;
@@ -113,18 +117,26 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.snapshotFilesProvider = snapshotFilesProvider;
         this.snapshotFileDownloadsPermit = snapshotFileDownloadsPermit;
         this.shardId = indexShard.shardId();
-        final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(
-            indexShard.store(),
-            indexShard.recoveryState().getIndex(),
-            tempFilePrefix,
-            logger,
-            this::ensureRefCount
-        );
         this.store = indexShard.store();
+        this.multiFileWriter = createMultiFileWriter();
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
+    }
+
+    private void recreateMultiFileWriter() {
+        // Sometimes we need to clear the downloaded data and start from scratch
+        // i.e. when we're recovering from a snapshot that's physically different to the
+        // source node index files. In that case we create a new MultiFileWriter using a
+        // different tempFilePrefix and close the previous writer that would take care of
+        // cleaning itself once all the outstanding writes finish.
+        multiFileWriter.close();
+        this.multiFileWriter = createMultiFileWriter();
+    }
+
+    private MultiFileWriter createMultiFileWriter() {
+        final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
+        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger, this::ensureRefCount);
     }
 
     /**
@@ -176,7 +188,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
     public long lastAccessTime() {
-        if (recoveryMonitorEnabled) {
+        if (recoveryMonitorBlocks.get() == 0) {
             return lastAccessTime;
         }
         return System.nanoTime();
@@ -195,12 +207,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @return releasable that once closed will re-enable liveness checks by the recovery monitor
      */
     public Releasable disableRecoveryMonitor() {
-        assert recoveryMonitorEnabled : "recovery monitor already disabled";
-        recoveryMonitorEnabled = false;
-        return () -> {
+        recoveryMonitorBlocks.incrementAndGet();
+        return Releasables.releaseOnce(() -> {
             setLastAccessTime();
-            recoveryMonitorEnabled = true;
-        };
+            recoveryMonitorBlocks.decrementAndGet();
+        });
     }
 
     public Store store() {
@@ -286,7 +297,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
-        listener.onRecoveryFailure(state(), e, sendShardFailure);
+        listener.onRecoveryFailure(e, sendShardFailure);
     }
 
     /** mark the current recovery as done */
@@ -307,6 +318,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     protected void closeInternal() {
+        assert recoveryMonitorBlocks.get() == 0;
         try {
             multiFileWriter.close();
         } finally {
@@ -453,9 +465,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            multiFileWriter.deleteTempFiles();
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
+            recreateMultiFileWriter();
             final RecoveryState.Index index = state().getIndex();
             for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
                 index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
@@ -486,15 +498,18 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final Store store = store();
             store.incRef();
             try {
-                store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
-                final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(),
-                    globalCheckpoint,
-                    shardId,
-                    indexShard.getPendingPrimaryTerm()
-                );
-                store.associateIndexWithNewTranslog(translogUUID);
-
+                if (indexShard.routingEntry().isPromotableToPrimary()) {
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                    final String translogUUID = Translog.createEmptyTranslog(
+                        indexShard.shardPath().resolveTranslog(),
+                        globalCheckpoint,
+                        shardId,
+                        indexShard.getPendingPrimaryTerm()
+                    );
+                    store.associateIndexWithNewTranslog(translogUUID);
+                } else {
+                    indexShard.setGlobalCheckpointIfUnpromotable(globalCheckpoint);
+                }
                 if (indexShard.getRetentionLeases().leases().isEmpty()) {
                     // if empty, may be a fresh IndexShard, so write an empty leases file to disk
                     indexShard.persistRetentionLeases();
@@ -572,10 +587,22 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ) {
             StoreFileMetadata metadata = fileInfo.metadata();
             int readSnapshotFileBufferSize = snapshotFilesProvider.getReadSnapshotFileBufferSizeForRepo(repository);
-            multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
+            multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, new FilterInputStream(inputStream) {
+                @Override
+                public int read() throws IOException {
+                    cancellableThreads.checkForCancel();
+                    return super.read();
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    cancellableThreads.checkForCancel();
+                    return super.read(b, off, len);
+                }
+            });
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e);
+            logger.debug(() -> format("Unable to recover snapshot file %s from repository %s", fileInfo, repository), e);
             listener.onFailure(e);
         }
     }

@@ -27,10 +27,10 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -47,8 +47,11 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
@@ -64,13 +67,14 @@ import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.rest.RestResponseTests;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -78,14 +82,13 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -115,9 +118,10 @@ import static java.lang.reflect.Modifier.isInterface;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
 
@@ -131,7 +135,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             .resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
             CancellableThreadsTests.CustomException.class,
-            org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
+            RestResponseTests.WithHeadersException.class,
             AbstractClientHeadersTestCase.InternalException.class
         );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
@@ -167,10 +171,10 @@ public class ExceptionSerializationTests extends ESTestCase {
                 if (isEsException(clazz) == false) {
                     return;
                 }
-                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
+                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.current()) == false
                     && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                     notRegistered.add(clazz);
-                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)) {
+                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.current())) {
                     registered.add(clazz);
                     try {
                         if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
@@ -224,21 +228,21 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     private <T extends Exception> T serialize(T exception) throws IOException {
-        return serialize(exception, VersionUtils.randomVersion(random()));
+        return serialize(exception, TransportVersionUtils.randomVersion(random()));
     }
 
-    private <T extends Exception> T serialize(T exception, Version version) throws IOException {
+    private <T extends Exception> T serialize(T exception, TransportVersion version) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         out.writeException(exception);
 
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
+        in.setTransportVersion(version);
         return in.readException();
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
-        final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED);
+        final ShardRouting routing = newShardRouting("test", 0, "xyz", false, ShardRoutingState.STARTED);
         final String routingAsString = routing.toString();
         IllegalShardRoutingStateException serialize = serialize(
             new IllegalShardRoutingStateException(routing, "foo", new NullPointerException())
@@ -314,7 +318,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testRecoverFilesRecoveryException() throws IOException {
         ShardId id = new ShardId("foo", "_na_", 1);
-        ByteSizeValue bytes = new ByteSizeValue(randomIntBetween(0, 10000));
+        ByteSizeValue bytes = ByteSizeValue.ofBytes(randomIntBetween(0, 10000));
         RecoverFilesRecoveryException ex = serialize(new RecoverFilesRecoveryException(id, 10, bytes, null));
         assertEquals(ex.getShardId(), id);
         assertEquals(ex.numberOfFiles(), 10);
@@ -347,10 +351,10 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchContextMissingException() throws IOException {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
-        Version version = VersionUtils.randomVersion(random());
+        TransportVersion version = TransportVersionUtils.randomVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
-        if (version.onOrAfter(Version.V_7_7_0)) {
+        if (version.onOrAfter(TransportVersion.V_7_7_0)) {
             assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
         } else {
             assertThat(ex.contextId().getSessionId(), equalTo(""));
@@ -360,7 +364,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            Version.V_7_0_0
+            TransportVersion.V_7_0_0
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
@@ -369,7 +373,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         MultiBucketConsumerService.TooManyBucketsException ex = serialize(
             new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
             version
@@ -391,13 +395,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertArrayEquals(new String[] { "one", "two", "three" }, ex.getResourceId().toArray(new String[0]));
     }
 
-    public void testSearchParseException() throws IOException {
-        SearchParseException ex = serialize(new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(66, 666)));
-        assertEquals("foo", ex.getMessage());
-        assertEquals(66, ex.getLineNumber());
-        assertEquals(666, ex.getColumnNumber());
-    }
-
     public void testIllegalIndexShardStateException() throws IOException {
         ShardId id = new ShardId("foo", "_na_", 1);
         IndexShardState state = randomFrom(IndexShardState.values());
@@ -409,14 +406,14 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testConnectTransportException() throws IOException {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
-        DiscoveryNode node = new DiscoveryNode("thenode", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("thenode", transportAddress, emptyMap(), emptySet());
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
         assertNull(ex.getCause());
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
+        assertThat(ex.getCause(), instanceOf(NullPointerException.class));
     }
 
     public void testSearchPhaseExecutionException() throws IOException {
@@ -737,7 +734,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(69, org.elasticsearch.snapshots.SnapshotMissingException.class);
         ids.put(70, org.elasticsearch.action.PrimaryMissingActionException.class);
         ids.put(71, org.elasticsearch.action.FailedNodeException.class);
-        ids.put(72, org.elasticsearch.search.SearchParseException.class);
+        ids.put(72, null); // was SearchParseException, only used in tests since 7.11
         ids.put(73, org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class);
         ids.put(74, org.elasticsearch.common.blobstore.BlobStoreException.class);
         ids.put(75, org.elasticsearch.cluster.IncompatibleClusterStateVersionException.class);
@@ -828,6 +825,11 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(163, RepositoryConflictException.class);
         ids.put(164, VersionConflictException.class);
         ids.put(165, SnapshotNameAlreadyInUseException.class);
+        ids.put(166, HealthNodeNotDiscoveredException.class);
+        ids.put(167, UnsupportedAggregationOnDownsampledIndex.class);
+        ids.put(168, DocumentParsingException.class);
+        ids.put(169, HttpHeadersValidationException.class);
+        ids.put(170, ElasticsearchRoleRestrictionException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
@@ -891,7 +893,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testShardLockObtainFailedException() throws IOException {
         ShardId shardId = new ShardId("foo", "_na_", 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         ShardLockObtainFailedException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
         assertEquals(orig.getShardId(), ex.getShardId());
@@ -899,7 +901,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSnapshotInProgressException() throws IOException {
         SnapshotInProgressException orig = new SnapshotInProgressException("boom");
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         SnapshotInProgressException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
     }

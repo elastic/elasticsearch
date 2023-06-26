@@ -22,6 +22,7 @@ import java.util.Set;
 
 public class DiscoveryNodeFilters {
 
+    public static final Set<String> SINGLE_NODE_NAMES = Set.of("_id", "_name", "name");
     static final Set<String> NON_ATTRIBUTE_NAMES = Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
 
     public enum OpType {
@@ -232,6 +233,20 @@ public class DiscoveryNodeFilters {
      */
     public boolean isOnlyAttributeValueFilter() {
         return filters.keySet().stream().anyMatch(NON_ATTRIBUTE_NAMES::contains) == false;
+    }
+
+    /**
+     * @return true if filter is for a single node
+     */
+    public boolean isSingleNodeFilter() {
+        return withoutTierPreferences != null && withoutTierPreferences.isSingleNodeFilterInternal();
+    }
+
+    private boolean isSingleNodeFilterInternal() {
+        return (filters.size() == 1
+            && NON_ATTRIBUTE_NAMES.contains(filters.keySet().iterator().next())
+            && (filters.values().iterator().next().length == 1 || opType == OpType.AND))
+            || (filters.size() > 1 && opType == OpType.AND && NON_ATTRIBUTE_NAMES.containsAll(filters.keySet()));
     }
 
     /**

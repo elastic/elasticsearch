@@ -1,6 +1,0 @@
-pr: 84965
-summary: Add index privileges for logs-enterprise_search.api-default to the enterprise-search-server
-  service account
-area: Authorization
-type: enhancement
-issues: []

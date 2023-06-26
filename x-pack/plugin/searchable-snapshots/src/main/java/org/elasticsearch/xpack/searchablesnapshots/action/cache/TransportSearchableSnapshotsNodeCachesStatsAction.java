@@ -13,11 +13,11 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,11 +31,12 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -52,7 +53,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
 
-    private final Supplier<FrozenCacheService> frozenCacheService;
+    private final Supplier<SharedBlobCacheService<CacheKey>> frozenCacheService;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -72,9 +73,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             actionFilters,
             NodesRequest::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.SAME,
-            NodeCachesStatsResponse.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.frozenCacheService = frozenCacheService;
         this.licenseState = licenseState;
@@ -101,7 +100,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Override
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
-        final ImmutableOpenMap<String, DiscoveryNode> dataNodes = clusterState.getNodes().getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = clusterState.getNodes().getDataNodes();
 
         final DiscoveryNode[] resolvedNodes;
         if (request.nodesIds() == null || request.nodesIds().length == 0) {
@@ -119,22 +118,22 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     @Override
     protected NodeCachesStatsResponse nodeOperation(NodeRequest request, Task task) {
         SearchableSnapshots.ensureValidLicense(licenseState);
-        final FrozenCacheService.Stats frozenCacheStats;
+        final SharedBlobCacheService.Stats frozenCacheStats;
         if (frozenCacheService.get() != null) {
             frozenCacheStats = frozenCacheService.get().getStats();
         } else {
-            frozenCacheStats = FrozenCacheService.Stats.EMPTY;
+            frozenCacheStats = SharedBlobCacheService.Stats.EMPTY;
         }
         return new NodeCachesStatsResponse(
             clusterService.localNode(),
-            frozenCacheStats.getNumberOfRegions(),
-            frozenCacheStats.getSize(),
-            frozenCacheStats.getRegionSize(),
-            frozenCacheStats.getWriteCount(),
-            frozenCacheStats.getWriteBytes(),
-            frozenCacheStats.getReadCount(),
-            frozenCacheStats.getReadBytes(),
-            frozenCacheStats.getEvictCount()
+            frozenCacheStats.numberOfRegions(),
+            frozenCacheStats.size(),
+            frozenCacheStats.regionSize(),
+            frozenCacheStats.writeCount(),
+            frozenCacheStats.writeBytes(),
+            frozenCacheStats.readCount(),
+            frozenCacheStats.readBytes(),
+            frozenCacheStats.evictCount()
         );
     }
 

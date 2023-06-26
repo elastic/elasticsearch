@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_ID;
@@ -75,7 +73,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
         if (mediaType instanceof XContentType type) {
             XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
             response.toXContent(builder, request);
-            restResponse = new BytesRestResponse(RestStatus.OK, builder);
+            restResponse = new RestResponse(RestStatus.OK, builder);
         } else { // TextFormat
             TextFormat type = (TextFormat) mediaType;
             final Tuple<String, BasicFormatter> dataWithNextFormatter = type.format(request, requestFormatter, response);
@@ -84,11 +82,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
                 response.cursor(Cursors.attachFormatter(response.cursor(), dataWithNextFormatter.v2()));
             }
 
-            restResponse = new BytesRestResponse(
-                RestStatus.OK,
-                type.contentType(request),
-                dataWithNextFormatter.v1().getBytes(StandardCharsets.UTF_8)
-            );
+            restResponse = new RestResponse(RestStatus.OK, type.contentType(request), dataWithNextFormatter.v1());
 
             if (response.hasCursor()) {
                 restResponse.addHeader(HEADER_NAME_CURSOR, response.cursor());

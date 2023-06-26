@@ -21,7 +21,8 @@ public final class ChangePointNamedContentProvider {
             new NamedWriteableRegistry.Entry(ChangeType.class, ChangeType.Dip.NAME, ChangeType.Dip::new),
             new NamedWriteableRegistry.Entry(ChangeType.class, ChangeType.DistributionChange.NAME, ChangeType.DistributionChange::new),
             new NamedWriteableRegistry.Entry(ChangeType.class, ChangeType.Stationary.NAME, ChangeType.Stationary::new),
-            new NamedWriteableRegistry.Entry(ChangeType.class, ChangeType.NonStationary.NAME, ChangeType.NonStationary::new)
+            new NamedWriteableRegistry.Entry(ChangeType.class, ChangeType.NonStationary.NAME, ChangeType.NonStationary::new),
+            new NamedWriteableRegistry.Entry(ChangeType.class, ChangeType.Indeterminable.NAME, ChangeType.Indeterminable::new)
         );
     }
 }

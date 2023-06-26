@@ -1,0 +1,82 @@
+---
+setup:
+  - skip:
+      version: " - 8.4.99"
+      reason:  added in 8.5
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              obj:
+                properties:
+                  field:
+                    type: keyword
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    "1"
+          - obj.field: foo
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+
+---
+"Tests searchable snapshots usage stats":
+  - skip:
+      version: " - 8.4.99"
+      reason:  added in 8.5
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: docs
+
+  - do:
+      search:
+        index: docs
+
+  - match: { hits.total.value: 1 }
+  - match:   # synthetic source will push the dotted field name to an object
+      hits.hits.0._source:
+        obj:
+          field: foo
+
+

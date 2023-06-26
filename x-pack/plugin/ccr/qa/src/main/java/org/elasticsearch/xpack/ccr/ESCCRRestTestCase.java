@@ -217,32 +217,39 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void verifyAutoFollowMonitoring() throws IOException {
-        Request request = new Request("GET", "/.monitoring-*/_search");
+        Request request = new Request("GET", "/.monitoring-*/_count");
         request.setJsonEntity("""
-            {"query": {"term": {"type": "ccr_auto_follow_stats"}}}""");
+                {
+                  "query": {
+                    "bool" : {
+                      "filter": {
+                        "term" : { "type" : "ccr_auto_follow_stats" }
+                      },
+                      "must" : {
+                        "range" : {
+                          "ccr_auto_follow_stats.number_of_successful_follow_indices" : { "gt" : 0 }
+                        }
+                      }
+                    }
+                  }
+                }
+            """);
+        String responseEntity;
         Map<String, ?> response;
         try {
-            response = toMap(adminClient().performRequest(request));
+            responseEntity = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+            response = toMap(responseEntity);
         } catch (ResponseException e) {
             throw new AssertionError("error while searching", e);
         }
+        assertNotNull(responseEntity);
 
-        int numberOfSuccessfulFollowIndices = 0;
-
-        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
-        assertThat(hits.size(), greaterThanOrEqualTo(1));
-
-        for (int i = 0; i < hits.size(); i++) {
-            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
-
-            int foundNumberOfOperationsReceived = (int) XContentMapValues.extractValue(
-                "_source.ccr_auto_follow_stats.number_of_successful_follow_indices",
-                hit
-            );
-            numberOfSuccessfulFollowIndices = Math.max(numberOfSuccessfulFollowIndices, foundNumberOfOperationsReceived);
-        }
-
-        assertThat(numberOfSuccessfulFollowIndices, greaterThanOrEqualTo(1));
+        final Number count = (Number) XContentMapValues.extractValue("count", response);
+        assertThat(
+            "Expected at least 1 successfully followed index but found none, count returned [" + responseEntity + ']',
+            count.longValue(),
+            greaterThanOrEqualTo(1L)
+        );
     }
 
     protected static Map<String, Object> toMap(Response response) throws IOException {
@@ -329,7 +336,13 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return List.copyOf(actualBackingIndices);
     }
 
-    protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
+    protected static void createAutoFollowPattern(
+        RestClient client,
+        String name,
+        String pattern,
+        String remoteCluster,
+        String followIndexPattern
+    ) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
@@ -339,6 +352,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
                     bodyBuilder.value(pattern);
                 }
                 bodyBuilder.endArray();
+                if (followIndexPattern != null) {
+                    bodyBuilder.field("follow_index_pattern", followIndexPattern);
+                }
                 bodyBuilder.field("remote_cluster", remoteCluster);
             }
             bodyBuilder.endObject();
@@ -356,10 +372,6 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected String backingIndexName(String dataStreamName, int generation) {
         return DataStream.getDefaultBackingIndexName(dataStreamName, generation, time.getOrCompute());
-    }
-
-    protected String backingIndexName(String dataStreamName, int generation, long epochMillis) {
-        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis);
     }
 
     protected RestClient buildLeaderClient() throws IOException {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
@@ -26,7 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
@@ -51,24 +51,31 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         try {
-            TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            );
 
             FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
             fieldCapsRequest.indexFilter(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
-                    if (out.getVersion().before(Version.CURRENT)) {
-                        throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
+                    if (out.getTransportVersion().before(TransportVersion.current())) {
+                        throw new IllegalArgumentException(
+                            "This query isn't serializable before transport version " + TransportVersion.current()
+                        );
                     }
                 }
             });
 
             IndicesService indicesService = mock(IndicesService.class);
-            when(indicesService.getAllMetadataFields()).thenReturn(Collections.singleton("_index"));
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                null
             );
             TransportFieldCapabilitiesAction action = new TransportFieldCapabilitiesAction(
                 transportService,
@@ -89,7 +96,10 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 containsString("[class org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest] is not compatible with version")
             );
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+            assertEquals(
+                "This query isn't serializable before transport version " + TransportVersion.current(),
+                ex.getCause().getMessage()
+            );
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

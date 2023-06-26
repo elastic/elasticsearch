@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,19 +35,6 @@ public class IndexFieldCapabilities implements Writeable {
     private final TimeSeriesParams.MetricType metricType;
     private final Map<String, String> meta;
 
-    static IndexFieldCapabilities withMetadata(IndexFieldCapabilities input, boolean isMetadata) {
-        return new IndexFieldCapabilities(
-            input.getName(),
-            input.getType(),
-            isMetadata,
-            input.isSearchable,
-            input.isAggregatable,
-            input.isDimension,
-            input.metricType,
-            input.meta
-        );
-    }
-
     /**
      * @param name The name of the field.
      * @param type The type associated with the field.
@@ -65,7 +52,6 @@ public class IndexFieldCapabilities implements Writeable {
         TimeSeriesParams.MetricType metricType,
         Map<String, String> meta
     ) {
-
         this.name = name;
         this.type = type;
         this.isMetadatafield = isMetadatafield;
@@ -82,14 +68,14 @@ public class IndexFieldCapabilities implements Writeable {
         this.isMetadatafield = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.isDimension = in.readBoolean();
             this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         } else {
             this.isDimension = false;
             this.metricType = null;
         }
-        this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.meta = in.readMap(StreamInput::readString);
     }
 
     @Override
@@ -99,7 +85,7 @@ public class IndexFieldCapabilities implements Writeable {
         out.writeBoolean(isMetadatafield);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }

@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -34,25 +35,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
 public abstract class BucketsAggregator extends AggregatorBase {
-    private final IntConsumer multiBucketConsumer;
+    private final CircuitBreaker breaker;
     private LongArray docCounts;
     protected final DocCountProvider docCountProvider;
+    private int callCount;
 
     public BucketsAggregator(
         String name,
         AggregatorFactories factories,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, bucketCardinality, metadata);
-        multiBucketConsumer = context.multiBucketConsumer();
+        super(name, factories, aggCtx, parent, bucketCardinality, metadata);
+        breaker = aggCtx.breaker();
         docCounts = bigArrays().newLongArray(1, true);
         docCountProvider = new DocCountProvider();
     }
@@ -85,10 +86,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
-            // We calculate the final number of buckets only during the reduce phase. But we still need to
-            // trigger bucket consumer from time to time in order to give it a chance to check available memory and break
-            // the execution if we are running out. To achieve that we are passing 0 as a bucket count.
-            multiBucketConsumer.accept(0);
+            // We call the circuit breaker the time to time in order to give it a chance to check available
+            // memory in the parent breaker and break the execution if we are running out. To achieve that we
+            // are passing 0 as the estimated bytes every 1024 calls
+            if ((++callCount & 0x3FF) == 0) {
+                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+            }
         }
         subCollector.collect(doc, bucketOrd);
     }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,13 +36,14 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
@@ -59,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -216,9 +220,9 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 null,
                 ScriptCompiler.NONE,
                 false,
-                Version.CURRENT
-            ).build(MapperBuilderContext.ROOT);
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+                IndexVersion.CURRENT
+            ).build(MapperBuilderContext.root(false));
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
                 new DateFieldMapper.Builder(
                     "@timestamp",
@@ -226,12 +230,12 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
                     true,
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             );
             MetadataFieldMapper dtfm = DataStreamTestHelper.getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.ROOT),
+                root.build(MapperBuilderContext.root(false)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
@@ -244,7 +248,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
+            when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -258,7 +263,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 null,
                 EmptySystemIndices.INSTANCE,
                 false,
-                new IndexSettingProviders(Set.of(new DataStreamIndexSettingsProvider()))
+                new IndexSettingProviders(Set.of(createSettingsProvider(xContentRegistry())))
             );
         }
         {
@@ -272,7 +277,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 testThreadPool,
                 createIndexService,
                 indexAliasesService,
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                WriteLoadForecaster.DEFAULT
             );
         }
 
@@ -286,8 +292,10 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
     private ClusterState createInitialState() {
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -303,14 +311,14 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             TimeValue.ZERO,
             false
         );
-        return createDataStreamService.createDataStream(request, state);
+        return createDataStreamService.createDataStream(request, state, ActionListener.noop());
     }
 
     private MetadataRolloverService.RolloverResult rolloverOver(ClusterState state, String name, Instant time) throws Exception {
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-        return rolloverService.rolloverClusterState(state, name, null, createIndexRequest, metConditions, time, false, false);
+        return rolloverService.rolloverClusterState(state, name, null, createIndexRequest, metConditions, time, false, false, null);
     }
 
     private Index getWriteIndex(ClusterState state, String name, String timestamp) {

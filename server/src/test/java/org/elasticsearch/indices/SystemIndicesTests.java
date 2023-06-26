@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -26,11 +27,11 @@ public class SystemIndicesTests extends ESTestCase {
     private static final String OPTIONAL_UPGRADE_SUFFIX_REGEX = "(" + SystemIndices.UPGRADED_INDEX_SUFFIX + ")?";
 
     public void testBasicOverlappingPatterns() {
-        SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");
-        SystemIndexDescriptor notOverlapping = new SystemIndexDescriptor(".bbbddd*", "test");
-        SystemIndexDescriptor overlapping1 = new SystemIndexDescriptor(".ac*", "test");
-        SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc*", "test");
-        SystemIndexDescriptor overlapping3 = new SystemIndexDescriptor(".aaabb*cccddd*", "test");
+        SystemIndexDescriptor broadPattern = SystemIndexDescriptorUtils.createUnmanaged(".a*c*", "test");
+        SystemIndexDescriptor notOverlapping = SystemIndexDescriptorUtils.createUnmanaged(".bbbddd*", "test");
+        SystemIndexDescriptor overlapping1 = SystemIndexDescriptorUtils.createUnmanaged(".ac*", "test");
+        SystemIndexDescriptor overlapping2 = SystemIndexDescriptorUtils.createUnmanaged(".aaaabbbccc*", "test");
+        SystemIndexDescriptor overlapping3 = SystemIndexDescriptorUtils.createUnmanaged(".aaabb*cccddd*", "test");
 
         // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
         // across tests
@@ -63,14 +64,17 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testComplexOverlappingPatterns() {
         // These patterns are slightly more complex to detect because pattern1 does not match pattern2 and vice versa
-        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".a*c", "test");
-        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".ab*", "test");
+        SystemIndexDescriptor pattern1 = SystemIndexDescriptorUtils.createUnmanaged(".a*c", "test");
+        SystemIndexDescriptor pattern2 = SystemIndexDescriptorUtils.createUnmanaged(".ab*", "test");
 
         // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
         // across tests
@@ -92,24 +96,27 @@ public class SystemIndicesTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testBuiltInSystemIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of());
+        SystemIndices systemIndices = new SystemIndices(List.of());
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
+        assertEquals(SynonymsAPI.isEnabled(), systemIndices.isSystemIndex(".synonyms"));
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
-        Map<String, SystemIndices.Feature> pluginMap = Map.of(
-            TASKS_FEATURE_NAME,
+        List<SystemIndices.Feature> pluginMap = List.of(
             new SystemIndices.Feature(
                 TASKS_FEATURE_NAME,
                 "test",
-                List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task" + " Result Index"))
+                List.of(SystemIndexDescriptorUtils.createUnmanaged(TASK_INDEX + "*", "Task" + " Result Index"))
             )
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
@@ -119,12 +126,11 @@ public class SystemIndicesTests extends ESTestCase {
     public void testPatternWithSimpleRange() {
 
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
-                    List.of(new SystemIndexDescriptor(".test-[abc]" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(".test-[abc]" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
                 )
             )
         );
@@ -141,12 +147,11 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithSimpleRangeAndRepeatOperator() {
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
-                    List.of(new SystemIndexDescriptor(".test-[a]+" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(".test-[a]+" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
                 )
             )
         );
@@ -160,12 +165,11 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithComplexRange() {
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
-                    List.of(new SystemIndexDescriptor(".test-[a-c]" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(".test-[a-c]" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
                 )
             )
         );
@@ -184,8 +188,8 @@ public class SystemIndicesTests extends ESTestCase {
         String source1 = "source1";
         String source2 = "source2";
 
-        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".test-[ab]*", "");
-        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".test-a*", "");
+        SystemIndexDescriptor pattern1 = SystemIndexDescriptorUtils.createUnmanaged(".test-[ab]*", "");
+        SystemIndexDescriptor pattern2 = SystemIndexDescriptorUtils.createUnmanaged(".test-a*", "");
 
         Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
         descriptors.put(source1, new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
@@ -207,10 +211,16 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testPatternsWithNoRoomForUpgradeSuffix() {
-        final SystemIndexDescriptor endsWithNumbersOnly = new SystemIndexDescriptor(".desc[0-9]+", "can only end with numbers");
-        final SystemIndexDescriptor concreteIndex = new SystemIndexDescriptor(".concrete", "concrete index");
-        final SystemIndexDescriptor okayDescriptor = new SystemIndexDescriptor(".okay*", "concrete index");
-        final SystemIndexDescriptor endsWithNumbersThenWildcard = new SystemIndexDescriptor(".desc[0-9]+*", "concrete index");
+        final SystemIndexDescriptor endsWithNumbersOnly = SystemIndexDescriptorUtils.createUnmanaged(
+            ".desc[0-9]+",
+            "can only end with numbers"
+        );
+        final SystemIndexDescriptor concreteIndex = SystemIndexDescriptorUtils.createUnmanaged(".concrete", "concrete index");
+        final SystemIndexDescriptor okayDescriptor = SystemIndexDescriptorUtils.createUnmanaged(".okay*", "concrete index");
+        final SystemIndexDescriptor endsWithNumbersThenWildcard = SystemIndexDescriptorUtils.createUnmanaged(
+            ".desc[0-9]+*",
+            "concrete index"
+        );
 
         final Map<String, SystemIndices.Feature> features = new HashMap<>();
         final String firstFeature = "first";

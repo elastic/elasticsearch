@@ -9,8 +9,8 @@ To stop your {es} and {kib} Docker containers, run:
 
 [source,sh]
 ----
-docker stop es-node01
-docker stop kib-01
+docker stop es01
+docker stop kibana
 ----
 
 To remove the containers and their network, run:
@@ -18,7 +18,7 @@ To remove the containers and their network, run:
 [source,sh]
 ----
 docker network rm elastic
-docker rm es-node01
-docker rm kib-01
+docker rm es01
+docker rm kibana
 ----
 // end::self-managed[]

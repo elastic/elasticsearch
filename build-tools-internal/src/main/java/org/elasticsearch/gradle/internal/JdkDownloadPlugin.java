@@ -22,10 +22,18 @@ import org.gradle.api.attributes.Attribute;
 
 import java.util.Arrays;
 
+/**
+ * @deprecated We wanna get rid from this and custom jdk downloads via this plugin and
+ * make leverage the gradle toolchain resolver capabilities.
+ *
+ * @See @org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin
+ * */
+@Deprecated
 public class JdkDownloadPlugin implements Plugin<Project> {
 
     public static final String VENDOR_ADOPTIUM = "adoptium";
     public static final String VENDOR_OPENJDK = "openjdk";
+    public static final String VENDOR_ZULU = "zulu";
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
@@ -125,6 +133,17 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getBuild()
                     + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
             }
+        } else if (jdk.getVendor().equals(VENDOR_ZULU)) {
+            repoUrl = "https://cdn.azul.com";
+            if (jdk.getMajor().equals("8") && isJdkOnMacOsPlatform(jdk) && jdk.getArchitecture().equals("aarch64")) {
+                artifactPattern = "zulu/bin/zulu"
+                    + jdk.getDistributionVersion()
+                    + "-ca-jdk"
+                    + jdk.getBaseVersion().replace("u", ".0.")
+                    + "-[module]x_[classifier].[ext]";
+            } else {
+                throw new GradleException("JDK vendor zulu is supported only for JDK8 on MacOS with Apple Silicon.");
+            }
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");
         }
@@ -147,12 +166,13 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     }
 
     private static String dependencyNotation(Jdk jdk) {
-        String platformDep = jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac")
-            ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "osx")
-            : jdk.getPlatform();
+        String platformDep = isJdkOnMacOsPlatform(jdk) ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "macos") : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
-
         return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + ":" + jdk.getArchitecture() + "@" + extension;
+    }
+
+    private static boolean isJdkOnMacOsPlatform(Jdk jdk) {
+        return jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac");
     }
 
     private static String groupName(Jdk jdk) {

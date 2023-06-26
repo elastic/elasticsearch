@@ -4,9 +4,8 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-enable-user-profile.html",
       "description":"Enables a user profile so it's visible in user profile searches."
     },
-    "stability":"experimental",
-    "visibility":"feature_flag",
-    "feature_flag": "es.user_profile_feature_flag_enabled",
+    "stability":"stable",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"]
     },

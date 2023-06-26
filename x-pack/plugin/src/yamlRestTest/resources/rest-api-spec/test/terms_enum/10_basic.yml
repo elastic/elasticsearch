@@ -33,6 +33,7 @@ setup:
         name: "dls_all_role"
         body:  >
             {
+              "cluster": [ "manage_own_api_key" ],
               "indices": [
                 { "names": ["test_security"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
               ]
@@ -82,6 +83,7 @@ setup:
         name: "dls_some_role"
         body:  >
             {
+              "cluster": [ "manage_own_api_key" ],
               "indices": [
                 { "names": ["test_security"], "privileges": ["read"], "query": "{\"term\": {\"foo\": \"bar_dls\"}}" }
               ]
@@ -129,6 +131,8 @@ setup:
               foo_non_indexed:
                 type: keyword
                 index: false
+              semver:
+                type: version
               timestamp:
                 type : date
   - do:
@@ -150,6 +154,22 @@ setup:
                 type : date
   - do:
       indices.create:
+        index: test_ck_without_constant_field
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo:
+                type : constant_keyword
+              other:
+                type : text
+              timestamp:
+                type : date
+  - do:
+      indices.create:
         index: test_f
         body:
           settings:
@@ -160,6 +180,8 @@ setup:
             properties:
               foo:
                 type : flattened
+              semver:
+                type: version
               timestamp:
                 type : date
   - do:
@@ -179,6 +201,8 @@ setup:
                 value: const
               foo:
                 type : keyword
+              semver:
+                type: version
               foo_non_indexed:
                 type: keyword
                 index: false
@@ -187,7 +211,7 @@ setup:
       index:
           index:  test_k
           id:     "1"
-          body:   { foo: "bar_k", foo_non_indexed: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
+          body:   { foo: "bar_k", foo_non_indexed: "bar_k", "semver" : ["11.1.1", "2.0.0-beta"], "timestamp":"2021-01-01T01:01:01.000Z" }
 
   - do:
       index:
@@ -197,14 +221,20 @@ setup:
 
   - do:
       index:
+        index:  test_ck_without_constant_field
+        id:     "2"
+        body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
+
+  - do:
+      index:
           index:  test_f
           id:     "3"
-          body:   { foo: { bar: "bar_f" }, "timestamp":"2019-01-01T01:01:01.000Z" }
+          body:   { foo: { bar: "bar_f" }, "semver" : "1.2.1", "timestamp":"2019-01-01T01:01:01.000Z" }
   - do:
       index:
           index:  test_security
           id:     "4"
-          body:   { foo: "bar_dls", foo_non_indexed: "bar_dls"}
+          body:   { foo: "bar_dls", foo_non_indexed: "bar_dls", "semver" : "1.11.1"}
 
   - do: #superuser
       headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin
@@ -295,6 +325,38 @@ teardown:
         index:  test_*
         body:  {"field": "foo_non_indexed", "string":"b"}
   - length: {terms: 2}
+
+---
+"Test basic term enumeration on version field":
+  - skip:
+      version: " - 8.7.99"
+      reason: "terms enum support for version fields was added in 8.8.0"
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"1"}
+  - length: {terms: 3}
+  - match: { terms: [ 1.2.1, 1.11.1, 11.1.1] }
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"2.0.0-B"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"2.0.0-B", "case_insensitive" : true}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"1", "search_after" : "1.12.0"}
+  - length: {terms: 1}
+  - match: { terms: [ 11.1.1] }
 
 ---
 "Test case insensitivity":
@@ -467,6 +529,18 @@ teardown:
   - length: {terms: 1}
 
 ---
+"Test search after on unconfigured constant keyword field":
+  - skip:
+      version: " - 8.2.99"
+      reason:  bug fixed in 8.3.0
+
+  - do:
+      terms_enum:
+        index:  test_ck_without_constant_field
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+---
 "Test index filtering":
   - do:
       terms_enum:
@@ -526,4 +600,90 @@ teardown:
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 0}
 
+---
+"Test security with API keys":
 
+  - do:
+      headers: { Authorization: "Basic ZGxzX2FsbF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # dls_all_user
+      security.create_api_key:
+        body: >
+          {
+            "name": "dls_all_user_good_key",
+            "role_descriptors": {
+              "role-a": {
+                "index": [
+                  {
+                    "names": ["test_security"],
+                    "privileges": ["read"],
+                    "query": "{\"term\": {\"ck\": \"const\"}}"
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "dls_all_user_good_key" }
+  - set: { encoded: login_creds}
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}  # dls_all_user good API key sees all documents
+      terms_enum:
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 1 }
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX2FsbF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # dls_all_user
+      security.create_api_key:
+        body: >
+          {
+            "name": "dls_all_user_bad_key",
+            "role_descriptors": {
+              "role-a": {
+                "index": [
+                  {
+                    "names": ["test_security"],
+                    "privileges": ["read"],
+                    "query": "{\"term\": {\"foo\": \"bar_dls\"}}"
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "dls_all_user_bad_key" }
+  - set: { encoded: login_creds}
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}  # dls_all_user bad API key sees selected docs
+      terms_enum:
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 0 }
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user
+      # Create an API key with all DLS permissions, but it is still bounded by the owner user's permissions
+      security.create_api_key:
+        body: >
+          {
+            "name": "dls_some_user_key",
+            "role_descriptors": {
+              "role-a": {
+                "index": [
+                  {
+                    "names": ["test_security"],
+                    "privileges": ["read"],
+                    "query": "{\"term\": {\"ck\": \"const\"}}"
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "dls_some_user_key" }
+  - set: { encoded: login_creds}
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}  # dls_some_user's API key sees selected user regardless of the key's role descriptor
+      terms_enum:
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 0 }

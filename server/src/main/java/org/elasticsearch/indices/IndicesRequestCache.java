@@ -29,8 +29,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
@@ -236,12 +234,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         @Override
         public long ramBytesUsed() {
             return BASE_RAM_BYTES_USED + entity.ramBytesUsed() + value.length();
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            // TODO: more detailed ram usage?
-            return Collections.emptyList();
         }
 
         @Override

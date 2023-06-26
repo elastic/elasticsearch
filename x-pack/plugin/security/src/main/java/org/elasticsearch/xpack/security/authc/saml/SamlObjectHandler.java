@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedFunction;
@@ -72,6 +71,7 @@ import java.util.zip.InflaterInputStream;
 
 import javax.xml.parsers.DocumentBuilder;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
@@ -174,8 +174,8 @@ public class SamlObjectHandler {
                     try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
                         SignatureValidator.validate(signature, credential);
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "SAML Signature [{}] matches credentials [{}] [{}]",
+                            () -> format(
+                                "SAML Signature [%s] matches credentials [%s] [%s]",
                                 signatureText,
                                 credential.getEntityId(),
                                 credential.getPublicKey()
@@ -203,8 +203,8 @@ public class SamlObjectHandler {
                 return check.apply(credential);
             } catch (SignatureException | SecurityException e) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "SAML Signature [{}] does not match credentials [{}] [{}] -- {}",
+                    () -> format(
+                        "SAML Signature [%s] does not match credentials [%s] [%s] -- %s",
                         signatureText,
                         credential.getEntityId(),
                         credential.getPublicKey(),
@@ -387,8 +387,8 @@ public class SamlObjectHandler {
         checkIdpSignature(credential -> {
             if (XMLSigningUtil.verifyWithURI(credential, signatureAlgorithm, sigBytes, inputBytes)) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "SAML Signature [{}] matches credentials [{}] [{}]",
+                    () -> format(
+                        "SAML Signature [%s] matches credentials [%s] [%s]",
                         signatureText,
                         credential.getEntityId(),
                         credential.getPublicKey()
@@ -397,8 +397,8 @@ public class SamlObjectHandler {
                 return true;
             } else {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "SAML Signature [{}] failed against credentials [{}] [{}]",
+                    () -> format(
+                        "SAML Signature [%s] failed against credentials [%s] [%s]",
                         signatureText,
                         credential.getEntityId(),
                         credential.getPublicKey()

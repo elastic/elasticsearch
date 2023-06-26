@@ -284,7 +284,7 @@ GET _ml/datafeeds/datafeed-test2/_preview
 // TEST[skip:continued]
 
 <1> This runtime field uses the `toLowerCase` function to convert a string to 
-all lowercase letters. Likewise, you can use the `toUpperCase{}` function to 
+all lowercase letters. Likewise, you can use the `toUpperCase` function to 
 convert a string to uppercase letters.
 
 The preview {dfeed} API returns the following results, which show that "JOE"

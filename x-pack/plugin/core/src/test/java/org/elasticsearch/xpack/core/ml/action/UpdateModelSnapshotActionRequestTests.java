@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction.Request;
 
-public class UpdateModelSnapshotActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class UpdateModelSnapshotActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
@@ -28,6 +28,11 @@ public class UpdateModelSnapshotActionRequestTests extends AbstractSerializingTe
             request.setRetain(randomBoolean());
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

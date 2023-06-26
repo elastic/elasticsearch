@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -77,7 +78,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null, null)
+            }, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());
@@ -93,42 +94,36 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         } else {
             explanation = "the shard is in the process of initializing on node [], " + "wait until initialization has completed";
         }
-        assertEquals(
-            XContentHelper.stripWhitespace(
-                """
-                    {
-                      "index": "idx",
-                      "shard": 0,
-                      "primary": true,
-                      "current_state": "%s"
-                      %s,
-                      "current_node": {
-                        "id": "%s",
-                        "name": "%s",
-                        "transport_address": "%s"
-                      },
-                      "explanation": "%s"
-                    }""".formatted(
-                    shardRoutingState.toString().toLowerCase(Locale.ROOT),
-                    shard.unassignedInfo() != null
-                        ? """
-                            ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
-                            """.formatted(
-                            shard.unassignedInfo().getReason(),
-                            UnassignedInfo.DATE_TIME_FORMATTER.format(
-                                Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())
-                            ),
-                            AllocationDecision.fromAllocationStatus(shard.unassignedInfo().getLastAllocationStatus())
-                        )
-                        : "",
-                    cae.getCurrentNode().getId(),
-                    cae.getCurrentNode().getName(),
-                    cae.getCurrentNode().getAddress(),
-                    explanation
+        Object[] args = new Object[] {
+            shardRoutingState.toString().toLowerCase(Locale.ROOT),
+            shard.unassignedInfo() != null
+                ? Strings.format(
+                    """
+                        ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
+                        """,
+                    shard.unassignedInfo().getReason(),
+                    UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())),
+                    AllocationDecision.fromAllocationStatus(shard.unassignedInfo().getLastAllocationStatus())
                 )
-            ),
-            Strings.toString(builder)
-        );
+                : "",
+            cae.getCurrentNode().getId(),
+            cae.getCurrentNode().getName(),
+            cae.getCurrentNode().getAddress(),
+            explanation };
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "index": "idx",
+              "shard": 0,
+              "primary": true,
+              "current_state": "%s"
+              %s,
+              "current_node": {
+                "id": "%s",
+                "name": "%s",
+                "transport_address": "%s"
+              },
+              "explanation": "%s"
+            }""", args)), Strings.toString(builder));
     }
 
     public void testFindAnyUnassignedShardToExplain() {
@@ -149,7 +144,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final String redIndex = randomBoolean() ? "idx1" : "idx2";
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
         for (final IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            final IndexRoutingTable.Builder indexBuilder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
+            final IndexRoutingTable.Builder indexBuilder = IndexRoutingTable.builder(indexRoutingTable.getIndex());
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                 final IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(indexShardRoutingTable.shardId());
@@ -164,7 +159,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         shardBuilder.addShard(shardRouting);
                     }
                 }
-                indexBuilder.addIndexShard(shardBuilder.build());
+                indexBuilder.addIndexShard(shardBuilder);
             }
             routingTableBuilder.add(indexBuilder);
         }

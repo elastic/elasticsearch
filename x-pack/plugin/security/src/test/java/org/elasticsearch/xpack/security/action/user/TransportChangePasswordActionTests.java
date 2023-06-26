@@ -19,15 +19,12 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import java.util.Collections;
@@ -99,60 +96,16 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
-    public void testInternalUsers() {
-        final Hasher hasher = getFastStoredHashAlgoForTests();
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        TransportChangePasswordAction action = new TransportChangePasswordAction(
-            passwordHashingSettings,
-            transportService,
-            mock(ActionFilters.class),
-            usersStore
-        );
-        // Request will fail before the request hashing algorithm is checked, but we use the same algorithm as in settings for consistency
-        ChangePasswordRequest request = new ChangePasswordRequest();
-        request.username(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-        request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<>() {
-            @Override
-            public void onResponse(ActionResponse.Empty changePasswordResponse) {
-                responseRef.set(changePasswordResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        verifyNoMoreInteractions(usersStore);
+    public void testValidUser() {
+        testValidUser(randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe")));
     }
 
-    public void testValidUser() {
+    public void testValidUserWithInternalUsername() {
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
+    }
+
+    private void testValidUser(User user) {
         final Hasher hasher = getFastStoredHashAlgoForTests();
-        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
@@ -201,13 +154,67 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         verify(usersStore, times(1)).changePassword(eq(request), anyActionListener());
     }
 
-    public void testIncorrectPasswordHashingAlgorithm() {
+    public void testWithPasswordThatsNotAHash() {
+        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
+        NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.username(user.principal());
+        request.passwordHash(randomAlphaOfLengthBetween(14, 20).toCharArray());
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        final String systemHash = randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt");
+        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), systemHash).build();
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            passwordHashingSettings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore
+        );
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
+            @Override
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
+                responseRef.set(changePasswordResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throwableRef.set(e);
+            }
+        });
+
+        assertThat(responseRef.get(), is(nullValue()));
+        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(
+            throwableRef.get().getMessage(),
+            containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
+        );
+        verifyNoMoreInteractions(usersStore);
+    }
+
+    public void testWithDifferentPasswordHashingAlgorithm() {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         final Hasher hasher = getFastStoredHashAlgoForTests();
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<Void> listener = (ActionListener<Void>) args[1];
+            listener.onResponse(null);
+            return null;
+        }).when(usersStore).changePassword(eq(request), anyActionListener());
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
         TransportService transportService = new TransportService(
@@ -242,10 +249,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             }
         });
 
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("incorrect password hashing algorithm"));
-        verifyNoMoreInteractions(usersStore);
+        assertThat(responseRef.get(), is(notNullValue()));
+        assertSame(responseRef.get(), ActionResponse.Empty.INSTANCE);
+        assertThat(throwableRef.get(), is(nullValue()));
+        verify(usersStore, times(1)).changePassword(eq(request), anyActionListener());
     }
 
     public void testException() {

@@ -46,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -92,9 +93,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("idx")
+            indicesAdmin().prepareCreate("idx")
                 .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
                 .get()
@@ -631,9 +630,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
      */
     public void testFilterByFilter() throws InterruptedException, IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("dateidx")
+            indicesAdmin().prepareCreate("dateidx")
                 .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .setMapping("date", "type=date")
                 .get()
@@ -690,17 +687,13 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                             .entry("delegate", "FilterByFilterAggregator")
                             .entry(
                                 "delegate_debug",
-                                matchesMap().entry("segments_with_deleted_docs", 0)
+                                matchesMap().entry("segments_with_deleted_docs", greaterThanOrEqualTo(0))
                                     .entry("segments_with_doc_count_field", 0)
                                     .entry("segments_counted", 0)
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",
-                                        matchesList().item(
-                                            matchesMap().entry("query", "*:*")
-                                                .entry("results_from_metadata", 0)
-                                                .entry("specialized_for", "match_all")
-                                        )
+                                        matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0))
                                     )
                             )
                     )
@@ -709,17 +702,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testDateHistogramFilterByFilterDisabled() throws InterruptedException, IOException {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false))
-        );
+        updateClusterSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false));
         try {
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate("date_filter_by_filter_disabled")
+                indicesAdmin().prepareCreate("date_filter_by_filter_disabled")
                     .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                     .setMapping("date", "type=date", "keyword", "type=keyword")
                     .get()
@@ -776,16 +762,17 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     debug,
                     matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
                         .entry("built_buckets", 1)
-                        .entry("delegate_debug", matchesMap().entry("ranges", 1).entry("average_docs_per_range", 10000.0))
+                        .entry(
+                            "delegate_debug",
+                            matchesMap().entry("ranges", 1)
+                                .entry("average_docs_per_range", 10000.0)
+                                .entry("singletons", greaterThan(0))
+                                .entry("non-singletons", 0)
+                        )
                 );
             }
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()))
-            );
+            updateClusterSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()));
         }
     }
 }

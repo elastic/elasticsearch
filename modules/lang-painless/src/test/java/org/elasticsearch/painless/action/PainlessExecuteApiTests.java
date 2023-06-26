@@ -390,11 +390,6 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         response = innerShardOperation(request, scriptService, null);
         assertEquals("0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", response.getResult());
 
-        // movfn
-        request = new Request(new Script("MovingFunctions.max(new double[]{1, 3, 2})"), null, null);
-        response = innerShardOperation(request, scriptService, null);
-        assertEquals(3.0, Double.parseDouble((String) response.getResult()), .1);
-
         // json
         request = new Request(new Script("Json.load('{\"a\": 1, \"b\": 2}')['b']"), null, null);
         response = innerShardOperation(request, scriptService, null);

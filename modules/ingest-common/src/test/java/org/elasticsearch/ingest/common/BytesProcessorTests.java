@@ -14,8 +14,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.hamcrest.CoreMatchers;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
@@ -51,14 +51,8 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "8912pb");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
-        assertThat(
-            exception.getMessage(),
-            CoreMatchers.equalTo("failed to parse setting [Ingest Field] with value [8912pb] as a size in bytes")
-        );
-        assertThat(
-            exception.getCause().getMessage(),
-            CoreMatchers.containsString("Values greater than 9223372036854775807 bytes are not supported")
-        );
+        assertThat(exception.getMessage(), equalTo("failed to parse setting [Ingest Field] with value [8912pb] as a size in bytes"));
+        assertThat(exception.getCause().getMessage(), containsString("Values greater than 9223372036854775807 bytes are not supported"));
     }
 
     public void testNotBytes() {
@@ -66,7 +60,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "junk");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), CoreMatchers.equalTo("failed to parse setting [Ingest Field] with value [junk]"));
+        assertThat(exception.getMessage(), equalTo("failed to parse setting [Ingest Field] with value [junk]"));
     }
 
     public void testMissingUnits() {
@@ -74,7 +68,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "1");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), CoreMatchers.containsString("unit is missing or unrecognized"));
+        assertThat(exception.getMessage(), containsString("unit is missing or unrecognized"));
     }
 
     public void testFractional() throws Exception {

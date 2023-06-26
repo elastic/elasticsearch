@@ -10,12 +10,14 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class BytesRefArrayTests extends ESTestCase {
 
@@ -46,7 +48,7 @@ public class BytesRefArrayTests extends ESTestCase {
                 writableRegistry(),
                 (out, value) -> value.writeTo(out),
                 in -> new BytesRefArray(in, mockBigArrays()),
-                Version.CURRENT
+                TransportVersion.current()
             );
 
             assertEquality(array, copy);
@@ -55,6 +57,61 @@ public class BytesRefArrayTests extends ESTestCase {
             array = randomArray();
         }
         array.close();
+    }
+
+    public void testTakeOwnership() {
+        BytesRefArray array = randomArray();
+        long size = array.size();
+        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
+
+        assertNotEquals(array, newOwnerOfArray);
+        assertEquals(0, array.size());
+        assertEquals(size, newOwnerOfArray.size());
+
+        array.close();
+        newOwnerOfArray.close();
+    }
+
+    public void testLookup() throws IOException {
+        int size = randomIntBetween(0, 16 * 1024);
+        BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays());
+        try {
+            BytesRef[] values = new BytesRef[size];
+            for (int i = 0; i < size; i++) {
+                BytesRef bytesRef = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+                if (bytesRef.length > 0 && randomBoolean()) {
+                    bytesRef.offset = randomIntBetween(0, bytesRef.length - 1);
+                    bytesRef.length = randomIntBetween(0, bytesRef.length - bytesRef.offset);
+                }
+                values[i] = bytesRef;
+                if (randomBoolean()) {
+                    bytesRef = BytesRef.deepCopyOf(bytesRef);
+                }
+                array.append(bytesRef);
+            }
+            int copies = randomIntBetween(0, 3);
+            for (int i = 0; i < copies; i++) {
+                BytesRefArray inArray = array;
+                array = copyInstance(
+                    inArray,
+                    writableRegistry(),
+                    (out, value) -> value.writeTo(out),
+                    in -> new BytesRefArray(in, mockBigArrays()),
+                    TransportVersion.current()
+                );
+                assertEquality(inArray, array);
+                inArray.close();
+            }
+            assertThat(array.size(), equalTo((long) size));
+            BytesRef bytes = new BytesRef();
+            for (int i = 0; i < size; i++) {
+                int pos = randomIntBetween(0, size - 1);
+                bytes = array.get(pos, bytes);
+                assertThat(bytes, equalTo(values[pos]));
+            }
+        } finally {
+            array.close();
+        }
     }
 
     private static BigArrays mockBigArrays() {

@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -362,11 +361,8 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
-            if (executionContext.esVersion().after(Version.V_8_1_0)
-                || (executionContext.esVersion().major == Version.V_7_17_0.major && executionContext.esVersion().after(Version.V_7_17_1))) {
-                // #84038 and #84089 mean that this assertion fails when running against a small number of released versions, but at time of
-                // writing it's unclear exactly which released versions will contain the fix.
-                // TODO once a fixed version has been released, adjust the condition above to match.
+            if (executionContext.esVersion().major == Version.V_7_17_0.major && executionContext.esVersion().after(Version.V_7_17_1)) {
+                // #84038 and #84089 mean that this assertion fails when running against a small number of 7.17.x released versions
                 checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             }
             checkWarningHeaders(response.getWarningHeaders(), testPath);
@@ -441,8 +437,7 @@ public class DoSection implements ExecutableSection {
             .collect(toCollection(LinkedHashSet::new));
         final Set<Pattern> expectedRegex = new LinkedHashSet<>(expectedWarningHeadersRegex);
         for (final String header : warningHeaders) {
-            final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
-            final boolean matches = matcher.matches();
+            final boolean matches = HeaderWarning.warningHeaderPatternMatches(header);
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {

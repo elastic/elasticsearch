@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -55,7 +56,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     @Override
     protected String configRoles() {
-        return """
+        return Strings.format("""
             %s
             role1:
               cluster: [ all ]
@@ -72,7 +73,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                     privileges: [ALL]
                     field_security:
                        grant: [ field3 ]
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     @Override
@@ -92,9 +93,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testGetResolveWildcardsRegexs() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("field1", "type=text", "field2", "type=text")
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
@@ -126,9 +125,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testSearchResolveWildcardsRegexs() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("field1", "type=text", "field2", "type=text")
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
@@ -197,7 +194,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD).aliases("my_alias", "an_alias")
                 .index("test")
         );
-        assertAcked(client().admin().indices().aliases(aliasesRequest).actionGet());
+        assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
 
         String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         client().prepareIndex("test")

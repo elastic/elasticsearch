@@ -30,21 +30,26 @@ final class ElasticServiceAccounts {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
+                        "search-*",
+                        ".search-acl-filter-*",
+                        ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",
                         "enterprise-search-*",
                         "logs-app_search.analytics-default",
+                        "logs-elastic_analytics.events-*",
                         "logs-enterprise_search.api-default",
                         "logs-enterprise_search.audit-default",
                         "logs-app_search.search_relevance_suggestions-default",
                         "logs-crawler-default",
+                        "logs-elastic_crawler-default",
                         "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default"
+                        "logs-workplace_search.content_events-default",
+                        ".elastic-connectors*"
                     )
                     .privileges("manage", "read", "write")
-                    .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("search-*").privileges("read", "view_index_metadata").build() },
+                    .build() },
             null,
             null,
             null,
@@ -64,12 +69,12 @@ final class ElasticServiceAccounts {
                         "logs-*",
                         "metrics-*",
                         "traces-*",
-                        "synthetics-*",
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.action.responses-*"
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write", "auto_configure").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:
@@ -80,10 +85,21 @@ final class ElasticServiceAccounts {
                     .privileges("read", "monitor", "maintenance")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
                     // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("synthetics-*")
+                    // Fleet Server needs "read" privilege to be able to retrieve multi-agent docs
+                    .privileges("read", "write", "create_index", "auto_configure")
+                    .allowRestrictedIndices(false)
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

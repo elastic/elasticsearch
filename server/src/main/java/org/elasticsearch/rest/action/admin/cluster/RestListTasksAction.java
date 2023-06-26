@@ -16,15 +16,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,7 +50,9 @@ public class RestListTasksAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
         final String groupBy = request.param("group_by", "nodes");
-        return channel -> client.admin().cluster().listTasks(listTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .listTasks(listTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
@@ -81,33 +79,17 @@ public class RestListTasksAction extends BaseRestHandler {
     public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(
         Supplier<DiscoveryNodes> nodesInCluster,
         String groupBy,
-        final RestChannel channel
+        RestChannel channel
     ) {
-        if ("nodes".equals(groupBy)) {
-            return new RestBuilderListener<T>(channel) {
-                @Override
-                public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
-                    builder.startObject();
-                    response.toXContentGroupedByNode(builder, channel.request(), nodesInCluster.get());
-                    builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
-                }
-            };
-        } else if ("parents".equals(groupBy)) {
-            return new RestBuilderListener<T>(channel) {
-                @Override
-                public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
-                    builder.startObject();
-                    response.toXContentGroupedByParents(builder, channel.request());
-                    builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
-                }
-            };
-        } else if ("none".equals(groupBy)) {
-            return new RestToXContentListener<>(channel);
-        } else {
-            throw new IllegalArgumentException("[group_by] must be one of [nodes], [parents] or [none] but was [" + groupBy + "]");
-        }
+        final var listener = new RestChunkedToXContentListener<>(channel);
+        return switch (groupBy) {
+            case "nodes" -> listener.map(response -> response.groupedByNode(nodesInCluster));
+            case "parents" -> listener.map(response -> response.groupedByParent());
+            case "none" -> listener.map(response -> response.groupedByNone());
+            default -> throw new IllegalArgumentException(
+                "[group_by] must be one of [nodes], [parents] or [none] but was [" + groupBy + "]"
+            );
+        };
     }
 
     @Override

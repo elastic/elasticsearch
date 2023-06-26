@@ -38,9 +38,12 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugin.scanner.ClassReaders;
+import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginsUtils;
+import org.objectweb.asm.ClassReader;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -72,7 +75,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,6 +85,7 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -99,7 +102,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * </ul>
  * <p>
  * Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file.
- * See {@link PluginInfo}.
+ * See {@link PluginDescriptor}.
  * <p>
  * The installation process first extracts the plugin files into a temporary
  * directory in order to verify the plugin satisfies the following requirements:
@@ -160,7 +163,12 @@ public class InstallPluginAction implements Closeable {
      * maintained so that existing user workflows that install these plugins do not need to be updated
      * immediately.
      */
-    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of("repository-azure", "repository-gcs", "repository-s3");
+    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of(
+        "repository-azure",
+        "repository-gcs",
+        "repository-s3",
+        "ingest-attachment"
+    );
 
     static final Set<PosixFilePermission> BIN_DIR_PERMS;
     static final Set<PosixFilePermission> BIN_FILES_PERMS;
@@ -193,6 +201,7 @@ public class InstallPluginAction implements Closeable {
     private Environment env;
     private boolean batch;
     private Proxy proxy = null;
+    private NamedComponentScanner scanner = new NamedComponentScanner();
 
     public InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
         this.terminal = terminal;
@@ -204,14 +213,13 @@ public class InstallPluginAction implements Closeable {
         this.proxy = proxy;
     }
 
-    // pkg private for testing
-    public void execute(List<PluginDescriptor> plugins) throws Exception {
+    public void execute(List<InstallablePlugin> plugins) throws Exception {
         if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
-        for (final PluginDescriptor plugin : plugins) {
+        for (final InstallablePlugin plugin : plugins) {
             if (uniquePluginIds.add(plugin.getId()) == false) {
                 throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + plugin.getId() + "]");
             }
@@ -220,7 +228,7 @@ public class InstallPluginAction implements Closeable {
         final String logPrefix = terminal.isHeadless() ? "" : "-> ";
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
-        for (final PluginDescriptor plugin : plugins) {
+        for (final InstallablePlugin plugin : plugins) {
             final String pluginId = plugin.getId();
             terminal.println(logPrefix + "Installing " + pluginId);
             try {
@@ -243,11 +251,11 @@ public class InstallPluginAction implements Closeable {
                 final Path pluginZip = download(plugin, env.tmpFile());
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
-                final PluginInfo pluginInfo = installPlugin(plugin, extractedZip, deleteOnFailure);
-                terminal.println(logPrefix + "Installed " + pluginInfo.getName());
+                final PluginDescriptor pluginDescriptor = installPlugin(plugin, extractedZip, deleteOnFailure);
+                terminal.println(logPrefix + "Installed " + pluginDescriptor.getName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
-                deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
+                deleteOnFailures.put(pluginDescriptor.getName(), deleteOnFailure);
             } catch (final Exception installProblem) {
                 terminal.println(logPrefix + "Failed installing " + pluginId);
                 for (final Map.Entry<String, List<Path>> deleteOnFailureEntry : deleteOnFailures.entrySet()) {
@@ -279,7 +287,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Downloads the plugin and returns the file it was downloaded to.
      */
-    private Path download(PluginDescriptor plugin, Path tmpDir) throws Exception {
+    private Path download(InstallablePlugin plugin, Path tmpDir) throws Exception {
         final String pluginId = plugin.getId();
 
         final String logPrefix = terminal.isHeadless() ? "" : "-> ";
@@ -846,24 +854,39 @@ public class InstallPluginAction implements Closeable {
     /**
      * Load information about the plugin, and verify it can be installed with no errors.
      */
-    private PluginInfo loadPluginInfo(Path pluginRoot) throws Exception {
-        final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+    private PluginDescriptor loadPluginInfo(Path pluginRoot) throws Exception {
+        final PluginDescriptor info = PluginDescriptor.readFromProperties(pluginRoot);
         if (info.hasNativeController()) {
             throw new IllegalStateException("plugins can not have native controllers");
         }
-        PluginsService.verifyCompatibility(info);
+        PluginsUtils.verifyCompatibility(info);
 
         // checking for existing version of the plugin
         verifyPluginName(env.pluginsFile(), info.getName());
 
-        PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
+        PluginsUtils.checkForFailedPluginRemovals(env.pluginsFile());
 
         terminal.println(VERBOSE, info.toString());
 
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
 
+        if (info.isStable() && hasNamedComponentFile(pluginRoot) == false) {
+            generateNameComponentFile(pluginRoot);
+        }
         return info;
+    }
+
+    private void generateNameComponentFile(Path pluginRoot) throws IOException {
+        Stream<ClassReader> classPath = ClassReaders.ofClassPath().stream(); // contains plugin-api
+        List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(pluginRoot).stream(), classPath).toList();
+        Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
+        Path outputFile = pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        scanner.writeToFile(namedComponentsMap, outputFile);
+    }
+
+    private boolean hasNamedComponentFile(Path pluginRoot) {
+        return Files.exists(pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME));
     }
 
     private static final String LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR;
@@ -875,7 +898,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * check a candidate plugin for jar hell before installing it
      */
-    void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
+    void jarHellCheck(PluginDescriptor candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
         // create list of current jars in classpath
         final Set<URL> classpath = JarHell.parseClassPath().stream().filter(url -> {
             try {
@@ -884,30 +907,15 @@ public class InstallPluginAction implements Closeable {
                 throw new AssertionError(e);
             }
         }).collect(Collectors.toSet());
-
-        // read existing bundles. this does some checks on the installation too.
-        Set<PluginsService.Bundle> bundles = new HashSet<>(PluginsService.getPluginBundles(pluginsDir));
-        bundles.addAll(PluginsService.getModuleBundles(modulesDir));
-        bundles.add(new PluginsService.Bundle(candidateInfo, candidateDir));
-        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
-
-        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
-        // TODO: optimize to skip any bundles not connected to the candidate plugin?
-        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        for (PluginsService.Bundle bundle : sortedBundles) {
-            PluginsService.checkBundleJarHell(classpath, bundle, transitiveUrls);
-        }
-
-        // TODO: no jars should be an error
-        // TODO: verify the classname exists in one of the jars!
+        PluginsUtils.preInstallJarHellCheck(candidateInfo, candidateDir, pluginsDir, modulesDir, classpath);
     }
 
     /**
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are moved.
      */
-    private PluginInfo installPlugin(PluginDescriptor descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
-        final PluginInfo info = loadPluginInfo(tmpRoot);
+    private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
+        final PluginDescriptor info = loadPluginInfo(tmpRoot);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
             Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
@@ -941,8 +949,13 @@ public class InstallPluginAction implements Closeable {
     /**
      * Moves bin and config directories from the plugin if they exist
      */
-    private void installPluginSupportFiles(PluginInfo info, Path tmpRoot, Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure)
-        throws Exception {
+    private void installPluginSupportFiles(
+        PluginDescriptor info,
+        Path tmpRoot,
+        Path destBinDir,
+        Path destConfigDir,
+        List<Path> deleteOnFailure
+    ) throws Exception {
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
             deleteOnFailure.add(destBinDir);
@@ -987,7 +1000,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent.
      */
-    private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
+    private void installBin(PluginDescriptor info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
@@ -1015,7 +1028,7 @@ public class InstallPluginAction implements Closeable {
      * Copies the files from {@code tmpConfigDir} into {@code destConfigDir}.
      * Any files existing in both the source and destination will be skipped.
      */
-    private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws Exception {
+    private void installConfig(PluginDescriptor info, Path tmpConfigDir, Path destConfigDir) throws Exception {
         if (Files.isDirectory(tmpConfigDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "config in plugin " + info.getName() + " is not a directory");
         }

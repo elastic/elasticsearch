@@ -6,13 +6,15 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
@@ -32,6 +34,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 
 public class NodeLoadDetector {
+
+    private static final Logger logger = LogManager.getLogger(NodeLoadDetector.class);
 
     private final MlMemoryTracker mlMemoryTracker;
 
@@ -101,7 +105,9 @@ public class NodeLoadDetector {
             .setMaxJobs(maxNumberOfOpenJobs)
             .setUseMemory(true);
         if (errors.isEmpty() == false) {
-            return nodeLoad.setError(Strings.collectionToCommaDelimitedString(errors)).build();
+            String errorMsg = Strings.collectionToCommaDelimitedString(errors);
+            logger.warn("error detecting load for node [{}]: {}", node.getId(), errorMsg);
+            return nodeLoad.setError(errorMsg).build();
         }
         updateLoadGivenTasks(nodeLoad, persistentTasks);
         updateLoadGivenModelAssignments(nodeLoad, assignmentMetadata);
@@ -131,13 +137,13 @@ public class NodeLoadDetector {
     }
 
     private void updateLoadGivenModelAssignments(NodeLoad.Builder nodeLoad, TrainedModelAssignmentMetadata trainedModelAssignmentMetadata) {
-        if (trainedModelAssignmentMetadata != null && trainedModelAssignmentMetadata.modelAssignments().isEmpty() == false) {
-            for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.modelAssignments().values()) {
+        if (trainedModelAssignmentMetadata != null && trainedModelAssignmentMetadata.allAssignments().isEmpty() == false) {
+            for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.allAssignments().values()) {
                 if (Optional.ofNullable(assignment.getNodeRoutingTable().get(nodeLoad.getNodeId()))
-                    .map(RoutingStateAndReason::getState)
+                    .map(RoutingInfo::getState)
                     .orElse(RoutingState.STOPPED)
                     .consumesMemory()) {
-                    nodeLoad.incNumAssignedJobs();
+                    nodeLoad.incNumAssignedNativeInferenceModels();
                     nodeLoad.incAssignedNativeInferenceMemory(assignment.getTaskParams().estimateMemoryUsageBytes());
                 }
             }

@@ -66,6 +66,7 @@ public class MPNetTokenizationResult extends TokenizationResult {
                 tokenIds.add(IntStream.of(sepTokenId, sepTokenId));
                 tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION, SPECIAL_TOKEN_POSITION));
             }
+            seqPairOffset = withSpecialTokens ? tokenId1s.size() + 3 : tokenId1s.size();
             tokenIds.add(tokenId2s.stream().mapToInt(Integer::valueOf));
             tokenMap.add(tokenMap2.stream().mapToInt(i -> i + previouslyFinalMap));
             if (withSpecialTokens) {

@@ -16,6 +16,7 @@ import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
@@ -67,11 +68,12 @@ public abstract class BlendedTermQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
+        IndexReader reader = searcher.getIndexReader();
         IndexReaderContext context = reader.getContext();
         TermStates[] ctx = new TermStates[terms.length];
         int[] docFreqs = new int[ctx.length];
@@ -148,7 +150,18 @@ public abstract class BlendedTermQuery extends Query {
             if (prev > current) {
                 actualDf++;
             }
-            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, Math.min(maxDoc, actualDf));
+
+            int docCount = reader.getDocCount(terms[i].field());
+
+            // IMPORTANT: we make two adjustments here to ensure the new document frequency is valid:
+            // 1. We take a minimum with docCount, which is the total number of documents that contain
+            // this field. The document frequency must always be less than the document count.
+            // 2. We also take a minimum with maxDoc. Earlier, maxDoc is adjusted to the minimum of
+            // maxDoc and minTTF. So taking the minimum ensures that the document frequency is never
+            // greater than the total term frequency, which would be illegal.
+            int newDocFreq = Math.min(Math.min(actualDf, docCount), maxDoc);
+
+            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, newDocFreq);
             prev = current;
             sumTTF += ctx.totalTermFreq();
         }

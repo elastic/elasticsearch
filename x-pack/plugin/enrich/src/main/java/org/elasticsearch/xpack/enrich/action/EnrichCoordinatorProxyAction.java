@@ -71,10 +71,12 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             // Management tp is expected when executing enrich processor from ingest simulate api
             // Search tp is allowed for now - After enriching, the remaining parts of the pipeline are processed on the
             // search thread, which could end up here again if there is more than one enrich processor in a pipeline.
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.SYSTEM_WRITE)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
+            assert ThreadPool.assertCurrentThreadPool(
+                ThreadPool.Names.WRITE,
+                ThreadPool.Names.SYSTEM_WRITE,
+                ThreadPool.Names.SEARCH,
+                ThreadPool.Names.MANAGEMENT
+            );
             coordinator.schedule(request, listener);
         }
     }
@@ -158,7 +160,17 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 final List<Slot> slots = new ArrayList<>(Math.min(queue.size(), maxLookupsPerRequest));
                 if (queue.drainTo(slots, maxLookupsPerRequest) == 0) {
                     remoteRequestPermits.release();
-                    return;
+                    /*
+                     * It is possible that something was added to the queue after the drain and before the permit was released, meaning
+                     * that the other thread could not acquire the permit, leaving an item orphaned in the queue. So we check the queue
+                     * again after releasing the permit, and if there is something there we run another loop to pick that thing up. If
+                     * another thread has picked it up in the meantime, we'll just exit out of the loop on the next try.
+                     */
+                    if (queue.isEmpty()) {
+                        return;
+                    } else {
+                        continue;
+                    }
                 }
                 assert slots.isEmpty() == false;
                 remoteRequestsTotal.increment();

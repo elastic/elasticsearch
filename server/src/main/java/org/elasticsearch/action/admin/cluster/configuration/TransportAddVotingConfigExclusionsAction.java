@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -71,6 +70,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     ) {
         super(
             AddVotingConfigExclusionsAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,
@@ -100,7 +100,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         resolveVotingConfigExclusionsAndCheckMaximum(request, state, maxVotingConfigExclusions);
         // throws IAE if no nodes matched or maximum exceeded
 
-        clusterService.submitStateUpdateTask("add-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
+        submitUnbatchedTask("add-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
 
             private Set<VotingConfigExclusion> resolvedExclusions;
 
@@ -175,12 +175,12 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                     observer.waitForNextChange(clusterStateListener, allNodesRemoved);
                 }
             }
-        }, newExecutor());
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(

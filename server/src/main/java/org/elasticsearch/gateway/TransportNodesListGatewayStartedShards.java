@@ -8,9 +8,10 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -44,6 +45,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
@@ -54,6 +57,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
     TransportNodesListGatewayStartedShards.NodeRequest,
     TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+
+    private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);
@@ -82,8 +87,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STARTED,
-            NodeGatewayStartedShards.class
+            ThreadPool.Names.FETCH_SHARD_STARTED
         );
         this.settings = settings;
         this.nodeEnv = env;
@@ -148,8 +152,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     } catch (Exception exception) {
                         final ShardPath finalShardPath = shardPath;
                         logger.trace(
-                            () -> new ParameterizedMessage(
-                                "{} can't open index for shard [{}] in path [{}]",
+                            () -> format(
+                                "%s can't open index for shard [%s] in path [%s]",
                                 shardId,
                                 shardStateMetadata,
                                 (finalShardPath != null) ? finalShardPath.resolveIndex() : ""
@@ -186,7 +190,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -217,7 +221,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
                 out.writeString(customDataPath);
             }
         }
@@ -257,7 +261,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -273,7 +277,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
                 assert customDataPath != null;
                 out.writeString(customDataPath);
             }

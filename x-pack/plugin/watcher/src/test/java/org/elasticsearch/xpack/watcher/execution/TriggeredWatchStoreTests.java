@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -34,9 +34,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -94,15 +94,13 @@ import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
 
-    private Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        .build();
+    private static final Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
 
     private Client client;
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
     private final Map<BulkRequest, BulkResponse> bulks = new LinkedHashMap<>();
-    private BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+    private BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -112,7 +110,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+        public void afterBulk(long executionId, BulkRequest request, Exception failure) {
             throw new ElasticsearchException(failure);
         }
     };
@@ -126,10 +124,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener, "TriggeredWatchStoreTests")
-            .setConcurrentRequests(0)
-            .setBulkActions(1)
-            .build();
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 
@@ -152,9 +147,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         int numShards = 2 + randomInt(2);
         int numStartedShards = 1;
-        Settings settings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, numShards, 1).build();
         metadataBuilder.put(
             IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(settings).numberOfShards(numShards).numberOfReplicas(1)
         );
@@ -173,17 +166,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             ShardId shardId = new ShardId(index, 0);
             indexRoutingTableBuilder.addIndexShard(
                 new IndexShardRoutingTable.Builder(shardId).addShard(
-                    TestShardRouting.newShardRouting(
-                        shardId,
-                        currentNodeId,
-                        null,
-                        true,
-                        state,
-                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-                    )
-                ).build()
+                    TestShardRouting.newShardRouting(shardId, currentNodeId, null, true, state)
+                )
             );
-            indexRoutingTableBuilder.addReplica();
+            indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         }
         routingTableBuilder.add(indexRoutingTableBuilder.build());
 
@@ -206,9 +192,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(shardId).addShard(
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
@@ -225,7 +211,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo", null, null);
+        SearchHit hit = new SearchHit(0, "first_foo");
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
         hit.sourceRef(source);
@@ -240,7 +226,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo", null, null);
+        hit = new SearchHit(0, "second_foo");
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
         hit.sourceRef(source);
@@ -338,9 +324,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(shardId).addShard(
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
@@ -372,15 +358,15 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
                 TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(new ShardId(otherIndex, 0)).addShard(
                 TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
 
         csBuilder.metadata(metadataBuilder);

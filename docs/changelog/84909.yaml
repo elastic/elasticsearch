@@ -1,5 +1,0 @@
-pr: 84909
-summary: Fix point visitor in `DiskUsage` API
-area: Search
-type: bug
-issues: []

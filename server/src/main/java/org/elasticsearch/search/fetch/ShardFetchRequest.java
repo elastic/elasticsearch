@@ -67,10 +67,7 @@ public class ShardFetchRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         contextId.writeTo(out);
-        out.writeVInt(docIds.length);
-        for (int docId : docIds) {
-            out.writeVInt(docId);
-        }
+        out.writeVIntArray(docIds);
         if (lastEmittedDoc == null) {
             out.writeByte((byte) 0);
         } else if (lastEmittedDoc instanceof FieldDoc) {
@@ -88,10 +85,6 @@ public class ShardFetchRequest extends TransportRequest {
 
     public int[] docIds() {
         return docIds;
-    }
-
-    public int docIdsSize() {
-        return docIds.length;
     }
 
     public ScoreDoc lastEmittedDoc() {

@@ -9,7 +9,7 @@
 package org.elasticsearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -31,15 +31,13 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
- * A request to delete a document from an index based on its type and id. Best created using
- * {@link org.elasticsearch.client.internal.Requests#deleteRequest(String)}.
+ * A request to delete a document from an index based on its type and id.
  * <p>
  * The operation requires the {@link #index()} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
  * @see org.elasticsearch.client.internal.Client#delete(DeleteRequest)
- * @see org.elasticsearch.client.internal.Requests#deleteRequest(String)
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     implements
@@ -64,7 +62,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     public DeleteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
         }
@@ -256,7 +254,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);

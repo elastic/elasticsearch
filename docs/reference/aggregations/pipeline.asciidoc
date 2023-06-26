@@ -46,6 +46,14 @@ PATH                =  <AGG_NAME><MULTIBUCKET_KEY>? (<AGG_SEPARATOR>, <AGG_NAME>
 For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in the `"my_stats"` metric, which is
 contained in the `"my_bucket"` bucket aggregation.
 
+Here are some more examples:
+--
+ * `multi_bucket["foo"]>single_bucket>multi_metric.avg` will go to the `avg` metric in the `"multi_metric"` agg under the
+    single bucket `"single_bucket"` within the `"foo"` bucket of the `"multi_bucket"` multi-bucket aggregation.
+ * `agg1["foo"]._count` will get the `_count` metric for the `"foo"` bucket in the
+    multi-bucket aggregation `"multi_bucket"`
+--
+
 Paths are relative from the position of the pipeline aggregation; they are not absolute paths, and the path cannot go back "up" the
 aggregation tree. For example, this derivative is embedded inside a date_histogram and refers to a "sibling"
 metric `"the_sum"`:

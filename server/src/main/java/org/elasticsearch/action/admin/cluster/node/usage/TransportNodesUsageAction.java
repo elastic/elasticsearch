@@ -8,10 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,7 +36,6 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     private final UsageService restUsageService;
     private final AggregationUsageService aggregationUsageService;
     private final long sinceTime;
-    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportNodesUsageAction(
@@ -47,8 +44,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         TransportService transportService,
         ActionFilters actionFilters,
         UsageService restUsageService,
-        AggregationUsageService aggregationUsageService,
-        StatsRequestLimiter statsRequestLimiter
+        AggregationUsageService aggregationUsageService
     ) {
         super(
             NodesUsageAction.NAME,
@@ -58,12 +54,10 @@ public class TransportNodesUsageAction extends TransportNodesAction<
             actionFilters,
             NodesUsageRequest::new,
             NodeUsageRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeUsage.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.restUsageService = restUsageService;
         this.aggregationUsageService = aggregationUsageService;
-        this.statsRequestLimiter = statsRequestLimiter;
         this.sinceTime = System.currentTimeMillis();
     }
 
@@ -88,11 +82,6 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         Map<String, Long> restUsage = request.restActions() ? restUsageService.getRestUsageStats() : null;
         Map<String, Object> aggsUsage = request.aggregations() ? aggregationUsageService.getUsageStats() : null;
         return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage);
-    }
-
-    @Override
-    protected void doExecute(Task task, NodesUsageRequest request, ActionListener<NodesUsageResponse> listener) {
-        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 
     public static class NodeUsageRequest extends TransportRequest {

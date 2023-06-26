@@ -6,16 +6,15 @@
 ++++
 
 When a watch is triggered, its condition determines whether or not to execute
-the watch actions. {watcher} supports the following condition types: 
+the watch actions. {watcher} supports the following condition types:
 
-* <<condition-always,`always`>>: set the watch condition to `true` so the watch 
-actions are always executed.
-* <<condition-never,`never`>>: set the watch condition to `false` so the watch
+* <<condition-always,`always`>>: The condition always evaluates to `true`, so the watch actions are always performed.
+* <<condition-never,`never`>>: The condition always evaluates to `false`, so the watch
 actions are never executed.
 * <<condition-compare,`compare`>>: perform simple comparisons against values
 in the watch payload to determine whether or not to execute the watch actions.
 * <<condition-array-compare,`array_compare`>>: compare an array of values in the
-watch payload to a given value to determine whether or not to execute the watch 
+watch payload to a given value to determine whether or not to execute the watch
 actions.
 * <<condition-script,`script`>>: use a script to determine whether or not to
 execute the watch actions.

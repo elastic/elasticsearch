@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -299,8 +300,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -320,8 +321,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -465,7 +466,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             roles,
-            Version.CURRENT
+            null
         );
     }
 
@@ -501,7 +502,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
-        final RoutingTable.Builder builder = RoutingTable.builder().version(version);
+        final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).version(version);
         for (IndexMetadata indexMetadata : metadata.indices().values()) {
             builder.addAsNew(indexMetadata);
         }

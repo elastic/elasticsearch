@@ -6,9 +6,9 @@ import java.nio.file.Paths
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 archivesBaseName = 'x-pack-core'
@@ -26,8 +26,14 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
 
+configurations {
+  signedCerts
+  rootCert
+}
+
 dependencies {
   compileOnly project(":server")
+  api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-ssl-config")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -42,12 +48,13 @@ dependencies {
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}" // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:rest-root')
   testImplementation project(":client:rest-high-level")
   // Needed for Fips140ProviderVerificationTests
   testCompileOnly('org.bouncycastle:bc-fips:1.0.2')
@@ -58,6 +65,8 @@ dependencies {
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  signedCerts fileTree("src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca-signed")
+  rootCert files("src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt")
 }
 
 ext.expansions = [
@@ -140,4 +149,10 @@ testClusters.configureEach {
 if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.untrusted_remote_cluster_feature_flag_registered', 'true'
+  }
 }

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -37,39 +37,29 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray mins;
     DoubleArray maxes;
 
-    StatsAggregator(
-        String name,
-        ValuesSourceConfig valuesSourceConfig,
-        AggregationContext context,
-        Aggregator parent,
-        Map<String, Object> metadata
-    ) throws IOException {
+    StatsAggregator(String name, ValuesSourceConfig config, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            counts = bigArrays().newLongArray(1, true);
-            sums = bigArrays().newDoubleArray(1, true);
-            compensations = bigArrays().newDoubleArray(1, true);
-            mins = bigArrays().newDoubleArray(1, false);
-            mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-            maxes = bigArrays().newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
-        this.format = valuesSourceConfig.format();
+        assert config.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
+        counts = bigArrays().newLongArray(1, true);
+        sums = bigArrays().newDoubleArray(1, true);
+        compensations = bigArrays().newDoubleArray(1, true);
+        mins = bigArrays().newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+        maxes = bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
+        this.format = config.format();
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
@@ -115,17 +105,12 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public boolean hasMetric(String name) {
-        try {
-            InternalStats.Metrics.resolve(name);
-            return true;
-        } catch (IllegalArgumentException iae) {
-            return false;
-        }
+        return InternalStats.Metrics.hasMetric(name);
     }
 
     @Override
     public double metric(String name, long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= counts.size()) {
+        if (owningBucketOrd >= counts.size()) {
             return switch (InternalStats.Metrics.resolve(name)) {
                 case count -> 0;
                 case sum -> 0;
@@ -145,7 +130,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= sums.size()) {
+        if (bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
         return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket), maxes.get(bucket), format, metadata());
@@ -153,7 +138,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, format, metadata());
+        return InternalStats.empty(name, format, metadata());
     }
 
     @Override

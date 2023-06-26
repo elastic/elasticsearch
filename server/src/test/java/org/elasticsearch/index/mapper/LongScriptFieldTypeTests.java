@@ -26,9 +26,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -76,8 +76,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldType ft = build("add_param", Map.of("param", 1));
-                LongScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                LongScriptFieldType ft = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
+                LongScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -115,7 +115,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                LongScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
@@ -132,7 +132,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldData ifd = build("millis_ago", Map.of()).fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                LongScriptFieldData ifd = build("millis_ago", Map.of(), OnScriptError.FAIL).fielddataBuilder(mockFielddataContext())
+                    .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181356]}"));
@@ -173,7 +174,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                             }
                         };
                     }
-                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.CURRENT)), equalTo(1));
             }
         }
     }
@@ -222,7 +223,10 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("1", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("add_param", Map.of("param", 1)).termQuery(2, mockContext())), equalTo(1));
+                assertThat(
+                    searcher.count(build("add_param", Map.of("param", 1), OnScriptError.FAIL).termQuery(2, mockContext())),
+                    equalTo(1)
+                );
             }
         }
     }
@@ -255,12 +259,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     @Override
     protected LongScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of());
+        return build("read_foo", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected LongScriptFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -268,26 +272,43 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return "long";
     }
 
-    private static LongScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected LongScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new LongScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static LongFieldScript.Factory factory(Script script) {
         switch (script.getIdOrCode()) {
             case "read_foo":
-                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                return (fieldName, params, lookup, onScriptError) -> (ctx) -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    lookup,
+                    onScriptError,
+                    ctx
+                ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("foo")) {
                             emit(((Number) foo).longValue());
                         }
                     }
                 };
             case "add_param":
-                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                return (fieldName, params, lookup, onScriptError) -> (ctx) -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    lookup,
+                    onScriptError,
+                    ctx
+                ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("foo")) {
                             emit(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
                         }
                     }
@@ -295,26 +316,43 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             case "millis_ago":
                 // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
                 long now = System.currentTimeMillis();
-                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                return (fieldName, params, lookup, onScriptError) -> (ctx) -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    lookup,
+                    onScriptError,
+                    ctx
+                ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object timestamp : (List<?>) source.get("timestamp")) {
                             emit(now - ((Number) timestamp).longValue());
                         }
                     }
                 };
             case "loop":
-                return (fieldName, params, lookup) -> {
+                return (fieldName, params, lookup, onScriptError) -> {
                     // Indicate that this script wants the field call "test", which *is* the name of this field
                     lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
+                    throw new IllegalStateException("should have thrown on the line above");
+                };
+            case "error":
+                return (fieldName, params, lookup, onScriptError) -> ctx -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    lookup,
+                    onScriptError,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        throw new RuntimeException("test error");
+                    }
                 };
             default:
                 throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         }
-    }
-
-    private static LongScriptFieldType build(Script script) {
-        return new LongScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

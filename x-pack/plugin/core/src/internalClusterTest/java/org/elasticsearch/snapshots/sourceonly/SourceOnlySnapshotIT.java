@@ -115,14 +115,9 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
         assertMappings(sourceIdx, requireRouting, useNested);
-        SearchPhaseExecutionException e = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> {
-                client().prepareSearch(sourceIdx)
-                    .setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
-                    .get();
-            }
-        );
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get();
+        });
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
         // can-match phase pre-filters access to non-existing field
@@ -134,13 +129,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                .get()
-        );
+        setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
@@ -169,13 +158,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                .get()
-        );
+        setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, true);
     }
@@ -224,7 +207,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         String nested = useNested ? """
             ,"incorrect":{"type":"object"},"nested":{"type":"nested","properties":{"value":{"type":"long"}}}""" : "";
         if (requireRouting) {
-            assertEquals(XContentHelper.stripWhitespace("""
+            assertEquals(XContentHelper.stripWhitespace(String.format(java.util.Locale.ROOT, """
                 {
                   "_doc": {
                     "enabled": false,
@@ -248,9 +231,9 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                       }
                     }
                   }
-                }""".formatted(nested)), mapping.source().string());
+                }""", nested)), mapping.source().string());
         } else {
-            assertEquals(XContentHelper.stripWhitespace("""
+            assertEquals(XContentHelper.stripWhitespace(String.format(java.util.Locale.ROOT, """
                 {
                   "_doc": {
                     "enabled": false,
@@ -271,7 +254,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                       }
                     }
                   }
-                }""".formatted(nested)), mapping.source().string());
+                }""", nested)), mapping.source().string());
         }
     }
 
@@ -372,16 +355,14 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete index and stop the data node");
         assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
         internalCluster().stopRandomDataNode();
-        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("1").get().isTimedOut());
 
         final String newDataNode = internalCluster().startDataOnlyNode();
         logger.info("--> start a new data node " + newDataNode);
-        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("2").get().isTimedOut());
 
         logger.info("--> restore the index and ensure all shards are allocated");
-        RestoreSnapshotResponse restoreResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repo, snapshot)
+        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(repo, snapshot)
             .setWaitForCompletion(true)
             .setIndices(sourceIdx)
             .get();

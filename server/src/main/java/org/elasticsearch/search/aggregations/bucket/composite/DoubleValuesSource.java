@@ -136,11 +136,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = format.parseDouble(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseDouble(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 
@@ -161,10 +159,14 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     int num = dvs.docValueCount();
+                    double previous = Double.MAX_VALUE;
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
                         missingCurrentValue = false;
-                        next.collect(doc, bucket);
+                        if (i == 0 || previous != currentValue) {
+                            next.collect(doc, bucket);
+                            previous = currentValue;
+                        }
                     }
                 } else if (missingBucket) {
                     missingCurrentValue = true;

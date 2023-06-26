@@ -10,31 +10,27 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
-import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.TLSConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,22 +45,20 @@ import java.util.concurrent.Executors;
 import static org.hamcrest.Matchers.contains;
 
 /**
- * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
+ * This test just tests whether the pipelining works in general without any connection to the Elasticsearch handler
  */
 public class Netty4HttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockBigArrays bigArrays;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         if (threadPool != null) {
             threadPool.shutdownNow();
         }
@@ -106,18 +100,16 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             super(
                 settings,
                 Netty4HttpServerPipeliningTests.this.networkService,
-                Netty4HttpServerPipeliningTests.this.bigArrays,
                 Netty4HttpServerPipeliningTests.this.threadPool,
                 xContentRegistry(),
                 new NullDispatcher(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             );
-        }
-
-        @Override
-        public ChannelHandler configureServerChannelHandler() {
-            return new CustomHttpChannelHandler(this, executorService);
         }
 
         @Override
@@ -126,87 +118,38 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             super.doClose();
         }
 
-    }
-
-    private class CustomHttpChannelHandler extends Netty4HttpServerTransport.HttpChannelHandler {
-
-        private final ExecutorService executorService;
-
-        CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService) {
-            super(transport, transport.handlingSettings);
-            this.executorService = executorService;
-        }
-
         @Override
-        protected void initChannel(Channel ch) throws Exception {
-            super.initChannel(ch);
-            ch.pipeline().replace("handler", "handler", new PossiblySlowUpstreamHandler(executorService));
-        }
+        public void incomingRequest(HttpRequest httpRequest, HttpChannel httpChannel) {
+            executorService.submit(() -> {
+                final Netty4HttpRequest pipelinedRequest = (Netty4HttpRequest) httpRequest;
+                try {
+                    final String uri = pipelinedRequest.uri();
 
-    }
+                    final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
+                    HttpResponse response = pipelinedRequest.createResponse(
+                        RestStatus.OK,
+                        new BytesArray(uri.getBytes(StandardCharsets.UTF_8))
+                    );
+                    response.addHeader("content-length", Integer.toString(buffer.readableBytes()));
 
-        private final ExecutorService executorService;
-
-        PossiblySlowUpstreamHandler(ExecutorService executorService) {
-            this.executorService = executorService;
-        }
-
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest msg) throws Exception {
-            executorService.submit(new PossiblySlowRunnable(ctx, msg));
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.info("Caught exception", cause);
-            ctx.channel().close().sync();
-        }
-
-    }
-
-    class PossiblySlowRunnable implements Runnable {
-
-        private ChannelHandlerContext ctx;
-        private HttpPipelinedRequest pipelinedRequest;
-
-        PossiblySlowRunnable(ChannelHandlerContext ctx, HttpPipelinedRequest msg) {
-            this.ctx = ctx;
-            this.pipelinedRequest = msg;
-        }
-
-        @Override
-        public void run() {
-            try {
-                final String uri = pipelinedRequest.uri();
-
-                final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
-
-                HttpResponse response = pipelinedRequest.createResponse(
-                    RestStatus.OK,
-                    new BytesArray(uri.getBytes(StandardCharsets.UTF_8))
-                );
-                response.addHeader("content-length", Integer.toString(buffer.readableBytes()));
-
-                final boolean slow = uri.matches("/slow/\\d+");
-                if (slow) {
-                    try {
-                        Thread.sleep(scaledRandomIntBetween(500, 1000));
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                    final boolean slow = uri.matches("/slow/\\d+");
+                    if (slow) {
+                        try {
+                            Thread.sleep(scaledRandomIntBetween(500, 1000));
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        assert uri.matches("/\\d+");
                     }
-                } else {
-                    assert uri.matches("/\\d+");
+
+                    httpChannel.sendResponse(response, ActionListener.noop());
+                } finally {
+                    pipelinedRequest.release();
                 }
-
-                final ChannelPromise promise = ctx.newPromise();
-                ctx.writeAndFlush(response, promise);
-            } finally {
-                pipelinedRequest.release();
-            }
+            });
         }
-
     }
 
 }

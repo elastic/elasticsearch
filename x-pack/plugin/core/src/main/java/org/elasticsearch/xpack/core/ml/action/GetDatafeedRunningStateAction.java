@@ -6,16 +6,17 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -28,6 +29,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Internal only action to get the current running state of a datafeed
@@ -68,6 +71,11 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         public boolean match(Task task) {
             return task instanceof StartDatafeedAction.DatafeedTaskMatcher && datafeedTaskIds.contains(task.getDescription());
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeed_running_state[%s]", datafeedTaskIds), parentTaskId, headers);
+        }
     }
 
     public static class Response extends BaseTasksResponse {
@@ -92,7 +100,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
-                if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                     this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
                 } else {
                     this.searchInterval = null;
@@ -118,7 +126,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
-                if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                     out.writeOptionalWriteable(searchInterval);
                 }
             }
@@ -148,12 +156,12 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         }
 
         public static Response fromTaskAndState(String datafeedId, RunningState runningState) {
-            return new Response(MapBuilder.<String, RunningState>newMapBuilder().put(datafeedId, runningState).map());
+            return new Response(Map.of(datafeedId, runningState));
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            datafeedRunningState = in.readMap(StreamInput::readString, RunningState::new);
+            datafeedRunningState = in.readMap(RunningState::new);
         }
 
         public Response(Map<String, RunningState> runtimeStateMap) {

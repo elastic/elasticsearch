@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
@@ -59,7 +58,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
 
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 throw new IllegalArgumentException(
@@ -119,7 +118,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
             ValuesSource dataSource;
             if (indexFieldData instanceof IndexOrdinalsFieldData) {
@@ -161,14 +160,13 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            if ((fieldContext.indexFieldData() instanceof IndexGeoPointFieldData) == false) {
-                throw new IllegalArgumentException(
-                    "Expected geo_point type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
-                );
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            if (fieldContext.indexFieldData() instanceof IndexGeoPointFieldData pointFieldData) {
+                return new ValuesSource.GeoPoint.Fielddata(pointFieldData);
             }
-
-            return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
+            throw new IllegalArgumentException(
+                "Expected geo_point type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+            );
         }
 
         @Override
@@ -200,7 +198,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             MappedFieldType fieldType = fieldContext.fieldType();
 
             if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
@@ -232,8 +230,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            return KEYWORD.getField(fieldContext, script, context);
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return KEYWORD.getField(fieldContext, script);
         }
 
         @Override
@@ -263,8 +261,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            ValuesSource.Numeric dataSource = fieldData(fieldContext, context);
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            ValuesSource.Numeric dataSource = fieldData(fieldContext);
             if (script != null) {
                 // Value script case
                 return new ValuesSource.Numeric.WithScript(dataSource, script);
@@ -272,7 +270,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return dataSource;
         }
 
-        private ValuesSource.Numeric fieldData(FieldContext fieldContext, AggregationContext context) {
+        private ValuesSource.Numeric fieldData(FieldContext fieldContext) {
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 throw new IllegalArgumentException(
                     "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
@@ -285,13 +283,13 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
                 /**
                  * Proper dates get a real implementation of
-                 * {@link #roundingPreparer(IndexReader)}. If the field is
+                 * {@link #roundingPreparer(AggregationContext)}. If the field is
                  * configured with a script or a missing value then we'll
                  * wrap this without delegating so those fields will ignore
                  * this implementation. Which is correct.
                  */
                 @Override
-                public Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+                public Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
                     DateFieldType dft = (DateFieldType) fieldContext.fieldType();
                     /*
                      * The range of dates, min first, then max. This is an array so we can
@@ -315,6 +313,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             range[1] = dft.resolution().parsePointAsMillis(max);
                         }
                     }
+                    log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
@@ -362,11 +361,20 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             };
                         });
                     }
+                    log.trace("Bounds after query bound date rounding: {}, {}", range[0], range[1]);
 
                     if (range[0] == Long.MIN_VALUE && range[1] == Long.MAX_VALUE) {
                         // Didn't find any bounds
+                        log.trace("Unable to find rounding bounds");
                         return Rounding::prepareForUnknown;
                     }
+
+                    // If we have bounds stepping over each other from query bound checks, return an unknown rounding
+                    // (which we expect to never actually get any values to round).
+                    if (range[0] > range[1]) {
+                        return Rounding::prepareForUnknown;
+                    }
+
                     return rounding -> rounding.prepare(range[0], range[1]);
                 }
             };
@@ -405,8 +413,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            return NUMERIC.getField(fieldContext, script, context);
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return NUMERIC.getField(fieldContext, script);
         }
 
         @Override

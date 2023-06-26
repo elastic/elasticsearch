@@ -10,10 +10,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
@@ -28,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest endpoint to delete a role-mapping from the {@link org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore}
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
 
     public RestDeleteRoleMappingAction(Settings settings, XPackLicenseState licenseState) {
@@ -58,7 +60,7 @@ public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(DeleteRoleMappingResponse response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(
+                    return new RestResponse(
                         response.isFound() ? RestStatus.OK : RestStatus.NOT_FOUND,
                         builder.startObject().field("found", response.isFound()).endObject()
                     );

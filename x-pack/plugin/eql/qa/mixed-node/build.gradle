@@ -1,19 +1,17 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-test'
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
-    testImplementation project(':x-pack:qa')
-    testImplementation(project(xpackModule('ql:test-fixtures')))
-    testImplementation project(path: xpackModule('eql'), configuration: 'default')
+    javaRestTestImplementation project(':x-pack:qa')
+    javaRestTestImplementation(project(xpackModule('ql:test-fixtures')))
+    javaRestTestImplementation project(path: xpackModule('eql'), configuration: 'default')
 }
 
-tasks.named("integTest").configure { enabled = false }
+tasks.named("javaRestTest").configure { enabled = false }
 
 BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
         v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
@@ -33,6 +31,8 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
         useCluster cluster
         mustRunAfter("precommit")
+        classpath = sourceSets.javaRestTest.runtimeClasspath
+        testClassesDirs = sourceSets.javaRestTest.output.classesDirs
         doFirst {
             // Getting the endpoints causes a wait for the cluster
             println "Endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
@@ -43,7 +43,7 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
             nonInputProperties.systemProperty('tests.rest.cluster', cluster.map(c -> c.allHttpSocketURI.join(",")))
             nonInputProperties.systemProperty('tests.clustername', baseName)
         }
-        onlyIf { project.bwc_tests_enabled }
+        onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

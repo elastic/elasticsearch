@@ -16,6 +16,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,6 +93,16 @@ public class SuggestProfilesRequest extends ActionRequest {
         return validationException;
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
+    @Override
+    public String getDescription() {
+        return "SuggestProfiles{" + "name='" + name + "', hint=" + hint + '}';
+    }
+
     public static class Hint implements Writeable {
         @Nullable
         private final List<String> uids;
@@ -127,7 +140,7 @@ public class SuggestProfilesRequest extends ActionRequest {
 
         public Hint(StreamInput in) throws IOException {
             this.uids = in.readStringList();
-            this.labels = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+            this.labels = in.readMapOfLists(StreamInput::readString);
         }
 
         public List<String> getUids() {
@@ -179,6 +192,11 @@ public class SuggestProfilesRequest extends ActionRequest {
                 }
             }
             return validationException;
+        }
+
+        @Override
+        public String toString() {
+            return "Hint{" + "uids=" + uids + ", labels=" + labels + '}';
         }
     }
 }

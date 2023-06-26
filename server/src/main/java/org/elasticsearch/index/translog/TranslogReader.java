@@ -32,6 +32,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     private final int totalOperations;
     private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
+    private long lastModifiedTime = -1;
 
     /**
      * Create a translog writer against the specified translog file channel.
@@ -145,5 +146,16 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         if (isClosed()) {
             throw new AlreadyClosedException(toString() + " is already closed");
         }
+    }
+
+    @Override
+    public long getLastModifiedTime() throws IOException {
+        long modified = this.lastModifiedTime;
+        if (modified == -1) {
+            // cache the lastModifiedTime and return it forever, translogs are immutable
+            modified = super.getLastModifiedTime();
+            this.lastModifiedTime = modified;
+        }
+        return modified;
     }
 }

@@ -72,7 +72,8 @@ public class QueryApiKeyRequestTests extends ESTestCase {
                 new FieldSortBuilder("creation_time").setFormat("strict_date_time").order(SortOrder.DESC),
                 new FieldSortBuilder("username")
             ),
-            new SearchAfterBuilder().setSortValues(new String[] { "key-2048", "2021-07-01T00:00:59.000Z" })
+            new SearchAfterBuilder().setSortValues(new String[] { "key-2048", "2021-07-01T00:00:59.000Z" }),
+            randomBoolean()
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request3.writeTo(out);
@@ -83,6 +84,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
                 assertThat(deserialized.getSize(), equalTo(request3.getSize()));
                 assertThat(deserialized.getFieldSortBuilders(), equalTo(request3.getFieldSortBuilders()));
                 assertThat(deserialized.getSearchAfterBuilder(), equalTo(request3.getSearchAfterBuilder()));
+                assertThat(deserialized.withLimitedBy(), equalTo(request3.withLimitedBy()));
             }
         }
     }
@@ -93,7 +95,8 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
-            null
+            null,
+            randomBoolean()
         );
         assertThat(request1.validate(), nullValue());
 
@@ -102,7 +105,8 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             randomIntBetween(Integer.MIN_VALUE, -1),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
-            null
+            null,
+            randomBoolean()
         );
         assertThat(request2.validate().getMessage(), containsString("[from] parameter cannot be negative"));
 
@@ -111,7 +115,8 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(Integer.MIN_VALUE, -1),
             null,
-            null
+            null,
+            randomBoolean()
         );
         assertThat(request3.validate().getMessage(), containsString("[size] parameter cannot be negative"));
     }

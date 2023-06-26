@@ -1,0 +1,54 @@
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 768
+                index: true
+                similarity: l2_norm
+              vector2:
+                type: dense_vector
+                dims: 1024
+                index: true
+                similarity: dot_product
+              vector3:
+                type: dense_vector
+                dims: 100
+                index: false
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 768
+                index: true
+                similarity: l2_norm
+
+---
+"Field mapping stats":
+  - skip:
+      version: " - 8.3.99"
+      reason: "Cluster mappings stats for indexed dense vector was added in 8.4"
+  - do: { cluster.stats: { } }
+  - length: { indices.mappings.field_types: 1 }
+  - match: { indices.mappings.field_types.0.name: dense_vector }
+  - match: { indices.mappings.field_types.0.count: 4 }
+  - match: { indices.mappings.field_types.0.index_count: 2 }
+  - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }

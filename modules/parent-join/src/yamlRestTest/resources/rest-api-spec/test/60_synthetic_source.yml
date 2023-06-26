@@ -1,0 +1,18 @@
+unsupported:
+  - skip:
+      version: " - 8.2.99"
+      reason: introduced in 8.3.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              join_field:
+                type: join
+                relations:
+                  parent: child

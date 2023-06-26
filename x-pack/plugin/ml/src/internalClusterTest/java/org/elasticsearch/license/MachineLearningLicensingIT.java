@@ -22,8 +22,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -32,12 +34,13 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -63,7 +66,9 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -74,6 +79,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
+
+    public static final Set<String> RELATED_TASKS = Set.of(MlTasks.DATAFEED_TASK_NAME, MlTasks.JOB_TASK_NAME);
 
     @Before
     public void resetLicensing() {
@@ -244,9 +251,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(0, tasks.taskMap().size());
+            ClusterState state = clusterAdmin().prepareState().get().getState();
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
+            assertEquals(0, tasks.size());
         });
 
         enableLicensing(randomValidLicenseType());
@@ -269,9 +276,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STARTED, datafeedState);
 
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(2, tasks.taskMap().size());
+            ClusterState state = clusterAdmin().prepareState().get().getState();
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
+            assertEquals(2, tasks.size());
         });
 
         if (randomBoolean()) {
@@ -289,9 +296,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(0, tasks.taskMap().size());
+            ClusterState state = clusterAdmin().prepareState().get().getState();
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
+            assertEquals(0, tasks.size());
         });
     }
 
@@ -329,9 +336,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertBusy(() -> {
             JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(0, tasks.taskMap().size());
+            ClusterState state = clusterAdmin().prepareState().get().getState();
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
+            assertEquals(0, tasks.size());
         });
 
         // test that license restricted apis do not work
@@ -539,7 +546,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .execute()
             .actionGet();
 
-        String simulateSource = """
+        String simulateSource = Strings.format("""
             {
               "pipeline": %s,
               "docs": [
@@ -549,7 +556,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                   "col3": "none",
                   "col4": 10
                 }}]
-            }""".formatted(pipeline);
+            }""", pipeline);
         PlainActionFuture<SimulatePipelineResponse> simulatePipelineListener = PlainActionFuture.newFuture();
         client().execute(
             SimulatePipelineAction.INSTANCE,
@@ -655,18 +662,18 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         putInferenceModel(modelId);
 
-        PlainActionFuture<InternalInferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
+        PlainActionFuture<InferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
-            InternalInferModelAction.INSTANCE,
-            new InternalInferModelAction.Request(
+            InferModelAction.INSTANCE,
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
-        InternalInferModelAction.Response response = inferModelSuccess.actionGet();
+        InferModelAction.Response response = inferModelSuccess.actionGet();
         assertThat(response.getInferenceResults(), is(not(empty())));
         assertThat(response.isLicensed(), is(true));
 
@@ -678,13 +685,13 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // inferring against a model should now fail
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             client().execute(
-                InternalInferModelAction.INSTANCE,
-                new InternalInferModelAction.Request(
+                InferModelAction.INSTANCE,
+                InferModelAction.Request.forIngestDocs(
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
                     false
-                )
+                ).setInferenceTimeout(TimeValue.timeValueSeconds(5))
             ).actionGet();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -694,13 +701,13 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // Inferring with previously Licensed == true should pass, but indicate license issues
         inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
-            InternalInferModelAction.INSTANCE,
-            new InternalInferModelAction.Request(
+            InferModelAction.INSTANCE,
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 true
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
         response = inferModelSuccess.actionGet();
@@ -712,15 +719,15 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         enableLicensing(mode);
         assertMLAllowed(true);
 
-        PlainActionFuture<InternalInferModelAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<InferModelAction.Response> listener = PlainActionFuture.newFuture();
         client().execute(
-            InternalInferModelAction.INSTANCE,
-            new InternalInferModelAction.Request(
+            InferModelAction.INSTANCE,
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             listener
         );
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
@@ -828,7 +835,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false, null);
+            licenseState.update(new XPackLicenseStatus(operationMode, false, null));
         }
     }
 
@@ -838,7 +845,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true, null);
+            licenseState.update(new XPackLicenseStatus(operationMode, true, null));
         }
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -245,39 +246,17 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         id = in.readString();
         source = new SourceConfig(in);
         dest = new DestConfig(in);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            frequency = in.readOptionalTimeValue();
-        } else {
-            frequency = null;
-        }
-        setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
+        frequency = in.readOptionalTimeValue();
+        setHeaders(in.readMap(StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
         latestConfig = in.readOptionalWriteable(LatestConfig::new);
         description = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
-            createTime = in.readOptionalInstant();
-            transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
-        } else {
-            syncConfig = null;
-            createTime = null;
-            transformVersion = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings = new SettingsConfig(in);
-        } else {
-            settings = new SettingsConfig();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            metadata = in.readMap();
-        } else {
-            metadata = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
-        } else {
-            retentionPolicyConfig = null;
-        }
+        syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
+        createTime = in.readOptionalInstant();
+        transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
+        settings = new SettingsConfig(in);
+        metadata = in.readMap();
+        retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
     public String getId() {
@@ -431,32 +410,22 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         out.writeString(id);
         source.writeTo(out);
         dest.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalTimeValue(frequency);
-        }
+        out.writeOptionalTimeValue(frequency);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
         out.writeOptionalWriteable(latestConfig);
         out.writeOptionalString(description);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalNamedWriteable(syncConfig);
-            out.writeOptionalInstant(createTime);
-            if (transformVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(transformVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        out.writeOptionalNamedWriteable(syncConfig);
+        out.writeOptionalInstant(createTime);
+        if (transformVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(transformVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings.writeTo(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeGenericMap(metadata);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalNamedWriteable(retentionPolicyConfig);
-        }
+        settings.writeTo(out);
+        out.writeGenericMap(metadata);
+        out.writeOptionalNamedWriteable(retentionPolicyConfig);
     }
 
     @Override
@@ -468,8 +437,12 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {
-            if (headers.isEmpty() == false && forInternalStorage) {
-                builder.field(HEADERS.getPreferredName(), headers);
+            if (headers.isEmpty() == false) {
+                if (forInternalStorage) {
+                    builder.field(HEADERS.getPreferredName(), headers);
+                } else {
+                    XContentUtils.addAuthorizationInfo(builder, headers);
+                }
             }
             if (transformVersion != null) {
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
@@ -623,7 +596,9 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
                     builder.getSettings().getDatesAsEpochMillis(),
                     builder.getSettings().getAlignCheckpoints(),
                     builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings()
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
                 )
             );
         }
@@ -637,7 +612,9 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
                     true,
                     builder.getSettings().getAlignCheckpoints(),
                     builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings()
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
                 )
             );
         }
@@ -651,7 +628,9 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
                     builder.getSettings().getDatesAsEpochMillis(),
                     false,
                     builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings()
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
                 )
             );
         }

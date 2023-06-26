@@ -8,8 +8,11 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
@@ -117,6 +120,15 @@ public class MultiGetRequestTests extends ESTestCase {
         }
     }
 
+    public void testForceSyntheticUnsupported() {
+        MultiGetRequest request = createTestInstance();
+        request.setForceSyntheticSource(true);
+        StreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.V_8_3_0);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
+        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
+    }
+
     private MultiGetRequest createTestInstance() {
         int numItems = randomIntBetween(0, 128);
         MultiGetRequest request = new MultiGetRequest();
@@ -148,6 +160,9 @@ public class MultiGetRequestTests extends ESTestCase {
                 item.routing(randomAlphaOfLength(4));
             }
             request.add(item);
+        }
+        if (randomBoolean()) {
+            request.setForceSyntheticSource(true);
         }
         return request;
     }

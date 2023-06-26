@@ -244,8 +244,7 @@ GET /_search
 }
 --------------------------------------------------
 
-The score from each `match` clause is added together, then divided by the
-number of `match` clauses.
+The score from each `match` clause is added together, just like a `bool` query.
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, and `zero_terms_query`.
@@ -388,11 +387,12 @@ explanation:
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `lenient` and `zero_terms_query`.
 
-WARNING: The `cross_fields` type blends field statistics in a way that does
-not always produce well-formed scores (for example scores can become
-negative). As an alternative, you can consider the
-<<query-dsl-combined-fields-query,`combined_fields`>> query, which is also
-term-centric but combines field statistics in a more robust way.
+WARNING: The `cross_fields` type blends field statistics in a complex way that
+can be hard to interpret. The score combination can even be incorrect, in
+particular when some documents contain some of the search fields, but not all
+of them. You should consider the
+<<query-dsl-combined-fields-query,`combined_fields`>> query as an alternative,
+which is also term-centric but combines field statistics in a more robust way.
 
 [[cross-field-analysis]]
 ===== `cross_field` and analysis

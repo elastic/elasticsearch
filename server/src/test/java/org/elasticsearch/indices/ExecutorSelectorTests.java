@@ -24,12 +24,11 @@ public class ExecutorSelectorTests extends ESTestCase {
     public void testNonCriticalSystemIndexThreadPools() {
         ExecutorSelector service = new ExecutorSelector(
             new SystemIndices(
-                Map.of(
-                    "normal system index",
+                List.of(
                     new SystemIndices.Feature(
                         "normal",
                         "normal system index",
-                        Collections.singletonList(new SystemIndexDescriptor(".non-critical-system-index*", "test index"))
+                        Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(".non-critical-system-index*", "test index"))
                     )
                 )
             )
@@ -43,8 +42,7 @@ public class ExecutorSelectorTests extends ESTestCase {
     public void testCriticalSystemIndexThreadPools() {
         ExecutorSelector service = new ExecutorSelector(
             new SystemIndices(
-                Map.of(
-                    "critical system index",
+                List.of(
                     new SystemIndices.Feature(
                         "critical",
                         "critical system index",
@@ -69,8 +67,7 @@ public class ExecutorSelectorTests extends ESTestCase {
     public void testDefaultSystemDataStreamThreadPools() {
         ExecutorSelector service = new ExecutorSelector(
             new SystemIndices(
-                Map.of(
-                    "normal system index",
+                List.of(
                     new SystemIndices.Feature(
                         "data stream",
                         "data stream feature with default thread pools",
@@ -107,8 +104,7 @@ public class ExecutorSelectorTests extends ESTestCase {
     public void testCustomSystemDataStreamThreadPools() {
         ExecutorSelector service = new ExecutorSelector(
             new SystemIndices(
-                Map.of(
-                    "normal system index",
+                List.of(
                     new SystemIndices.Feature(
                         "data stream",
                         "data stream feature with custom thread pools",

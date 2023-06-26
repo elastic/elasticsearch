@@ -1,8 +1,8 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 // bring in machine learning rest test suite
@@ -28,6 +28,12 @@ tasks.named("yamlRestTest").configure {
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple allocations',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple threads per allocation',
+    'ml/3rd_party_deployment/Test stop deployments with allow_no_match',
+    'ml/3rd_party_deployment/Test cannot start 2 deployments with the same Id',
+    'ml/3rd_party_deployment/Test cannot start when deployment Id matches a different model',
+    'ml/3rd_party_deployment/Test cannot create model with a deployment Id',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
@@ -183,6 +189,7 @@ tasks.named("yamlRestTest").configure {
     'ml/jobs_crud/Test put job with time field in analysis_config',
     'ml/jobs_crud/Test put job with duplicate detector configurations',
     'ml/jobs_crud/Test job with categorization_analyzer and categorization_filters',
+    'ml/jobs_crud/Test job with rule referencing missing filter',
     'ml/jobs_get/Test get job given missing job_id',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params via body',
@@ -195,6 +202,7 @@ tasks.named("yamlRestTest").configure {
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid start param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid end param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given bucket_span is smaller than max job bucket_span',
+    'ml/jobs_get_stats/Test closed results index',
     'ml/jobs_get_stats/Test get job stats given missing job',
     'ml/jobs_get_stats/Test no exception on get job stats with missing index',
     'ml/job_groups/Test put job with empty group',
@@ -234,7 +242,8 @@ tasks.named("yamlRestTest").configure {
     'ml/set_upgrade_mode/Attempt to open job when upgrade_mode is enabled',
     'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',
-    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false'
+    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
+    'ml/update_trained_model_deployment/Test with unknown model id'
   ].join(',')
 }
 

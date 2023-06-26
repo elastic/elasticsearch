@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -245,13 +245,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             );
         }
         Task task = testNodes[0].transportService.getTaskManager()
-            .registerAndExecute(
-                "transport",
-                actions[0],
-                request,
-                testNodes[0].transportService.getLocalNodeConnection(),
-                ActionTestUtils.wrapAsTaskListener(listener)
-            );
+            .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
         if (waitForActionToStart) {
             logger.info("Awaiting for all actions to start");
             actionLatch.await();
@@ -414,7 +408,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 threadPool,
                 "test",
                 randomNonNegativeLong(),
-                Version.CURRENT
+                TransportVersion.current()
             )
         );
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
@@ -434,7 +428,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 testAction,
                 childRequest,
                 testNodes[0].transportService.getLocalNodeConnection(),
-                ActionTestUtils.wrapAsTaskListener(ActionListener.noop())
+                ActionListener.noop()
             )
         );
         assertThat(cancelledException.getMessage(), equalTo("task cancelled before starting [test]"));

@@ -16,7 +16,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -24,9 +24,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -63,9 +66,14 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
@@ -160,6 +168,102 @@ public class ContextIndexSearcherTests extends ESTestCase {
         directory.close();
     }
 
+    public void testConcurrentSearchAllThreadsFinish() throws Exception {
+        final Directory directory = newDirectory();
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
+        final int numDocs = randomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; i++) {
+            Document document = new Document();
+            document.add(new StringField("field", "value", Field.Store.NO));
+            iw.addDocument(document);
+            if (rarely()) {
+                iw.commit();
+            }
+        }
+
+        iw.close();
+        DirectoryReader directoryReader = DirectoryReader.open(directory);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(4);
+
+        AtomicInteger missingDocs = new AtomicInteger();
+        AtomicInteger visitDocs = new AtomicInteger(0);
+
+        CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
+            boolean first = true;
+
+            @Override
+            public Collector newCollector() {
+                if (first) {
+                    first = false;
+                    return new Collector() {
+                        @Override
+                        public LeafCollector getLeafCollector(LeafReaderContext context) {
+                            missingDocs.set(context.reader().numDocs());
+                            throw new IllegalArgumentException("fake exception");
+                        }
+
+                        @Override
+                        public ScoreMode scoreMode() {
+                            return ScoreMode.COMPLETE;
+                        }
+                    };
+                } else {
+                    return new Collector() {
+                        @Override
+                        public LeafCollector getLeafCollector(LeafReaderContext context) {
+                            return new LeafBucketCollector() {
+                                @Override
+                                public void collect(int doc, long owningBucketOrd) {
+                                    while (true) {
+                                        int current = visitDocs.get();
+                                        if (visitDocs.compareAndSet(current, current + 1)) {
+                                            break;
+                                        }
+                                    }
+                                }
+                            };
+                        }
+
+                        @Override
+                        public ScoreMode scoreMode() {
+                            return ScoreMode.COMPLETE;
+                        }
+                    };
+                }
+            }
+
+            @Override
+            public Void reduce(Collection<Collector> collectors) {
+                return null;
+            }
+        };
+
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            directoryReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            randomBoolean(),
+            executor
+        ) {
+            @Override
+            protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+                return slices(leaves, 1, 1);
+            }
+        };
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> searcher.search(new MatchAllDocsQuery(), collectorManager)
+        );
+        assertThat(exception.getMessage(), equalTo("fake exception"));
+
+        assertThat(visitDocs.get() + missingDocs.get(), equalTo(numDocs));
+        directoryReader.close();
+        directory.close();
+        executor.shutdown();
+    }
+
     public void testContextIndexSearcherSparseNoDeletions() throws IOException {
         doTestContextIndexSearcher(true, false);
     }
@@ -172,6 +276,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         doTestContextIndexSearcher(true, true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94615")
     public void testContextIndexSearcherDenseWithDeletions() throws IOException {
         doTestContextIndexSearcher(false, true);
     }
@@ -269,6 +374,43 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testExitableTermsMinAndMax() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
+        Document doc = new Document();
+        StringField fooField = new StringField("foo", "bar", Field.Store.NO);
+        doc.add(fooField);
+        w.addDocument(doc);
+        w.flush();
+
+        DirectoryReader directoryReader = DirectoryReader.open(w);
+        for (LeafReaderContext lfc : directoryReader.leaves()) {
+            Terms terms = lfc.reader().terms("foo");
+            FilterLeafReader.FilterTerms filterTerms = new ExitableTerms(terms, new ExitableDirectoryReader.QueryCancellation() {
+                @Override
+                public boolean isEnabled() {
+                    return false;
+                }
+
+                @Override
+                public void checkCancelled() {
+
+                }
+            }) {
+                @Override
+                public TermsEnum iterator() {
+                    fail("Retrieving min and max should retrieve values from block tree instead of iterating");
+                    return null;
+                }
+            };
+            assertEquals("bar", filterTerms.getMin().utf8ToString());
+            assertEquals("bar", filterTerms.getMax().utf8ToString());
+        }
+        w.close();
+        directoryReader.close();
+        dir.close();
     }
 
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {
@@ -433,12 +575,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query queryRewritten = query.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query queryRewritten = query.rewrite(searcher);
             if (query != queryRewritten) {
                 return new CreateScorerOnceQuery(queryRewritten);
             }
-            return super.rewrite(reader);
+            return super.rewrite(searcher);
         }
 
         @Override

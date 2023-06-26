@@ -1,6 +1,0 @@
-pr: 84250
-summary: Iteratively execute synchronous ingest processors
-area: Ingest
-type: enhancement
-issues:
- - 84274

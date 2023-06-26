@@ -60,6 +60,11 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     }
 
     @Override
+    public int docValueCount() {
+        return values.docValueCount();
+    }
+
+    @Override
     public BytesRef lookupOrd(long globalOrd) throws IOException {
         final long segmentOrd = ordinalMap.getFirstSegmentOrd(globalOrd);
         int readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);

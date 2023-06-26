@@ -17,10 +17,11 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     private static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. "
@@ -120,7 +122,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                         Strings.spaceify(3, node.getHotThreads(), sb);
                         sb.append('\n');
                     }
-                    return new BytesRestResponse(RestStatus.OK, sb.toString());
+                    return new RestResponse(RestStatus.OK, sb.toString());
                 }
             });
     }

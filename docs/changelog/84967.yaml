@@ -1,5 +1,0 @@
-pr: 84967
-summary: Fix Kibana date format and similar overrides in text structure endpoint
-area: Machine Learning
-type: bug
-issues: []

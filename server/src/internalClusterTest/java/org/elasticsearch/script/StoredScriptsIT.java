@@ -9,6 +9,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,22 +41,22 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray("""
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
             {"script": {"lang": "%s", "source": "1"} }
-            """.formatted(LANG)), XContentType.JSON));
-        String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
+            """, LANG)), XContentType.JSON));
+        String script = clusterAdmin().prepareGetStoredScript("foobar").get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
-        assertAcked(client().admin().cluster().prepareDeleteStoredScript().setId("foobar"));
-        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource();
+        assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar"));
+        StoredScriptSource source = clusterAdmin().prepareGetStoredScript("foobar").get().getSource();
         assertNull(source);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray("""
+            () -> { clusterAdmin().preparePutStoredScript().setId("id#").setContent(new BytesArray(Strings.format("""
                 {"script": {"lang": "%s", "source": "1"} }
-                """.formatted(LANG)), XContentType.JSON).get()
+                """, LANG)), XContentType.JSON).get(); }
         );
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
@@ -63,9 +64,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray("""
+            () -> { clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
                 {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                """.formatted(LANG)), XContentType.JSON).get()
+                """, LANG)), XContentType.JSON).get(); }
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }

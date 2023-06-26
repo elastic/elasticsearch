@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentType;
@@ -51,7 +52,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return """
+        return Strings.format("""
             %s
             allowed_role:
               cluster:
@@ -60,7 +61,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
               indices:
                 - names: '*'
                   privileges: [ALL]
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     @Before

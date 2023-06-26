@@ -1,6 +1,0 @@
-pr: 84753
-summary: Add tests for `min_hash` configuration and fix settings names
-area: Analysis
-type: bug
-issues:
- - 84578

@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -22,21 +21,21 @@ import java.util.Objects;
 
 public class GetAliasesResponse extends ActionResponse {
 
-    private final ImmutableOpenMap<String, List<AliasMetadata>> aliases;
+    private final Map<String, List<AliasMetadata>> aliases;
     private final Map<String, List<DataStreamAlias>> dataStreamAliases;
 
-    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetadata>> aliases, Map<String, List<DataStreamAlias>> dataStreamAliases) {
+    public GetAliasesResponse(Map<String, List<AliasMetadata>> aliases, Map<String, List<DataStreamAlias>> dataStreamAliases) {
         this.aliases = aliases;
         this.dataStreamAliases = dataStreamAliases;
     }
 
     public GetAliasesResponse(StreamInput in) throws IOException {
         super(in);
-        aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
-        dataStreamAliases = in.readMap(StreamInput::readString, in1 -> in1.readList(DataStreamAlias::new));
+        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        dataStreamAliases = in.readMap(in1 -> in1.readList(DataStreamAlias::new));
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
+    public Map<String, List<AliasMetadata>> getAliases() {
         return aliases;
     }
 

@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
 
-    public void testVersionComparison() throws Exception {
+    public void testVersionComparison() {
         Version V_7_2_0 = Version.fromString("7.2.0");
         Version V_8_0_0 = Version.fromString("8.0.0");
         assertThat(V_7_2_0.before(V_8_0_0), is(true));
@@ -91,12 +91,12 @@ public class VersionTests extends ESTestCase {
 
     public void testVersionConstantPresent() {
         assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
-        assertThat(Version.CURRENT.luceneVersion, equalTo(org.apache.lucene.util.Version.LATEST));
+        assertThat(Version.CURRENT.luceneVersion(), equalTo(org.apache.lucene.util.Version.LATEST));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             assertThat(version, sameInstance(Version.fromId(version.id)));
-            assertThat(version.luceneVersion, sameInstance(Version.fromId(version.id).luceneVersion));
+            assertThat(version.luceneVersion(), sameInstance(Version.fromId(version.id).luceneVersion()));
         }
     }
 
@@ -178,7 +178,7 @@ public class VersionTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (random().nextBoolean()) {
-                version = new Version(version.id, version.luceneVersion);
+                version = new Version(version.id, version.indexVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);
@@ -195,7 +195,7 @@ public class VersionTests extends ESTestCase {
     public void testParseLenient() {
         // note this is just a silly sanity check, we test it in lucene
         for (Version version : VersionUtils.allReleasedVersions()) {
-            org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
+            org.apache.lucene.util.Version luceneVersion = version.luceneVersion();
             String string = luceneVersion.toString().toUpperCase(Locale.ROOT).replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
         }
@@ -253,11 +253,14 @@ public class VersionTests extends ESTestCase {
         for (Version version : VersionUtils.allReleasedVersions()) {
             for (Version other : VersionUtils.allReleasedVersions()) {
                 if (other.onOrAfter(version)) {
-                    assertTrue("lucene versions must be " + other + " >= " + version, other.luceneVersion.onOrAfter(version.luceneVersion));
+                    assertTrue(
+                        "lucene versions must be " + other + " >= " + version,
+                        other.luceneVersion().onOrAfter(version.luceneVersion())
+                    );
                 }
                 if (other.major == version.major && other.minor == version.minor) {
-                    assertEquals(version + " vs. " + other, other.luceneVersion.major, version.luceneVersion.major);
-                    assertEquals(version + " vs. " + other, other.luceneVersion.minor, version.luceneVersion.minor);
+                    assertEquals(version + " vs. " + other, other.luceneVersion().major, version.luceneVersion().major);
+                    assertEquals(version + " vs. " + other, other.luceneVersion().minor, version.luceneVersion().minor);
                     // should we also assert the lucene bugfix version?
                 }
             }
@@ -334,6 +337,20 @@ public class VersionTests extends ESTestCase {
     public void testUnreleasedVersion() {
         Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
+    }
+
+    public void testIllegalMinorAndPatchNumbers() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("8.2.999"));
+        assertThat(
+            e.getMessage(),
+            containsString("illegal revision version format - only one or two digit numbers are supported but found 999")
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("8.888.99"));
+        assertThat(
+            e.getMessage(),
+            containsString("illegal minor version format - only one or two digit numbers are supported but found 888")
+        );
     }
 
 }

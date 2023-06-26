@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettingsTests;
@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class PreviewTransformsActionResponseTests extends AbstractSerializingTestCase<Response> {
+public class PreviewTransformsActionResponseTests extends AbstractXContentSerializingTestCase<Response> {
 
     public static Response randomPreviewResponse() {
         int size = randomIntBetween(0, 10);
@@ -43,6 +43,11 @@ public class PreviewTransformsActionResponseTests extends AbstractSerializingTes
     @Override
     protected Response createTestInstance() {
         return randomPreviewResponse();
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

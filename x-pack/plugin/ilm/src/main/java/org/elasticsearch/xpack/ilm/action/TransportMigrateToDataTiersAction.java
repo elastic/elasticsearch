@@ -7,18 +7,21 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
@@ -31,14 +34,16 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
-import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService;
 import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.MigratedEntities;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateToDataTiersRouting;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 
 public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction<MigrateToDataTiersRequest, MigrateToDataTiersResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMigrateToDataTiersAction.class);
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -88,7 +93,6 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 licenseState,
                 request.isDryRun()
             ).v2();
-            MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = entities.migratedTemplates;
             listener.onResponse(
                 new MigrateToDataTiersResponse(
                     entities.removedIndexTemplateName,
@@ -104,17 +108,15 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         }
 
         IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+        if (currentMetadata != null && currentILMMode(state) != STOPPED) {
             listener.onFailure(
-                new IllegalStateException(
-                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
-                )
+                new IllegalStateException("stop ILM before migrating to data tiers, current state is [" + currentILMMode(state) + "]")
             );
             return;
         }
 
         final SetOnce<MigratedEntities> migratedEntities = new SetOnce<>();
-        clusterService.submitStateUpdateTask("migrate-to-data-tiers []", new ClusterStateUpdateTask(Priority.HIGH) {
+        submitUnbatchedTask("migrate-to-data-tiers []", new ClusterStateUpdateTask(Priority.HIGH) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
@@ -138,7 +140,20 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                super.clusterStateProcessed(oldState, newState);
+                clusterService.getRerouteService()
+                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void ignored) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.log(
+                                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                                "unsuccessful reroute after migration to data tiers routing",
+                                e
+                            );
+                        }
+                    });
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(
@@ -152,13 +167,13 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                     )
                 );
             }
-        }, newExecutor());
+        });
 
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

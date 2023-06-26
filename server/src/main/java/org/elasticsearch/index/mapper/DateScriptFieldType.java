@@ -13,9 +13,12 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -35,13 +38,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
@@ -86,12 +87,29 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Collections.unmodifiableList(parameters);
         }
 
-        @Override
-        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            IndexVersion supportedVersion,
+            OnScriptError onScriptError
+        ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta);
+            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onScriptError);
+        }
+
+        @Override
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return createFieldType(name, factory, script, meta, IndexVersion.CURRENT, onScriptError);
         }
 
         @Override
@@ -105,10 +123,10 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
     }
 
-    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter) {
+    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter, IndexVersion supportedVersion) {
         Builder builder = new Builder(name);
         builder.format.setValue(dateTimeFormatter.pattern());
-        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE);
+        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE, supportedVersion);
     }
 
     private final DateFormatter dateTimeFormatter;
@@ -119,11 +137,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Script script,
-        Map<String, String> meta
+        Map<String, String> meta,
+        OnScriptError onScriptError
     ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -159,8 +178,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
+    public DateScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new DateScriptFieldData.Builder(
+            name(),
+            leafFactory(fieldDataContext.lookupSupplier().get()),
+            Resolution.MILLISECONDS.getDefaultToScriptFieldFactory()
+        );
     }
 
     @Override
@@ -232,7 +255,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Queries.newMatchAllQuery();
         }
         return DateFieldType.handleNow(context, now -> {
-            Set<Long> terms = new HashSet<>(values.size());
+            Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
             for (Object value : values) {
                 terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }

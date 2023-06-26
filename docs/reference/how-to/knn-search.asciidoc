@@ -1,0 +1,142 @@
+[[tune-knn-search]]
+== Tune approximate kNN search
+
+{es} supports <<approximate-knn, approximate k-nearest neighbor search>> for
+efficiently finding the _k_ nearest vectors to a query vector. Since
+approximate kNN search works differently from other queries, there are special
+considerations around its performance.
+
+Many of these recommendations help improve search speed. With approximate kNN,
+the indexing algorithm runs searches under the hood to create the vector index
+structures. So these same recommendations also help with indexing speed.
+
+[discrete]
+=== Prefer `dot_product` over `cosine`
+
+When indexing vectors for approximate kNN search, you need to specify the
+<<dense-vector-similarity, `similarity` function>> for comparing the vectors.
+If you'd like to compare vectors through cosine similarity, there are two
+options.
+
+The `cosine` option accepts any float vector and computes the cosine
+similarity. While this is convenient for testing, it's not the most efficient
+approach. Instead, we recommend using the `dot_product` option to compute the
+similarity. To use `dot_product`, all vectors need to be normalized in advance
+to have length 1. The `dot_product` option is significantly faster, since it
+avoids performing extra vector length computations during the search.
+
+[discrete]
+=== Ensure data nodes have enough memory
+
+{es} uses the https://arxiv.org/abs/1603.09320[HNSW] algorithm for approximate
+kNN search. HNSW is a graph-based algorithm which only works efficiently when
+most vector data is held in memory. You should ensure that data nodes have at
+least enough RAM to hold the vector data and index structures. To check the
+size of the vector data, you can use the <<indices-disk-usage>> API. As a
+loose rule of thumb, and assuming the default HNSW options, the bytes used will
+be `num_vectors * 4 * (num_dimensions + 12)`. When using the `byte` <<dense-vector-element-type,`element_type`>>
+the space required will be closer to  `num_vectors * (num_dimensions + 12)`. Note that
+the required RAM is for the filesystem cache, which is separate from the Java
+heap.
+
+The data nodes should also leave a buffer for other ways that RAM is needed.
+For example your index might also include text fields and numerics, which also
+benefit from using filesystem cache. It's recommended to run benchmarks with
+your specific dataset to ensure there's a sufficient amount of memory to give
+good search performance.
+You can find https://elasticsearch-benchmarks.elastic.co/#tracks/so_vector[here]
+and https://elasticsearch-benchmarks.elastic.co/#tracks/dense_vector[here] some examples
+of datasets and configurations that we use for our nightly benchmarks.
+
+[discrete]
+include::search-speed.asciidoc[tag=warm-fs-cache]
+
+The following file extensions are used for the approximate kNN search:
+"vec" (for vector values), "vex" (for HNSW graph), "vem" (for metadata).
+
+[discrete]
+=== Reduce vector dimensionality
+
+The speed of kNN search scales linearly with the number of vector dimensions,
+because each similarity computation considers each element in the two vectors.
+Whenever possible, it's better to use vectors with a lower dimension. Some
+embedding models come in different "sizes", with both lower and higher
+dimensional options available. You could also experiment with dimensionality
+reduction techniques like PCA. When experimenting with different approaches,
+it's important to measure the impact on relevance to ensure the search
+quality is still acceptable.
+
+[discrete]
+=== Exclude vector fields from `_source`
+
+{es} stores the original JSON document that was passed at index time in the
+<<mapping-source-field, `_source` field>>. By default, each hit in the search
+results contains the full document `_source`. When the documents contain
+high-dimensional `dense_vector` fields, the `_source` can be quite large and
+expensive to load. This could significantly slow down the speed of kNN search.
+
+You can disable storing `dense_vector` fields in the `_source` through the
+<<include-exclude, `excludes`>> mapping parameter. This prevents loading and
+returning large vectors during search, and also cuts down on the index size.
+Vectors that have been omitted from `_source` can still be used in kNN search,
+since it relies on separate data structures to perform the search. Before
+using the <<include-exclude, `excludes`>> parameter, make sure to review the
+downsides of omitting fields from `_source`.
+
+[discrete]
+=== Reduce the number of index segments
+
+{es} shards are composed of segments, which are internal storage elements in
+the index. For approximate kNN search, {es} stores the dense vector values of
+each segment as an HNSW graph. kNN search must check each segment, searching
+through one HNSW graph after another. This means kNN search can be
+significantly faster if there are fewer segments. By default, {es} periodically
+merges smaller segments into larger ones through a background
+<<index-modules-merge, merge process>>. If this isn't sufficient, you can take
+explicit steps to reduce the number of index segments.
+
+[discrete]
+==== Force merge to one segment
+
+The <<indices-forcemerge,force merge>> operation forces an index merge. If you
+force merge to one segment, the kNN search only need to check a single,
+all-inclusive HNSW graph. Force merging `dense_vector` fields is an expensive
+operation that can take significant time to complete.
+
+include::{es-repo-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
+
+[discrete]
+==== Create large segments during bulk indexing
+
+A common pattern is to first perform an initial bulk upload, then make an
+index available for searches. Instead of force merging, you can adjust the
+index settings to encourage {es} to create larger initial segments:
+
+* Ensure there are no searches during the bulk upload and disable
+<<index-refresh-interval-setting,`index.refresh_interval`>> by setting it to
+`-1`. This prevents refresh operations and avoids creating extra segments.
+* Give {es} a large indexing buffer so it can accept more documents before
+flushing. By default, the <<indexing-buffer,`indices.memory.index_buffer_size`>>
+is set to 10% of the heap size. With a substantial heap size like 32GB, this
+is often enough. To allow the full indexing buffer to be used, you should also
+increase the limit <<index-modules-translog,`index.translog.flush_threshold_size`>>.
+
+[discrete]
+=== Avoid heavy indexing during searches
+
+Actively indexing documents can have a negative impact on approximate kNN
+search performance, since indexing threads steal compute resources from
+search. When indexing and searching at the same time, {es} also refreshes
+frequently, which creates several small segments. This also hurts search
+performance, since approximate kNN search is slower when there are more
+segments.
+
+When possible, it's best to avoid heavy indexing during approximate kNN
+search. If you need to reindex all the data, perhaps because the vector
+embedding model changed, then it's better to reindex the new documents into a
+separate index rather than update them in-place. This helps avoid the slowdown
+mentioned above, and prevents expensive merge operations due to frequent
+document updates.
+
+[discrete]
+include::search-speed.asciidoc[tag=readahead]

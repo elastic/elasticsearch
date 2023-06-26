@@ -11,9 +11,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ElasticsearchParseException;
@@ -44,7 +44,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -69,7 +69,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -90,8 +90,8 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
 
             Point point = GeometryTestUtils.randomPoint(false);
-            double lon = point.getX();
-            double lat = point.getY();
+            double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
+            double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getY()));
 
             // valid missing values
             for (Object missingVal : List.of("POINT(" + lon + " " + lat + ")", lat + ", " + lon, new GeoPoint(lat, lon))) {
@@ -101,7 +101,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                    InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                     assertThat(bounds.top, equalTo(lat));
                     assertThat(bounds.bottom, equalTo(lat));
                     assertThat(bounds.posLeft, equalTo(lon >= 0 ? lon : Double.POSITIVE_INFINITY));
@@ -126,10 +126,9 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                ElasticsearchParseException exception = expectThrows(
-                    ElasticsearchParseException.class,
-                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType)
-                );
+                ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> {
+                    searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                });
                 assertThat(exception.getMessage(), startsWith("unsupported symbol"));
             }
         }
@@ -176,7 +175,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
                 assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
                 assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));

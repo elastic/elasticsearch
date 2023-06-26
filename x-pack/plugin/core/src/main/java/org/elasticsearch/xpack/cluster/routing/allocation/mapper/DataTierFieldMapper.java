@@ -17,11 +17,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 
 public class DataTierFieldMapper extends MetadataFieldMapper {
 
@@ -50,7 +51,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             if (caseInsensitive) {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
@@ -78,14 +79,14 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             }
 
             String tierPreference = getTierPreference(context);
-            return tierPreference == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(tierPreference);
+            return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
         }
 
         /**
          * Retrieve the first tier preference from the index setting. If the setting is not
          * present, then return null.
          */
-        private String getTierPreference(SearchExecutionContext context) {
+        private String getTierPreference(QueryRewriteContext context) {
             Settings settings = context.getIndexSettings().getSettings();
             String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 
@@ -106,5 +107,10 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

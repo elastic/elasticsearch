@@ -8,7 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils;
@@ -94,7 +94,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 assertThat(feature.size(), equalTo(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(UPGRADE_FROM_VERSION.toString()));
-                if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
+                if (UPGRADE_FROM_VERSION.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {
                     assertThat(feature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));

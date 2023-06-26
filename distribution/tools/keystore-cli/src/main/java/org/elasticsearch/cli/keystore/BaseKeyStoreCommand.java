@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
@@ -35,7 +36,7 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         try {
             final Path configFile = env.configFile();
             keyStore = KeyStoreWrapper.load(configFile);

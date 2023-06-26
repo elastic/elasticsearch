@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -46,7 +47,9 @@ import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -59,10 +62,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -102,17 +108,21 @@ public class NativePrivilegeStore {
     private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndexManager;
+    private volatile boolean allowExpensiveQueries;
     private final DescriptorsAndApplicationNamesCache descriptorsAndApplicationNamesCache;
 
     public NativePrivilegeStore(
         Settings settings,
         Client client,
         SecurityIndexManager securityIndexManager,
-        CacheInvalidatorRegistry cacheInvalidatorRegistry
+        CacheInvalidatorRegistry cacheInvalidatorRegistry,
+        ClusterService clusterService
     ) {
         this.settings = settings;
         this.client = client;
         this.securityIndexManager = securityIndexManager;
+        this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             descriptorsAndApplicationNamesCache = new DescriptorsAndApplicationNamesCache(
@@ -130,6 +140,11 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
+        if (false == isEmpty(names) && names.stream().noneMatch(ApplicationPrivilege::isValidPrivilegeName)) {
+            logger.debug("no concrete privilege, only action patterns [{}], returning no application privilege descriptors", names);
+            listener.onResponse(Collections.emptySet());
+            return;
+        }
 
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*"))
             ? Set.of("*")
@@ -187,7 +202,16 @@ public class NativePrivilegeStore {
                     ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
                     DOC_TYPE_VALUE
                 );
-                final QueryBuilder query = QueryBuilders.boolQuery().filter(typeQuery).filter(getApplicationNameQuery(applications));
+                final Tuple<QueryBuilder, Predicate<String>> applicationNameQueryAndPredicate = getApplicationNameQueryAndPredicate(
+                    applications
+                );
+
+                final QueryBuilder query;
+                if (applicationNameQueryAndPredicate.v1() != null) {
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(applicationNameQueryAndPredicate.v1());
+                } else {
+                    query = QueryBuilders.boolQuery().filter(typeQuery);
+                }
 
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
@@ -197,28 +221,22 @@ public class NativePrivilegeStore {
                         .setSize(1000)
                         .setFetchSource(true)
                         .request();
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "Searching for [{}] privileges with query [{}]",
-                            applications,
-                            Strings.toString(query)
-                        )
-                    );
+                    logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,
                         request,
                         new ContextPreservingActionListener<>(supplier, listener),
-                        hit -> buildPrivilege(hit.getId(), hit.getSourceRef())
+                        hit -> buildPrivilege(hit.getId(), hit.getSourceRef(), applicationNameQueryAndPredicate.v2())
                     );
                 }
             });
         }
     }
 
-    private static QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+    private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
         if (applications.contains("*")) {
-            return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
+            return new Tuple<>(QueryBuilders.existsQuery(APPLICATION.getPreferredName()), null);
         }
         final List<String> rawNames = new ArrayList<>(applications.size());
         final List<String> wildcardNames = new ArrayList<>(applications.size());
@@ -234,26 +252,43 @@ public class NativePrivilegeStore {
 
         TermsQueryBuilder termsQuery = rawNames.isEmpty() ? null : QueryBuilders.termsQuery(APPLICATION.getPreferredName(), rawNames);
         if (wildcardNames.isEmpty()) {
-            return termsQuery;
+            return new Tuple<>(termsQuery, null);
         }
-        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-        if (termsQuery != null) {
-            boolQuery.should(termsQuery);
+
+        if (allowExpensiveQueries) {
+            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+            if (termsQuery != null) {
+                boolQuery.should(termsQuery);
+            }
+            for (String wildcard : wildcardNames) {
+                final String prefix = wildcard.substring(0, wildcard.length() - 1);
+                boolQuery.should(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
+            }
+            boolQuery.minimumShouldMatch(1);
+            return new Tuple<>(boolQuery, null);
+        } else {
+            logger.trace("expensive queries are not allowed, switching to filtering application names in memory");
+            return new Tuple<>(null, StringMatcher.of(applications));
         }
-        for (String wildcard : wildcardNames) {
-            final String prefix = wildcard.substring(0, wildcard.length() - 1);
-            boolQuery.should(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
-        }
-        boolQuery.minimumShouldMatch(1);
-        return boolQuery;
     }
 
-    private static ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
+    private void setAllowExpensiveQueries(boolean allowExpensiveQueries) {
+        this.allowExpensiveQueries = allowExpensiveQueries;
+    }
+
+    private static ApplicationPrivilegeDescriptor buildPrivilege(
+        String docId,
+        BytesReference source,
+        @Nullable Predicate<String> applicationNamePredicate
+    ) {
         logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
         if (source == null) {
             return null;
         }
         final Tuple<String, String> name = nameFromDocId(docId);
+        if (applicationNamePredicate != null && false == applicationNamePredicate.test(name.v1())) {
+            return null;
+        }
         try {
             // EMPTY is safe here because we never use namedObject
 
@@ -270,7 +305,7 @@ public class NativePrivilegeStore {
                 return privilege;
             }
         } catch (IOException | XContentParseException e) {
-            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            logger.error(() -> "cannot parse application privilege [" + name + "]", e);
             return null;
         }
     }
@@ -334,6 +369,7 @@ public class NativePrivilegeStore {
     ) {
         securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
+                privileges.size(),
                 ActionListener.wrap((Collection<IndexResponse> responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
@@ -345,8 +381,7 @@ public class NativePrivilegeStore {
                         privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet()),
                         createdNames
                     );
-                }, listener::onFailure),
-                privileges.size()
+                }, listener::onFailure)
             );
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
@@ -392,14 +427,14 @@ public class NativePrivilegeStore {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(ActionListener.wrap(responses -> {
+                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(names.size(), ActionListener.wrap(responses -> {
                     final Map<String, List<String>> deletedNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
                     clearCaches(listener, Collections.singleton(application), deletedNames);
-                }, listener::onFailure), names.size());
+                }, listener::onFailure));
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

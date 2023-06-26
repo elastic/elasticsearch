@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.VersionCheckingStreamOutput;
@@ -24,7 +24,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
-import java.util.List;
 
 public final class TransportSearchHelper {
 
@@ -39,19 +38,18 @@ public final class TransportSearchHelper {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
-            out.writeVInt(searchPhaseResults.asList().size());
-            for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
-                out.writeString(searchPhaseResult.getContextId().getSessionId());
-                out.writeLong(searchPhaseResult.getContextId().getId());
+            out.writeCollection(searchPhaseResults.asList(), (o, searchPhaseResult) -> {
+                o.writeString(searchPhaseResult.getContextId().getSessionId());
+                o.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
-                    out.writeString(
+                    o.writeString(
                         RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
                     );
                 } else {
-                    out.writeString(searchShardTarget.getNodeId());
+                    o.writeString(searchShardTarget.getNodeId());
                 }
-            }
+            });
             return Base64.getUrlEncoder().encodeToString(out.copyBytes().array());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -96,9 +94,6 @@ public final class TransportSearchHelper {
         }
     }
 
-    private static final List<Version> ALL_VERSIONS = Version.getDeclaredVersions(Version.class);
-    private static final Version CCS_CHECK_VERSION = getPreviousMinorSeries(Version.CURRENT);
-
     /**
     * Using the 'search.check_ccs_compatibility' setting, clients can ask for an early
     * check that inspects the incoming request and tries to verify that it can be handled by
@@ -110,34 +105,20 @@ public final class TransportSearchHelper {
     */
     public static void checkCCSVersionCompatibility(Writeable writeableRequest) {
         try {
-            writeableRequest.writeTo(new VersionCheckingStreamOutput(CCS_CHECK_VERSION));
+            writeableRequest.writeTo(new VersionCheckingStreamOutput(TransportVersion.MINIMUM_CCS_VERSION));
         } catch (Exception e) {
             // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
             throw new IllegalArgumentException(
                 "["
                     + writeableRequest.getClass()
                     + "] is not compatible with version "
-                    + CCS_CHECK_VERSION
+                    + TransportVersion.MINIMUM_CCS_VERSION
                     + " and the '"
                     + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
                     + "' setting is enabled.",
                 e
             );
         }
-    }
-
-    /**
-     * Returns the first minor version previous to the minor version passed in.
-     * I.e 8.2.1 will return 8.1.0
-     */
-    static Version getPreviousMinorSeries(Version current) {
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
-            if (v.before(current) && (v.minor < current.minor || v.major < current.major)) {
-                return Version.fromId(v.major * 1000000 + v.minor * 10000 + 99);
-            }
-        }
-        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + current + "]");
     }
 
     private TransportSearchHelper() {

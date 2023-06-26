@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,14 +31,15 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
@@ -53,7 +53,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private static final Logger logger = LogManager.getLogger(InternalSnapshotsInfoService.class);
 
-    private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+    private static final ActionListener<Void> REROUTE_LISTENER = ActionListener.wrap(
         r -> logger.trace("reroute after snapshot shard size update completed"),
         e -> logger.debug("reroute after snapshot shard size update failed", e)
     );
@@ -63,9 +63,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     private final Supplier<RerouteService> rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
+    // volatile for the unlocked access in numberOfKnownSnapshotShardSizes()
+    // map itself is immutable
     private volatile ImmutableOpenMap<SnapshotShard, Long> knownSnapshotShards;
 
-    private volatile boolean isMaster;
+    // all access is guarded by mutex
+    private boolean isMaster;
 
     /** contains the snapshot shards for which the size is unknown and must be fetched (or is being fetched) **/
     private final Set<SnapshotShard> unknownSnapshotShards;
@@ -93,7 +96,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         this.knownSnapshotShards = ImmutableOpenMap.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
         this.failedSnapshotShards = new LinkedHashSet<>();
-        this.queue = new LinkedList<>();
+        this.queue = new ArrayDeque<>();
         this.mutex = new Object();
         this.activeFetches = 0;
         this.maxConcurrentFetches = INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.get(settings);
@@ -242,7 +245,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to retrieve shard size for {}", snapshotShard), e);
+            logger.warn(() -> format("failed to retrieve shard size for %s", snapshotShard), e);
             boolean failed = false;
             synchronized (mutex) {
                 if (isMaster) {
@@ -338,47 +341,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         return Collections.unmodifiableSet(snapshotShards);
     }
 
-    public static class SnapshotShard {
-
-        private final Snapshot snapshot;
-        private final IndexId index;
-        private final ShardId shardId;
-
-        public SnapshotShard(Snapshot snapshot, IndexId index, ShardId shardId) {
-            this.snapshot = snapshot;
-            this.index = index;
-            this.shardId = shardId;
-        }
-
-        public Snapshot snapshot() {
-            return snapshot;
-        }
-
-        public IndexId index() {
-            return index;
-        }
-
-        public ShardId shardId() {
-            return shardId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final SnapshotShard that = (SnapshotShard) o;
-            return shardId.equals(that.shardId) && snapshot.equals(that.snapshot) && index.equals(that.index);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(snapshot, index, shardId);
-        }
-
+    public record SnapshotShard(Snapshot snapshot, IndexId index, ShardId shardId) {
         @Override
         public String toString() {
             return "[" + "snapshot=" + snapshot + ", index=" + index + ", shard=" + shardId + ']';

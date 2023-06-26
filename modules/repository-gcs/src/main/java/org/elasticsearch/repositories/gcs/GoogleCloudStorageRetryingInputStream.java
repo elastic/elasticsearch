@@ -18,7 +18,6 @@ import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -33,6 +32,8 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
@@ -227,13 +228,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             throw addSuppressedExceptions(e);
         }
         logger.debug(
-            new ParameterizedMessage(
-                "failed reading [{}] at offset [{}], attempt [{}] of [{}], retrying",
-                blobId,
-                currentOffset,
-                attempt,
-                maxAttempts
-            ),
+            () -> format("failed reading [%s] at offset [%s], attempt [%s] of [%s], retrying", blobId, currentOffset, attempt, maxAttempts),
             e
         );
         attempt += 1;
@@ -251,8 +246,10 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
     }
 
     @Override
-    public long skip(long n) {
-        throw new UnsupportedOperationException("GoogleCloudStorageRetryingInputStream does not support seeking");
+    public long skip(long n) throws IOException {
+        // This could be optimized on a failure by re-opening stream directly to the preferred location. However, it is rarely called,
+        // so for now we will rely on the default implementation which just discards bytes by reading.
+        return super.skip(n);
     }
 
     @Override

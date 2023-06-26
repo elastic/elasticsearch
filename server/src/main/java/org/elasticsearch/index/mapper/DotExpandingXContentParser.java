@@ -35,19 +35,22 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
+        private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
-        WrappingParser(XContentParser in) throws IOException {
+        WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
+            this.contentPath = contentPath;
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
-                expandDots();
+                expandDots(in);
             }
         }
 
         @Override
         public Token nextToken() throws IOException {
             Token token;
-            while ((token = delegate().nextToken()) == null) {
+            XContentParser delegate;
+            while ((token = (delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
                     return null;
@@ -56,32 +59,112 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (token != Token.FIELD_NAME) {
                 return token;
             }
-            expandDots();
+            expandDots(delegate);
             return Token.FIELD_NAME;
         }
 
-        private void expandDots() throws IOException {
-            String field = delegate().currentName();
-            String[] subpaths = splitAndValidatePath(field);
-            if (subpaths.length == 0) {
-                throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
-            }
-            // Corner case: if the input has a single trailing '.', eg 'field.', then we will get a single
-            // subpath due to the way String.split() works. We can only return fast here if this is not
-            // the case
-            // TODO make this case throw an error instead? https://github.com/elastic/elasticsearch/issues/28948
-            if (subpaths.length == 1 && field.endsWith(".") == false) {
+        private void expandDots(XContentParser delegate) throws IOException {
+            // this handles fields that belong to objects that can't hold subobjects, where the document specifies
+            // the object holding the flat fields
+            // e.g. { "metrics.service": { "time.max" : 10 } } with service having subobjects set to false
+            if (contentPath.isWithinLeafObject()) {
                 return;
             }
-            XContentLocation location = delegate().getTokenLocation();
-            Token token = delegate().nextToken();
-            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), subpaths, location));
-            } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
-                throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
-            } else {
-                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), subpaths, location));
+            String field = delegate.currentName();
+            int length = field.length();
+            if (length == 0) {
+                throw new IllegalArgumentException("field name cannot be an empty string");
             }
+            final int dotCount = FieldTypeLookup.dotCount(field);
+            if (dotCount == 0) {
+                return;
+            }
+            doExpandDots(delegate, field, dotCount);
+        }
+
+        private void doExpandDots(XContentParser delegate, String field, int dotCount) throws IOException {
+            int next;
+            int offset = 0;
+            String[] list = new String[dotCount + 1];
+            int listIndex = 0;
+            for (int i = 0; i < dotCount; i++) {
+                next = field.indexOf('.', offset);
+                list[listIndex++] = field.substring(offset, next);
+                offset = next + 1;
+            }
+
+            // Add remaining segment
+            list[listIndex] = field.substring(offset);
+
+            int resultSize = list.length;
+            // Construct result
+            while (resultSize > 0 && list[resultSize - 1].isEmpty()) {
+                resultSize--;
+            }
+            if (resultSize == 0) {
+                throw new IllegalArgumentException("field name cannot contain only dots");
+            }
+            final String[] subpaths;
+            if (resultSize == list.length) {
+                for (String part : list) {
+                    // check if the field name contains only whitespace
+                    if (part.isBlank()) {
+                        throwOnBlankOrEmptyPart(field, part);
+                    }
+                }
+                subpaths = list;
+            } else {
+                // Corner case: if the input has a single trailing '.', eg 'field.', then we will get a single
+                // subpath due to the way String.split() works. We can only return fast here if this is not
+                // the case
+                // TODO make this case throw an error instead? https://github.com/elastic/elasticsearch/issues/28948
+                if (resultSize == 1 && field.endsWith(".") == false) {
+                    return;
+                }
+                subpaths = extractAndValidateResults(field, list, resultSize);
+            }
+            pushSubParser(delegate, subpaths);
+        }
+
+        private void pushSubParser(XContentParser delegate, String[] subpaths) throws IOException {
+            XContentLocation location = delegate.getTokenLocation();
+            Token token = delegate.nextToken();
+            final XContentParser subParser;
+            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                subParser = new XContentSubParser(delegate);
+            } else {
+                if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+                    throwExpectedOpen(token);
+                }
+                subParser = new SingletonValueXContentParser(delegate);
+            }
+            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+        }
+
+        private static void throwExpectedOpen(Token token) {
+            throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
+        }
+
+        private static String[] extractAndValidateResults(String field, String[] list, int resultSize) {
+            final String[] subpaths = new String[resultSize];
+            for (int i = 0; i < resultSize; i++) {
+                String part = list[i];
+                // check if the field name contains only whitespace
+                if (part.isBlank()) {
+                    throwOnBlankOrEmptyPart(field, part);
+                }
+                subpaths[i] = part;
+            }
+            return subpaths;
+        }
+
+        private static void throwOnBlankOrEmptyPart(String field, String part) {
+            if (part.isEmpty()) {
+                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + field + "']");
+            }
+            throw new IllegalArgumentException(
+                "field name starting or ending with a [.] makes object resolution ambiguous: [" + field + "]"
+            );
         }
 
         @Override
@@ -121,38 +204,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
     }
 
-    private static String[] splitAndValidatePath(String fullFieldPath) {
-        if (fullFieldPath.isEmpty()) {
-            throw new IllegalArgumentException("field name cannot be an empty string");
-        }
-        if (fullFieldPath.contains(".") == false) {
-            return new String[] { fullFieldPath };
-        }
-        String[] parts = fullFieldPath.split("\\.");
-        if (parts.length == 0) {
-            throw new IllegalArgumentException("field name cannot contain only dots");
-        }
-        for (String part : parts) {
-            // check if the field name contains only whitespace
-            if (part.isEmpty()) {
-                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fullFieldPath + "']");
-            }
-            if (part.isBlank()) {
-                throw new IllegalArgumentException(
-                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
-                );
-            }
-        }
-        return parts;
-    }
-
     /**
      * Wraps an XContentParser such that it re-interprets dots in field names as an object structure
      * @param in    the parser to wrap
      * @return  the wrapped XContentParser
      */
-    static XContentParser expandDots(XContentParser in) throws IOException {
-        return new WrappingParser(in);
+    static XContentParser expandDots(XContentParser in, ContentPath contentPath) throws IOException {
+        return new WrappingParser(in, contentPath);
     }
 
     private enum State {
@@ -161,17 +219,24 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         ENDING_EXPANDED_OBJECT
     }
 
-    final String[] subPaths;
+    private final ContentPath contentPath;
 
+    private String[] subPaths;
     private XContentLocation currentLocation;
     private int expandedTokens = 0;
     private int innerLevel = -1;
     private State state = State.EXPANDING_START_OBJECT;
 
-    private DotExpandingXContentParser(XContentParser subparser, String[] subPaths, XContentLocation startLocation) {
+    private DotExpandingXContentParser(
+        XContentParser subparser,
+        String[] subPaths,
+        XContentLocation startLocation,
+        ContentPath contentPath
+    ) {
         super(subparser);
         this.subPaths = subPaths;
         this.currentLocation = startLocation;
+        this.contentPath = contentPath;
     }
 
     @Override
@@ -189,6 +254,25 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             }
             // The expansion consists of adding pairs of START_OBJECT and FIELD_NAME tokens
             if (expandedTokens % 2 == 0) {
+                int currentIndex = expandedTokens / 2;
+                // if there's more than one element left to expand and the parent can't hold subobjects, we replace the array
+                // e.g. metrics.service.time.max -> ["metrics", "service", "time.max"]
+                if (currentIndex < subPaths.length - 1 && contentPath.isWithinLeafObject()) {
+                    String[] newSubPaths = new String[currentIndex + 1];
+                    StringBuilder collapsedPath = new StringBuilder();
+                    for (int i = 0; i < subPaths.length; i++) {
+                        if (i < currentIndex) {
+                            newSubPaths[i] = subPaths[i];
+                        } else {
+                            collapsedPath.append(subPaths[i]);
+                            if (i < subPaths.length - 1) {
+                                collapsedPath.append(".");
+                            }
+                        }
+                    }
+                    newSubPaths[currentIndex] = collapsedPath.toString();
+                    subPaths = newSubPaths;
+                }
                 return Token.FIELD_NAME;
             }
             return Token.START_OBJECT;

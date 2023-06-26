@@ -21,6 +21,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -31,7 +35,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
@@ -39,7 +42,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,6 +60,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -198,8 +201,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     private void retentionTaskTest(final boolean deletionSuccess) throws Exception {
         ThreadPool threadPool = new TestThreadPool("slm-test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
             Client noOpClient = new NoOpClient("slm-test")
         ) {
 
@@ -254,7 +261,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(
                 noOpClient,
                 clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, clusterService, (historyItem) -> {
                     assertEquals(deletionSuccess, historyItem.isSuccess());
                     if (historyItem.isSuccess() == false) {
                         assertThat(historyItem.getErrorDetails(), containsString("deletion_failed"));
@@ -305,10 +312,14 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     public void testErrStillRunsFailureHandlerWhenRetrieving() throws Exception {
         ThreadPool threadPool = new TestThreadPool("slm-test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         final String policyId = "policy";
         final String repoId = "repo";
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
             Client noOpClient = new NoOpClient("slm-test") {
 
                 @Override
@@ -347,7 +358,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 System::nanoTime,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
                     noOpClient,
-                    ZoneOffset.UTC,
+                    clusterService,
                     (historyItem) -> fail("should never write history")
                 )
             );
@@ -376,8 +387,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     public void testErrStillRunsFailureHandlerWhenDeleting() throws Exception {
         ThreadPool threadPool = new TestThreadPool("slm-test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
             Client noOpClient = new NoOpClient("slm-test") {
 
                 @Override
@@ -416,7 +431,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 System::nanoTime,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
                     noOpClient,
-                    ZoneOffset.UTC,
+                    clusterService,
                     (historyItem) -> fail("should never write history")
                 )
             );
@@ -458,8 +473,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     private void doTestSkipDuringMode(OperationMode mode) throws Exception {
         ThreadPool threadPool = new TestThreadPool("slm-test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
             Client noOpClient = new NoOpClient("slm-test")
         ) {
             final String policyId = "policy";
@@ -481,7 +500,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 clusterService,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
                     noOpClient,
-                    ZoneOffset.UTC,
+                    clusterService,
                     (historyItem) -> fail("should never write history")
                 ),
                 () -> {
@@ -510,8 +529,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     private void doTestRunManuallyDuringMode(OperationMode mode) throws Exception {
         ThreadPool threadPool = new TestThreadPool("slm-test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
             Client noOpClient = new NoOpClient("slm-test")
         ) {
             final String policyId = "policy";
@@ -532,7 +555,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(
                 noOpClient,
                 clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {}),
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, clusterService, (historyItem) -> {}),
                 () -> {
                     retentionWasRun.set(true);
                     return Collections.emptyMap();

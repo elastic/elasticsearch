@@ -17,10 +17,8 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 public class SamlRealmSettings {
 
@@ -45,6 +43,18 @@ public class SamlRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         IDP_METADATA_SETTING_PREFIX + "http.refresh",
         key -> Setting.timeSetting(key, TimeValue.timeValueHours(1), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<TimeValue> IDP_METADATA_HTTP_MIN_REFRESH = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.minimum_refresh",
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), TimeValue.timeValueMillis(500), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<Boolean> IDP_METADATA_HTTP_FAIL_ON_ERROR = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.fail_on_error",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<Boolean> IDP_SINGLE_LOGOUT = Setting.affixKeySetting(
@@ -114,13 +124,13 @@ public class SamlRealmSettings {
     public static final Setting.AffixSetting<List<String>> SIGNING_MESSAGE_TYPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "signing.saml_messages",
-        key -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, List.of("*"), Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "req_authn_context_class_ref",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> CLOCK_SKEW = Setting.affixKeySetting(
@@ -141,6 +151,8 @@ public class SamlRealmSettings {
             IDP_ENTITY_ID,
             IDP_METADATA_PATH,
             IDP_METADATA_HTTP_REFRESH,
+            IDP_METADATA_HTTP_MIN_REFRESH,
+            IDP_METADATA_HTTP_FAIL_ON_ERROR,
             IDP_SINGLE_LOGOUT,
             SP_ENTITY_ID,
             SP_ACS,

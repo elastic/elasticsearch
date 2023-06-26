@@ -6,21 +6,32 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
+public interface InferenceConfig extends NamedXContentObject, VersionedNamedWriteable {
 
     String DEFAULT_TOP_CLASSES_RESULTS_FIELD = "top_classes";
     String DEFAULT_RESULTS_FIELD = "predicted_value";
 
     boolean isTargetTypeSupported(TargetType targetType);
 
+    @Override
+    default TransportVersion getMinimalSupportedVersion() {
+        return getMinimalSupportedTransportVersion();
+    }
+
     /**
      * All nodes in the cluster must be at least this version
      */
-    Version getMinimalSupportedVersion();
+    Version getMinimalSupportedNodeVersion();
+
+    /**
+     * All communication in the cluster must use at least this version
+     */
+    TransportVersion getMinimalSupportedTransportVersion();
 
     default boolean requestingImportance() {
         return false;

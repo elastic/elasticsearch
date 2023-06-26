@@ -11,9 +11,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
 import java.io.IOException;
@@ -44,6 +47,10 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
         assertAddRoleWithDLS(false);
         assertAddRoleWithFLS(false);
+
+        assertUserProfileFeatures(false);
+        checkRemoteIndicesXPackUsage();
+        assertFailToCreateAndUpdateCrossClusterApiKeys();
     }
 
     public void testWithTrialLicense() throws Exception {
@@ -72,6 +79,9 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             apiKeyCredentials2 = tuple.v1();
             keyRoleHasDlsFls = tuple.v2();
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
+            assertUserProfileFeatures(true);
+            checkRemoteIndicesXPackUsage();
+            assertSuccessToCreateAndUpdateCrossClusterApiKeys();
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -85,6 +95,9 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index41/_search", false == keyRoleHasDlsFls);
             assertReadWithApiKey(apiKeyCredentials2, "/index42/_search", true);
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
+            assertUserProfileFeatures(false);
+            checkRemoteIndicesXPackUsage();
+            assertFailToCreateAndUpdateCrossClusterApiKeys();
         }
     }
 
@@ -124,6 +137,29 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                 assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".enabled"), equalTo(false));
             }
         }
+    }
+
+    private void checkRemoteIndicesXPackUsage() throws IOException {
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            return;
+        }
+        final var putRoleRequest = new Request("PUT", "/_security/role/role1");
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["index-*"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        final var xpackRequest = new Request("GET", "/_xpack/usage");
+        final Map<String, Object> xPackUsageMap = entityAsMap(client().performRequest(xpackRequest));
+        assertThat(org.elasticsearch.xcontent.ObjectPath.eval("security.roles.file.remote_indices", xPackUsageMap), equalTo(1));
+        assertThat(org.elasticsearch.xcontent.ObjectPath.eval("security.roles.native.remote_indices", xPackUsageMap), equalTo(1));
     }
 
     private void checkAuthentication() throws IOException {
@@ -440,5 +476,148 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getMessage(), containsString("current license is non-compliant for [field and document level security]"));
             assertThat(e.getMessage(), containsString("indices_with_dls_or_fls"));
         }
+    }
+
+    private void assertUserProfileFeatures(boolean clusterHasTrialLicense) throws IOException {
+        final RestClient client = client();
+        final RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray())));
+
+        // Activate Profile
+        final Request activateRequest = new Request("POST", "_security/profile/_activate");
+        activateRequest.setOptions(requestOptions);
+        activateRequest.setJsonEntity("""
+            {
+              "grant_type": "password",
+              "username": "admin_user",
+              "password": "admin-password"
+            }""");
+        final Response activateResponse = client.performRequest(activateRequest);
+        assertOK(activateResponse);
+        final String uid = (String) responseAsMap(activateResponse).get("uid");
+
+        // Get Profile
+        final Request getProfileRequest = new Request("GET", "_security/profile/" + uid);
+        getProfileRequest.setOptions(requestOptions);
+        assertOK(client.performRequest(getProfileRequest));
+
+        // Update profile data
+        final Request putDataRequest = new Request("PUT", "_security/profile/" + uid + "/_data");
+        putDataRequest.setOptions(requestOptions);
+        putDataRequest.setJsonEntity("""
+            {
+              "labels": {
+                "my_app": {
+                  "tag": "prod"
+                }
+              },
+              "data": {
+                "my_app": {
+                  "theme": "default"
+                }
+              }
+            }""");
+        assertOK(client.performRequest(putDataRequest));
+
+        // Disable profile
+        final Request disableProfileRequest = new Request("PUT", "_security/profile/" + uid + "/_disable");
+        disableProfileRequest.setOptions(requestOptions);
+        assertOK(client.performRequest(disableProfileRequest));
+
+        // Enable profile
+        final Request enableProfileRequest = new Request("PUT", "_security/profile/" + uid + "/_enable");
+        enableProfileRequest.setOptions(requestOptions);
+        assertOK(client.performRequest(enableProfileRequest));
+
+        // Suggest profiles
+        final Request suggestProfilesRequest = new Request("GET", "_security/profile/_suggest");
+        suggestProfilesRequest.setOptions(requestOptions);
+        if (clusterHasTrialLicense) {
+            assertOK(client.performRequest(suggestProfilesRequest));
+        } else {
+            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(suggestProfilesRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
+        }
+
+        // Profile hasPrivileges
+        final Request hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
+        hasPrivilegesRequest.setOptions(requestOptions);
+        hasPrivilegesRequest.setJsonEntity(Strings.format("""
+            {
+              "uids": [
+                "%s"
+              ],
+              "privileges": {
+                "applications": [
+                  {
+                    "application": "app-1",
+                    "privileges": [
+                      "all"
+                    ],
+                    "resources": [
+                      "foo"
+                    ]
+                  }
+                ]
+              }
+            }""", uid));
+        if (clusterHasTrialLicense) {
+            assertOK(client.performRequest(hasPrivilegesRequest));
+        } else {
+            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(hasPrivilegesRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
+        }
+    }
+
+    private void assertFailToCreateAndUpdateCrossClusterApiKeys() {
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            return;
+        }
+
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ResponseException e1 = expectThrows(ResponseException.class, () -> adminClient().performRequest(createRequest));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e1.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + randomAlphaOfLength(20));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        final ResponseException e2 = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateRequest));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e2.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+    }
+
+    private void assertSuccessToCreateAndUpdateCrossClusterApiKeys() throws IOException {
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            return;
+        }
+
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(adminClient().performRequest(createRequest));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + createResponse.evaluate("id"));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        assertOK(adminClient().performRequest(updateRequest));
     }
 }

@@ -14,6 +14,8 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.Transports;
@@ -29,6 +31,7 @@ import java.util.Queue;
  */
 public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
+    public static final int MAX_BYTES_PER_WRITE = 1 << 18;
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private final ThreadContext threadContext;
@@ -43,7 +46,45 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         assert msg instanceof ByteBuf;
         assert Transports.assertDefaultThreadContext(threadContext);
         assert Transports.assertTransportThread();
-        final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+        final ByteBuf buf = (ByteBuf) msg;
+        if (ctx.channel().isWritable() && currentWrite == null && queuedWrites.isEmpty()) {
+            // nothing is queued for writing and the channel is writable, just pass the write down the pipeline directly
+            if (buf.readableBytes() > MAX_BYTES_PER_WRITE) {
+                writeInSlices(ctx, promise, buf);
+            } else {
+                ctx.write(msg, promise);
+            }
+        } else {
+            queueWrite(buf, promise);
+        }
+    }
+
+    /**
+     * Writes slices of up to the max write size until the channel stops being writable or the message has been written in full.
+     */
+    private void writeInSlices(ChannelHandlerContext ctx, ChannelPromise promise, ByteBuf buf) {
+        while (true) {
+            final int readableBytes = buf.readableBytes();
+            final int bufferSize = Math.min(readableBytes, MAX_BYTES_PER_WRITE);
+            if (readableBytes == bufferSize) {
+                // last write for this chunk we're done
+                ctx.write(buf).addListener(forwardResultListener(ctx, promise));
+                return;
+            }
+            final int readerIndex = buf.readerIndex();
+            final ByteBuf writeBuffer = buf.retainedSlice(readerIndex, bufferSize);
+            buf.readerIndex(readerIndex + bufferSize);
+            ctx.write(writeBuffer).addListener(forwardFailureListener(ctx, promise));
+            if (ctx.channel().isWritable() == false) {
+                // channel isn't writable any longer -> move to queuing
+                queueWrite(buf, promise);
+                return;
+            }
+        }
+    }
+
+    private void queueWrite(ByteBuf buf, ChannelPromise promise) {
+        final boolean queued = queuedWrites.offer(new WriteOperation(buf, promise));
         assert queued;
     }
 
@@ -75,7 +116,6 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             failQueuedWrites();
             return false;
         }
-        boolean needsFlush = true;
         while (channel.isWritable()) {
             if (currentWrite == null) {
                 currentWrite = queuedWrites.poll();
@@ -85,7 +125,7 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             }
             final WriteOperation write = currentWrite;
             final int readableBytes = write.buf.readableBytes();
-            final int bufferSize = Math.min(readableBytes, 1 << 18);
+            final int bufferSize = Math.min(readableBytes, MAX_BYTES_PER_WRITE);
             final int readerIndex = write.buf.readerIndex();
             final boolean sliced = readableBytes != bufferSize;
             final ByteBuf writeBuffer;
@@ -96,38 +136,38 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 writeBuffer = write.buf;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            needsFlush = true;
             if (sliced == false) {
                 currentWrite = null;
-                writeFuture.addListener(future -> {
-                    assert ctx.executor().inEventLoop();
-                    if (future.isSuccess()) {
-                        write.promise.trySuccess();
-                    } else {
-                        write.promise.tryFailure(future.cause());
-                    }
-                });
+                writeFuture.addListener(forwardResultListener(ctx, write.promise));
             } else {
-                writeFuture.addListener(future -> {
-                    assert ctx.executor().inEventLoop();
-                    if (future.isSuccess() == false) {
-                        write.promise.tryFailure(future.cause());
-                    }
-                });
-            }
-            if (channel.isWritable() == false) {
-                // try flushing to make channel writable again, loop will only continue if channel becomes writable again
-                ctx.flush();
-                needsFlush = false;
+                writeFuture.addListener(forwardFailureListener(ctx, write.promise));
             }
         }
-        if (needsFlush) {
-            ctx.flush();
-        }
+        ctx.flush();
         if (channel.isActive() == false) {
             failQueuedWrites();
         }
         return true;
+    }
+
+    private static GenericFutureListener<Future<Void>> forwardFailureListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+        return future -> {
+            assert ctx.executor().inEventLoop();
+            if (future.isSuccess() == false) {
+                promise.tryFailure(future.cause());
+            }
+        };
+    }
+
+    private static GenericFutureListener<Future<Void>> forwardResultListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+        return future -> {
+            assert ctx.executor().inEventLoop();
+            if (future.isSuccess()) {
+                promise.trySuccess();
+            } else {
+                promise.tryFailure(future.cause());
+            }
+        };
     }
 
     private void failQueuedWrites() {

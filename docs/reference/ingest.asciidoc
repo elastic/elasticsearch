@@ -191,6 +191,7 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "my-keyword-field": "foo"
         },
@@ -203,6 +204,7 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "my-keyword-field": "bar"
         },
@@ -298,18 +300,20 @@ output.elasticsearch:
 [[pipelines-for-fleet-elastic-agent]]
 === Pipelines for {fleet} and {agent}
 
-{fleet-guide}/index.html[{fleet}] automatically adds ingest pipelines for its
-integrations. {fleet} applies these pipelines using <<index-templates,index
+{agent} integrations ship with default ingest pipelines that preprocess and enrich data before indexing.
+{fleet-guide}/index.html[{fleet}] applies these pipelines using <<index-templates,index
 templates>> that include <<set-default-pipeline,pipeline index settings>>. {es}
 matches these templates to your {fleet} data streams based on the
 {fleet-guide}/data-streams.html#data-streams-naming-scheme[stream's naming
 scheme].
 
-WARNING: Do not change {fleet}'s ingest pipelines or use custom pipelines for
-your {fleet} integrations. Doing so can break your {fleet} data streams.
+Each default integration pipeline calls a nonexistent, unversioned `@custom` ingest pipeline.
+If unaltered, this pipeline call has no effect on your data. However, you can modify this call to
+create custom pipelines for integrations that persist across upgrades.
+Refer to {fleet-guide}/data-streams-pipeline-tutorial.html[Tutorial: Transform data with custom ingest pipelines] to learn more.
 
-{fleet} doesn't provide an ingest pipeline for the **Custom logs** integration.
-You can safely specify a pipeline for this integration in one of two ways: an
+{fleet} doesn't provide a default ingest pipeline for the **Custom logs** integration,
+but you can specify a pipeline for this integration using an 
 <<pipeline-custom-logs-index-template,index template>> or a
 <<pipeline-custom-logs-configuration,custom configuration>>.
 
@@ -441,6 +445,14 @@ If you run {agent} standalone, you can apply pipelines using an
 <<index-final-pipeline,`index.final_pipeline`>> index setting. Alternatively,
 you can specify the `pipeline` policy setting in your `elastic-agent.yml`
 configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install standalone {agent}s].
+
+[discrete]
+[[pipelines-in-enterprise-search]]
+=== Pipelines in Enterprise Search
+
+When you create Elasticsearch indices for {enterprise-search-ref}/index.html[Enterprise Search^] use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines. 
+These processors help optimize your content for search.
+Refer to the {enterprise-search-ref}/ingest-pipelines.html[Enterprise Search documentation^] for more information.
 
 [discrete]
 [[access-source-fields]]
@@ -849,7 +861,7 @@ PUT _ingest/pipeline/my-pipeline
 }
 ----
 
-You can also specify a <<modules-scripting-stored-scripts,stored script>> as the
+You can also specify a <<script-stored-scripts,stored script>> as the
 `if` condition.
 
 [source,console]

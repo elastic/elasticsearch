@@ -40,7 +40,7 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean()),
             getInstanceFromNode(ClusterService.class)
         );
         waitForMlTemplates();

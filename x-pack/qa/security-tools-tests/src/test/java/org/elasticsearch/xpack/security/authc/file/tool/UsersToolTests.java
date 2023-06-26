@@ -14,6 +14,7 @@ import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -46,6 +47,13 @@ import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgo
 import static org.hamcrest.Matchers.containsString;
 
 public class UsersToolTests extends CommandTestCase {
+
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed UsersTool's static initializer
+        new ReservedRolesStore();
+    }
 
     // the mock filesystem we use so permissions/users/groups can be modified
     static FileSystem jimfs;
@@ -119,7 +127,7 @@ public class UsersToolTests extends CommandTestCase {
             protected AddUserCommand newAddUserCommand() {
                 return new AddUserCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -129,7 +137,7 @@ public class UsersToolTests extends CommandTestCase {
             protected DeleteUserCommand newDeleteUserCommand() {
                 return new DeleteUserCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -139,7 +147,7 @@ public class UsersToolTests extends CommandTestCase {
             protected PasswordCommand newPasswordCommand() {
                 return new PasswordCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -149,7 +157,7 @@ public class UsersToolTests extends CommandTestCase {
             protected RolesCommand newRolesCommand() {
                 return new RolesCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -159,7 +167,7 @@ public class UsersToolTests extends CommandTestCase {
             protected ListCommand newListCommand() {
                 return new ListCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -238,10 +246,9 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testParseInvalidUsername() throws Exception {
-        UserException e = expectThrows(
-            UserException.class,
-            () -> { UsersTool.parseUsername(Collections.singletonList("áccented"), Settings.EMPTY); }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            UsersTool.parseUsername(Collections.singletonList("áccented"), Settings.EMPTY);
+        });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
     }
@@ -310,10 +317,9 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testParseInvalidRole() throws Exception {
-        UserException e = expectThrows(
-            UserException.class,
-            () -> { UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), "fóóbár"); }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), "fóóbár");
+        });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid role [fóóbár]"));
     }
@@ -338,22 +344,18 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testUseraddUserExists() throws Exception {
-        UserException e = expectThrows(
-            UserException.class,
-            () -> {
-                execute("useradd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
-            }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("useradd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+        });
         assertEquals(ExitCodes.CODE_ERROR, e.exitCode);
         assertEquals("User [existing_user] already exists", e.getMessage());
     }
 
     public void testUseraddReservedUser() throws Exception {
         final String name = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
-        UserException e = expectThrows(
-            UserException.class,
-            () -> { execute("useradd", pathHomeParameter, fileOrderParameter, name, "-p", SecuritySettingsSourceField.TEST_PASSWORD); }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("useradd", pathHomeParameter, fileOrderParameter, name, "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+        });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertEquals("Invalid username [" + name + "]... Username [" + name + "] is reserved and may not be used.", e.getMessage());
     }
@@ -373,19 +375,16 @@ public class UsersToolTests extends CommandTestCase {
             .put("xpack.security.fips_mode.enabled", true)
             .build();
 
-        UserException e = expectThrows(
-            UserException.class,
-            () -> {
-                execute(
-                    "useradd",
-                    pathHomeParameter,
-                    fileOrderParameter,
-                    randomAlphaOfLength(12),
-                    "-p",
-                    SecuritySettingsSourceField.TEST_PASSWORD
-                );
-            }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            execute(
+                "useradd",
+                pathHomeParameter,
+                fileOrderParameter,
+                randomAlphaOfLength(12),
+                "-p",
+                SecuritySettingsSourceField.TEST_PASSWORD
+            );
+        });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertEquals(
             "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. "
@@ -409,10 +408,9 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testPasswdUnknownUser() throws Exception {
-        UserException e = expectThrows(
-            UserException.class,
-            () -> { execute("passwd", pathHomeParameter, fileOrderParameter, "unknown", "-p", SecuritySettingsSourceField.TEST_PASSWORD); }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("passwd", pathHomeParameter, fileOrderParameter, "unknown", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+        });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
@@ -437,10 +435,9 @@ public class UsersToolTests extends CommandTestCase {
             .put("xpack.security.authc.password_hashing.algorithm", "bcrypt")
             .put("xpack.security.fips_mode.enabled", true)
             .build();
-        UserException e = expectThrows(
-            UserException.class,
-            () -> { execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "new-test-user-password"); }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "new-test-user-password");
+        });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertEquals(
             "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. "
@@ -561,12 +558,9 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(confDir.resolve("users"));
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileOrderParameter = "-Expack.security.authc.realms.file.file.order=0";
-        UserException e = expectThrows(
-            UserException.class,
-            () -> {
-                execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
-            }
-        );
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+        });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("Configuration file [/work/eshome/config/users] is missing"));
     }

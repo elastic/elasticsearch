@@ -49,5 +49,13 @@ jar-contains-source usr/share/elasticsearch/modules/repository-gcs/api-common*.j
 
 # There's no `License` field in Debian control files, but earlier versions
 # of `lintian` were more permissive. Override this warning so that we can
-# run `lintian` on different releases of Debian.
+# run `lintian` on different releases of Debian. The format of this override
+# varies between `lintian` versions.
 unknown-field elasticsearch-*.deb License
+unknown-field License
+
+# Intel MKL libraries are not linked directly to libc. They are linked
+# indirectly to libc via libdl. This might not be best practice but we
+# don't build them ourselves and the license precludes us modifying them
+# to fix this.
+library-not-linked-against-libc usr/share/elasticsearch/modules/x-pack-ml/platform/linux-x86_64/lib/libmkl_*.so

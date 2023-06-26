@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
-
 /**
  * Counterpart to {@link org.elasticsearch.search.aggregations.support.AggregationInspectionHelper}, providing
  * helpers for some aggs that have package-private getters.  AggregationInspectionHelper delegates to these
@@ -59,9 +57,5 @@ public class MetricInspectionHelper {
 
     public static boolean hasValue(InternalWeightedAvg agg) {
         return (agg.getSum() == 0.0 && agg.getWeight() == 0L) == false;
-    }
-
-    public static boolean hasValue(InternalDerivative agg) {
-        return true;
     }
 }

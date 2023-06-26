@@ -10,7 +10,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
+public class MlFilterTests extends AbstractXContentSerializingTestCase<MlFilter> {
 
     public static MlFilter createTestFilter() {
         return new MlFilterTests().createTestInstance();
@@ -34,6 +34,11 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     @Override
     protected MlFilter createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected MlFilter mutateInstance(MlFilter instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static MlFilter createRandom() {

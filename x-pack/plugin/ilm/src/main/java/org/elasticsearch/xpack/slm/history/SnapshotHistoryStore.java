@@ -9,20 +9,19 @@ package org.elasticsearch.xpack.slm.history;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
@@ -38,12 +37,13 @@ public class SnapshotHistoryStore {
 
     private final Client client;
     private final ClusterService clusterService;
-    private final boolean slmHistoryEnabled;
+    private volatile boolean slmHistoryEnabled = true;
 
-    public SnapshotHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService) {
+    public SnapshotHistoryStore(Client client, ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;
-        slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+        this.setSlmHistoryEnabled(SLM_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SLM_HISTORY_INDEX_ENABLED_SETTING, this::setSlmHistoryEnabled);
     }
 
     /**
@@ -65,8 +65,8 @@ public class SnapshotHistoryStore {
         if (metadata.dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
             && metadata.templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
             logger.error(
-                new ParameterizedMessage(
-                    "failed to index snapshot history item, data stream [{}] and template [{}] don't exist",
+                () -> format(
+                    "failed to index snapshot history item, data stream [%s] and template [%s] don't exist",
                     SLM_HISTORY_DATA_STREAM,
                     SLM_TEMPLATE_NAME
                 )
@@ -85,19 +85,19 @@ public class SnapshotHistoryStore {
                 );
             }, exception -> {
                 logger.error(
-                    new ParameterizedMessage(
-                        "failed to index snapshot history item in data stream [{}]: [{}]",
-                        SLM_HISTORY_DATA_STREAM,
-                        item
-                    ),
+                    () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                     exception
                 );
             }));
         } catch (IOException exception) {
             logger.error(
-                new ParameterizedMessage("failed to index snapshot history item in data stream [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item),
+                () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                 exception
             );
         }
+    }
+
+    public void setSlmHistoryEnabled(boolean slmHistoryEnabled) {
+        this.slmHistoryEnabled = slmHistoryEnabled;
     }
 }

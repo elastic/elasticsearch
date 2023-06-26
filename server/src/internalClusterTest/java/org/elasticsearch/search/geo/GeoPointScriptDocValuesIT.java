@@ -11,7 +11,8 @@ package org.elasticsearch.search.geo;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.BoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
@@ -21,6 +22,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -36,6 +39,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
 
@@ -54,52 +59,68 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
             scripts.put("lon", this::scriptLon);
             scripts.put("height", this::scriptHeight);
             scripts.put("width", this::scriptWidth);
+            scripts.put("label_lat", this::scriptLabelLat);
+            scripts.put("label_lon", this::scriptLabelLon);
             return scripts;
         }
 
         private double scriptHeight(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
-                GeoBoundingBox boundingBox = geometry.getBoundingBox();
+                BoundingBox<GeoPoint> boundingBox = geometry.getBoundingBox();
                 return boundingBox.topLeft().lat() - boundingBox.bottomRight().lat();
             }
         }
 
         private double scriptWidth(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
-                GeoBoundingBox boundingBox = geometry.getBoundingBox();
+                BoundingBox<GeoPoint> boundingBox = geometry.getBoundingBox();
                 return boundingBox.bottomRight().lon() - boundingBox.topLeft().lon();
             }
         }
 
         private double scriptLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lat();
         }
 
         private double scriptLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lon();
         }
 
-        private ScriptDocValues.Geometry<?> assertGeometry(Map<?, ?> doc) {
-            ScriptDocValues.Geometry<?> geometry = (ScriptDocValues.Geometry<?>) doc.get("location");
+        private double scriptLabelLat(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
+            return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lat();
+        }
+
+        private double scriptLabelLon(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
+            return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lon();
+        }
+
+        private ScriptDocValues.Geometry assertGeometry(Map<?, ?> doc) {
+            ScriptDocValues.Geometry geometry = (ScriptDocValues.Geometry) doc.get("location");
             if (geometry.size() == 0) {
                 assertThat(geometry.getBoundingBox(), Matchers.nullValue());
                 assertThat(geometry.getCentroid(), Matchers.nullValue());
+                assertThat(geometry.getLabelPosition(), Matchers.nullValue());
                 assertThat(geometry.getDimensionalType(), equalTo(-1));
             } else {
                 assertThat(geometry.getBoundingBox(), Matchers.notNullValue());
                 assertThat(geometry.getCentroid(), Matchers.notNullValue());
+                assertThat(geometry.getLabelPosition(), Matchers.notNullValue());
                 assertThat(geometry.getDimensionalType(), equalTo(0));
             }
             return geometry;
@@ -140,6 +161,8 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
             .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
             .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()))
+            .addScriptField("label_lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lat", Collections.emptyMap()))
+            .addScriptField("label_lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lon", Collections.emptyMap()))
             .get();
         assertSearchResponse(searchResponse);
 
@@ -151,6 +174,10 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         assertThat(fields.get("lon").getValue(), equalTo(qLon));
         assertThat(fields.get("height").getValue(), equalTo(0d));
         assertThat(fields.get("width").getValue(), equalTo(0d));
+
+        // Check label position is the same point
+        assertThat(fields.get("label_lon").getValue(), equalTo(qLon));
+        assertThat(fields.get("label_lat").getValue(), equalTo(qLat));
     }
 
     public void testRandomMultiPoint() throws Exception {
@@ -178,6 +205,8 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
             .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
             .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()))
+            .addScriptField("label_lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lat", Collections.emptyMap()))
+            .addScriptField("label_lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lon", Collections.emptyMap()))
             .get();
         assertSearchResponse(searchResponse);
 
@@ -196,6 +225,11 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         assertThat(fields.get("lon").getValue(), equalTo(centroidLon));
         assertThat(fields.get("height").getValue(), equalTo(height));
         assertThat(fields.get("width").getValue(), equalTo(width));
+
+        // Check label position is one of the incoming points
+        double labelLat = fields.get("label_lat").getValue();
+        double labelLon = fields.get("label_lon").getValue();
+        assertThat("Label should be one of the points", new GeoPoint(labelLat, labelLon), isMultiPointLabelPosition(lats, lons));
     }
 
     public void testNullPoint() throws Exception {
@@ -220,5 +254,30 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         assertThat(fields.get("lon").getValue(), equalTo(Double.NaN));
         assertThat(fields.get("height").getValue(), equalTo(Double.NaN));
         assertThat(fields.get("width").getValue(), equalTo(Double.NaN));
+    }
+
+    private static MultiPointLabelPosition isMultiPointLabelPosition(double[] lats, double[] lons) {
+        return new MultiPointLabelPosition(lats, lons);
+    }
+
+    private static class MultiPointLabelPosition extends BaseMatcher<GeoPoint> {
+        private final GeoPoint[] points;
+
+        private MultiPointLabelPosition(double[] lats, double[] lons) {
+            points = new GeoPoint[lats.length];
+            for (int i = 0; i < lats.length; i++) {
+                points[i] = new GeoPoint(lats[i], lons[i]);
+            }
+        }
+
+        @Override
+        public boolean matches(Object actual) {
+            return is(oneOf(points)).matches(actual);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("is(oneOf(" + Arrays.toString(points) + ")");
+        }
     }
 }

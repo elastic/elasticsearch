@@ -1,0 +1,20 @@
+[[data-lifecycle-management-api]]
+== Data Lifecycle Management APIs
+
+You use the following APIs to configure the data lifecycle management for data streams
+and to retrieve lifecycle information for backing indices.
+
+[discrete]
+[[dlm-api-management-endpoint]]
+=== Operation management APIs
+
+* <<dlm-put-lifecycle,Update data stream lifecycle>>
+* <<dlm-get-lifecycle,Get data stream lifecycle>>
+* <<dlm-delete-lifecycle,Delete data stream lifecycle>>
+* <<dlm-explain-lifecycle,Explain Lifecycle API>>
+
+include::put-lifecycle.asciidoc[]
+include::get-lifecycle.asciidoc[]
+include::delete-lifecycle.asciidoc[]
+include::explain-data-lifecycle.asciidoc[]
+

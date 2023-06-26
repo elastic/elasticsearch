@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.core.Nullable;
@@ -42,6 +41,7 @@ import java.util.stream.IntStream;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOf;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
@@ -333,7 +333,7 @@ public class TreeInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
-        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
+        LOGGER.debug(() -> format("rewriting features %s", newFeatureIndexMapping));
         if (preparedForInference) {
             return;
         }

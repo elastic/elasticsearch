@@ -21,7 +21,7 @@ public class KuromojiCompletionAnalyzerProvider extends AbstractIndexAnalyzerPro
     private final JapaneseCompletionAnalyzer analyzer;
 
     public KuromojiCompletionAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         final UserDictionary userDictionary = KuromojiTokenizerFactory.getUserDictionary(env, settings);
         final Mode mode = KuromojiCompletionFilterFactory.getMode(settings);
         analyzer = new JapaneseCompletionAnalyzer(userDictionary, mode);

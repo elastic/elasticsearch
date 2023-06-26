@@ -8,7 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -16,16 +16,18 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,7 +40,7 @@ import java.util.stream.Collectors;
  */
 public class FeatureMigrationResults implements Metadata.Custom {
     public static final String TYPE = "system_index_migration";
-    public static final Version MIGRATION_ADDED_VERSION = Version.V_8_0_0;
+    public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersion.V_8_0_0;
 
     private static final ParseField RESULTS_FIELD = new ParseField("results");
 
@@ -53,7 +55,9 @@ public class FeatureMigrationResults implements Metadata.Custom {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> new Tuple<>(n, SingleFeatureMigrationResult.fromXContent(p)),
-            v -> { throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported"); },
+            v -> {
+                throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported");
+            },
             RESULTS_FIELD
         );
     }
@@ -65,22 +69,21 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     public FeatureMigrationResults(StreamInput in) throws IOException {
-        this.featureStatuses = in.readMap(StreamInput::readString, SingleFeatureMigrationResult::new);
+        this.featureStatuses = in.readMap(SingleFeatureMigrationResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(
             featureStatuses,
-            (StreamOutput outStream, String featureName) -> outStream.writeString(featureName),
+            StreamOutput::writeString,
             (StreamOutput outStream, SingleFeatureMigrationResult featureStatus) -> featureStatus.writeTo(outStream)
         );
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RESULTS_FIELD.getPreferredName(), featureStatuses);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentValuesMap(RESULTS_FIELD.getPreferredName(), featureStatuses);
     }
 
     public static FeatureMigrationResults fromXContent(XContentParser parser) {
@@ -121,7 +124,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         return MIGRATION_ADDED_VERSION;
     }
 
@@ -191,7 +194,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return MIGRATION_ADDED_VERSION;
         }
 

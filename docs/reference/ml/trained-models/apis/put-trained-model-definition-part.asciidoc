@@ -6,8 +6,6 @@
 <titleabbrev>Create part of a trained model</titleabbrev>
 ++++
 
-experimental::[]
-
 Creates part of a trained model definition.
 
 [[ml-put-trained-model-definition-part-request]]

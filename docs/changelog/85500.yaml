@@ -1,6 +1,0 @@
-pr: 85500
-summary: Fix wildcard highlighting on `match_only_text`
-area: Highlighting
-type: bug
-issues:
- - 85493

@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -64,7 +64,7 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
     }
 
     static class NewSubObject {
-        public static final Function<RestApiVersion, Boolean> REST_API_VERSION = RestApiVersion.onOrAfter(RestApiVersion.current());
+        public static final Predicate<RestApiVersion> REST_API_VERSION = RestApiVersion.onOrAfter(RestApiVersion.current());
         private static final ConstructingObjectParser<NewSubObject, String> PARSER = new ConstructingObjectParser<>(
             "parser1",
             false,
@@ -90,7 +90,7 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
     }
 
     static class OldSubObject {
-        public static final Function<RestApiVersion, Boolean> REST_API_VERSION = RestApiVersion.equalTo(RestApiVersion.minimumSupported());
+        public static final Predicate<RestApiVersion> REST_API_VERSION = RestApiVersion.equalTo(RestApiVersion.minimumSupported());
 
         private static final ConstructingObjectParser<NewSubObject, String> PARSER = new ConstructingObjectParser<>(
             "parser2",

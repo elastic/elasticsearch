@@ -8,6 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.common.Strings;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -28,6 +31,11 @@ class JvmOption {
     private final String origin;
 
     JvmOption(String value, String origin) {
+        if (origin == null) {
+            throw new IllegalStateException(Strings.format("""
+                Elasticsearch could not determine the origin of JVM option [%s]. \
+                This indicates that it is running in an unsupported configuration.""", value));
+        }
         this.value = value;
         this.origin = origin;
     }
@@ -41,7 +49,7 @@ class JvmOption {
     }
 
     public boolean isCommandLineOrigin() {
-        return "command line".equals(this.origin);
+        return this.origin.contains("command line");
     }
 
     private static final Pattern OPTION = Pattern.compile(
@@ -95,9 +103,8 @@ class JvmOption {
         final List<String> command = Stream.of(
             Stream.of(java),
             userDefinedJvmOptions.stream(),
-            Stream.of("-XX:+PrintFlagsFinal"),
-            Stream.of("-version")
-        ).reduce(Stream::concat).get().toList();
+            Stream.of("-XX:+PrintFlagsFinal", "-version")
+        ).flatMap(Function.identity()).toList();
         final Process process = new ProcessBuilder().command(command).start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());

@@ -69,7 +69,7 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     }
 
     KeepTypesFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         final List<String> arrayKeepTypes = settings.getAsList(KEEP_TYPES_KEY, null);
         if ((arrayKeepTypes == null)) {

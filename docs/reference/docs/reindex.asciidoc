@@ -141,8 +141,6 @@ If the request contains `wait_for_completion=false`, {es}
 performs some preflight checks, launches the request, and returns a
 <<tasks,`task`>> you can use to cancel or get the status of the task.
 {es} creates a record of this task as a document at `_tasks/<task_id>`.
-When you are done with a task, you should delete the task document so
-{es} can reclaim the space.
 
 [[docs-reindex-from-multiple-sources]]
 ===== Reindex from multiple sources
@@ -534,7 +532,8 @@ Required when indexing from remote.
 (Optional, <<time-units, time units>>) The remote socket read timeout. Defaults to 30 seconds.
 `connect_timeout`::::
 (Optional, <<time-units, time units>>) The remote connection timeout. Defaults to 30 seconds.
-
+`headers`::::
+(Optional, object) An object containing the headers of ther request.
 `size`:::
 {Optional, integer) The number of documents to index per batch.
 Use when indexing from remote to ensure that the batches fit within the on-heap buffer,
@@ -575,6 +574,9 @@ Valid values: `index`, `create`. Defaults to `index`.
 +
 IMPORTANT: To reindex to a data stream destination, this argument must be
 `create`.
+
+`pipeline`:::
+(Optional, string) the name of the <<reindex-with-an-ingest-pipeline,pipeline>> to use.
 
 `script`::
 `source`:::
@@ -994,7 +996,38 @@ using basic auth or the password will be sent in plain text.
 There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
  `https` connection.
 
-Remote hosts have to be explicitly allowed in elasticsearch.yml using the
+When using {ecloud}, it is also possible to authenticate against the remote cluster
+through the use of a valid API key:
+
+[source,console]
+----
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "http://otherhost:9200",
+      "headers": {
+        "Authorization": "ApiKey API_KEY_VALUE"
+      }
+    },
+    "index": "my-index-000001",
+    "query": {
+      "match": {
+        "test": "data"
+      }
+    }
+  },
+  "dest": {
+    "index": "my-new-index-000001"
+  }
+}
+----
+// TEST[setup:host]
+// TEST[s/^/PUT my-index-000001\n/]
+// TEST[s/otherhost:9200",/\${host}",/]
+// TEST[s/API_KEY_VALUE" /\93116930-2ecb-4161-aa5e-4f3586c87ac6"/]
+
+Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations. Scheme is
 ignored, only the host and port are used. For example:

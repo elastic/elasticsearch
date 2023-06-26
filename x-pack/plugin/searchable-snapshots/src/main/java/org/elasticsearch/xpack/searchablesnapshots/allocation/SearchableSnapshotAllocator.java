@@ -12,11 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,10 +59,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.gateway.ReplicaShardAllocator.augmentExplanationsWithStoreInfo;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
@@ -76,9 +75,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotAllocator.class);
 
-    private static final ActionListener<ClusterState> REROUTE_LISTENER = new ActionListener<>() {
+    private static final ActionListener<Void> REROUTE_LISTENER = new ActionListener<>() {
         @Override
-        public void onResponse(ClusterState clusterRerouteResponse) {
+        public void onResponse(Void ignored) {
             logger.trace("reroute succeeded after loading snapshot cache information");
         }
 
@@ -117,7 +116,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         if (hasPartialIndices) {
             frozenCacheInfoService.updateNodes(
                 client,
-                StreamSupport.stream(allocation.routingNodes().spliterator(), false).map(RoutingNode::node).collect(Collectors.toSet()),
+                allocation.routingNodes().stream().map(RoutingNode::node).collect(toSet()),
                 rerouteService
             );
         } else {
@@ -200,14 +199,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 unassignedAllocationHandler.initialize(
                     allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
-                    DiskThresholdDecider.getExpectedShardSize(
-                        shardRouting,
-                        ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                        allocation.clusterInfo(),
-                        allocation.snapshotShardSizeInfo(),
-                        allocation.metadata(),
-                        allocation.routingTable()
-                    ),
+                    DiskThresholdDecider.getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                     allocation.changes()
                 );
             } else {
@@ -243,7 +235,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore to bypass
                 // the RestoreInProgressAllocationDecider
 
-                final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
+                final RestoreInProgress restoreInProgress = allocation.getClusterState().custom(RestoreInProgress.TYPE);
                 if (restoreInProgress == null) {
                     // no ongoing restores, so this shard definitely completed
                     return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
@@ -291,19 +283,16 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         // TODO: in the following logic, we do not account for existing cache size when handling disk space checks, should and can we
         // reliably do this in a world of concurrent cache evictions or are we ok with the cache size just being a best effort hint
         // here?
-        Tuple<Decision, Map<String, NodeAllocationResult>> result = ReplicaShardAllocator.canBeAllocatedToAtLeastOneNode(
+        ReplicaShardAllocator.PerNodeAllocationResult result = ReplicaShardAllocator.canBeAllocatedToAtLeastOneNode(
             shardRouting,
             allocation
         );
-        Decision allocateDecision = result.v1();
+        Decision allocateDecision = result.decision();
         if (allocateDecision.type() != Decision.Type.YES && (explain == false || asyncFetchStore.get(shardRouting.shardId()) == null)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", shardRouting);
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                result.v2() != null ? new ArrayList<>(result.v2().values()) : null
-            );
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
 
         final AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchedCacheData = fetchData(shardRouting, allocation);
@@ -314,11 +303,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         final MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetchedCacheData, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
-        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
+        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
-        } else if (matchingNodes.getNodeWithHighestMatch() != null) {
-            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
+        } else if (matchingNodes.nodeWithHighestMatch() != null) {
+            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO
             Decision decision = allocation.deciders().canAllocate(shardRouting, nodeWithHighestMatch, allocation);
             if (decision.type() == Decision.Type.THROTTLE) {
@@ -341,9 +330,22 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 );
                 return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
+        } else if (isDelayedDueToNodeRestart(allocation, shardRouting)) {
+            return ReplicaShardAllocator.delayedDecision(shardRouting, allocation, logger, nodeDecisions);
         }
+
         // TODO: do we need handling of delayed allocation for leaving replicas here?
         return AllocateUnassignedDecision.NOT_TAKEN;
+    }
+
+    private boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
+        if (shardRouting.unassignedInfo().isDelayed()) {
+            String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+            if (lastAllocatedNodeId != null) {
+                return allocation.metadata().nodeShutdowns().contains(lastAllocatedNodeId, SingleNodeShutdownMetadata.Type.RESTART);
+            }
+        }
+        return false;
     }
 
     @Override
@@ -438,28 +440,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         return new AsyncShardFetch.FetchResult<>(shardId, asyncFetch.data(), Collections.emptySet());
     }
 
-    /**
-     * Takes the store info for nodes that have a shard store and adds them to the node decisions,
-     * leaving the node explanations untouched for those nodes that do not have any store information.
-     */
-    private static List<NodeAllocationResult> augmentExplanationsWithStoreInfo(
-        Map<String, NodeAllocationResult> nodeDecisions,
-        Map<String, NodeAllocationResult> withShardStores
-    ) {
-        if (nodeDecisions == null || withShardStores == null) {
-            return null;
-        }
-        List<NodeAllocationResult> augmented = new ArrayList<>();
-        for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
-            if (withShardStores.containsKey(entry.getKey())) {
-                augmented.add(withShardStores.get(entry.getKey()));
-            } else {
-                augmented.add(entry.getValue());
-            }
-        }
-        return augmented;
-    }
-
     private static MatchingNodes findMatchingNodes(
         ShardRouting shard,
         RoutingAllocation allocation,
@@ -503,13 +483,13 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     "{}: node [{}] has [{}/{}] bytes of re-usable cache data",
                     shard,
                     discoNode.getName(),
-                    new ByteSizeValue(matchingBytes),
+                    ByteSizeValue.ofBytes(matchingBytes),
                     matchingBytes
                 );
             }
         }
 
-        return new MatchingNodes(matchingNodesCacheSizes, nodeDecisionsDebug);
+        return MatchingNodes.create(matchingNodesCacheSizes, nodeDecisionsDebug);
     }
 
     private static final class AsyncCacheStatusFetch {
@@ -545,27 +525,26 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private static final class MatchingNodes {
-        private final DiscoveryNode nodeWithHighestMatch;
-        @Nullable
-        private final Map<String, NodeAllocationResult> nodeDecisions;
+    private record MatchingNodes(@Nullable Map<String, NodeAllocationResult> nodeDecisions, @Nullable DiscoveryNode nodeWithHighestMatch) {
 
-        MatchingNodes(Map<DiscoveryNode, Long> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
-            this.nodeDecisions = nodeDecisions;
-            this.nodeWithHighestMatch = matchingNodes.entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() > 0L)
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(null);
+        private static MatchingNodes create(
+            Map<DiscoveryNode, Long> matchingNodes,
+            @Nullable Map<String, NodeAllocationResult> nodeDecisions
+        ) {
+            return new MatchingNodes(nodeDecisions, getNodeWithHighestMatch(matchingNodes));
         }
 
         /**
          * Returns the node with the highest number of bytes cached for the shard or {@code null} if no node with any bytes matched exists.
          */
         @Nullable
-        public DiscoveryNode getNodeWithHighestMatch() {
-            return this.nodeWithHighestMatch;
+        private static DiscoveryNode getNodeWithHighestMatch(Map<DiscoveryNode, Long> matchingNodes) {
+            return matchingNodes.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() > 0L)
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
         }
     }
 }

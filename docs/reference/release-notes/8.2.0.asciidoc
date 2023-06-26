@@ -1,16 +1,19 @@
 [[release-notes-8.2.0]]
 == {es} version 8.2.0
 
-coming[8.2.0]
-
 // Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
+[[known-issues-8.2.0]]
+[float]
+=== Known issues
 
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
 [[bug-8.2.0]]
 [float]
 === Bug fixes
 
 Aggregations::
 * Don't apply the rewrite-as-range optimization if field is multivalued {es-pull}84535[#84535] (issue: {es-issue}82903[#82903])
+* Fix `AdaptingAggregator` `toString` method {es-pull}86042[#86042]
 * Fix: nested top metrics sort on keyword field {es-pull}85058[#85058]
 * Fix: use the correct field name when reading data from multi fields {es-pull}84752[#84752]
 
@@ -21,6 +24,7 @@ Authorization::
 * Add delete privilege to `kibana_system` for APM {es-pull}85085[#85085]
 * Ensure API key can only see itself with `QueryApiKey` API {es-pull}84859[#84859]
 * Fix ownership of refresh tokens {es-pull}85010[#85010]
+* Grant `kibana_system` role read access to APM data streams {es-pull}85744[#85744]
 * Handle role descriptor retrieval for internal users {es-pull}85049[#85049]
 * Ignore app priv failures when resolving superuser {es-pull}85519[#85519]
 
@@ -48,6 +52,7 @@ Indices APIs::
 Infra/Core::
 * Fix `NullPointerException` in `SystemIndexMetadataUpgradeService` hidden alias handling {es-pull}84780[#84780] (issue: {es-issue}81411[#81411])
 * Prevent `ThreadContext` header leak when sending response {es-pull}68649[#68649] (issue: {es-issue}68278[#68278])
+* Relax data path deprecations from critical to warn {es-pull}85952[#85952]
 * Require and preserve content type for filtered rest requests {es-pull}84914[#84914] (issue: {es-issue}84784[#84784])
 * Return empty version instead of blowing up if we cannot find it {es-pull}85244[#85244]
 * Validate index format agreement for system index descriptors {es-pull}85173[#85173]
@@ -105,10 +110,12 @@ Search::
 * Fix skip caching factor with `indices.queries.cache.all_segments` {es-pull}85510[#85510]
 * Increase store ref before analyzing disk usage {es-pull}84774[#84774]
 * Limit concurrent shard requests in disk usage API {es-pull}84900[#84900] (issue: {es-issue}84779[#84779])
+* Rewrite `match_all` inside `must_not` {es-pull}85999[#85999]
 * `DotExpandingXContentParser` to expose the original token location {es-pull}84970[#84970]
 * `TransportBroadcastAction` should always set response for each shard {es-pull}84926[#84926]
 
 Security::
+* `Authentication.token` now uses version from the existing authentication {es-pull}85978[#85978]
 * Ensure tokens represent effective user's identity in all cases {es-pull}84263[#84263]
 
 Snapshot/Restore::

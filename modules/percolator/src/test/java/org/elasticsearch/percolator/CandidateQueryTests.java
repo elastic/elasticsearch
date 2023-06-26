@@ -65,7 +65,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -75,6 +74,7 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -85,7 +85,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -292,16 +292,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (Map.Entry<String, List<String>> entry : stringContent.entrySet()) {
             String value = entry.getValue().stream().collect(Collectors.joining(" "));
             document.add(new TextField(entry.getKey(), value, Field.Store.NO));
         }
         for (Integer intValue : intValues) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields("int_field", intValue, true, true, false);
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
         }
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
         duelRun(queryStore, memoryIndex, shardSearcher);
@@ -413,7 +410,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (String value : stringValues) {
             document.add(new TextField("string_field", value, Field.Store.NO));
             logger.info("Test with document: {}" + document);
@@ -422,16 +419,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         for (int[] range : ranges) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields(
-                "int_field",
-                between(range[0], range[1]),
-                true,
-                true,
-                false
-            );
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
             logger.info("Test with document: {}" + document);
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);
@@ -641,7 +629,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        Version v = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion v = IndexVersionUtils.randomCompatibleVersion(random());
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new IntPoint("int_field", 3)), new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query query = fieldType.percolateQuery(
@@ -839,7 +827,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
         assertEquals(3L, topDocs.totalHits.value);
@@ -878,7 +866,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
         assertEquals(2L, topDocs.totalHits.value);
@@ -907,7 +895,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        Version v = Version.CURRENT;
+        IndexVersion v = IndexVersion.CURRENT;
 
         try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
@@ -1030,7 +1018,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        Version v = Version.CURRENT;
+        IndexVersion v = IndexVersion.CURRENT;
         List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
 
         MemoryIndex memoryIndex = new MemoryIndex();
@@ -1064,7 +1052,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        Version v = Version.CURRENT;
+        IndexVersion v = IndexVersion.CURRENT;
         List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
 
         MemoryIndex memoryIndex = new MemoryIndex();
@@ -1113,7 +1101,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        Version v = Version.CURRENT;
+        IndexVersion v = IndexVersion.CURRENT;
         List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
 
         Document document = new Document();
@@ -1137,7 +1125,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         Query query = requireScore ? percolateQuery : new ConstantScoreQuery(percolateQuery);
         TopDocs topDocs = shardSearcher.search(query, 100);
@@ -1223,7 +1211,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            Version.CURRENT
+            IndexVersion.CURRENT
         );
         return shardSearcher.search(percolateQuery, 10);
     }
@@ -1237,7 +1225,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
+        public Query rewrite(IndexSearcher searcher) throws IOException {
             return new TermQuery(term);
         }
 

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.store.StoreStats;
@@ -82,7 +81,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             .setIndices(CommonStatsFlags.ALL)
             .execute(ActionListener.wrap(nodesStatsResponse -> {
                 final RoutingNodes routingNodes = state.getRoutingNodes();
-                final ImmutableOpenMap<String, IndexMetadata> indices = state.getMetadata().getIndices();
+                final Map<String, IndexMetadata> indices = state.getMetadata().getIndices();
 
                 // Determine which tiers each index would prefer to be within
                 Map<String, String> indicesToTiers = tierIndices(indices);
@@ -100,7 +99,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
 
     // Visible for testing
     // Takes a registry of indices and returns a mapping of index name to which tier it most prefers. Always 1 to 1, some may filter out.
-    static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
+    static Map<String, String> tierIndices(Map<String, IndexMetadata> indices) {
         Map<String, String> indexByTier = new HashMap<>();
         indices.entrySet().forEach(entry -> {
             String tierPref = entry.getValue().getSettings().get(DataTier.TIER_PREFERENCE);
@@ -125,7 +124,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         long docCount = 0;
         int primaryShardCount = 0;
         long primaryByteCount = 0L;
-        final TDigestState valueSketch = new TDigestState(1000);
+        final TDigestState valueSketch = TDigestState.create(1000);
     }
 
     // Visible for testing
@@ -203,11 +202,12 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         final List<IndexShardStats> allShardStats = nodeStats.getIndices().getShardStats(index);
         if (allShardStats != null) {
             for (IndexShardStats shardStat : allShardStats) {
-                accumulator.totalByteCount += shardStat.getTotal().getStore().getSizeInBytes();
+                accumulator.totalByteCount += shardStat.getTotal().getStore().totalDataSetSizeInBytes();
                 accumulator.docCount += shardStat.getTotal().getDocs().getCount();
 
                 // Accumulate stats about started shards
-                if (node.getByShardId(shardStat.getShardId()).state() == ShardRoutingState.STARTED) {
+                ShardRouting shardRouting = node.getByShardId(shardStat.getShardId());
+                if (shardRouting != null && shardRouting.state() == ShardRoutingState.STARTED) {
                     accumulator.totalShardCount += 1;
 
                     // Accumulate stats about started primary shards
@@ -215,7 +215,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                     if (primaryStoreStats != null) {
                         // if primaryStoreStats is null, it means there is no primary on the node in question
                         accumulator.primaryShardCount++;
-                        long primarySize = primaryStoreStats.getSizeInBytes();
+                        long primarySize = primaryStoreStats.totalDataSetSizeInBytes();
                         accumulator.primaryByteCount += primarySize;
                         accumulator.valueSketch.add(primarySize);
                     }
@@ -246,7 +246,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             return 0;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
+            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch);
             valuesSketch.centroids().forEach(centroid -> {
                 final double deviation = Math.abs(approximateMedian - centroid.mean());
                 approximatedDeviationsSketch.add(deviation, centroid.count());

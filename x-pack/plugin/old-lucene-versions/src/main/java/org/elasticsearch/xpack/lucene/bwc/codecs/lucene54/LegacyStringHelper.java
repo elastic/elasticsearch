@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 /**
  * Legacy methods for manipulating strings.
  *
- * @lucene.internal
  * @deprecated This is only used for backwards compatibility codecs (they
  * don't work with the Java9-based replacement methods).
  */

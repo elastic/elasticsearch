@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -18,7 +17,7 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.TaskProvider;
 
-public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
@@ -32,12 +31,12 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin implement
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setDependencies(
-                runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
+                runtimeClasspath.fileCollection(
+                    dependency -> dependency instanceof ProjectDependency == false
+                        && dependency.getGroup().startsWith("org.elasticsearch") == false
+                ).minus(compileOnly)
             );
         });
-
-        // we also create the updateShas helper task that is associated with dependencyLicenses
-        project.getTasks().register("updateShas", UpdateShasTask.class, t -> t.setParentTask(dependencyLicenses));
         return dependencyLicenses;
     }
 }

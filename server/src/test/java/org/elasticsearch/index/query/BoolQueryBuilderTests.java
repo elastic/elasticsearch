@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -29,10 +28,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -64,6 +61,33 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             query.filter(RandomQueryBuilder.createQuery(random()));
         }
         return query;
+    }
+
+    @Override
+    protected BoolQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().must(queryBuilder);
+        if (randomBoolean()) {
+            addRandomClause(boolQueryBuilder, queryBuilder);
+        }
+        return boolQueryBuilder;
+    }
+
+    private static void addRandomClause(BoolQueryBuilder boolQueryBuilder, QueryBuilder innerQueryBuilder) {
+        int iters = randomIntBetween(1, 3);
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+            if (randomBoolean()) {
+                boolQueryBuilder.should(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+            if (randomBoolean()) {
+                boolQueryBuilder.mustNot(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+            if (randomBoolean()) {
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+        }
     }
 
     @Override
@@ -148,7 +172,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             expectedQuery.filter(filter);
         }
         contentString = contentString.substring(0, contentString.length() - 1);
-        contentString += "    }    \n" + "}";
+        contentString += "    }    \n}";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -216,16 +240,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             + "  \"must\" : [ {"
             + "    \"term\" : {"
             + "      \"user\" : {"
-            + "        \"value\" : \"kimchy\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"kimchy\""
             + "      }"
             + "    }"
             + "  } ],"
             + "  \"filter\" : [ {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"tech\""
             + "      }"
             + "    }"
             + "  } ],"
@@ -241,15 +263,13 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             + "  \"should\" : [ {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"wow\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"wow\""
             + "      }"
             + "    }"
             + "  }, {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"elasticsearch\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"elasticsearch\""
             + "      }"
             + "    }"
             + "  } ],"
@@ -442,21 +462,5 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQuery.must(termQuery);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> boolQuery.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
-    }
-
-    public void testExceedMaxNestedDepth() throws IOException {
-        BoolQueryBuilder query = new BoolQueryBuilder();
-        query.should(new BoolQueryBuilder().should(new BoolQueryBuilder().should(RandomQueryBuilder.createQuery(random()))));
-        BoolQueryBuilder.setMaxNestedDepth(2);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> parseInnerQueryBuilder(parser));
-            assertThat(e.getCause().getCause(), Matchers.instanceOf(IllegalArgumentException.class));
-            assertEquals(
-                "The nested depth of the query exceeds the maximum nested depth for bool queries set in ["
-                    + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
-                    + "]",
-                e.getCause().getCause().getMessage()
-            );
-        }
     }
 }

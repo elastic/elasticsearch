@@ -9,13 +9,14 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
 
-public class StrictDynamicMappingException extends MapperParsingException {
+public class StrictDynamicMappingException extends DocumentParsingException {
 
-    public StrictDynamicMappingException(String path, String fieldName) {
-        super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
+    public StrictDynamicMappingException(XContentLocation location, String path, String fieldName) {
+        super(location, "mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
     }
 
     public StrictDynamicMappingException(StreamInput in) throws IOException {

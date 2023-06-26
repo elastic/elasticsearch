@@ -11,12 +11,14 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -77,6 +79,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,11 +111,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
+                metadata.put(
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(Version.CURRENT.minimumIndexCompatibilityVersion(), between(1, 10), between(0, 2)))
+                );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
         }
@@ -179,11 +181,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(1, 3))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
+                metadata.put(
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(Version.CURRENT.minimumIndexCompatibilityVersion(), between(1, 10), between(1, 3)))
+                );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
         }
@@ -301,11 +302,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 3))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
+                metadata.put(
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(Version.CURRENT.minimumIndexCompatibilityVersion(), between(1, 10), between(0, 3)))
+                );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
         }
@@ -425,11 +425,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(2, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
+                metadata.put(
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(Version.CURRENT.minimumIndexCompatibilityVersion(), between(2, 10), between(0, 2)))
+                );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
         }
@@ -453,7 +452,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
-            final AtomicInteger failedTimes = new AtomicInteger();
             final Set<ShardId> allUnmatchedShardIds = new HashSet<>();
             for (String index : indices) {
                 final Set<ShardId> shardIds = new HashSet<>();
@@ -516,7 +514,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testStopAfterAllShardsUnmatched() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
-        final boolean newVersionOnly = randomBoolean();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
@@ -525,11 +522,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
+                metadata.put(
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(Version.CURRENT.minimumIndexCompatibilityVersion(), between(1, 10), between(0, 2)))
+                );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
         }
@@ -553,7 +549,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
-            final AtomicInteger failedTimes = new AtomicInteger();
             final List<String> unmatchedIndices = randomSubsetOf(between(1, indices.size()), indices);
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
                 @Override
@@ -741,7 +736,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final TestThreadPool threadPool = new TestThreadPool("test");
             TcpTransport transport = new Netty4Transport(
                 Settings.EMPTY,
-                Version.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 new NetworkService(Collections.emptyList()),
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -893,7 +888,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     private ClusterState newClusterState(Metadata metadata, DiscoveryNodes discoveryNodes) {
-        final RoutingTable.Builder routingTable = RoutingTable.builder();
+        final RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (IndexMetadata imd : metadata) {
             routingTable.addAsNew(metadata.index(imd.getIndex()));
         }
@@ -903,10 +898,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             .routingTable(routingTable.build())
             .build();
         final Settings settings = Settings.EMPTY;
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings(settings);
         final ArrayList<AllocationDecider> deciders = new ArrayList<>();
-        deciders.add(new EnableAllocationDecider(settings, clusterSettings));
-        deciders.add(new SameShardAllocationDecider(settings, clusterSettings));
+        deciders.add(new EnableAllocationDecider(clusterSettings));
+        deciders.add(new SameShardAllocationDecider(clusterSettings));
         deciders.add(new ReplicaAfterPrimaryActiveAllocationDecider());
         Collections.shuffle(deciders, random());
         final MockAllocationService allocationService = new MockAllocationService(

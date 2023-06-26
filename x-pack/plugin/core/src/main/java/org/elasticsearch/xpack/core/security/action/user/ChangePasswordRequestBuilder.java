@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.CharBuffer;
+import java.util.Locale;
 
 /**
  * Request to change a user's password.
@@ -70,9 +71,12 @@ public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePas
      */
     public ChangePasswordRequestBuilder passwordHash(char[] passwordHashChars, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHashChars);
-        if (resolvedHasher.equals(configuredHasher) == false) {
+        if (resolvedHasher.equals(configuredHasher) == false
+            && Hasher.getAvailableAlgoStoredHash().contains(resolvedHasher.name().toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException(
-                "Provided password hash uses [" + resolvedHasher + "] but the configured hashing algorithm is [" + configuredHasher + "]"
+                "The provided password hash is not a hash or it could not be resolved to a supported hash algorithm. "
+                    + "The supported password hash algorithms are "
+                    + Hasher.getAvailableAlgoStoredHash().toString()
             );
         }
         if (request.passwordHash() != null) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,10 +33,17 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final AllocationDeciders allocationDeciders;
+    private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
-    public ProactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
+    public ProactiveStorageDeciderService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        AllocationDeciders allocationDeciders,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+    ) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.allocationDeciders = allocationDeciders;
+        this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
     }
 
     @Override
@@ -61,9 +69,11 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             context,
             diskThresholdSettings,
-            allocationDeciders
+            allocationDeciders,
+            shardRoutingRoleStrategy
+
         );
-        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation();
+        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation().sizeInBytes();
         assert unassignedBytesBeforeForecast >= 0;
 
         TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
@@ -72,16 +82,16 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
             System.currentTimeMillis()
         );
 
-        long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation();
-        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove();
+        long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation().sizeInBytes();
+        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove().sizeInBytes();
         long maxShardSize = allocationStateAfterForecast.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= unassignedBytesBeforeForecast;
         assert maxShardSize >= 0;
         String message = ReactiveStorageDeciderService.message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
-            .node(maxShardSize, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .node(maxShardSize, null, null)
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,

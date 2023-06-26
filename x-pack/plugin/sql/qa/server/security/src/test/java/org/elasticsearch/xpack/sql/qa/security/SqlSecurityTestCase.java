@@ -402,7 +402,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE 'not-created'", "read_bort", "SHOW TABLES LIKE 'test'");
         createAuditLogAsserter().expect(true, SQL_ACTION_NAME, "test_admin", empty())
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("*", "-*"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("not-created"))
             .expect(true, SQL_ACTION_NAME, "read_bort", empty())
             .expect(true, GetIndexAction.NAME, "read_bort", contains("*", "-*"))
             .assertLogs();

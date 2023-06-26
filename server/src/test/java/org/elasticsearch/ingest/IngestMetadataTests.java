@@ -12,6 +12,9 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,8 +26,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class IngestMetadataTests extends ESTestCase {
@@ -41,7 +48,7 @@ public class IngestMetadataTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.prettyPrint();
         builder.startObject();
-        ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(ingestMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {
@@ -71,11 +78,9 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata ingestMetadata2 = new IngestMetadata(pipelines);
 
         IngestMetadata.IngestMetadataDiff diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata2.diff(ingestMetadata1);
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size(), equalTo(1));
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0), equalTo("2"));
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size(), equalTo(2));
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().containsKey("3"), is(true));
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().containsKey("4"), is(true));
+        DiffableUtils.MapDiff<?, ?, ?> pipelinesDiff = (DiffableUtils.MapDiff) diff.pipelines;
+        assertThat(pipelinesDiff.getDeletes(), contains("2"));
+        assertThat(Maps.ofEntries(pipelinesDiff.getUpserts()), allOf(aMapWithSize(2), hasKey("3"), hasKey("4")));
 
         IngestMetadata endResult = (IngestMetadata) diff.apply(ingestMetadata2);
         assertThat(endResult, not(equalTo(ingestMetadata1)));
@@ -90,8 +95,9 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata ingestMetadata3 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata3.diff(ingestMetadata1);
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size(), equalTo(0));
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size(), equalTo(0));
+        pipelinesDiff = (DiffableUtils.MapDiff) diff.pipelines;
+        assertThat(pipelinesDiff.getDeletes(), empty());
+        assertThat(pipelinesDiff.getUpserts(), empty());
 
         endResult = (IngestMetadata) diff.apply(ingestMetadata3);
         assertThat(endResult, equalTo(ingestMetadata1));
@@ -105,8 +111,8 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata ingestMetadata4 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata4.diff(ingestMetadata1);
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size(), equalTo(1));
-        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().containsKey("2"), is(true));
+        pipelinesDiff = (DiffableUtils.MapDiff) diff.pipelines;
+        assertThat(Maps.ofEntries(pipelinesDiff.getDiffs()), allOf(aMapWithSize(1), hasKey("2")));
 
         endResult = (IngestMetadata) diff.apply(ingestMetadata4);
         assertThat(endResult, not(equalTo(ingestMetadata1)));
@@ -115,6 +121,20 @@ public class IngestMetadataTests extends ESTestCase {
         assertThat(
             endResult.getPipelines().get("2"),
             equalTo(new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON))
+        );
+    }
+
+    public void testChunkedToXContent() {
+        final BytesReference pipelineConfig = new BytesArray("{}");
+        final int pipelines = randomInt(10);
+        final Map<String, PipelineConfiguration> pipelineConfigurations = new HashMap<>();
+        for (int i = 0; i < pipelines; i++) {
+            final String id = Integer.toString(i);
+            pipelineConfigurations.put(id, new PipelineConfiguration(id, pipelineConfig, XContentType.JSON));
+        }
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new IngestMetadata(pipelineConfigurations),
+            response -> 2 + response.getPipelines().size()
         );
     }
 }

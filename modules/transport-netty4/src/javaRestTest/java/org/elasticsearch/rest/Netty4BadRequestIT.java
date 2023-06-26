@@ -20,7 +20,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -56,13 +56,13 @@ public class Netty4BadRequestIT extends ESRestTestCase {
             maxMaxInitialLineLength = Math.max(maxMaxInitialLineLength, maxIntialLineLength);
         }
 
-        final String path = "/" + new String(new byte[maxMaxInitialLineLength], Charset.forName("UTF-8")).replace('\0', 'a');
+        final String path = "/" + new String(new byte[maxMaxInitialLineLength], StandardCharsets.UTF_8).replace('\0', 'a');
         final ResponseException e = expectThrows(
             ResponseException.class,
             () -> client().performRequest(new Request(randomFrom("GET", "POST", "PUT"), path))
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
-        assertThat(e, hasToString(containsString("too_long_frame_exception")));
+        assertThat(e, hasToString(containsString("too_long_http_line_exception")));
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
     }
 

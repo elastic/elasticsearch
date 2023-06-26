@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -114,7 +113,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 null,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             );
@@ -172,7 +171,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
+            PlainActionFuture.<RepositoryData, Exception>get(
                 f -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         shardGenerations,
@@ -193,7 +192,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         Version.CURRENT,
-                        f
+                        f,
+                        info -> {}
                     )
                 )
             );

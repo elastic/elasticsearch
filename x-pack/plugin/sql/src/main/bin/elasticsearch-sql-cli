@@ -5,8 +5,6 @@
 # 2.0; you may not use this file except in compliance with the Elastic License
 # 2.0.
 
-CLI_PARAMETERS="$@"
-
 source "`dirname "$0"`"/elasticsearch-env
 
 CLI_JAR=$(ls "$ES_HOME"/bin/elasticsearch-sql-cli-*.jar)
@@ -14,4 +12,4 @@ CLI_JAR=$(ls "$ES_HOME"/bin/elasticsearch-sql-cli-*.jar)
 exec \
   "$JAVA" \
   -jar "$CLI_JAR" \
-  $CLI_PARAMETERS
+  "$@"

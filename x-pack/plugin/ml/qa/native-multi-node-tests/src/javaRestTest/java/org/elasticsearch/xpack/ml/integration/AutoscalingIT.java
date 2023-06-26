@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,57 +33,52 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
-import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ml.integration.PyTorchModelIT.BASE_64_ENCODED_MODEL;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.lessThan;
 
 public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
-    private static final long BASIC_REQUIREMENT_MB = 10;
-    private static final long NATIVE_PROCESS_OVERHEAD_MB = 30;
-    private static final long BASELINE_OVERHEAD_MB = BASIC_REQUIREMENT_MB + NATIVE_PROCESS_OVERHEAD_MB;
+    private static final long PER_JOB_OVERHEAD_MB = 10;
+    private static final long PER_MODEL_OVERHEAD_MB = 240;
+    private static final long PER_NODE_OVERHEAD_MB = 30;
 
     @Before
     public void putSettings() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100).put("logger.org.elasticsearch.xpack.ml", "TRACE")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100).put("logger.org.elasticsearch.xpack.ml", "DEBUG")
+        );
     }
 
     @After
     public void removeSettings() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey()).putNull("logger.org.elasticsearch.xpack.ml")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey()).putNull("logger.org.elasticsearch.xpack.ml")
+        );
         cleanUp();
     }
 
     // This test assumes that xpack.ml.max_machine_memory_percent is 30
-    // and that xpack.ml.use_auto_machine_memory_percent is false
+    // and that xpack.ml.use_auto_machine_memory_percent is false.
+    // It also assumes that 30% of RAM on the test machine is sufficient
+    // to run a 200MB job but not a 50000MB job. (If we move to 256GB CI
+    // workers then it will need to be adjusted.)
     public void testMLAutoscalingCapacity() throws Exception {
         SortedMap<String, Settings> deciders = new TreeMap<>();
         deciders.put(
@@ -93,7 +87,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             "ml_test",
-            new TreeSet<>(Arrays.asList("master", "data", "ingest", "ml")),
+            new TreeSet<>(List.of("master", "data", "ingest", "ml")),
             deciders
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
@@ -112,9 +106,11 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         openJob("job1");
         openJob("job2");
         long expectedTierBytes = (long) Math.ceil(
-            ByteSizeValue.ofMb(100 + BASELINE_OVERHEAD_MB + 200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0
+            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
-        long expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        long expectedNodeBytes = (long) Math.ceil(
+            ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
+        );
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -127,7 +123,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         putJob("bigjob2", 50_000);
         openJob("bigjob1");
         openJob("bigjob2");
-        List<DiscoveryNode> mlNodes = admin().cluster()
+
+        long lowestMlMemory = admin().cluster()
             .prepareNodesInfo()
             .all()
             .get()
@@ -135,13 +132,23 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .stream()
             .map(NodeInfo::getNode)
             .filter(MachineLearning::isMlNode)
-            .collect(Collectors.toList());
-        NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
+            .map(node -> Long.parseLong(node.getAttributes().get(MachineLearning.MACHINE_MEMORY_NODE_ATTR)) * 30 / 100)
+            .min(Long::compareTo)
+            .orElse(0L);
+        long lowestFreeMemory = lowestMlMemory - ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes();
+        assertThat(lowestFreeMemory, greaterThan(0L));
+
+        // We'll have some free memory on both ML nodes, but not enough to load the huge model.
+        // The amount of free memory on one of the ML nodes should be taken into account.
         expectedTierBytes = (long) Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB + 60_000 + BASELINE_OVERHEAD_MB).getBytes() + currentScale
-                .getTierMlNativeMemoryRequirement()) * 100 / 30.0
+            (ByteSizeValue.ofMb(
+                100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + 50_000 + PER_JOB_OVERHEAD_MB + 60_000 + PER_JOB_OVERHEAD_MB
+                    + PER_NODE_OVERHEAD_MB
+            ).getBytes() + lowestFreeMemory) * 100 / 30.0
         );
-        expectedNodeBytes = (long) (ByteSizeValue.ofMb(60_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) Math.ceil(
+            ByteSizeValue.ofMb(60_000 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
+        );
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -150,12 +157,12 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             expectedNodeBytes
         );
 
-        expectedTierBytes = (long) Math.ceil(
-            ByteSizeValue.ofMb(100 + BASELINE_OVERHEAD_MB + 200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0
-        );
-        expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
         closeJob("bigjob1");
         closeJob("bigjob2");
+        expectedTierBytes = (long) Math.ceil(
+            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
+        );
+        expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -163,6 +170,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             expectedTierBytes,
             expectedNodeBytes
         );
+
         closeJob("job1");
         closeJob("job2");
 
@@ -174,9 +182,15 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
     }
 
+    // This test assumes that xpack.ml.max_machine_memory_percent is 30
+    // and that xpack.ml.use_auto_machine_memory_percent is false.
+    // It also assumes that 30% of RAM on the test machine is sufficient
+    // to run a 200MB job but not a 50000MB model. (If we move to 512GB CI
+    // workers then it will need to be adjusted.)
     @AwaitsFix(bugUrl = "Cannot be fixed until we move estimation to config and not rely on definition length only")
     public void testMLAutoscalingForLargeModelAssignment() {
         String modelId = "really_big_model";
+        String deploymentId = "really_big_model_deployment";
         SortedMap<String, Settings> deciders = new TreeMap<>();
         deciders.put(
             MlAutoscalingDeciderService.NAME,
@@ -184,16 +198,18 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             "ml_test",
-            new TreeSet<>(Arrays.asList("master", "data", "ingest", "ml")),
+            new TreeSet<>(List.of("master", "data", "ingest", "ml")),
             deciders
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
-        putAndStartModelDeployment("smaller1", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
-        putAndStartModelDeployment("smaller2", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
+        putAndStartModelDeployment("smaller1", "dep1", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
+        putAndStartModelDeployment("smaller2", "dep2", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
         long expectedTierBytes = (long) Math.ceil(
-            ByteSizeValue.ofMb(100 + BASELINE_OVERHEAD_MB + 200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0
+            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
-        long expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        long expectedNodeBytes = (long) Math.ceil(
+            ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
+        );
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -203,9 +219,9 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
 
         long modelSize = ByteSizeValue.ofMb(50_000).getBytes();
-        putAndStartModelDeployment(modelId, modelSize, AllocationStatus.State.STARTING);
+        putAndStartModelDeployment(modelId, deploymentId, modelSize, AllocationStatus.State.STARTING);
 
-        List<DiscoveryNode> mlNodes = admin().cluster()
+        long lowestMlMemory = admin().cluster()
             .prepareNodesInfo()
             .all()
             .get()
@@ -213,12 +229,22 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .stream()
             .map(NodeInfo::getNode)
             .filter(MachineLearning::isMlNode)
-            .collect(Collectors.toList());
-        NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
+            .map(node -> Long.parseLong(node.getAttributes().get(MachineLearning.MACHINE_MEMORY_NODE_ATTR)) * 30 / 100)
+            .min(Long::compareTo)
+            .orElse(0L);
+        long lowestFreeMemory = lowestMlMemory - ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes();
+        assertThat(lowestFreeMemory, greaterThan(0L));
+
+        // We'll have some free memory on both ML nodes, but not enough to load the huge model.
+        // The amount of free memory on one of the ML nodes should be taken into account.
         expectedTierBytes = (long) Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB).getBytes() + currentScale.getTierMlNativeMemoryRequirement()) * 100 / 30.0
+            (ByteSizeValue.ofMb(
+                100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + 2 * 50_000 + PER_MODEL_OVERHEAD_MB + PER_NODE_OVERHEAD_MB
+            ).getBytes() + lowestFreeMemory) * 100 / 30.0
         );
-        expectedNodeBytes = (long) (ByteSizeValue.ofMb(50_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) Math.ceil(
+            ByteSizeValue.ofMb(50_000 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
+        );
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -237,8 +263,11 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
         AutoscalingDeciderResult autoscalingDeciderResult = autoscalingDeciderResults.results().get("ml");
         assertThat(autoscalingDeciderResult.reason().summary(), containsString(reason));
-        assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(), greaterThanOrEqualTo(tierBytes - 1L));
-        assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(), greaterThanOrEqualTo(nodeBytes - 1L));
+        assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(), equalTo(nodeBytes));
+        // For the tier we might ask for more than expected because this cluster has multiple small nodes in one availability zone.
+        // But the discrepancy should not be huge.
+        assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(), greaterThanOrEqualTo(tierBytes));
+        assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(), lessThan(tierBytes + PER_NODE_OVERHEAD_MB));
     }
 
     private void putJob(String jobId, long limitMb) {
@@ -253,7 +282,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
     }
 
-    private void putAndStartModelDeployment(String modelId, long memoryUse, AllocationStatus.State state) {
+    private void putAndStartModelDeployment(String modelId, String deploymentId, long memoryUse, AllocationStatus.State state) {
         client().execute(
             PutTrainedModelAction.INSTANCE,
             new PutTrainedModelAction.Request(
@@ -282,12 +311,13 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             new PutTrainedModelVocabularyAction.Request(
                 modelId,
                 List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+                List.of(),
                 List.of()
             )
         ).actionGet();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
-            new StartTrainedModelDeploymentAction.Request(modelId).setWaitForState(state)
+            new StartTrainedModelDeploymentAction.Request(modelId, deploymentId).setWaitForState(state)
         ).actionGet();
     }
 }

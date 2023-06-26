@@ -34,10 +34,8 @@ public class RestDeleteShutdownNodeAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String nodeId = request.param("nodeId");
-        return channel -> client.execute(
-            DeleteShutdownNodeAction.INSTANCE,
-            new DeleteShutdownNodeAction.Request(nodeId),
-            new RestToXContentListener<>(channel)
-        );
+        final var parsedRequest = new DeleteShutdownNodeAction.Request(nodeId);
+        parsedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", parsedRequest.masterNodeTimeout()));
+        return channel -> client.execute(DeleteShutdownNodeAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
     }
 }

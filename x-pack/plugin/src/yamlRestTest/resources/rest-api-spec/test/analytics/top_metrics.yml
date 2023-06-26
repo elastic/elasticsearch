@@ -326,7 +326,7 @@
                   field: population
                 sort:
                   _geo_distance:
-                    location: "35.7796, -78.6382"
+                    location: "POINT (-78.6382 35.7796)"
   - match: { aggregations.pop.top.0.metrics.population: 8623000 }
   - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
 
@@ -343,7 +343,7 @@
                   field: population
                 sort:
                   _geo_distance:
-                    location: "35.7796, -78.6382"
+                    location: "POINT (-78.6382 35.7796)"
   - match: { aggregations.pop.top.0.metrics.population: 8623000 }
   - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
   - match: { aggregations.pop.top.1.metrics.population: 2716000 }
@@ -707,3 +707,241 @@
                 size: 3
   - match: { aggregations.tm.top.0.sort: [1] }
   - match: { aggregations.tm.top.0.metrics.host\.hostname: abc }
+
+---
+"Counter field":
+  - skip:
+      version: " - 8.6.99"
+      reason: "counter field support added in 8.7"
+
+  - do:
+      indices.create:
+        index: myindex
+        body:
+          mappings:
+            properties:
+              counter_field:
+                type: long
+                time_series_metric: counter
+              number_field:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: myindex
+              _id:    "1"
+          - number_field: 1
+            counter_field: 2
+          - index:
+              _index: myindex
+              _id:    "2"
+          - number_field: 2
+            counter_field: 4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: myindex
+        body:
+          aggs:
+            the_counter_top_metrics:
+              top_metrics:
+                metrics:
+                  field: counter_field
+                sort:
+                  number_field: asc
+
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 2 }
+  - match: { aggregations.the_counter_top_metrics.top.0.sort: [1] }
+  - match: { aggregations.the_counter_top_metrics.top.0.metrics.counter_field: 2 }
+
+
+---
+"having":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { index: { } }
+          - { gender: 1, salary: 1000, birth_date: 1981 }
+          - { index: { } }
+          - { gender: 1, salary: 2000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 8000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 9000, birth_date: 1981 }
+
+  # Similar to a SQL query for top salaries per birth date, grouped by gender:
+  #
+  # SELECT gender, FIRST(salary, birth_date) as first
+  # FROM test_emp
+  # GROUP BY gender
+  # ORDER BY gender
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+
+  - length: { aggregations.groupby.buckets: 2}
+  - match: { aggregations.groupby.buckets.0.key.gender_comp: 1}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.sort.0: 1981}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}
+  - match: { aggregations.groupby.buckets.1.key.gender_comp: 2}
+  - match: { aggregations.groupby.buckets.1.top_salary.top.0.sort.0: 1981}
+  - match: { aggregations.groupby.buckets.1.top_salary.top.0.metrics.salary: 9000}
+
+  # Similar to a SQL query with HAVING clause:
+  #
+  # SELECT gender, FIRST(salary, birth_date) as first
+  # FROM test_emp
+  # GROUP BY gender
+  # HAVING first < 80000
+  # ORDER BY gender
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary[salary]
+                    script: "params.ts < 6000"
+
+  # The bucket for gender '2' gets filtered out by the selector.
+  - length: { aggregations.groupby.buckets: 1}
+  - match: { aggregations.groupby.buckets.0.key.gender_comp: 1}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.sort.0: 1981}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}
+
+  - do:
+      bulk:
+        index: test
+        body:
+          - { index: { } }
+          - { gender: 3 }
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary[salary]
+                    script: "params.ts < 6000"
+
+  # Empty bucket for gender '3' doesn't impact results.
+  - length: { aggregations.groupby.buckets: 1}
+  - match: { aggregations.groupby.buckets.0.key.gender_comp: 1}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.sort.0: 1981}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}
+
+  - do:
+      catch: /path not supported for \[top_salary\]:\ \[nosuchfield\]./
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary[nosuchfield]
+                    script: "params.ts < 6000"
+
+  - do:
+      catch: /No aggregation found for path \[nosuchagg\[salary\]\]/
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: nosuchagg[salary]
+                    script: "params.ts < 6000"

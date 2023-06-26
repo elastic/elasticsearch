@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
@@ -48,14 +49,21 @@ public class TransportResolveIndexActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         try {
-            TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            );
 
             ResolveIndexAction.Request request = new ResolveIndexAction.Request(new String[] { "test" }) {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     super.writeTo(out);
-                    if (out.getVersion().before(Version.CURRENT)) {
-                        throw new IllegalArgumentException("This request isn't serializable to nodes before " + Version.CURRENT);
+                    if (out.getTransportVersion().before(TransportVersion.current())) {
+                        throw new IllegalArgumentException(
+                            "This request isn't serializable before transport version " + TransportVersion.current()
+                        );
                     }
                 }
             };
@@ -63,7 +71,8 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                null
             );
             ResolveIndexAction.TransportAction action = new ResolveIndexAction.TransportAction(
                 transportService,
@@ -80,7 +89,10 @@ public class TransportResolveIndexActionTests extends ESTestCase {
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals("This request isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+            assertEquals(
+                "This request isn't serializable before transport version " + TransportVersion.current(),
+                ex.getCause().getMessage()
+            );
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

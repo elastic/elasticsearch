@@ -38,7 +38,7 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
         // get target shrink index
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String targetIndexName = getShrinkIndexName(indexName, lifecycleState);
-        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, targetIndexName, listener);
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, targetIndexName, listener, true);
     }
 
     @Override

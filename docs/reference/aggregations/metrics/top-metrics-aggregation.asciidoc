@@ -62,7 +62,7 @@ request. So,
 
 `"sort": {"s": "desc"}`:: gets metrics from the document with the highest `s`
 `"sort": {"s": "asc"}`:: gets the metrics from the document with the lowest `s`
-`"sort": {"_geo_distance": {"location": "35.7796, -78.6382"}}`::
+`"sort": {"_geo_distance": {"location": "POINT (-78.6382 35.7796)"}}`::
   gets metrics from the documents with `location` *closest* to `35.7796, -78.6382`
 `"sort": "_score"`:: gets metrics from the document with the highest score
 
@@ -141,6 +141,78 @@ Which returns:
 }
 ----
 // TESTRESPONSE
+
+
+==== `missing`
+
+The `missing` parameter defines how documents with a missing value are treated. 
+By default, if any of the key components are missing, the entire document is 
+ignored. It is possible to treat the missing components as if they had a value 
+by using the `missing` parameter.
+
+[source,console]
+----
+PUT /my-index
+{
+  "mappings": {
+    "properties": {
+      "nr":    { "type": "integer" },  
+      "state":  { "type": "keyword"  } <1>
+    }
+  }
+}
+POST /my-index/_bulk?refresh
+{"index": {}}
+{"nr": 1, "state": "started"}
+{"index": {}}
+{"nr": 2, "state": "stopped"}
+{"index": {}}
+{"nr": 3, "state": "N/A"}
+{"index": {}}
+{"nr": 4} <2>
+POST /my-index/_search?filter_path=aggregations
+{
+  "aggs": {
+    "my_top_metrics": {
+      "top_metrics": {
+        "metrics": {
+          "field": "state",
+          "missing": "N/A"}, <3>
+        "sort": {"nr": "desc"}
+      }
+    }
+  }
+}
+----
+
+<1> If you want to use an aggregation on textual content, it must be a `keyword`
+type field or you must enable fielddata on that field.
+<2> This document has a missing `state` field value.
+<3> The `missing` parameter defines that if `state` field has a missing value, 
+it should be treated as if it had the `N/A` value. 
+
+The request results in the following response:
+
+[source,console-result]
+----
+{
+  "aggregations": {
+    "my_top_metrics": {
+      "top": [
+        {
+          "sort": [
+            4
+          ],
+          "metrics": {
+            "state": "N/A"
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
 
 ==== `size`
 
@@ -416,3 +488,44 @@ Which returns the much more expected:
 }
 ----
 // TESTRESPONSE
+
+===== Use in pipeline aggregations
+
+`top_metrics` can be used in pipeline aggregations that consume a single value per bucket, such as `bucket_selector`
+that applies per bucket filtering, similar to using a HAVING clause in SQL. This requires setting `size` to 1, and
+specifying the right path for the (single) metric to be passed to the wrapping aggregator. For example:
+
+[source,console]
+----
+POST /test*/_search?filter_path=aggregations
+{
+  "aggs": {
+    "ip": {
+      "terms": {
+        "field": "ip"
+      },
+      "aggs": {
+        "tm": {
+          "top_metrics": {
+            "metrics": {"field": "m"},
+            "sort": {"s": "desc"},
+            "size": 1
+          }
+        },
+        "having_tm": {
+          "bucket_selector": {
+            "buckets_path": {
+              "top_m": "tm[m]"
+            },
+            "script": "params.top_m < 1000"
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+The `bucket_path` uses the `top_metrics` name `tm` and a keyword for the metric providing the aggregate value,
+namely `m`.

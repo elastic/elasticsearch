@@ -39,6 +39,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -51,7 +52,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 
@@ -125,7 +125,7 @@ public class PersistentCache implements Closeable {
         } else {
             final Path path = cacheFile.getFile().toAbsolutePath();
             return writers.stream()
-                .filter(writer -> path.startsWith(writer.nodePath().path))
+                .filter(writer -> path.startsWith(writer.dataPath().path))
                 .findFirst()
                 .orElseThrow(() -> new PersistentCacheIndexNotFoundException(nodeEnvironment, cacheFile));
         }
@@ -149,7 +149,7 @@ public class PersistentCache implements Closeable {
     long getCacheSize(ShardId shardId, SnapshotId snapshotId, Predicate<Path> predicate) {
         long aggregateSize = 0L;
         for (CacheIndexWriter writer : writers) {
-            final Path snapshotCacheDir = resolveSnapshotCache(writer.nodePath().resolve(shardId)).resolve(snapshotId.getUUID());
+            final Path snapshotCacheDir = resolveSnapshotCache(writer.dataPath().resolve(shardId)).resolve(snapshotId.getUUID());
             if (Files.exists(snapshotCacheDir) == false) {
                 continue; // searchable snapshot shard is not present on this node path, not need to run a query
             }
@@ -217,12 +217,12 @@ public class PersistentCache implements Closeable {
         if (started.compareAndSet(false, true)) {
             try {
                 for (CacheIndexWriter writer : writers) {
-                    final NodeEnvironment.NodePath nodePath = writer.nodePath();
-                    logger.debug("loading persistent cache on data path [{}]", nodePath);
+                    final NodeEnvironment.DataPath dataPath = writer.dataPath();
+                    logger.debug("loading persistent cache on data path [{}]", dataPath);
 
-                    for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(nodePath)) {
+                    for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(dataPath)) {
                         for (ShardId shardId : nodeEnvironment.findAllShardIds(new Index("_unknown_", indexUUID))) {
-                            final Path shardDataPath = writer.nodePath().resolve(shardId);
+                            final Path shardDataPath = writer.dataPath().resolve(shardId);
                             final Path shardCachePath = getShardCachePath(new ShardPath(false, shardDataPath, shardDataPath, shardId));
 
                             if (Files.isDirectory(shardCachePath)) {
@@ -307,11 +307,12 @@ public class PersistentCache implements Closeable {
         }
     }
 
-    public long getNumDocs() {
+    // package private for tests
+    long getNumDocs() {
         ensureOpen();
         long count = 0L;
         for (CacheIndexWriter writer : writers) {
-            count += writer.indexWriter.getPendingNumDocs();
+            count += writer.indexWriter.getDocStats().numDocs;
         }
         return count;
     }
@@ -337,9 +338,9 @@ public class PersistentCache implements Closeable {
         final List<CacheIndexWriter> writers = new ArrayList<>();
         boolean success = false;
         try {
-            final NodeEnvironment.NodePath[] nodePaths = nodeEnvironment.nodePaths();
-            for (NodeEnvironment.NodePath nodePath : nodePaths) {
-                writers.add(createCacheIndexWriter(nodePath));
+            final NodeEnvironment.DataPath[] dataPaths = nodeEnvironment.dataPaths();
+            for (NodeEnvironment.DataPath dataPath : dataPaths) {
+                writers.add(createCacheIndexWriter(dataPath));
             }
             success = true;
         } catch (IOException e) {
@@ -355,15 +356,15 @@ public class PersistentCache implements Closeable {
     /**
      * Creates a new {@link CacheIndexWriter} for the specified data path. There is a single instance per data path.
      *
-     * @param nodePath the data path
+     * @param dataPath the data path
      * @return a new {@link CacheIndexWriter} instance
      * @throws IOException if something went wrong
      */
-    static CacheIndexWriter createCacheIndexWriter(NodeEnvironment.NodePath nodePath) throws IOException {
+    static CacheIndexWriter createCacheIndexWriter(NodeEnvironment.DataPath dataPath) throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         boolean success = false;
         try {
-            Path directoryPath = createCacheIndexFolder(nodePath);
+            Path directoryPath = createCacheIndexFolder(dataPath);
             final Directory directory = FSDirectory.open(directoryPath);
             closeables.add(directory);
 
@@ -377,7 +378,7 @@ public class PersistentCache implements Closeable {
             final IndexWriter indexWriter = new IndexWriter(directory, config);
             closeables.add(indexWriter);
 
-            final CacheIndexWriter cacheIndexWriter = new CacheIndexWriter(nodePath, directory, indexWriter);
+            final CacheIndexWriter cacheIndexWriter = new CacheIndexWriter(dataPath, directory, indexWriter);
             success = true;
             return cacheIndexWriter;
         } finally {
@@ -396,8 +397,8 @@ public class PersistentCache implements Closeable {
     static Map<String, Document> loadDocuments(NodeEnvironment nodeEnvironment) {
         final Map<String, Document> documents = new HashMap<>();
         try {
-            for (NodeEnvironment.NodePath nodePath : nodeEnvironment.nodePaths()) {
-                final Path directoryPath = resolveCacheIndexFolder(nodePath);
+            for (NodeEnvironment.DataPath dataPath : nodeEnvironment.dataPaths()) {
+                final Path directoryPath = resolveCacheIndexFolder(dataPath);
                 if (Files.exists(directoryPath)) {
                     documents.putAll(loadDocuments(directoryPath));
                 }
@@ -450,10 +451,10 @@ public class PersistentCache implements Closeable {
             throw new IllegalStateException("Cannot clean searchable snapshot caches: node is a data node");
         }
         try {
-            for (NodeEnvironment.NodePath nodePath : nodeEnvironment.nodePaths()) {
-                for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(nodePath)) {
+            for (NodeEnvironment.DataPath dataPath : nodeEnvironment.dataPaths()) {
+                for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(dataPath)) {
                     for (ShardId shardId : nodeEnvironment.findAllShardIds(new Index("_unknown_", indexUUID))) {
-                        final Path shardDataPath = nodePath.resolve(shardId);
+                        final Path shardDataPath = dataPath.resolve(shardId);
                         final ShardPath shardPath = new ShardPath(false, shardDataPath, shardDataPath, shardId);
                         final Path cacheDir = getShardCachePath(shardPath);
                         if (Files.isDirectory(cacheDir)) {
@@ -462,7 +463,7 @@ public class PersistentCache implements Closeable {
                         }
                     }
                 }
-                final Path cacheIndexDir = resolveCacheIndexFolder(nodePath);
+                final Path cacheIndexDir = resolveCacheIndexFolder(dataPath);
                 if (Files.isDirectory(cacheIndexDir)) {
                     logger.debug("deleting searchable snapshot lucene directory [{}]", cacheIndexDir);
                     IOUtils.rm(cacheIndexDir);
@@ -479,22 +480,22 @@ public class PersistentCache implements Closeable {
      */
     static class CacheIndexWriter implements Closeable {
 
-        private final NodeEnvironment.NodePath nodePath;
+        private final NodeEnvironment.DataPath dataPath;
         private final IndexWriter indexWriter;
         private final Directory directory;
 
-        private CacheIndexWriter(NodeEnvironment.NodePath nodePath, Directory directory, IndexWriter indexWriter) {
-            this.nodePath = nodePath;
+        private CacheIndexWriter(NodeEnvironment.DataPath dataPath, Directory directory, IndexWriter indexWriter) {
+            this.dataPath = dataPath;
             this.directory = directory;
             this.indexWriter = indexWriter;
         }
 
-        NodeEnvironment.NodePath nodePath() {
-            return nodePath;
+        NodeEnvironment.DataPath dataPath() {
+            return dataPath;
         }
 
         void updateCacheFile(CacheFile cacheFile, SortedSet<ByteRange> cacheRanges) throws IOException {
-            updateCacheFile(buildId(cacheFile), buildDocument(nodePath, cacheFile, cacheRanges));
+            updateCacheFile(buildId(cacheFile), buildDocument(dataPath, cacheFile, cacheRanges));
         }
 
         void updateCacheFile(String cacheFileId, Document cacheFileDocument) throws IOException {
@@ -532,7 +533,7 @@ public class PersistentCache implements Closeable {
 
         @Override
         public String toString() {
-            return "[persistent cache index][" + nodePath + ']';
+            return "[persistent cache index][" + dataPath + ']';
         }
     }
 
@@ -559,11 +560,11 @@ public class PersistentCache implements Closeable {
         return new Term(CACHE_ID_FIELD, cacheFileUuid);
     }
 
-    private static Document buildDocument(NodeEnvironment.NodePath nodePath, CacheFile cacheFile, SortedSet<ByteRange> cacheRanges)
+    private static Document buildDocument(NodeEnvironment.DataPath dataPath, CacheFile cacheFile, SortedSet<ByteRange> cacheRanges)
         throws IOException {
         final Document document = new Document();
         document.add(new StringField(CACHE_ID_FIELD, buildId(cacheFile), Field.Store.YES));
-        document.add(new StringField(CACHE_PATH_FIELD, nodePath.indicesPath.relativize(cacheFile.getFile()).toString(), Field.Store.YES));
+        document.add(new StringField(CACHE_PATH_FIELD, dataPath.indicesPath.relativize(cacheFile.getFile()).toString(), Field.Store.YES));
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeVInt(cacheRanges.size());
@@ -576,12 +577,12 @@ public class PersistentCache implements Closeable {
         }
 
         final CacheKey cacheKey = cacheFile.getCacheKey();
-        document.add(new StringField(FILE_NAME_FIELD, cacheKey.getFileName(), Field.Store.YES));
+        document.add(new StringField(FILE_NAME_FIELD, cacheKey.fileName(), Field.Store.YES));
         document.add(new StringField(FILE_LENGTH_FIELD, Long.toString(cacheFile.getLength()), Field.Store.YES));
-        document.add(new StringField(SNAPSHOT_ID_FIELD, cacheKey.getSnapshotUUID(), Field.Store.YES));
-        document.add(new StringField(SNAPSHOT_INDEX_NAME_FIELD, cacheKey.getSnapshotIndexName(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_ID_FIELD, cacheKey.snapshotUUID(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_INDEX_NAME_FIELD, cacheKey.snapshotIndexName(), Field.Store.YES));
 
-        final ShardId shardId = cacheKey.getShardId();
+        final ShardId shardId = cacheKey.shardId();
         document.add(new StringField(SHARD_INDEX_NAME_FIELD, shardId.getIndex().getName(), Field.Store.YES));
         document.add(new StringField(SHARD_INDEX_ID_FIELD, shardId.getIndex().getUUID(), Field.Store.YES));
         document.add(new StringField(SHARD_ID_FIELD, Integer.toString(shardId.getId()), Field.Store.YES));
@@ -636,8 +637,8 @@ public class PersistentCache implements Closeable {
         return unmodifiableSortedSet(cacheRanges);
     }
 
-    static Path resolveCacheIndexFolder(NodeEnvironment.NodePath nodePath) {
-        return resolveCacheIndexFolder(nodePath.path);
+    static Path resolveCacheIndexFolder(NodeEnvironment.DataPath dataPath) {
+        return resolveCacheIndexFolder(dataPath.path);
     }
 
     static Path resolveCacheIndexFolder(Path dataPath) {
@@ -647,9 +648,9 @@ public class PersistentCache implements Closeable {
     /**
      * Creates a directory for the snapshot cache Lucene index.
      */
-    private static Path createCacheIndexFolder(NodeEnvironment.NodePath nodePath) throws IOException {
+    private static Path createCacheIndexFolder(NodeEnvironment.DataPath dataPath) throws IOException {
         // "snapshot_cache" directory at the root of the specified data path
-        final Path snapshotCacheRootDir = resolveCacheIndexFolder(nodePath);
+        final Path snapshotCacheRootDir = resolveCacheIndexFolder(dataPath);
         if (Files.exists(snapshotCacheRootDir) == false) {
             logger.debug("creating new persistent cache index directory [{}]", snapshotCacheRootDir);
             Files.createDirectories(snapshotCacheRootDir);

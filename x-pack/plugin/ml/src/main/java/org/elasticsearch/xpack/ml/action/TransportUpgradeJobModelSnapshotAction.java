@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -51,6 +50,8 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -227,6 +228,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         // Get the job config to verify it exists
         jobConfigProvider.getJob(
             request.getJobId(),
+            null,
             ActionListener.wrap(builder -> getJobHandler.onResponse(builder.build()), listener::onFailure)
         );
     }
@@ -285,8 +287,8 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(t -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] [{}] Failed to cancel persistent task that could not be assigned due to {}",
+                () -> format(
+                    "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
                     persistentTask.getParams().getJobId(),
                     persistentTask.getParams().getSnapshotId(),
                     exception.getMessage()

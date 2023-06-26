@@ -10,7 +10,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -239,6 +240,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
         final Set<String> leaseIdsForCurrentPeers = routingTable.assignedShards()
             .stream()
+            .filter(ShardRouting::isPromotableToPrimary)
             .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
             .collect(Collectors.toSet());
         final boolean allShardsStarted = routingTable.allShardsStarted();
@@ -264,7 +266,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final Collection<RetentionLease> expiredLeases = partitionByExpiration.get(true);
         if (expiredLeases == null) {
             // early out as no retention leases have expired
-            logger.debug("no retention leases are expired from current retention leases [{}]", retentionLeases);
+            logger.trace("no retention leases are expired from current retention leases [{}]", retentionLeases);
             return retentionLeases;
         }
         final List<RetentionLease> nonExpiredLeases = partitionByExpiration.get(false) != null
@@ -583,7 +585,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         boolean renewalNeeded = false;
         for (int copy = 0; copy < routingTable.size(); copy++) {
             final ShardRouting shardRouting = routingTable.shard(copy);
-            if (shardRouting.assignedToNode() == false) {
+            if (shardRouting.assignedToNode() == false || shardRouting.isPromotableToPrimary() == false) {
                 continue;
             }
             final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
@@ -604,7 +606,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (renewalNeeded) {
             for (int copy = 0; copy < routingTable.size(); copy++) {
                 final ShardRouting shardRouting = routingTable.shard(copy);
-                if (shardRouting.assignedToNode()) {
+                if (shardRouting.assignedToNode() && shardRouting.isPromotableToPrimary()) {
                     final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
                     if (retentionLease != null) {
                         final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
@@ -850,8 +852,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert replicationGroup == null || replicationGroup.equals(calculateReplicationGroup())
             : "cached replication group out of sync: expected: " + calculateReplicationGroup() + " but was: " + replicationGroup;
 
+        if (replicationGroup != null) {
+            assert replicationGroup.getReplicationTargets().stream().allMatch(ShardRouting::isPromotableToPrimary)
+                : "expected all replication target shards of the replication group to be promotable to primary";
+            assert replicationGroup.getSkippedShards().stream().allMatch(ShardRouting::isPromotableToPrimary)
+                : "expected all skipped shards of the replication group to be promotable to primary";
+        }
+
         // all assigned shards from the routing table are tracked
-        assert routingTable == null || checkpoints.keySet().containsAll(routingTable.getAllAllocationIds())
+        assert routingTable == null || checkpoints.keySet().containsAll(routingTable.getPromotableAllocationIds())
             : "local checkpoints " + checkpoints + " not in-sync with routing table " + routingTable;
 
         for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
@@ -871,7 +880,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases) {
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
-                if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
+                if (shardRouting.isPromotableToPrimary() && checkpoints.get(shardRouting.allocationId().getId()).tracked) {
                     assert retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
                         : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
                     assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(
@@ -965,15 +974,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
-        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_6_0)
+        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_6_0)
             || (indexSettings.isSoftDeleteEnabled()
-                && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0)
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_4_0)
                 && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
-        assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
+        assert IndexVersion.ZERO.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
 
@@ -1127,6 +1136,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         } else if (hasAllPeerRecoveryRetentionLeases == false
             && routingTable.assignedShards()
                 .stream()
+                .filter(ShardRouting::isPromotableToPrimary)
                 .allMatch(
                     shardRouting -> retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
                         || checkpoints.get(shardRouting.allocationId().getId()).tracked == false
@@ -1161,6 +1171,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // remove entries which don't exist on master
             Set<String> initializingAllocationIds = routingTable.getAllInitializingShards()
                 .stream()
+                .filter(ShardRouting::isPromotableToPrimary)
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)
                 .collect(Collectors.toSet());
@@ -1471,30 +1482,33 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {
-            final List<ShardRouting> shardRoutings = routingTable.assignedShards();
-            final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(vs -> {
+            try (var listeners = new RefCountingListener(listener.delegateFailure((l, ignored) -> {
                 setHasAllPeerRecoveryRetentionLeases();
-                listener.onResponse(null);
-            }, listener::onFailure), shardRoutings.size());
-            for (ShardRouting shardRouting : shardRoutings) {
-                if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
-                    groupedActionListener.onResponse(null);
-                } else {
+                l.onResponse(null);
+            }))) {
+                for (ShardRouting shardRouting : routingTable.assignedShards()) {
+                    if (shardRouting.isPromotableToPrimary() == false) {
+                        continue;
+                    }
+
+                    if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
+                        continue;
+                    }
+
                     final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
                     if (checkpointState.tracked == false) {
-                        groupedActionListener.onResponse(null);
-                    } else {
-                        logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
-                        try {
-                            addPeerRecoveryRetentionLease(
-                                shardRouting.currentNodeId(),
-                                Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
-                                groupedActionListener
-                            );
-                        } catch (Exception e) {
-                            groupedActionListener.onFailure(e);
-                        }
+                        continue;
                     }
+
+                    logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
+                    ActionListener.run(
+                        listeners.acquire((ReplicationResponse replicationResponse) -> {}),
+                        l -> addPeerRecoveryRetentionLease(
+                            shardRouting.currentNodeId(),
+                            Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
+                            l
+                        )
+                    );
                 }
             }
         } else {
@@ -1569,8 +1583,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         public PrimaryContext(StreamInput in) throws IOException {
             clusterStateVersion = in.readVLong();
-            checkpoints = in.readMap(StreamInput::readString, CheckpointState::new);
-            routingTable = IndexShardRoutingTable.Builder.readFrom(in);
+            checkpoints = in.readMap(CheckpointState::new);
+            routingTable = IndexShardRoutingTable.Builder.readFrom(in).build();
         }
 
         public long clusterStateVersion() {

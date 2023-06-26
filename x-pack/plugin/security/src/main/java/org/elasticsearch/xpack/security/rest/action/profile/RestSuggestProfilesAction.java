@@ -10,13 +10,19 @@ package org.elasticsearch.xpack.security.rest.action.profile;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -28,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestSuggestProfilesAction extends SecurityBaseRestHandler {
 
     static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
@@ -84,7 +91,25 @@ public class RestSuggestProfilesAction extends SecurityBaseRestHandler {
             payload.size(),
             payload.hint() == null ? null : new SuggestProfilesRequest.Hint(payload.hint().uids(), payload.hint().labels())
         );
-        return channel -> client.execute(SuggestProfilesAction.INSTANCE, suggestProfilesRequest, new RestToXContentListener<>(channel));
+        final HttpChannel httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).execute(
+            SuggestProfilesAction.INSTANCE,
+            suggestProfilesRequest,
+            new RestToXContentListener<>(channel)
+        );
+    }
+
+    @Override
+    protected Exception checkFeatureAvailable(RestRequest request) {
+        final Exception failedFeature = super.checkFeatureAvailable(request);
+        if (failedFeature != null) {
+            return failedFeature;
+        }
+        if (Security.USER_PROFILE_COLLABORATION_FEATURE.check(licenseState)) {
+            return null;
+        } else {
+            return LicenseUtils.newComplianceException(Security.USER_PROFILE_COLLABORATION_FEATURE.getName());
+        }
     }
 
     record Payload(String name, Integer size, PayloadHint hint, String data) {

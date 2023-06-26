@@ -1,6 +1,0 @@
-pr: 85785
-summary: Expose proxy settings for GCS repositories
-area: Snapshot/Restore
-type: bug
-issues:
- - 84569

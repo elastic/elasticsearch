@@ -3,9 +3,9 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Data Streams'
@@ -15,7 +15,7 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest'
+      'eql', 'data_stream', 'ingest', 'cat'
   }
 }
 
@@ -27,7 +27,7 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
@@ -35,7 +35,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'false'
   // disable ILM history, since it disturbs tests using _all
   setting 'indices.lifecycle.history_index_enabled', 'false'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 if (BuildParams.inFipsJvm){
@@ -47,6 +46,6 @@ if (BuildParams.inFipsJvm){
 
 if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("internalClusterTest").configure {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
 }

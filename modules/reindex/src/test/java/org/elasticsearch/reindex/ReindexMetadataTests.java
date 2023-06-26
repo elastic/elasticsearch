@@ -9,12 +9,13 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 
 /**
- * Index-by-search test for ttl, timestamp, and routing.
+ * Reindex test for routing.
  */
 public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<ReindexRequest, BulkByScrollResponse> {
     public void testRoutingCopiedByDefault() throws Exception {
@@ -62,7 +63,9 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest();
+        ReindexRequest request = new ReindexRequest();
+        request.getDestination().index("test");
+        return request;
     }
 
     private class TestAction extends Reindexer.AsyncIndexBySearchAction {
@@ -74,6 +77,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 null,
                 ReindexMetadataTests.this.threadPool,
                 null,
+                ClusterState.EMPTY_STATE,
                 null,
                 request(),
                 listener()

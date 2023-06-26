@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -24,7 +23,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTem
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -43,6 +41,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -97,10 +96,7 @@ public final class MlIndexAndAlias {
     ) {
 
         final ActionListener<Boolean> loggingListener = ActionListener.wrap(finalListener::onResponse, e -> {
-            logger.error(
-                new ParameterizedMessage("Failed to create alias and index with pattern [{}] and alias [{}]", indexPatternPrefix, alias),
-                e
-            );
+            logger.error(() -> format("Failed to create alias and index with pattern [%s] and alias [%s]", indexPatternPrefix, alias), e);
             finalListener.onFailure(e);
         });
 
@@ -219,8 +215,7 @@ public final class MlIndexAndAlias {
     }
 
     private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
-        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(index)
-            .waitForYellowStatus()
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(index).waitForYellowStatus()
             .waitForNoRelocatingShards(true)
             .waitForNoInitializingShards(true)
             .masterNodeTimeout(masterNodeTimeout);

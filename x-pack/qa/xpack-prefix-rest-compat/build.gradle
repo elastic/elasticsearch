@@ -9,11 +9,8 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
-import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 /**
  * This project exists to test the _xpack prefix for REST compatibility. The _xpack prefix was removed from the specification, but still supported
@@ -28,7 +25,7 @@ int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
 
 dependencies {
   "yamlRestTestV${compatVersion}CompatImplementation" project(':test:framework')
-  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(xpackProject('plugin')))
+  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(project(':x-pack:plugin')))
   compatXpackTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
 }
 
@@ -39,7 +36,7 @@ tasks.named("copyRestCompatTestTask").configure { task ->
     task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "sql", "ssl"));
     task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/v${compatVersion}/yamlTests/original"));
     task.setXpackConfigToFileTree(
-      config -> project.fileTree(
+      config -> fileTree(
         config.getSingleFile().toPath()
       )
     )
@@ -57,7 +54,7 @@ File serviceTokens = file("$extraResourceDir/service_tokens")
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyExtraResources", Copy) {
+def copyExtraResources = tasks.register("copyExtraResources", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
@@ -67,7 +64,12 @@ tasks.register("copyExtraResources", Copy) {
   into extraResourceDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets."yamlRestTestV${compatVersion}Compat".resources.srcDir(extraResourceDir)
+sourceSets."yamlRestTestV${compatVersion}Compat".resources.compiledBy(copyExtraResources, t -> {
+  def dirProp = project.objects.directoryProperty()
+  dirProp.set(t.destinationDir)
+  return dirProp;
+})
+
 tasks.named("processYamlRestTestV${compatVersion}CompatResources").configure {
   dependsOn("copyExtraResources")
 }
@@ -179,4 +181,14 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
 
   task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
   task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
+}
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'ml/evaluate_data_frame/Test classification auc_roc',
+    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
+  ].join(',')
 }

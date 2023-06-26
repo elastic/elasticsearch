@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +74,56 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting] is deprecated"));
         assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting] setting. Some detail."));
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testMultipleDataPaths() {
+        final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getMessage(), equalTo("Specifying multiple data paths is deprecated"));
+        assertThat(
+            issue.getDetails(),
+            equalTo(
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+            )
+        );
+        String url = "https://ela.st/es-deprecation-7-multiple-paths";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoMultipleDataPaths() {
+        Settings settings = Settings.builder().put("path.data", "data").build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
+    public void testDataPathsList() {
+        final Settings settings = Settings.builder().putList("path.data", "d1").build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getMessage(), equalTo("Multiple data paths are not supported"));
+        assertThat(
+            issue.getDetails(),
+            equalTo(
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+            )
+        );
+        String url = "https://ela.st/es-deprecation-7-multiple-paths";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoDataPathsListDefault() {
+        final Settings settings = Settings.builder().build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        assertThat(issue, nullValue());
     }
 
     public void testSharedDataPathSetting() {
@@ -752,9 +803,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             metadataBuilder.transientSettings(clusterSettings);
         }
         Metadata metadata = metadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
             c -> c.apply(nodettings, pluginsAndModules, clusterState, licenseState)

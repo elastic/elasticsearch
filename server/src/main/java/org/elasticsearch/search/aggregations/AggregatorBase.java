@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.SumAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -109,6 +110,9 @@ public abstract class AggregatorBase extends Aggregator {
      * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
      * top level, and the underlying field is indexed, and the index is sorted in the right order.
      *
+     * Also, using the pointReader is acceptable if within a sampling context and all other requirements are satisfied.
+     * But, this means that the numbers gathered from the point reader must not be scaled when gathered within a sampling context.
+     *
      * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
      * be used in this case.
      *
@@ -118,7 +122,7 @@ public abstract class AggregatorBase extends Aggregator {
         if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
             return null;
         }
-        if (parent != null) {
+        if (parent != null && parent instanceof RandomSamplerAggregator == false) {
             return null;
         }
         return config.getPointReaderOrNull();
@@ -174,8 +178,8 @@ public abstract class AggregatorBase extends Aggregator {
      * {@link LeafBucketCollector#collect(int, long) collect} for every hit. So any
      * {@link Aggregator} that returns a customer {@linkplain LeafBucketCollector}
      * from this method runs at best {@code O(hits)} time. See the
-     * {@link SumAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) sum}
-     * {@linkplain Aggregator} for a fairly straight forward example of this.
+     * {@link SumAggregator#getLeafCollector(AggregationExecutionContext, LeafBucketCollector) sum}
+     * {@linkplain Aggregator} for a fairly strait forward example of this.
      * <p>
      * Some {@linkplain Aggregator}s are able to correctly collect results on
      * their own, without being iterated by the top level query or the rest
@@ -184,7 +188,7 @@ public abstract class AggregatorBase extends Aggregator {
      * return {@link LeafBucketCollector#NO_OP_COLLECTOR} to signal that they've
      * done their own collection. These aggregations can do better than
      * {@code O(hits)}. See the
-     * {@link MinAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) min}
+     * {@link MinAggregator#getLeafCollector(AggregationExecutionContext, LeafBucketCollector) min}
      * {@linkplain Aggregator} for an example of an aggregation that does this. It
      * happens to run in constant time in some cases.
      * <p>
@@ -199,27 +203,21 @@ public abstract class AggregatorBase extends Aggregator {
      * path before building the {@linkplain Aggregator} rather than on each
      * leaf. Either is fine.
      */
-    protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
-
-    // TODO: Remove this method in refactoring
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
-        return getLeafCollector(ctx, sub);
-    }
+    protected abstract LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException;
 
     /**
      * Collect results for this leaf.
      * <p>
      * Implemented by the {@linkplain Aggregator} base class to correctly set
      * up sub {@linkplain Aggregator}s. See the
-     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector) abstract delegate}
+     * {@link #getLeafCollector(AggregationExecutionContext, LeafBucketCollector) abstract delegate}
      * for more details on what this does.
      */
     @Override
     public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
         preGetSubLeafCollectors(aggCtx.getLeafReaderContext());
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(aggCtx);
-        return getLeafCollector(aggCtx.getLeafReaderContext(), sub, aggCtx);
+        return getLeafCollector(aggCtx, sub);
     }
 
     /**
@@ -273,6 +271,15 @@ public abstract class AggregatorBase extends Aggregator {
             }
         }
         return subAggregatorbyName.get(aggName);
+    }
+
+    @Override
+    public void releaseAggregations() {
+        // release sub aggregations
+        Arrays.stream(subAggregators).forEach(Aggregator::releaseAggregations);
+        // release this aggregation
+        close();
+        context.removeReleasable(this);
     }
 
     /**
@@ -331,7 +338,7 @@ public abstract class AggregatorBase extends Aggregator {
      * The "top level" query that will filter the results sent to this
      * {@linkplain Aggregator}. Used by all {@linkplain Aggregator}s that
      * perform extra collection phases in addition to the one done in
-     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}.
+     * {@link #getLeafCollector(AggregationExecutionContext, LeafBucketCollector)}.
      */
     protected final Query topLevelQuery() {
         return context.query();
@@ -341,7 +348,7 @@ public abstract class AggregatorBase extends Aggregator {
      * The searcher for the shard this {@linkplain Aggregator} is running
      * against. Used by all {@linkplain Aggregator}s that perform extra
      * collection phases in addition to the one done in
-     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}
+     * {@link #getLeafCollector(AggregationExecutionContext, LeafBucketCollector)}
      * and by to look up extra "background" information about contents of
      * the shard itself.
      */

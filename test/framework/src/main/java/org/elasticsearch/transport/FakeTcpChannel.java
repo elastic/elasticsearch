@@ -9,9 +9,10 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.CompletableContext;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class FakeTcpChannel implements TcpChannel {
@@ -21,7 +22,9 @@ public class FakeTcpChannel implements TcpChannel {
     private final InetSocketAddress remoteAddress;
     private final String profile;
     private final ChannelStats stats = new ChannelStats();
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicReference<BytesReference> messageCaptor;
     private final AtomicReference<ActionListener<Void>> listenerCaptor;
 
@@ -35,10 +38,6 @@ public class FakeTcpChannel implements TcpChannel {
 
     public FakeTcpChannel(boolean isServer, InetSocketAddress localAddress, InetSocketAddress remoteAddress) {
         this(isServer, localAddress, remoteAddress, "profile", new AtomicReference<>());
-    }
-
-    public FakeTcpChannel(boolean isServer, AtomicReference<BytesReference> messageCaptor) {
-        this(isServer, "profile", messageCaptor);
     }
 
     public FakeTcpChannel(boolean isServer, String profile, AtomicReference<BytesReference> messageCaptor) {
@@ -93,17 +92,19 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public void close() {
-        closeContext.complete(null);
+        if (closed.compareAndSet(false, true)) {
+            closeContext.onResponse(null);
+        }
     }
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override
     public boolean isOpen() {
-        return closeContext.isDone() == false;
+        return closed.get() == false;
     }
 
     @Override

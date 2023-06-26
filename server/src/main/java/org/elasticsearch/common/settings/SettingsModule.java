@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -132,7 +131,7 @@ public class SettingsModule implements Module {
                 try (XContentBuilder xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     xContentBuilder.prettyPrint();
                     xContentBuilder.startObject();
-                    indexSettings.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                    indexSettings.toXContent(xContentBuilder, Settings.FLAT_SETTINGS_TRUE);
                     xContentBuilder.endObject();
                     builder.append(Strings.toString(xContentBuilder));
                 }
@@ -166,7 +165,7 @@ public class SettingsModule implements Module {
      * the setting during startup.
      */
     private void registerSetting(Setting<?> setting) {
-        if (setting.getKey().contains(".") == false) {
+        if (setting.getKey().contains(".") == false && isS3InsecureCredentials(setting) == false) {
             throw new IllegalArgumentException("setting [" + setting.getKey() + "] is not in any namespace, its name must contain a dot");
         }
         if (setting.isFiltered()) {
@@ -208,6 +207,13 @@ public class SettingsModule implements Module {
         } else {
             throw new IllegalArgumentException("No scope found for setting [" + setting.getKey() + "]");
         }
+    }
+
+    // TODO: remove this hack once we remove the deprecated ability to use repository settings in the cluster state in the S3 snapshot
+    // module
+    private boolean isS3InsecureCredentials(Setting<?> setting) {
+        final String settingKey = setting.getKey();
+        return settingKey.equals("access_key") || settingKey.equals("secret_key");
     }
 
     /**

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
@@ -83,9 +83,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     private void prepareIndex() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
                 .get()
         );
@@ -315,10 +313,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             if (doc.isExists()) {
                 String value = doc.getSource().get("result").toString();
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-                    final Version version = Version.readVersion(buf);
+                    TransportVersion version = TransportVersion.readVersion(buf);
                     final InputStream compressedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(buf);
                     try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(compressedIn), registry)) {
-                        in.setVersion(version);
+                        in.setTransportVersion(version);
                         return new StoredAsyncResponse<>(EqlSearchResponse::new, in);
                     }
                 }

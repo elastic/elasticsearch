@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -163,16 +162,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     public static final String ALLOW_NONE = "none";
 
-    public static final Setting<List<String>> TYPES_ALLOWED_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> TYPES_ALLOWED_SETTING = Setting.stringListSetting(
         "script.allowed_types",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING = Setting.stringListSetting(
         "script.allowed_contexts",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope
     );
 
@@ -733,7 +728,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
 
-        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask(clusterService, "put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
@@ -742,7 +737,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, newExecutor());
+        });
     }
 
     public static void deleteStoredScript(
@@ -750,7 +745,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         DeleteStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("delete-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask(clusterService, "delete-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
@@ -759,12 +754,16 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, newExecutor());
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public static StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
@@ -778,7 +777,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     public Set<ScriptContextInfo> getContextInfos() {
-        Set<ScriptContextInfo> infos = new HashSet<ScriptContextInfo>(contexts.size());
+        Set<ScriptContextInfo> infos = Sets.newHashSetWithExpectedSize(contexts.size());
         for (ScriptContext<?> context : contexts.values()) {
             infos.add(new ScriptContextInfo(context.name, context.instanceClazz));
         }
@@ -945,7 +944,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                 ScriptCache cache = entry.getValue().get();
                 contextStats.add(cache.stats(entry.getKey()));
             }
-            return new ScriptStats(contextStats);
+            return ScriptStats.read(contextStats);
         }
 
         ScriptCacheStats cacheStats() {

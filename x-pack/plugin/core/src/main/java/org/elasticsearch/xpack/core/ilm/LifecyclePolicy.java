@@ -58,12 +58,9 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         }
     );
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> Phase.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported"); },
-            PHASES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
+            throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
+        }, PHASES_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
     }
 
@@ -104,7 +101,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     public LifecyclePolicy(StreamInput in) throws IOException {
         type = in.readNamedWriteable(LifecycleType.class);
         name = in.readString();
-        phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
+        phases = in.readImmutableMap(Phase::new);
         this.metadata = in.readMap();
     }
 
@@ -265,21 +262,21 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     }
 
     public boolean isActionSafe(StepKey stepKey) {
-        if ("new".equals(stepKey.getPhase())) {
+        if ("new".equals(stepKey.phase())) {
             return true;
         }
-        Phase phase = phases.get(stepKey.getPhase());
+        Phase phase = phases.get(stepKey.phase());
         if (phase != null) {
-            LifecycleAction action = phase.getActions().get(stepKey.getAction());
+            LifecycleAction action = phase.getActions().get(stepKey.action());
             if (action != null) {
                 return action.isSafeAction();
             } else {
                 throw new IllegalArgumentException(
-                    "Action [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]"
+                    "Action [" + stepKey.action() + "] in phase [" + stepKey.phase() + "]  does not exist in policy [" + name + "]"
                 );
             }
         } else {
-            throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]");
+            throw new IllegalArgumentException("Phase [" + stepKey.phase() + "]  does not exist in policy [" + name + "]");
         }
     }
 

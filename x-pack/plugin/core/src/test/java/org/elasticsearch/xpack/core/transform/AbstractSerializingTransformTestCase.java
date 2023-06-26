@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -18,7 +18,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -36,7 +36,8 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractSerializingTransformTestCase<T extends ToXContent & Writeable> extends AbstractSerializingTestCase<T> {
+public abstract class AbstractSerializingTransformTestCase<T extends ToXContent & Writeable> extends AbstractXContentSerializingTestCase<
+    T> {
 
     protected static Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
         Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true")
@@ -115,14 +116,14 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
         NamedWriteableRegistry registry,
         Writeable.Writer<X> writer,
         Writeable.Reader<Y> reader,
-        Version version
+        TransportVersion version
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             original.writeTo(output);
 
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 return reader.read(in);
             }
         }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -42,8 +41,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -52,26 +49,23 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.status;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public class ResultsPersisterService {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Collections.unmodifiableSet(
-        new HashSet<>(
-            Arrays.asList(
-                RestStatus.GONE,
-                RestStatus.NOT_IMPLEMENTED,
-                // Not found is returned when we require an alias but the index is NOT an alias.
-                RestStatus.NOT_FOUND,
-                RestStatus.BAD_REQUEST,
-                RestStatus.UNAUTHORIZED,
-                RestStatus.FORBIDDEN,
-                RestStatus.METHOD_NOT_ALLOWED,
-                RestStatus.NOT_ACCEPTABLE
-            )
-        )
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Set.of(
+        RestStatus.GONE,
+        RestStatus.NOT_IMPLEMENTED,
+        // Not found is returned when we require an alias but the index is NOT an alias.
+        RestStatus.NOT_FOUND,
+        RestStatus.BAD_REQUEST,
+        RestStatus.UNAUTHORIZED,
+        RestStatus.FORBIDDEN,
+        RestStatus.METHOD_NOT_ALLOWED,
+        RestStatus.NOT_ACCEPTABLE
     );
 
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
@@ -161,6 +155,25 @@ public class ResultsPersisterService {
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
     }
 
+    public void indexWithRetry(
+        String jobId,
+        String indexName,
+        ToXContent object,
+        ToXContent.Params params,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        String id,
+        boolean requireAlias,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        ActionListener<BulkResponse> finalListener
+    ) throws IOException {
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
+            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
+        }
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, finalListener);
+    }
+
     public BulkResponse bulkIndexWithRetry(
         BulkRequest bulkRequest,
         String jobId,
@@ -168,6 +181,25 @@ public class ResultsPersisterService {
         Consumer<String> retryMsgHandler
     ) {
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk);
+    }
+
+    public void bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        ActionListener<BulkResponse> finalListener
+    ) {
+        if (isShutdown || isResetMode) {
+            finalListener.onFailure(
+                new ElasticsearchException(
+                    "Bulk indexing has failed as {}",
+                    isShutdown ? "node is shutting down." : "machine learning feature is being reset."
+                )
+            );
+            return;
+        }
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk, finalListener);
     }
 
     public BulkResponse bulkIndexWithHeadersWithRetry(
@@ -206,10 +238,22 @@ public class ResultsPersisterService {
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }
-        final PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
+        return getResponseFuture.actionGet();
+    }
+
+    private void bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor,
+        ActionListener<BulkResponse> finalListener
+    ) {
         final Object key = new Object();
         final ActionListener<BulkResponse> removeListener = ActionListener.runBefore(
-            getResponse,
+            finalListener,
             () -> onGoingRetryableBulkActions.remove(key)
         );
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
@@ -229,7 +273,6 @@ public class ResultsPersisterService {
                 )
             );
         }
-        return getResponse.actionGet();
     }
 
     public SearchResponse searchWithRetry(
@@ -322,8 +365,8 @@ public class ResultsPersisterService {
                         if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
                             Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
                             LOGGER.warn(
-                                new ParameterizedMessage(
-                                    "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
+                                () -> format(
+                                    "[%s] experienced failure that cannot be automatically retried. Bulk failure message [%s]",
                                     jobId,
                                     bulkResponse.buildFailureMessage()
                                 ),
@@ -447,22 +490,19 @@ public class ResultsPersisterService {
         @Override
         public boolean shouldRetry(Exception e) {
             if (isIrrecoverable(e)) {
-                LOGGER.warn(new ParameterizedMessage("[{}] experienced failure that cannot be automatically retried", jobId), e);
+                LOGGER.warn(() -> "[" + jobId + "] experienced failure that cannot be automatically retried", e);
                 return false;
             }
 
             // If the outside conditions have changed and retries are no longer needed, do not retry.
             if (shouldRetry.get() == false) {
-                LOGGER.info(
-                    () -> new ParameterizedMessage("[{}] should not retry {} after [{}] attempts", jobId, getName(), currentAttempt),
-                    e
-                );
+                LOGGER.info(() -> format("[%s] should not retry %s after [%s] attempts", jobId, getName(), currentAttempt), e);
                 return false;
             }
 
             // If the configured maximum number of retries has been reached, do not retry.
             if (currentAttempt > maxFailureRetries) {
-                LOGGER.warn(() -> new ParameterizedMessage("[{}] failed to {} after [{}] attempts.", jobId, getName(), currentAttempt), e);
+                LOGGER.warn(() -> format("[%s] failed to %s after [%s] attempts.", jobId, getName(), currentAttempt), e);
                 return false;
             }
             return true;
@@ -473,9 +513,8 @@ public class ResultsPersisterService {
             // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
             int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
-            String msg = new ParameterizedMessage("failed to {} after [{}] attempts. Will attempt again.", getName(), currentAttempt)
-                .getFormattedMessage();
-            LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+            String msg = format("failed to %s after [%s] attempts. Will attempt again.", getName(), currentAttempt);
+            LOGGER.warn(() -> format("[%s] %s", jobId, msg));
             msgHandler.accept(msg);
             // RetryableAction randomizes in the interval [currentMax/2 ; currentMax].
             // Its good to have a random window along the exponentially increasing curve
@@ -486,7 +525,7 @@ public class ResultsPersisterService {
         @Override
         public void cancel(Exception e) {
             super.cancel(e);
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] retrying cancelled for action [{}]", jobId, getName()), e);
+            LOGGER.debug(() -> format("[%s] retrying cancelled for action [%s]", jobId, getName()), e);
         }
     }
 

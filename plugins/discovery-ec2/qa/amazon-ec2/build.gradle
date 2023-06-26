@@ -10,11 +10,11 @@ import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(':plugins:discovery-ec2')
@@ -62,7 +62,7 @@ tasks.named("yamlRestTest").configure { enabled = false }
   def yamlRestTestTask = tasks.register("yamlRestTest${action}", RestIntegTestTask) {
     dependsOn fixture
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
     testClassesDirs = yamlRestTestSourceSet.getOutput().getClassesDirs()
     classpath = yamlRestTestSourceSet.getRuntimeClasspath()
   }

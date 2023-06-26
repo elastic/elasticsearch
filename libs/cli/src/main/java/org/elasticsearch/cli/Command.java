@@ -13,18 +13,11 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
-import java.util.stream.Collectors;
 
 /**
  * An action to execute within a cli.
@@ -33,13 +26,6 @@ public abstract class Command implements Closeable {
 
     /** A description of the command, used in the help output. */
     protected final String description;
-
-    // these are the system properties and env vars from the environment,
-    // but they can be overriden by tests. Really though Command should be stateless,
-    // so the signature of main should take them in, which can happen once the entrypoint
-    // is unified.
-    protected final Map<String, String> sysprops;
-    protected final Map<String, String> envVars;
 
     /** The option parser for this command. */
     protected final OptionParser parser = new OptionParser();
@@ -56,35 +42,12 @@ public abstract class Command implements Closeable {
      */
     public Command(final String description) {
         this.description = description;
-        this.sysprops = Objects.requireNonNull(captureSystemProperties());
-        this.envVars = Objects.requireNonNull(captureEnvironmentVariables());
     }
 
-    private Thread shutdownHookThread;
-
     /** Parses options for this command from args and executes it. */
-    public final int main(String[] args, Terminal terminal) throws Exception {
-        if (addShutdownHook()) {
-
-            shutdownHookThread = new Thread(() -> {
-                try {
-                    this.close();
-                } catch (final IOException e) {
-                    try (StringWriter sw = new StringWriter(); PrintWriter pw = new PrintWriter(sw)) {
-                        e.printStackTrace(pw);
-                        terminal.errorPrintln(sw.toString());
-                    } catch (final IOException impossible) {
-                        // StringWriter#close declares a checked IOException from the Closeable interface but the Javadocs for StringWriter
-                        // say that an exception here is impossible
-                        throw new AssertionError(impossible);
-                    }
-                }
-            });
-            Runtime.getRuntime().addShutdownHook(shutdownHookThread);
-        }
-
+    public final int main(String[] args, Terminal terminal, ProcessInfo processInfo) throws Exception {
         try {
-            mainWithoutErrorHandling(args, terminal);
+            mainWithoutErrorHandling(args, terminal, processInfo);
         } catch (OptionException e) {
             // print help to stderr on exceptions
             printHelp(terminal, true);
@@ -103,8 +66,8 @@ public abstract class Command implements Closeable {
     /**
      * Executes the command, but all errors are thrown.
      */
-    protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
-        final OptionSet options = parser.parse(args);
+    protected void mainWithoutErrorHandling(String[] args, Terminal terminal, ProcessInfo processInfo) throws Exception {
+        final OptionSet options = parseOptions(args);
 
         if (options.has(helpOption)) {
             printHelp(terminal, false);
@@ -119,7 +82,16 @@ public abstract class Command implements Closeable {
             terminal.setVerbosity(Terminal.Verbosity.NORMAL);
         }
 
-        execute(terminal, options);
+        execute(terminal, options, processInfo);
+    }
+
+    /**
+     * Parse command line arguments for this command.
+     * @param args The string arguments passed to the command
+     * @return A set of parsed options
+     */
+    public OptionSet parseOptions(String[] args) {
+        return parser.parse(args);
     }
 
     /** Prints a help message for the command to the terminal. */
@@ -142,7 +114,7 @@ public abstract class Command implements Closeable {
     protected void printUserException(Terminal terminal, UserException e) {
         if (e.getMessage() != null) {
             terminal.errorPrintln("");
-            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage() + ", with exit code " + e.exitCode);
         }
     }
 
@@ -155,37 +127,7 @@ public abstract class Command implements Closeable {
      * Executes this command.
      *
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
-    protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
-
-    // protected to allow for tests to override
-    @SuppressForbidden(reason = "capture system properties")
-    protected Map<String, String> captureSystemProperties() {
-        Properties properties = AccessController.doPrivileged((PrivilegedAction<Properties>) System::getProperties);
-        return properties.entrySet()
-            .stream()
-            .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
-    }
-
-    // protected to allow for tests to override
-    @SuppressForbidden(reason = "capture environment variables")
-    protected Map<String, String> captureEnvironmentVariables() {
-        return Collections.unmodifiableMap(System.getenv());
-    }
-
-    /**
-     * Return whether or not to install the shutdown hook to cleanup resources on exit. This method should only be overridden in test
-     * classes.
-     *
-     * @return whether or not to install the shutdown hook
-     */
-    protected boolean addShutdownHook() {
-        return true;
-    }
-
-    /** Gets the shutdown hook thread if it exists **/
-    Thread getShutdownHookThread() {
-        return shutdownHookThread;
-    }
+    protected abstract void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception;
 
     @Override
     public void close() throws IOException {

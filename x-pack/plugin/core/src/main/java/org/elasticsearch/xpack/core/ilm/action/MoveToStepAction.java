@@ -67,7 +67,7 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.index = in.readString();
-            this.currentStepKey = new StepKey(in);
+            this.currentStepKey = StepKey.readFrom(in);
             this.nextStepKey = new PartialStepKey(in);
         }
 

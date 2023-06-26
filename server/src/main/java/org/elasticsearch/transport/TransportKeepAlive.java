@@ -9,7 +9,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -76,7 +75,7 @@ final class TransportKeepAlive implements Closeable {
 
         for (TcpChannel channel : nodeChannels) {
             scheduledPing.addChannel(channel);
-            channel.addCloseListener(ActionListener.wrap(() -> scheduledPing.removeChannel(channel)));
+            channel.addCloseListener(ActionListener.running(() -> scheduledPing.removeChannel(channel)));
         }
     }
 
@@ -114,10 +113,10 @@ final class TransportKeepAlive implements Closeable {
             @Override
             public void onFailure(Exception e) {
                 if (channel.isOpen()) {
-                    logger.debug(() -> new ParameterizedMessage("[{}] failed to send transport ping", channel), e);
+                    logger.debug(() -> "[" + channel + "] failed to send transport ping", e);
                     failedPings.inc();
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("[{}] failed to send transport ping (channel closed)", channel), e);
+                    logger.trace(() -> "[" + channel + "] failed to send transport ping (channel closed)", e);
                 }
             }
         });

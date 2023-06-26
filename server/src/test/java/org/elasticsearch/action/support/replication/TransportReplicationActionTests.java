@@ -10,7 +10,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -88,7 +89,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -591,7 +591,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(
             clusterService,
             clusterStateChanges.closeIndices(
-                clusterStateChanges.createIndex(clusterService.state(), new CreateIndexRequest(index)),
+                clusterStateChanges.createIndex(
+                    clusterService.state(),
+                    new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.NONE)
+                ),
                 new CloseIndexRequest(index)
             )
         );
@@ -825,7 +828,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             primary.close();
 
             assertTrue(closed.get());
-        })), Assert::assertNotNull, null, null);
+        })), Assert::assertNotNull, null);
     }
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
@@ -925,7 +928,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         Set<String> inSyncIds = randomBoolean()
             ? singleton(routingEntry.allocationId().getId())
             : clusterService.state().metadata().index(index).inSyncAllocationIds(0);
-        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, shardRoutingTable.getAllAllocationIds(), 0);
+        ReplicationGroup replicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncIds,
+            shardRoutingTable.getPromotableAllocationIds(),
+            0
+        );
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);
         replicationActions.accept(replicationGroup);
@@ -936,7 +944,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             ActionListener<Releasable> argument = (ActionListener<Releasable>) invocation.getArguments()[0];
             argument.onResponse(count::decrementAndGet);
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any(), eq(forceExecute));
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), eq(forceExecute));
         when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
@@ -1279,7 +1287,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -1572,20 +1580,21 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), any(), eq(forceExecute));
+        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), eq(forceExecute));
+        when(indexShard.isPrimaryMode()).thenAnswer(invocation -> isPrimaryMode.get());
         doAnswer(invocation -> {
             long term = (Long) invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];
             final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
+                    Strings.format("%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
                 );
             }
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
             return null;
-        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), anyString(), any());
+        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), anyString());
         when(indexShard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {

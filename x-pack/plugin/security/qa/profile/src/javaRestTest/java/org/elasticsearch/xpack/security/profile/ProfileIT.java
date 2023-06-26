@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,16 +22,23 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIT extends ESRestTestCase {
 
@@ -38,7 +48,7 @@ public class ProfileIT extends ESRestTestCase {
             "uid": "%s",
             "enabled": true,
             "user": {
-              "username": "Foo",
+              "username": "%s",
               "roles": [
                 "role1",
                 "role2"
@@ -74,7 +84,7 @@ public class ProfileIT extends ESRestTestCase {
         return Settings.builder()
             .put(
                 ThreadContext.PREFIX + ".Authorization",
-                basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
+                basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
     }
@@ -87,37 +97,120 @@ public class ProfileIT extends ESRestTestCase {
         assertThat(profile1, equalTo(activateProfileMap));
     }
 
-    public void testGetProfile() throws IOException {
-        final String uid = randomAlphaOfLength(20);
-        final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
-        final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
-        indexRequest.setJsonEntity(source);
-        indexRequest.addParameter("refresh", "wait_for");
-        indexRequest.setOptions(
-            expectWarnings(
-                "this request accesses system indices: [.security-profile-8], but in a future major version, "
-                    + "direct access to system indices will be prevented by default"
+    @SuppressWarnings("unchecked")
+    public void testProfileHasPrivileges() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String profileUid = (String) activateProfileMap.get("uid");
+        final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
+        profileHasPrivilegesRequest.setJsonEntity(Strings.format("""
+            {
+              "uids": ["some_missing_profile", "%s"],
+              "privileges": {
+                "index": [
+                  {
+                    "names": [ "rac_index_1" ],
+                    "privileges": [ "read" ]
+                  }
+                ],
+                "cluster": [
+                  "cluster:monitor/health"
+                ]
+              }
+            }""", profileUid));
+
+        final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
+        assertOK(profileHasPrivilegesResponse);
+        Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
+        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids", "errors"));
+        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
+        assertThat(
+            profileHasPrivilegesResponseMap.get("errors"),
+            equalTo(
+                Map.of(
+                    "count",
+                    1,
+                    "details",
+                    Map.of("some_missing_profile", Map.of("type", "resource_not_found_exception", "reason", "profile document not found"))
+                )
             )
         );
-        assertOK(adminClient().performRequest(indexRequest));
+    }
 
-        final Map<String, Object> profileMap1 = doGetProfile(uid);
-        assertThat(castToMap(profileMap1.get("user")).get("realm_name"), equalTo("realm_name_1"));
-        assertThat(castToMap(profileMap1.get("user")).get("realm_domain"), equalTo("domainA"));
-        assertThat(castToMap(profileMap1.get("data")), anEmptyMap());
+    public void testGetProfiles() throws IOException {
+        final List<String> uids = randomList(1, 3, () -> randomAlphaOfLength(20));
+
+        // Profile index does not exist yet
+        final Map<String, Object> responseMap0 = doGetProfiles(uids, null);
+        @SuppressWarnings("unchecked")
+        final List<Object> profiles0 = (List<Object>) responseMap0.get("profiles");
+        assertThat(profiles0, empty());
+        final Map<String, Object> errors0 = castToMap(responseMap0.get("errors"));
+        assertThat(errors0.get("count"), equalTo(uids.size()));
+        final Map<String, Object> errorDetails0 = castToMap(errors0.get("details"));
+        assertThat(errorDetails0.keySet(), equalTo(Set.copyOf(uids)));
+        errorDetails0.values().forEach(value -> assertThat(castToMap(value).get("reason"), equalTo("profile index does not exist")));
+
+        // Create the profile documents
+        for (String uid : uids) {
+            final String source = Strings.format(SAMPLE_PROFILE_DOCUMENT_TEMPLATE, uid, uid, Instant.now().toEpochMilli());
+            final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
+            indexRequest.setJsonEntity(source);
+            indexRequest.addParameter("refresh", "wait_for");
+            indexRequest.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.security-profile-8], but in a future major version, "
+                        + "direct access to system indices will be prevented by default"
+                )
+            );
+            assertOK(adminClient().performRequest(indexRequest));
+        }
+
+        // Now retrieve profiles created above
+        final Map<String, Object> responseMap1 = doGetProfiles(uids, null);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> profiles1 = (List<Map<String, Object>>) responseMap1.get("profiles");
+        assertThat(profiles1.size(), equalTo(uids.size()));
+        IntStream.range(0, profiles1.size()).forEach(i -> {
+            final Map<String, Object> profileMap = profiles1.get(i);
+            final String uid = uids.get(i);
+            assertThat(profileMap.get("uid"), equalTo(uid));
+            assertThat(castToMap(profileMap.get("user")).get("username"), equalTo(uid));
+            assertThat(castToMap(profileMap.get("user")).get("realm_name"), equalTo("realm_name_1"));
+            assertThat(castToMap(profileMap.get("user")).get("realm_domain"), equalTo("domainA"));
+            assertThat(castToMap(profileMap.get("data")), anEmptyMap());
+        });
 
         // Retrieve application data along the profile
-        final Map<String, Object> profileMap2 = doGetProfile(uid, "app1");
-        assertThat(castToMap(profileMap2.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"))));
+        final Map<String, Object> responseMap2 = doGetProfiles(uids, "app1");
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> profiles2 = (List<Map<String, Object>>) responseMap2.get("profiles");
+        assertThat(profiles2.size(), equalTo(uids.size()));
+        IntStream.range(0, profiles2.size()).forEach(i -> {
+            final Map<String, Object> profileMap = profiles2.get(i);
+            assertThat(castToMap(profileMap.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"))));
+        });
 
         // Retrieve multiple application data
-        final Map<String, Object> profileMap3 = doGetProfile(uid, randomFrom("app1,app2", "*", "app*"));
-        assertThat(castToMap(profileMap3.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"), "app2", Map.of("name", "app2"))));
+        final Map<String, Object> responseMap3 = doGetProfiles(uids, randomFrom("app1,app2", "*", "app*"));
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> profiles3 = (List<Map<String, Object>>) responseMap3.get("profiles");
+        assertThat(profiles3.size(), equalTo(uids.size()));
+        IntStream.range(0, profiles3.size()).forEach(i -> {
+            final Map<String, Object> profileMap = profiles3.get(i);
+            assertThat(castToMap(profileMap.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"), "app2", Map.of("name", "app2"))));
+        });
 
-        // Non-existing profile
-        final Request getProfileRequest4 = new Request("GET", "_security/profile/not_" + uid);
-        final ResponseException e4 = expectThrows(ResponseException.class, () -> adminClient().performRequest(getProfileRequest4));
-        assertThat(e4.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        // Non-existing profiles
+        final List<String> notUids = uids.stream().map(uid -> "not_" + uid).toList();
+        final Map<String, Object> responseMap4 = doGetProfiles(notUids, null);
+        @SuppressWarnings("unchecked")
+        final List<Object> profiles4 = (List<Object>) responseMap4.get("profiles");
+        assertThat(profiles4, empty());
+        final Map<String, Object> errors4 = castToMap(responseMap4.get("errors"));
+        assertThat(errors4.get("count"), equalTo(notUids.size()));
+        final Map<String, Object> errorDetails4 = castToMap(errors4.get("details"));
+        assertThat(errorDetails4.keySet(), equalTo(Set.copyOf(notUids)));
+        errorDetails4.values().forEach(value -> assertThat(castToMap(value).get("type"), equalTo("resource_not_found_exception")));
     }
 
     public void testUpdateProfileData() throws IOException {
@@ -171,17 +264,18 @@ public class ProfileIT extends ESRestTestCase {
         final String payload;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
-                payload = """
+                payload = Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
                         "uids": ["%s"]
                       }
                     }
-                    """.formatted("not-" + uid);
+                    """, "not-" + uid);
             }
             case 1 -> {
-                payload = """
+                Object[] args = new Object[] { randomBoolean() ? "\"demo\"" : "[\"demo\"]" };
+                payload = Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
@@ -190,10 +284,11 @@ public class ProfileIT extends ESRestTestCase {
                         }
                       }
                     }
-                    """.formatted(randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    """, args);
             }
             default -> {
-                payload = """
+                Object[] args = new Object[] { "not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]" };
+                payload = Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
@@ -202,7 +297,7 @@ public class ProfileIT extends ESRestTestCase {
                           "kibana.spaces": %s
                         }
                       }
-                    }""".formatted("not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    }""", args);
             }
         }
         suggestProfilesRequest1.setJsonEntity(payload);
@@ -246,6 +341,33 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     public void testXpackUsageOutput() throws IOException {
+        // Profile 1 that has not activated for more than 30 days
+        final String uid = randomAlphaOfLength(20);
+        final String source = String.format(
+            Locale.ROOT,
+            SAMPLE_PROFILE_DOCUMENT_TEMPLATE,
+            uid,
+            uid,
+            Instant.now().minus(31, ChronoUnit.DAYS).toEpochMilli()
+        );
+        final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
+        indexRequest.setJsonEntity(source);
+        indexRequest.addParameter("refresh", "wait_for");
+        indexRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.security-profile-8], but in a future major version, "
+                    + "direct access to system indices will be prevented by default"
+            )
+        );
+        assertOK(adminClient().performRequest(indexRequest));
+
+        // Profile 2 is disabled
+        final Map<String, Object> racUserProfile = doActivateProfile();
+        doSetEnabled((String) racUserProfile.get("uid"), false);
+
+        // Profile 3 is enabled and recently activated
+        doActivateProfile("test-admin", "x-pack-test-password");
+
         final Request xpackUsageRequest = new Request("GET", "_xpack/usage");
         xpackUsageRequest.addParameter("filter_path", "security");
         final Response xpackUsageResponse = adminClient().performRequest(xpackUsageRequest);
@@ -262,16 +384,93 @@ public class ProfileIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         final List<String> otherDomainRealms = (List<String>) castToMap(domainsUsage.get("other_domain")).get("realms");
         assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
+
+        assertThat(castToMap(xpackUsageView.get("security.user_profile")), equalTo(Map.of("total", 3, "enabled", 2, "recent", 1)));
     }
 
-    private Map<String, Object> doActivateProfile() throws IOException {
+    public void testActivateGracePeriodIsPerNode() throws IOException {
         final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
         activateProfileRequest.setJsonEntity("""
             {
               "grant_type": "password",
-              "username": "rac_user",
+              "username": "rac-user",
               "password": "x-pack-test-password"
             }""");
+
+        final RestClient client = adminClient();
+        final List<Node> originalNodes = client.getNodes();
+        assertThat(originalNodes.size(), greaterThan(1));
+        final Node node0 = originalNodes.get(0);
+        // Find a different node other than node0.
+        // Because all nodes of a testcluster runs on the same physical host, the different node
+        // should have the same hostname but listens on a different port.
+        // A single node can have both ipv4 and ipv6 addresses. If we do not filter for the
+        // same hostname, we might find the same node again (e.g. node0 but has an ipv6 address).
+        final Node node1 = originalNodes.subList(1, originalNodes.size() - 1)
+            .stream()
+            .filter(node -> node.getHost().getHostName().equals(node0.getHost().getHostName()))
+            .findFirst()
+            .orElseThrow();
+
+        try {
+            // Initial activate with node0
+            client.setNodes(List.of(node0));
+            final Map<String, Object> responseMap0 = responseAsMap(client.performRequest(activateProfileRequest));
+
+            final Instant start = Instant.now();
+            // Activate again with the same host (node0) should fall within the grace period and skip actual update
+            final Map<String, Object> responseMap1 = responseAsMap(client.performRequest(activateProfileRequest));
+            assumeTrue("Test is running too slow", start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()));
+            assertThat(responseMap1.get("_doc"), equalTo(responseMap0.get("_doc")));
+
+            // Activate with different host (node1) should actually update since node name changes in RealmRef
+            client.setNodes(List.of(node1));
+            final Map<String, Object> responseMap2 = responseAsMap(client.performRequest(activateProfileRequest));
+            assumeTrue("Test is running too slow", start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()));
+            assertThat(responseMap2.get("_doc"), not(equalTo(responseMap0.get("_doc"))));
+
+            // Activate again with node1 should see no update
+            final Map<String, Object> responseMap3 = responseAsMap(client.performRequest(activateProfileRequest));
+            assertTrue("Test is running too slow", Instant.now().toEpochMilli() - (long) responseMap2.get("last_synchronized") < 30_000L);
+            assertThat(responseMap3.get("_doc"), equalTo(responseMap2.get("_doc")));
+        } finally {
+            client.setNodes(originalNodes);
+        }
+    }
+
+    public void testGetUsersWithProfileUid() throws IOException {
+        final String username = randomAlphaOfLengthBetween(3, 8);
+        final Request putUserRequest = new Request("PUT", "_security/user/" + username);
+        putUserRequest.setJsonEntity("{\"password\":\"x-pack-test-password\",\"roles\":[\"superuser\"]}");
+        assertOK(adminClient().performRequest(putUserRequest));
+        final Map<String, Object> profile = doActivateProfile(username, "x-pack-test-password");
+
+        final Request getUserRequest = new Request("GET", "_security/user" + (randomBoolean() ? "/" + username : ""));
+        getUserRequest.addParameter("with_profile_uid", "true");
+        final Response getUserResponse = adminClient().performRequest(getUserRequest);
+        assertOK(getUserResponse);
+
+        responseAsMap(getUserResponse).forEach((k, v) -> {
+            if (username.equals(k)) {
+                assertThat(castToMap(v).get("profile_uid"), equalTo(profile.get("uid")));
+            } else {
+                assertThat(castToMap(v), not(hasKey("profile_uid")));
+            }
+        });
+    }
+
+    private Map<String, Object> doActivateProfile() throws IOException {
+        return doActivateProfile("rac-user", "x-pack-test-password");
+    }
+
+    private Map<String, Object> doActivateProfile(String username, String password) throws IOException {
+        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
+        activateProfileRequest.setJsonEntity(Strings.format("""
+            {
+              "grant_type": "password",
+              "username": "%s",
+              "password": "%s"
+            }""", username, password));
 
         final Response activateProfileResponse = adminClient().performRequest(activateProfileRequest);
         assertOK(activateProfileResponse);
@@ -283,15 +482,25 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     private Map<String, Object> doGetProfile(String uid, @Nullable String dataKey) throws IOException {
-        final Request getProfileRequest1 = new Request("GET", "_security/profile/" + uid);
+        final Map<String, Object> responseMap = doGetProfiles(List.of(uid), dataKey);
+        assertThat(responseMap.get("errors"), nullValue());
+
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> profiles = (List<Map<String, Object>>) responseMap.get("profiles");
+        assertThat(profiles.size(), equalTo(1));
+        final Map<String, Object> profileMap = profiles.get(0);
+        assertThat(profileMap.get("uid"), equalTo(uid));
+        return profileMap;
+    }
+
+    private Map<String, Object> doGetProfiles(List<String> uids, @Nullable String dataKey) throws IOException {
+        final Request getProfilesRequest = new Request("GET", "_security/profile/" + Strings.collectionToCommaDelimitedString(uids));
         if (dataKey != null) {
-            getProfileRequest1.addParameter("data", dataKey);
+            getProfilesRequest.addParameter("data", dataKey);
         }
-        final Response getProfileResponse1 = adminClient().performRequest(getProfileRequest1);
-        assertOK(getProfileResponse1);
-        final Map<String, Object> getProfileMap1 = responseAsMap(getProfileResponse1);
-        assertThat(getProfileMap1.keySet(), contains(uid));
-        return castToMap(getProfileMap1.get(uid));
+        final Response getProfilesResponse = adminClient().performRequest(getProfilesRequest);
+        assertOK(getProfilesResponse);
+        return responseAsMap(getProfilesResponse);
     }
 
     private void doSetEnabled(String uid, boolean enabled) throws IOException {

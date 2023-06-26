@@ -31,7 +31,7 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
     private final PayloadEncoder encoder;
 
     DelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         String delimiterConf = settings.get(DELIMITER);
         if (delimiterConf != null) {
             delimiter = delimiterConf.charAt(0);

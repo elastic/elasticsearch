@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
@@ -110,7 +111,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
 
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String[] types = in.readStringArray();
             assert types.length == 0;
         }
@@ -179,7 +180,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         out.writeOptionalString(routing);
@@ -313,7 +314,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return hops.get(hopNumber);
     }
 
-    public static class TermBoost {
+    public static class TermBoost implements Writeable {
         String term;
         float boost;
 
@@ -341,7 +342,8 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
             this.boost = in.readFloat();
         }
 
-        void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeString(term);
             out.writeFloat(boost);
         }

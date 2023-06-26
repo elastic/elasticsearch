@@ -49,3 +49,41 @@ setup:
   - match: { hits.hits.0.fields.location: [ { country: [ 'Canada' ], city: [ 'Montreal' ] } ] }
   - match: { hits.hits.1.fields.msg: [ 'The second message' ] }
   - match: { hits.hits.1.fields.location: null }
+
+---
+"Fails to query or aggregate on lookup fields":
+  - skip:
+      version: " - 8.1.99"
+      reason: "Lookup fields are introduced in 8.2"
+  - do:
+      catch: /Field \[location\] of type \[lookup\] does not support match queries/
+      search:
+        index: logs
+        body:
+          runtime_mappings:
+            location:
+              type: lookup
+              target_index: ip_locations
+              input_field: ip
+              target_field: _id
+              fetch_fields: [ "city"]
+          query:
+            match:
+              location: montreal
+
+  - do:
+      catch: /Fielddata is not supported on field \[location\] of type \[lookup\]/
+      search:
+        index: logs
+        body:
+          runtime_mappings:
+            location:
+              type: lookup
+              target_index: ip_locations
+              input_field: ip
+              target_field: _id
+              fetch_fields: [ "city" ]
+          aggs:
+            locations:
+              terms:
+                field: location

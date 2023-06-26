@@ -1,12 +1,19 @@
-[cols="^,^,^,^,^,^,^"]
+[cols="^,^,^,^,^,^,^,^,^,^,^,^,^,^"]
 |====
-| 6+^h| Remote cluster version
+| 13+^h| Remote cluster version
 h| Local cluster version
-                  |  6.8        | 7.1–7.16   | 7.17       | 8.0        | 8.1        | 8.2
-| 6.8             |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}
-| 7.1–7.16        |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}
-| 7.17            |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 8.0             |  {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 8.1             |  {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon}
-| 8.2             |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon}
+            |  6.8        | 7.1–7.16   | 7.17       | 8.0        | 8.1        | 8.2        | 8.3       | 8.4       | 8.5       |8.6         |8.7         |8.8         |8.9
+| 6.8       |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon} | {no-icon} | {no-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}
+| 7.1–7.16  |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon} | {no-icon} | {no-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}
+| 7.17      |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}| {yes-icon}| {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.0       |  {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}| {yes-icon}| {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.1       |  {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}| {yes-icon}| {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.2       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon}| {yes-icon}| {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.3       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon}|{yes-icon} | {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.4       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} |{yes-icon}| {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.5       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  |{yes-icon}| {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.6       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}| {yes-icon}| {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.7       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}| {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.8       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}| {no-icon} |  {no-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.9       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}| {no-icon} |  {no-icon} | {no-icon} | {yes-icon} | {yes-icon}
 |====

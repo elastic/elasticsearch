@@ -144,6 +144,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException;
 
     /**
+     * Release this aggregation and its sub-aggregations.
+     */
+    public abstract void releaseAggregations();
+
+    /**
      * Build the result of this aggregation if it is at the "top level"
      * of the aggregation tree. If, instead, it is a sub-aggregation of
      * another aggregation then the aggregation that contains it will call

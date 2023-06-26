@@ -231,7 +231,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   This varies greatly between providers, but you should be able to obtain a list
   from the documentation, or from your local admin.
 
-. Read through the list of <<saml-user-properties, user properties>> that {es}
+. Read through the list of <<saml-es-user-properties, user properties>> that {es}
   supports, and decide which of them are useful to you, and can be provided by
   your IdP. At a _minimum_, the `principal` attribute is required.
 
@@ -244,7 +244,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   URIs are used.
 
 . Configure the SAML realm in {es} to associate the {es} user properties (see
-  <<saml-user-properties, the listing>> below), to the URIs that you configured
+  <<saml-es-user-properties, the listing>> below), to the URIs that you configured
   in your IdP. In the example above, we have configured the `principal` and
   `groups` attributes.
 
@@ -256,7 +256,8 @@ URI such as `urn:oid:0.9.2342.19200300.100.1.1`, however there are some
 additional names that can be used:
 
 `nameid`::
-    This uses the SAML `NameID` value instead of a SAML attribute. SAML
+    This uses the SAML `NameID` value (all leading and trailing whitespace removed)
+    instead of a SAML attribute. SAML
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
@@ -265,7 +266,8 @@ additional names that can be used:
     of the IdP.
 
 `nameid:persistent`::
-    This uses the SAML `NameID` value, but only if the NameID format is
+    This uses the SAML `NameID` value (all leading and trailing whitespace removed),
+    but only if the NameID format is
     `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`.
     A SAML `NameID` element has an optional `Format` attribute that indicates
     the semantics of the provided name. It is common for IdPs to be configured
@@ -279,7 +281,7 @@ NOTE: Identity Providers can be either statically configured to release a `NameI
 with a specific format, or they can be configured to try to conform with the
 requirements of the SP. The SP declares its requirements as part of the
 Authentication Request, using an element which is called the `NameIDPolicy`. If
-this is needed, you can set the relevant <<saml-settings, settings>> named
+this is needed, you can set the relevant <<ref-saml-settings, settings>> named
 `nameid_format` in order to request that the IdP releases a `NameID` with a
 specific format.
 
@@ -322,7 +324,29 @@ groups:: _(Recommended)_
     If you wish to use your IdP's concept of groups or roles as the basis for a
     user's {es} privileges, you should map them with this attribute.
     The `groups` are passed directly to your
-    <<saml-role-mapping, role mapping rules>>
+    <<saml-role-mapping, role mapping rules>>.
++
+[NOTE]
+====
+Some IdPs are configured to send the `groups` list as a comma-separated string,
+but {es} can't parse this string into an array of groups. To map this SAML
+attribute to the `attributes.groups` setting in the {es} realm, a cluster
+security administrator can use a wildcard when
+<<saml-role-mapping,configuring role mappings>>. While flexible, wildcards are
+less accurate and can match on unwanted patterns. Instead, a cluster security
+administrator can use a regular expression to create a role mapping rule that
+matches only a single group. For example, the following regular expression
+matches only on the `elasticsearch-admins` group:
+
+[source,sh]
+----
+/^(.*,)?elasticsearch-admins(,.*)?$/
+----
+
+These regular expressions are based on Lucene’s
+{ref}/regexp-syntax.html[regular expression syntax], and can match more complex
+patterns. All regular expressions must start and end with a forward slash.
+====
 
 name:: _(Optional)_ The user's full name.
 mail:: _(Optional)_ The user's email address.
@@ -705,10 +729,13 @@ PUT /_security/role_mapping/saml-finance
   "enabled": true,
   "rules": { "all": [
         { "field": { "realm.name": "saml1" } },
-        { "field": { "groups": "finance-team" } }
+        { "field": { "groups": "finance-team" } } <1>
   ] }
 }
 --------------------------------------------------
+<1> The `groups` attribute supports using wildcards (`*`). Refer to the
+<<security-api-put-role-mapping-example,create or update role mappings API>> for
+more information.
 
 If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use
@@ -898,7 +925,7 @@ access tokens after the current one expires.
 ==== SAML realm
 
 You must create a SAML realm and configure it accordingly
-in {es}. See <<saml-guide-authentication>>
+in {es}. See <<saml-elasticsearch-authentication>>
 
 [[saml-no-kibana-user]]
 ==== Service Account user for accessing the APIs

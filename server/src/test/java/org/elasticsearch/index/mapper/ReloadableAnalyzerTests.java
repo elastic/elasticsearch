@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +38,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     public void testReloadSearchAnalyzers() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+        Settings settings = indexSettings(1, 1).put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
             .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
             .build();
@@ -81,7 +77,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals("myReloadableFilter", originalTokenFilters[0].name());
 
         // now reload, this should change the tokenfilterFactory inside the analyzer
-        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class));
+        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null);
         IndexAnalyzers updatedAnalyzers = mapperService.getIndexAnalyzers();
         assertSame(current, updatedAnalyzers);
         assertSame(current.getDefaultIndexAnalyzer(), updatedAnalyzers.getDefaultIndexAnalyzer());
@@ -90,12 +86,12 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
 
         assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
         assertFalse(
-            assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer())
+            assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer())
         );
         assertFalse(
             assertSameContainedFilters(
                 originalTokenFilters,
-                mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()
+                mapperService.fieldType("otherField").getTextSearchInfo().searchQuoteAnalyzer()
             )
         );
     }

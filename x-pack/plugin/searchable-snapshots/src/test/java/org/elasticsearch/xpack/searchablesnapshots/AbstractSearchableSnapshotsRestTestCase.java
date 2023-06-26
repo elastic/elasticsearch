@@ -49,6 +49,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -116,30 +118,21 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info("creating index [{}]", indexName);
-        createIndex(
-            indexName,
-            indexSettings != null
-                ? indexSettings
-                : Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build(),
-            """
-                    "properties": {
-                        "field": {
-                            "type": "integer"
-                        },
-                        "text": {
-                            "type": "text",
-                            "fields": {
-                                "raw": {
-                                    "type": "keyword"
-                                }
+        createIndex(indexName, indexSettings != null ? indexSettings : indexSettings(randomIntBetween(1, 5), 0).build(), """
+                "properties": {
+                    "field": {
+                        "type": "integer"
+                    },
+                    "text": {
+                        "type": "text",
+                        "fields": {
+                            "raw": {
+                                "type": "keyword"
                             }
                         }
                     }
-                """
-        );
+                }
+            """);
         ensureGreen(indexName);
 
         logger.info("indexing [{}] documents", numDocs);
@@ -155,7 +148,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
                         long n;
                         while ((n = remainingDocs.decrementAndGet()) >= 0) {
-                            bulkBody.append(String.format(Locale.ROOT, """
+                            bulkBody.append(Strings.format("""
                                     {"index": {"_id":"%d"} }
                                     {"field": %d, "text": "Document number %d"}
                                 """, n, n, n));
@@ -246,6 +239,34 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                     randomFrom(Boolean.TRUE, Boolean.FALSE, null)
                 );
                 assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+
+                // takes a snapshot of the searchable snapshot index into the source-only repository should fail
+                String sourceOnlySnapshot = "source-only-snap-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+                final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + sourceOnlySnapshot);
+                request.addParameter("wait_for_completion", "true");
+                request.setJsonEntity(Strings.format("""
+                    {
+                        "include_global_state": false,
+                        "indices" : "%s"
+                    }
+                    """, indexName));
+
+                final Response response = adminClient().performRequest(request);
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+
+                final List<Map<String, Object>> failures = extractValue(responseAsMap(response), "snapshot.failures");
+                assertThat(failures, notNullValue());
+                assertThat(failures.size(), greaterThan(0));
+                for (Map<String, Object> failure : failures) {
+                    assertThat(extractValue(failure, "status"), equalTo(RestStatus.INTERNAL_SERVER_ERROR.toString()));
+                    assertThat(
+                        extractValue(failure, "reason"),
+                        allOf(
+                            containsString("is not a regular index"),
+                            containsString("cannot be snapshotted into a source-only repository")
+                        )
+                    );
+                }
             }
         }, true);
     }
@@ -305,7 +326,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             clearCache(restoredIndexName);
 
             final long bytesInCacheAfterClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-            assertThat(bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
+            assertThat("Searchable snapshot cache wasn't cleared", bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
 
             searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
             assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
@@ -446,12 +467,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         },
             false,
             10_000,
-            Settings.builder()
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
+            indexSettings(1, 0).put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
                 .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()
         );
     }

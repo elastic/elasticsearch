@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -24,11 +23,12 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This is where the logic to actually perform the migration lives - {@link SystemIndexMigrator#run(SystemIndexMigrationTaskState)} will
@@ -118,7 +119,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             stateIndexName = taskState.getCurrentIndex();
             stateFeatureName = taskState.getCurrentFeature();
 
-            SystemIndices.Feature feature = systemIndices.getFeatures().get(stateFeatureName);
+            SystemIndices.Feature feature = systemIndices.getFeature(stateFeatureName);
             if (feature == null) {
                 markAsFailed(
                     new IllegalStateException(
@@ -145,7 +146,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }
 
             systemIndices.getFeatures()
-                .values()
                 .stream()
                 .flatMap(feature -> SystemIndexMigrationInfo.fromFeature(feature, clusterState.metadata(), indexScopedSettings))
                 .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().index(migrationInfo.getCurrentIndexName())))
@@ -158,10 +158,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 .toList();
             if (closedIndices.isEmpty() == false) {
                 markAsFailed(
-                    new IllegalStateException(
-                        new ParameterizedMessage("indices must be open to be migrated, but indices {} are closed", closedIndices)
-                            .getFormattedMessage()
-                    )
+                    new IllegalStateException("indices must be open to be migrated, but indices " + closedIndices + " are closed")
                 );
                 return;
             }
@@ -188,16 +185,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
-                                new ParameterizedMessage(
-                                    "failed to resume system index migration from index [{}], that index is not present in the cluster",
+                                format(
+                                    "failed to resume system index migration from index [%s], that index is not present in the cluster",
                                     stateIndexName
-                                ).getFormattedMessage()
+                                )
                             )
                         );
                     }
                     logger.warn(
-                        new ParameterizedMessage(
-                            "resuming system index migration with index [{}], which does not match index given in last task state [{}]",
+                        () -> format(
+                            "resuming system index migration with index [%s], which does not match index given in last task state [%s]",
                             nextMigrationInfo.getCurrentIndexName(),
                             stateIndexName
                         )
@@ -301,16 +298,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         MigrationResultsUpdateTask updateTask = MigrationResultsUpdateTask.upsert(
             lastMigrationInfo.getFeatureName(),
             SingleFeatureMigrationResult.success(),
-            ActionListener.wrap(
-                state -> {
-                    prepareNextIndex(
-                        state,
-                        clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
-                        lastMigrationInfo.getFeatureName()
-                    );
-                },
-                this::markAsFailed
-            )
+            ActionListener.wrap(state -> {
+                prepareNextIndex(
+                    state,
+                    clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
+                    lastMigrationInfo.getFeatureName()
+                );
+            }, this::markAsFailed)
         );
         updateTask.submit(clusterService);
     }
@@ -383,6 +377,47 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
         Index oldIndex = imd.getIndex();
         String newIndexName = migrationInfo.getNextIndexName();
+
+        /**
+         * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
+         */
+        if (migrationInfo.allowsTemplates() == false) {
+            final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);
+            if (Objects.nonNull(v2template)) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match composable template [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v2template
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match composable template [" + v2template + "]"
+                    )
+                );
+                return;
+            }
+            final List<IndexTemplateMetadata> v1templates = MetadataIndexTemplateService.findV1Templates(
+                clusterState.metadata(),
+                newIndexName,
+                false
+            );
+            if (v1templates.isEmpty() == false) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match legacy templates [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v1templates
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match legacy templates [" + v1templates + "]"
+                    )
+                );
+                return;
+            }
+        }
+
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
@@ -427,8 +462,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         }
                     }, e -> {
                         logger.error(
-                            new ParameterizedMessage(
-                                "error occurred while reindexing index [{}] from feature [{}] to destination index [{}]",
+                            () -> format(
+                                "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
                                 oldIndexName,
                                 migrationInfo.getFeatureName(),
                                 newIndexName
@@ -441,8 +476,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }, innerListener::onFailure));
         } catch (Exception ex) {
             logger.error(
-                new ParameterizedMessage(
-                    "error occurred while migrating index [{}] from feature [{}] to new index [{}]",
+                () -> format(
+                    "error occurred while migrating index [%s] from feature [%s] to new index [%s]",
                     oldIndexName,
                     migrationInfo.getFeatureName(),
                     newIndexName
@@ -500,7 +535,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
         // while we're trying to migrate them.
         return unsetReadOnlyResponse -> aliasesRequest.execute(
-            ActionListener.wrap(deleteIndexResponse -> listener.onResponse(bulkByScrollResponse), listener::onFailure)
+            listener.delegateFailureAndWrap((l, deleteIndexResponse) -> l.onResponse(bulkByScrollResponse))
         );
     }
 
@@ -587,7 +622,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
      * @param listener A listener that will be called upon successfully updating the cluster state.
      */
     private static void clearResults(ClusterService clusterService, ActionListener<ClusterState> listener) {
-        clusterService.submitStateUpdateTask("clear migration results", new ClusterStateUpdateTask() {
+        submitUnbatchedTask(clusterService, "clear migration results", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 if (currentState.metadata().custom(FeatureMigrationResults.TYPE) != null) {
@@ -608,13 +643,17 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 logger.error("failed to clear migration results when starting new migration", e);
                 listener.onFailure(e);
             }
-        }, newExecutor());
+        });
         logger.debug("submitted update task to clear migration results");
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private SystemIndexMigrationInfo currentMigrationInfo() {

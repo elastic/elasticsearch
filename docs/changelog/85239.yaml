@@ -1,5 +1,0 @@
-pr: 85239
-summary: Fix leaking listeners bug on frozen tier
-area: Snapshot/Restore
-type: bug
-issues: []

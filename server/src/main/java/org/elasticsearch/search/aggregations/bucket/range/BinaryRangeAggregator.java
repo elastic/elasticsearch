@@ -7,16 +7,17 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -24,12 +25,11 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.emptyList;
 
 /** A range aggregator for values that are stored in SORTED_SET doc values. */
 public final class BinaryRangeAggregator extends BucketsAggregator {
@@ -93,12 +93,12 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-            SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
+            SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(aggCtx.getLeafReaderContext());
             return new SortedSetRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
@@ -106,7 +106,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                 }
             };
         } else {
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
             return new SortedBinaryRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
@@ -330,6 +330,13 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBinaryRange(name, format, keyed, emptyList(), metadata());
+        // Create empty buckets with 0 count and with empty sub-aggs so we can merge them with non-empty aggs
+        InternalAggregations subAggs = buildEmptySubAggregations();
+        List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
+        for (Range range : ranges) {
+            InternalBinaryRange.Bucket bucket = new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, 0, subAggs);
+            buckets.add(bucket);
+        }
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata());
     }
 }

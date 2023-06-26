@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.junit.Before;
@@ -15,7 +15,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 
-public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
+public class TreeNodeTests extends AbstractXContentSerializingTestCase<TreeNode> {
 
     private boolean lenient;
 
@@ -42,6 +42,11 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
         Integer featureIndex = lft != null || randomBoolean() ? randomInt(100) : null;
         return createRandom(randomInt(100), lft, rgt, threshold, featureIndex, randomBoolean() ? null : randomFrom(Operator.values()))
             .build();
+    }
+
+    @Override
+    protected TreeNode mutateInstance(TreeNode instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static TreeNode createRandomLeafNode(double internalValue) {

@@ -1,6 +1,0 @@
-pr: 85595
-summary: Fix fields wildcard support to vector tile search API
-area: Geo
-type: bug
-issues:
- - 85592

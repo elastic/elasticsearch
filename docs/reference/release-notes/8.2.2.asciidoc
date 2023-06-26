@@ -1,0 +1,35 @@
+[[release-notes-8.2.2]]
+== {es} version 8.2.2
+
+Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
+[[known-issues-8.2.2]]
+[float]
+=== Known issues
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+[[bug-8.2.2]]
+[float]
+=== Bug fixes
+
+Audit::
+* Fix audit logging to consistently include port number in `origin.address` {es-pull}86732[#86732]
+
+CCR::
+* Fix CCR following a datastream with closed indices on the follower corrupting the datastream {es-pull}87076[#87076] (issue: {es-issue}87048[#87048])
+
+Geo::
+* Guard for adding null value tags to vector tiles {es-pull}87051[#87051]
+
+Infra/Core::
+* Adjust osprobe assertion for burst cpu {es-pull}86990[#86990]
+
+Machine Learning::
+* Fix ML task auditor exception early in cluster lifecycle {es-pull}87023[#87023] (issue: {es-issue}87002[#87002])
+* Adjacency weighting fixes in categorization {ml-pull}2277[#2277]
+
+[[enhancement-8.2.2]]
+[float]
+=== Enhancements
+
+Machine Learning::
+* Make ML native processes work with glibc 2.35 (required for Ubuntu 22.04) {ml-pull}2272[#2272]

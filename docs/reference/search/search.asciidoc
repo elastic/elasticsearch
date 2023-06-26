@@ -38,7 +38,7 @@ must have the `read` index privilege for the alias's data streams or indices.
 
 Allows you to execute a search query and get back search hits that match the
 query. You can provide search queries using the <<search-api-query-params-q,`q`
-query string parameter>> or <<search-request-body,request body>>.
+query string parameter>> or <<search-search,request body>>.
 
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -102,6 +102,7 @@ Defaults to `open`.
 (Optional, Boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
+[[search-from-param]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
@@ -231,6 +232,7 @@ searches.
 (Optional, Boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
+[[search-size-param]]
 `size`::
 (Optional, integer) Defines the number of hits to return. Defaults to `10`.
 +
@@ -238,6 +240,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
 
+[[search-sort-param]]
 `sort`::
 (Optional, string) A comma-separated list of <field>:<direction> pairs.
 
@@ -246,7 +249,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 (Optional)
 Indicates which <<mapping-source-field,source fields>> are returned for matching
 documents. These fields are returned in the `hits._source` property of
-the search response. Defaults to `true`. See <<source-filtering>>.
+the search response. Defaults to `true`. See <<source-filtering,source filtering>>.
 +
 .Valid values for `_source`
 [%collapsible%open]
@@ -383,7 +386,7 @@ Array of field patterns. The request returns values for field names matching
 these patterns in the `hits.fields` property of the response.
 +
 You can specify items in the array as a string or object. See
-<<search-fields-param>>.
+<<search-fields-param,the `fields` option>>.
 +
 .Properties of `fields` objects
 [%collapsible%open]
@@ -480,12 +483,53 @@ A boost value greater than `1.0` increases the score. A boost value between
 `0` and `1.0` decreases the score.
 ====
 
+[[search-api-knn]]
+`knn`::
+(Optional, object or array of objects)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+
+`k`::
+(Required, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
+
+`num_candidates`::
+(Required, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+
+`query_vector`::
+(Optional, array of floats)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+
+`query_vector_builder`::
+(Optional, object)
+A configuration object indicating how to build a query_vector before executing
+the request. You must provide a `query_vector_builder` or `query_vector`, but
+not both. Refer to <<semantic-search>> to learn more.
+
+`similarity`::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
+
+====
+
 [[search-api-min-score]]
 `min_score`::
 (Optional, float)
 Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
 lower `_score` are not included in the search results.
 
+[[search-api-pit]]
 `pit`::
 (Optional, object)
 Limits the search to a <<point-in-time-api,point in time (PIT)>>. If you provide
@@ -508,6 +552,21 @@ Period of time used to extend the life of the PIT.
 `query`::
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
+
+[[request-body-rank]]
+`rank`::
+(Optional, object) Defines a method for combining and ranking result sets from
+either:
++
+* 1 query and 1 or more kNN searches
+* 2 or more kNN searches
++
+.Ranking methods
+[%collapsible%open]
+====
+`rrf`::
+(Optional, object) Sets the ranking method to <<rrf, reciprocal rank fusion (RRF)>>.
+====
 
 [[search-api-body-runtime]]
 // tag::runtime-mappings-def[]
@@ -607,7 +666,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 (Optional)
 Indicates which <<mapping-source-field,source fields>> are returned for matching
 documents. These fields are returned in the `hits._source` property of
-the search response. Defaults to `true`. See <<source-filtering>>.
+the search response. Defaults to `true`. See <<source-filtering,source filtering>>.
 +
 .Valid values for `_source`
 [%collapsible%open]

@@ -32,7 +32,10 @@ ability to manage security.
 `manage_api_key`::
 All security-related operations on {es} API keys including
 <<security-api-create-api-key,creating new API keys>>,
-<<security-api-get-api-key,retrieving information about API keys>>, and
+<<security-api-get-api-key,retrieving information about API keys>>,
+<<security-api-query-api-key,querying API keys>>,
+<<security-api-update-api-key,updating API key>>,
+<<security-api-bulk-update-api-keys,bulk updating API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
 +
 --
@@ -89,7 +92,10 @@ to initiate and manage OpenID Connect authentication on behalf of other users.
 All security-related operations on {es} API keys that are owned by the current
 authenticated user. The operations include
 <<security-api-create-api-key,creating new API keys>>,
-<<security-api-get-api-key,retrieving information about API keys>>, and
+<<security-api-get-api-key,retrieving information about API keys>>,
+<<security-api-query-api-key,querying API keys>>,
+<<security-api-update-api-key,updating API key>>,
+<<security-api-bulk-update-api-keys,bulk updating API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
 
 `manage_pipeline`::
@@ -123,6 +129,16 @@ Service.
 
 `manage_transform`::
 All operations related to managing {transforms}.
+
+`manage_autoscaling`::
+All operations related to managing autoscaling policies.
+
+`manage_data_frame_transforms`::
+All operations related to managing {transforms}.
+deprecated[7.5] Use `manage_transform` instead.
+
+`manage_enrich`::
+All operations related to managing and executing enrich policies.
 
 `manage_watcher`::
 All watcher operations, such as putting watches, executing, activate or acknowledging.
@@ -176,9 +192,15 @@ Read-only access to ingest pipline (get, simulate).
 All read-only {slm-init} actions, such as getting policies and checking the
 {slm-init} status.
 
+`read_security`::
+All read-only security-related operations, such as getting users, user profiles,
+{es} API keys, {es} service accounts, roles and role mappings.
+Allows <<security-api-query-api-key,querying>> and <<security-api-get-api-key,retrieving information>>
+on all {es} API keys.
+
 `transport_client`::
 All privileges necessary for a transport client to connect. Required by the remote
-cluster to enable <<cross-cluster-configuring,{ccs}>>.
+cluster to enable <<remote-clusters-security,{ccs}>>.
 
 [[privileges-list-indices]]
 ==== Indices privileges
@@ -199,8 +221,13 @@ bulk request on an index or data stream that contains new fields that may
 be mapped rather than an explicit <<indices-put-mapping,update mapping>> request.
 
 `create`::
-Privilege to index documents. Also grants access to the update mapping
-action.
+Privilege to index documents.
++
+deprecated:[8.0] Also grants the permission to update the index mapping (but
+not the data streams mapping), using
+the {ref}/indices-put-mapping.html[updating mapping API] or by relying on
+{ref}/dynamic-mapping.html[dynamic field mapping]. In a future major release,
+this privilege will not grant any mapping update permissions.
 +
 --
 NOTE: This privilege does not restrict the index operation to the creation
@@ -211,8 +238,14 @@ privilege for an alternative.
 --
 
 `create_doc`::
-Privilege to index documents. Also grants access to the update mapping action.
-However, it does not enable a user to update existing documents.
+Privilege to index documents.
+It does not grant the permission to update or overwrite existing documents.
++
+deprecated:[8.0] Also grants the permission to update the index mapping (but
+not the data streams mapping), using
+the {ref}/indices-put-mapping.html[updating mapping API] or by relying on
+{ref}/dynamic-mapping.html[dynamic field mapping]. In a future major release,
+this privilege will not grant any mapping update permissions.
 +
 --
 [NOTE]
@@ -243,8 +276,13 @@ Privilege to delete documents.
 Privilege to delete an index or data stream.
 
 `index`::
-Privilege to index and update documents. Also grants access to the update
-mapping action.
+Privilege to index and update documents.
++
+deprecated:[8.0] Also grants the permission to update the index mapping (but
+not the data streams mapping), using
+the {ref}/indices-put-mapping.html[updating mapping API] or by relying on
+{ref}/dynamic-mapping.html[dynamic field mapping]. In a future major release,
+this privilege will not grant any mapping update permissions.
 
 `maintenance`::
 Permits refresh, flush, synced flush and force merge index administration operations.
@@ -265,6 +303,12 @@ All {Ilm} operations relating to managing the execution of policies of an index
 or data stream. This includes operations such as retrying policies and removing
 a policy from an index or data stream.
 
+ifeval::["{release-state}"!="released"]
+`manage_data_stream_lifecycle`::
+All data stream lifecycle operations relating to reading and managing the built-in lifecycle of a data stream.
+This includes operations such as adding and removing a lifecycle from a data stream.
+endif::[]
+
 `manage_leader_index`::
 All actions that are required to manage the lifecycle of a leader index, which
 includes <<ccr-post-forget-follower,forgetting a follower>>. This
@@ -280,7 +324,7 @@ more like this, multi percolate/search/termvector, percolate, scroll,
 clear_scroll, search, suggest, tv).
 
 `read_cross_cluster`::
-Read-only access to the search action from a <<cross-cluster-configuring,remote cluster>>.
+Read-only access to the search action from a <<remote-clusters-security,remote cluster>>.
 
 `view_index_metadata`::
 Read-only access to index and data stream metadata (aliases, exists,
@@ -291,7 +335,11 @@ This privilege is available for use primarily by {kib} users.
 `write`::
 Privilege to perform all write operations to documents, which includes the
 permission to index, update, and delete documents as well as performing bulk
-operations. Also grants access to the update mapping action.
+operations, while also allowing to dynamically update the index mapping.
++
+deprecated:[8.0] It also grants the permission to update the index mapping (but
+not the data streams mapping), using the {ref}/indices-put-mapping.html[updating mapping API].
+This will be retracted in a future major release.
 
 
 ==== Run as privilege

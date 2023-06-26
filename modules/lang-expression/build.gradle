@@ -5,8 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -16,10 +16,12 @@ esplugin {
 
 dependencies {
   api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.5.1-1'
-  api 'org.ow2.asm:asm:5.0.4'
-  api 'org.ow2.asm:asm-commons:5.0.4'
-  api 'org.ow2.asm:asm-tree:5.0.4'
+  runtimeOnly "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  runtimeOnly "org.antlr:antlr4-runtime:${versions.antlr4}"
+  runtimeOnly 'org.ow2.asm:asm:7.2'
+  runtimeOnly 'org.ow2.asm:asm-commons:7.2'
+  runtimeOnly 'org.ow2.asm:asm-tree:7.2'
+  runtimeOnly 'org.ow2.asm:asm-analysis:7.2'
 }
 restResources {
   restApi {

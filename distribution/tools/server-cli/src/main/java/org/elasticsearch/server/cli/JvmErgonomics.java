@@ -64,28 +64,42 @@ final class JvmErgonomics {
     }
 
     static boolean tuneG1GCHeapRegion(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
-        JvmOption g1GCHeapRegion = finalJvmOptions.get("G1HeapRegionSize");
-        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
-        return (tuneG1GCForSmallHeap && g1GC.getMandatoryValue().equals("true") && g1GCHeapRegion.isCommandLineOrigin() == false);
+        return tuneG1GCForSmallHeap && usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, "G1HeapRegionSize");
     }
 
     static int tuneG1GCReservePercent(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
-        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
-        JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
-        if (g1GC.getMandatoryValue().equals("true")) {
-            if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap) {
-                return 15;
-            } else if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == false) {
-                return 25;
-            }
+        if (usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, "G1ReservePercent")) {
+            return tuneG1GCForSmallHeap ? 15 : 25;
         }
         return 0;
     }
 
     static boolean tuneG1GCInitiatingHeapOccupancyPercent(final Map<String, JvmOption> finalJvmOptions) {
-        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
-        JvmOption g1GCInitiatingHeapOccupancyPercent = finalJvmOptions.get("InitiatingHeapOccupancyPercent");
-        return g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false && g1GC.getMandatoryValue().equals("true");
+        return usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, "InitiatingHeapOccupancyPercent");
+    }
+
+    /**
+     * @return <ul>
+     *         <li>{@code true} if `-XX:+UseG1GC` is in the final JVM options and {@code optionName} was not specified.
+     *         <li>{@code false} if either `-XX:-UseG1GC` is in the final JVM options, or {@code optionName} was specified.
+     *         </ul>
+     *
+     * @throws IllegalStateException if neither `-XX:+UseG1GC` nor `-XX:-UseG1GC` is in the final JVM options, or `-XX:+UseG1GC` is selected
+     *                               and {@code optionName} is not in the final JVM options.
+     */
+    private static boolean usingG1GcWithoutCommandLineOriginOption(Map<String, JvmOption> finalJvmOptions, String optionName) {
+        return getRequiredOption(finalJvmOptions, "UseG1GC").getMandatoryValue().equals("true")
+            && getRequiredOption(finalJvmOptions, optionName).isCommandLineOrigin() == false;
+    }
+
+    private static JvmOption getRequiredOption(final Map<String, JvmOption> finalJvmOptions, final String key) {
+        final var jvmOption = finalJvmOptions.get(key);
+        if (jvmOption == null) {
+            throw new IllegalStateException(
+                "JVM option [" + key + "] was unexpectedly missing. Elasticsearch requires this option to be present."
+            );
+        }
+        return jvmOption;
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

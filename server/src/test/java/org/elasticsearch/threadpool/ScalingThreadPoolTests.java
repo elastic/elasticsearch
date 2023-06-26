@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -68,7 +69,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             expectedMax = randomIntBetween(Math.max(1, core), 16);
             builder.put("thread_pool." + threadPoolName + ".max", expectedMax);
         } else {
-            expectedMax = maxBasedOnNumberOfProcessors;
+            expectedMax = threadPoolName.equals(ThreadPool.Names.SNAPSHOT)
+                ? getMaxSnapshotThreadPoolSize(processors)
+                : maxBasedOnNumberOfProcessors;
         }
 
         final long keepAlive;
@@ -136,8 +139,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 });
             }
             final ThreadPoolStats.Stats stats = stats(threadPool, threadPoolName);
-            assertThat(stats.getQueue(), equalTo(numberOfTasks - size));
-            assertThat(stats.getLargest(), equalTo(size));
+            assertThat(stats.queue(), equalTo(numberOfTasks - size));
+            assertThat(stats.largest(), equalTo(size));
             latch.countDown();
             try {
                 taskLatch.await();
@@ -167,7 +170,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                     }
                 });
             }
-            int threads = stats(threadPool, threadPoolName).getThreads();
+            int threads = stats(threadPool, threadPoolName).threads();
             assertEquals(128, threads);
             latch.countDown();
             // this while loop is the core of this test; if threads
@@ -178,7 +181,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             // down
             do {
                 spinForAtLeastOneMillisecond();
-            } while (stats(threadPool, threadPoolName).getThreads() > min);
+            } while (stats(threadPool, threadPoolName).threads() > min);
             try {
                 taskLatch.await();
             } catch (InterruptedException e) {
@@ -278,7 +281,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             if (rejectAfterShutdown) {
                 final EsRejectedExecutionException exception = expectThrows(
                     EsRejectedExecutionException.class,
-                    () -> scalingExecutor.execute(() -> { throw new AssertionError("should be rejected"); })
+                    () -> scalingExecutor.execute(() -> {
+                        throw new AssertionError("should be rejected");
+                    })
                 );
                 assertThat(exception.getLocalizedMessage(), allOf(containsString("rejected execution of "), containsString("(shutdown)")));
                 assertThat(exception.isExecutorShutdown(), equalTo(true));

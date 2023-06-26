@@ -15,6 +15,7 @@ import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -68,7 +69,7 @@ public class ResetPasswordToolTests extends CommandTestCase {
     protected Command newCommand() {
         return new ResetPasswordTool(environment -> client, environment -> keyStoreWrapper) {
             @Override
-            protected Environment createEnv(OptionSet options) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return new Environment(ResetPasswordToolTests.this.settings, confDir);
             }
         };
@@ -292,8 +293,7 @@ public class ResetPasswordToolTests extends CommandTestCase {
 
     public void testAutoBatchSilent() throws Exception {
         execute(randomFrom("--silent", "-s"), randomFrom("--batch", "-b"), randomFrom("-u", "--username"), user);
-        String output = terminal.getOutput();
-        assertThat(output, hasLength(21)); // password + new line char
+        assertThat(terminal.getOutput(), hasLength(20 + System.lineSeparator().length())); // password + new line char
         assertThat(terminal.getErrorOutput(), is(emptyString()));
     }
 

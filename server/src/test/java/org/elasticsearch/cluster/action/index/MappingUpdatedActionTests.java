@@ -16,7 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,6 +26,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -127,9 +128,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
     }
 
     public void testSendUpdateMappingUsingAutoPutMappingAction() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_7_9_0))
-            .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("first").version(Version.V_7_9_0).build()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -146,7 +145,9 @@ public class MappingUpdatedActionTests extends ESTestCase {
         );
         mua.setClient(client);
 
-        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(MapperBuilderContext.ROOT);
+        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", ObjectMapper.Defaults.SUBOBJECTS).build(
+            MapperBuilderContext.root(false)
+        );
         Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.noop());

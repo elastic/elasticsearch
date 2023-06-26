@@ -1,0 +1,225 @@
+setup:
+  - skip:
+      version: " - 8.4.99"
+      reason: metric params only on time series indexes introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test_time_series
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      availability_zone:
+                        type: short
+                        time_series_dimension: true
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: counter
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+
+  - do:
+      indices.create:
+        index: test_non_time_series
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      availability_zone:
+                        type: short
+                        time_series_dimension: true
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: counter
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+
+---
+field caps on time_series indices:
+  - skip:
+      version: " - 8.3.99"
+      reason: metric params only on time series indexes introduced in 8.4.0
+
+  - do:
+      field_caps:
+        index: test_time_series
+        fields: [ k8s.pod.uid, k8s.pod.network.rx, k8s.pod.network.tx, k8s.pod.ip, metricset, _tsid ]
+
+  - match: { fields.k8s\.pod\.uid.keyword.type: keyword }
+  - match: { fields.k8s\.pod\.uid.keyword.searchable: true }
+  - match: { fields.k8s\.pod\.uid.keyword.aggregatable: true }
+  - match: { fields.k8s\.pod\.uid.keyword.time_series_dimension: true }
+  - is_false: fields.k8s\.pod\.uid.keyword.indices
+  - is_false: fields.k8s\.pod\.uid.keyword.non_searchable_indices
+  - is_false: fields.k8s\.pod\.uid.keyword.non_aggregatable_indices
+
+  - match: { fields.k8s\.pod\.network\.rx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.rx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.rx.long.aggregatable: true }
+  - match: { fields.k8s\.pod\.network\.rx.long.time_series_metric: gauge }
+  - is_false: fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_aggregatable_indices
+
+
+  - match: { fields.k8s\.pod\.network\.tx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.tx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.tx.long.aggregatable: true }
+  - match: { fields.k8s\.pod\.network\.tx.long.time_series_metric: counter }
+  - is_false: fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_aggregatable_indices
+
+  - match: { fields.k8s\.pod\.ip.ip.type: ip }
+  - match: { fields.k8s\.pod\.ip.ip.searchable: true }
+  - match: { fields.k8s\.pod\.ip.ip.aggregatable: true }
+  - is_false: fields.k8s\.pod\.ip.ip.indices
+  - is_false: fields.k8s\.pod\.ip.ip.non_searchable_indices
+  - is_false: fields.k8s\.pod\.ip.ip.non_aggregatable_indices
+
+  - match: { fields.metricset.keyword.type: keyword }
+  - match: { fields.metricset.keyword.searchable: true }
+  - match: { fields.metricset.keyword.aggregatable: true }
+  - match: { fields.metricset.keyword.time_series_dimension: true }
+  - is_false: fields.metricset.keyword.non_dimension_indices
+  - is_false: fields.metricset.keyword.indices
+  - is_false: fields.metricset.keyword.non_searchable_indices
+  - is_false: fields.metricset.keyword.non_aggregatable_indices
+
+  - match: { fields._tsid._tsid.metadata_field: true }
+  - match: { fields._tsid._tsid.searchable: false }
+  - match: { fields._tsid._tsid.aggregatable: true }
+  - is_false: fields._tsid._tsid.indices
+  - is_false: fields._tsid._tsid.non_searchable_indices
+  - is_false: fields._tsid._tsid.non_aggregatable_indices
+
+
+---
+field caps on standard indices:
+  - skip:
+      version: " - 8.3.99"
+      reason: metric params only on time series indexes introduced in 8.4.0
+
+  - do:
+      field_caps:
+        index: test_non_time_series
+        fields: [ _tsid, metricset, k8s.pod.network.rx, k8s.pod.network.tx, k8s.pod.network.rx ]
+
+  - match: { fields.metricset.keyword.type: keyword }
+  - match: { fields.metricset.keyword.searchable: true }
+  - match: { fields.metricset.keyword.aggregatable: true }
+  - is_false: fields.metricset.keyword.time_series_dimension
+  - is_false: fields.metricset.keyword.non_dimension_indices
+  - is_false: fields.metricset.keyword.indices
+  - is_false: fields.metricset.keyword.non_searchable_indices
+  - is_false: fields.metricset.keyword.non_aggregatable_indices
+
+  - is_false: fields._tsid  # _tsid metadata field must not exist in non-time-series indices
+
+  - match: { fields.k8s\.pod\.network\.rx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.rx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.rx.long.aggregatable: true }
+  - is_false: fields.k8s\.pod\.network\.rx.long.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.rx.long.metric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_aggregatable_indices
+  - is_false: fields.k8s\.pod\.network\.rx.gauge
+
+  - match: { fields.k8s\.pod\.network\.tx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.tx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.tx.long.aggregatable: true }
+  - is_false: fields.k8s\.pod\.network\.tx.long.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_aggregatable_indices
+  - is_false: fields.k8s\.pod\.network\.tx.counter
+
+
+---
+field caps on mixed indices:
+  - skip:
+      version: " - 8.3.99"
+      reason: metric params only on time series indexes introduced in 8.4.0
+
+  - do:
+      field_caps:
+        index: test_*
+        fields: [ metricset, k8s.pod.availability_zone, k8s.pod.network.tx, k8s.pod.network.rx ]
+
+  - match: { fields.metricset.keyword.type: keyword }
+  - match: { fields.metricset.keyword.searchable: true }
+  - match: { fields.metricset.keyword.aggregatable: true }
+  - is_false: fields.metricset.keyword.time_series_dimension
+  - match: { fields.metricset.keyword.non_dimension_indices: [ "test_non_time_series" ] }
+  - is_false: fields.metricset.keyword.indices
+  - is_false: fields.metricset.keyword.non_searchable_indices
+  - is_false: fields.metricset.keyword.non_aggregatable_indices
+
+  - match: { fields.k8s\.pod\.network\.rx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.rx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.rx.long.aggregatable: true }
+  - match: { fields.k8s\.pod\.network\.rx.long.metric_conflicts_indices: [ "test_non_time_series", "test_time_series" ] }
+  - is_false: fields.k8s\.pod\.network\.rx.long.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_aggregatable_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.indices
+
+  - match: { fields.k8s\.pod\.network\.tx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.tx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.tx.long.aggregatable: true }
+  - match: { fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices: [ "test_non_time_series", "test_time_series" ] }
+  - is_false: fields.k8s\.pod\.network\.tx.long.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_aggregatable_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.indices
+

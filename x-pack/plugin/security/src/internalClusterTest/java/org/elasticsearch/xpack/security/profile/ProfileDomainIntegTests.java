@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xcontent.XContentType;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -83,7 +83,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile2.user().domainName(), equalTo("my_domain"));
         assertThat(profile2.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile2.user().fullName(), nullValue());
-        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE));
+        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE, NATIVE_RAC_ROLE));
 
         // Activate 3rd time with the file realm user again and it should get the same profile
         // User fields are updated to the file user's info again
@@ -145,7 +145,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 )
             )
             .build(false);
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject subject = authentication.getEffectiveSubject();
 
         // Profile does not exist yet
         final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
@@ -190,7 +190,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             .user(new User("Foo"))
             .realmRef(new Authentication.RealmRef(realmIdentifier1.getName(), realmIdentifier1.getType(), nodeName))
             .build(false);
-        final Subject subject1 = AuthenticationContext.fromAuthentication(authentication1).getEffectiveSubject();
+        final Subject subject1 = authentication1.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject1, future1);
@@ -206,7 +206,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             .user(new User("Foo"))
             .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName, realmDomain1))
             .build(false);
-        final Subject subject2 = AuthenticationContext.fromAuthentication(authentication2).getEffectiveSubject();
+        final Subject subject2 = authentication2.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future2 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject2, future2);
@@ -218,7 +218,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             .user(new User("Foo"))
             .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName))
             .build(false);
-        final Subject subject3 = AuthenticationContext.fromAuthentication(authentication3).getEffectiveSubject();
+        final Subject subject3 = authentication3.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject3, future3);
@@ -265,24 +265,26 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         indexDocument();
 
         final String username = randomAlphaOfLengthBetween(5, 12);
-        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
 
         final boolean existingCollision = randomBoolean();
         final String existingUid;
         // Manually create a collision document
         if (existingCollision) {
-            final Authentication authentication = assembleAuthentication(username, realmRef);
+            final Authentication authentication = assembleAuthentication(username, randomRealmRef());
             final PlainActionFuture<Profile> future = new PlainActionFuture<>();
             getInstanceFromRandomNode(ProfileService.class).activateProfile(authentication, future);
             existingUid = future.actionGet().uid();
             assertThat(existingUid, endsWith("_0"));
-            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + existingUid).setDoc("""
-                {
-                  "user_profile": {
-                    "user": { "username": "%s" }
-                  }
-                }
-                """.formatted("not-" + username), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
+            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + existingUid)
+                .setDoc(Strings.format("""
+                    {
+                      "user_profile": {
+                        "user": { "username": "%s" }
+                      }
+                    }
+                    """, "not-" + username), XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .request();
             client().update(updateRequest).actionGet();
             logger.info("manually creating a collision document: [{}]", existingUid);
         } else {
@@ -297,12 +299,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
-                    final Authentication authentication = assembleAuthentication(username, realmRef);
+                    final Authentication authentication = assembleAuthentication(username, randomRealmRef());
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
-                    profileService.activateProfile(authentication, future);
                     readyLatch.countDown();
                     startLatch.await();
+                    profileService.activateProfile(authentication, future);
                     try {
                         final String uid = future.actionGet().uid();
                         logger.info("created profile [{}] for authentication [{}]", uid, authentication);
@@ -356,13 +358,16 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             }
             final String newUsername = i == otherRacUserIndex ? OTHER_RAC_USER_NAME : "some-other-name-" + randomAlphaOfLength(8);
             // Manually update the username to create hash collision
-            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + currentUid).setDoc("""
-                {
-                  "user_profile": {
-                    "user": { "username": "%s" }
-                  }
-                }
-                """.formatted(newUsername), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
+            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + currentUid)
+                .setDoc(Strings.format("""
+                    {
+                      "user_profile": {
+                        "user": { "username": "%s" }
+                      }
+                    }
+                    """, newUsername), XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .request();
             client().update(updateRequest).actionGet();
             if (newUsername.equals(OTHER_RAC_USER_NAME)) {
                 // The manually updated profile document can still be activated by the other rac user
@@ -379,10 +384,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     public void testBackoffDepletion() {
-        final Subject subject = new Subject(
-            new User(randomAlphaOfLengthBetween(5, 12)),
-            AuthenticationTests.randomRealmRef(randomBoolean())
-        );
+        final Subject subject = new Subject(new User(randomAlphaOfLengthBetween(5, 12)), randomRealmRef());
         final ProfileDocument profileDocument = ProfileDocument.fromSubject(subject);
 
         final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
@@ -394,19 +396,16 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     public void testProfileDocumentPassCanAccessResourceCheck() {
-        Authentication authentication = Authentication.newRealmAuthentication(
-            AuthenticationTests.randomUser(),
-            AuthenticationTests.randomRealmRef(randomBoolean())
-        );
+        Authentication authentication = Authentication.newRealmAuthentication(AuthenticationTests.randomUser(), randomRealmRef());
         if (randomBoolean()) {
             authentication = authentication.token();
         } else {
-            authentication = authentication.runAs(AuthenticationTests.randomUser(), AuthenticationTests.randomRealmRef(randomBoolean()));
+            authentication = authentication.runAs(AuthenticationTests.randomUser(), randomRealmRef());
             if (randomBoolean()) {
                 authentication = authentication.token();
             }
         }
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject subject = authentication.getEffectiveSubject();
         final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
         final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
         profileService.activateProfile(authentication, future1);
@@ -417,7 +416,27 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         profileService.searchVersionedDocumentForSubject(subject, future2);
         final ProfileDocument profileDocument = future2.actionGet().doc();
         assertThat(profileDocument.uid(), equalTo(uid));
-        assertThat(subject.canAccessResourcesOf(profileDocument.subject()), is(true));
+        assertThat(subject.canAccessResourcesOf(profileDocument.user().toSubject()), is(true));
+    }
+
+    private Authentication.RealmRef randomRealmRef() {
+        Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(false);
+        if (randomBoolean()) {
+            realmRef = new Authentication.RealmRef(
+                realmRef.getName(),
+                realmRef.getType(),
+                realmRef.getNodeName(),
+                new RealmDomain(
+                    "my_domain",
+                    Set.of(
+                        new RealmConfig.RealmIdentifier("file", "file"),
+                        new RealmConfig.RealmIdentifier("native", "index"),
+                        new RealmConfig.RealmIdentifier(realmRef.getType(), realmRef.getName())
+                    )
+                )
+            );
+        }
+        return realmRef;
     }
 
     private String indexDocument() {
@@ -427,7 +446,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     private void indexDocument(String uid) {
-        final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
+        String source = ProfileServiceTests.getSampleProfileDocumentSource(
+            uid,
+            "Foo",
+            List.of("role1", "role2"),
+            Instant.now().toEpochMilli()
+        );
         client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
             .setId("profile_" + uid)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)

@@ -1,0 +1,356 @@
+[[set-up-tsds]]
+=== Set up a time series data stream (TSDS)
+++++
+<titleabbrev>Set up a TSDS</titleabbrev>
+++++
+
+To set up a <<tsds,time series data stream (TSDS)>>, follow these steps:
+
+. Check the <<tsds-prereqs,prerequisites>>.
+. <<tsds-ilm-policy>>.
+. <<tsds-create-mappings-component-template>>.
+. <<tsds-create-index-settings-component-template>>.
+. <<create-tsds-index-template>>.
+. <<create-tsds>>.
+. <<secure-tsds>>.
+
+[discrete]
+[[tsds-prereqs]]
+==== Prerequisites
+
+* Before you create a TSDS, you should be familiar with <<data-streams,data
+streams>> and <<tsds,TSDS concepts>>.
+
+* To follow this tutorial, you must have the following permissions:
+
+** <<privileges-list-cluster,Cluster privileges>>: `manage_ilm` and
+`manage_index_templates`.
+** <<privileges-list-indices,Index privileges>>: `create_doc` and `create_index`
+for any TSDS you create or convert. To roll over a TSDS, you must have the
+`manage` privilege.
+
+[discrete]
+[[tsds-ilm-policy]]
+==== Create an index lifecycle policy
+
+While optional, we recommend using {ilm-init} to automate the management of your
+TSDS's backing indices. {ilm-init} requires an index lifecycle policy.
+
+We recommend you specify a `max_age` criteria for the `rollover` action in the
+policy. This ensures the <<time-bound-indices,`@timestamp` ranges>> for the
+TSDS's backing indices are consistent. For example, setting a `max_age` of `1d`
+for the `rollover` action ensures your backing indices consistently contain one
+day's worth of data.
+
+////
+[source,console]
+----
+PUT /_snapshot/found-snapshots
+{
+ "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+PUT _ilm/policy/my-weather-sensor-lifecycle-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_age": "1d",
+            "max_primary_shard_size": "50gb"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "30d",
+        "actions": {
+          "shrink": {
+            "number_of_shards": 1
+          },
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "60d",
+        "actions": {
+          "searchable_snapshot": {
+            "snapshot_repository": "found-snapshots"
+          }
+        }
+      },
+      "frozen": {
+        "min_age": "90d",
+        "actions": {
+          "searchable_snapshot": {
+            "snapshot_repository": "found-snapshots"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "735d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+----
+
+[discrete]
+[[tsds-create-mappings-component-template]]
+==== Create a mappings component template
+
+A TSDS requires a matching index template. In most cases, you compose this index
+template using one or more component templates. You typically use separate
+component templates for mappings and index settings. This lets you reuse the
+component templates in multiple index templates.
+
+For a TSDS, the mappings component template must include mappings for:
+
+* One or more <<time-series-dimension,dimension fields>> with a
+`time_series_dimension` value of `true`. At least one of these dimensions must
+be a plain `keyword` field.
+
+Optionally, the template can also include mappings for:
+
+* One or more <<time-series-metric,metric fields>>, marked using the
+`time_series_metric` mapping parameter.
+
+* A `date` or `date_nanos` mapping for the `@timestamp` field. If you don’t
+specify a mapping, Elasticsearch maps `@timestamp` as a `date` field with
+default options.
+
+[source,console]
+----
+PUT _component_template/my-weather-sensor-mappings
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "sensor_id": {
+          "type": "keyword",
+          "time_series_dimension": true
+        },
+        "location": {
+          "type": "keyword",
+          "time_series_dimension": true
+        },
+        "temperature": {
+          "type": "half_float",
+          "time_series_metric": "gauge"
+        },
+        "humidity": {
+          "type": "half_float",
+          "time_series_metric": "gauge"
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Mappings for weather sensor data"
+  }
+}
+----
+// TEST[continued]
+
+[discrete]
+[[tsds-create-index-settings-component-template]]
+==== Create an index settings component template
+
+Optionally, the index settings component template for a TSDS can include:
+
+* Your lifecycle policy in the `index.lifecycle.name` index setting.
+* The <<tsds-look-ahead-time,`index.look_ahead_time`>> index setting.
+* Other index settings, such as <<index-codec,`index.codec`>>, for your TSDS's
+backing indices.
+
+IMPORTANT: Don't specify the `index.routing_path` index setting in a component
+template. If you choose, you can configure `index.routing_path` directly in the
+index template, as shown in the following step.
+
+[source,console]
+----
+PUT _component_template/my-weather-sensor-settings
+{
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "my-lifecycle-policy",
+      "index.look_ahead_time": "3h",
+      "index.codec": "best_compression"
+    }
+  },
+  "_meta": {
+    "description": "Index settings for weather sensor data"
+  }
+}
+----
+// TEST[continued]
+
+[discrete]
+[[create-tsds-index-template]]
+==== Create an index template
+
+Use your component templates to create an index template. In the index template,
+specify:
+
+* One or more index patterns that match the TSDS's name. We recommend
+using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
+naming scheme].
+
+* That the template is data stream enabled.
+
+* An `index.mode` object set to `time_series`.
+
+* Optional: The `index.routing_path` index setting. The setting value should
+only match plain `keyword` dimension fields and should be set directly in the
+index template. When not defined explicitly, the `index.routing_path` setting is
+generated from the mapping using all mappings that are set with
+`time_series_dimension` set to `true`.
+
+* The component templates containing your mappings and other index settings.
+
+* A priority higher than `200` to avoid collisions with built-in templates.
+See <<avoid-index-pattern-collisions>>.
+
+[source,console]
+----
+PUT _index_template/my-weather-sensor-index-template
+{
+  "index_patterns": ["metrics-weather_sensors-*"],
+  "data_stream": { },
+  "template": {
+    "settings": {
+      "index.mode": "time_series",
+      "index.routing_path": [ "sensor_id", "location" ]
+    }
+  },
+  "composed_of": [ "my-weather-sensor-mappings", "my-weather-sensor-settings" ],
+  "priority": 500,
+  "_meta": {
+    "description": "Template for my weather sensor data"
+  }
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE _data_stream/*
+DELETE _index_template/*
+DELETE _component_template/my-*
+DELETE _ilm/policy/my-weather-sensor-lifecycle-policy
+----
+// TEST[continued]
+////
+
+[discrete]
+[[create-tsds]]
+==== Create the TSDS
+
+<<add-documents-to-a-data-stream,Indexing requests>> add documents to a TSDS.
+Documents in a TSDS must include:
+
+* A `@timestamp` field
+* One or more dimension fields. At least one dimension must be a `keyword` field
+that matches the `index.routing_path` index setting, if specified. If not specified
+explicitly, `index.routing_path` is set automatically to whichever mappings have
+ `time_series_dimension` set to `true`.
+
+To automatically create your TSDS, submit an indexing request that
+targets the TSDS's name. This name must match one of your index template's
+index patterns.
+
+IMPORTANT: To test the following example, update the timestamps to within three hours of
+your current time. Data added to a TSDS must always fall within an
+<<tsds-accepted-time-range,accepted time range>>.
+
+[source,console]
+----
+PUT metrics-weather_sensors-dev/_bulk
+{ "create":{ } }
+{ "@timestamp": "2099-05-06T16:21:15.000Z", "sensor_id": "HAL-000001", "location": "plains", "temperature": 26.7,"humidity": 49.9 }
+{ "create":{ } }
+{ "@timestamp": "2099-05-06T16:25:42.000Z", "sensor_id": "SYKENET-000001", "location": "swamp", "temperature": 32.4, "humidity": 88.9 }
+
+POST metrics-weather_sensors-dev/_doc
+{
+  "@timestamp": "2099-05-06T16:21:15.000Z",
+  "sensor_id": "SYKENET-000001",
+  "location": "swamp",
+  "temperature": 32.4,
+  "humidity": 88.9
+}
+----
+// TEST[skip: The @timestamp value won't match an accepted range in the TSDS]
+
+You can also manually create the TSDS using the
+<<indices-create-data-stream,create data stream API>>. The TSDS's name must
+still match one of your template's index patterns.
+
+[source,console]
+----
+PUT _data_stream/metrics-weather_sensors-dev
+----
+// TEST[setup:tsds_template]
+// TEST[teardown:tsds_cleanup]
+
+[discrete]
+[[secure-tsds]]
+==== Secure the TSDS
+
+Use <<privileges-list-indices,index privileges>> to control access to a TSDS.
+Granting privileges on a TSDS grants the same privileges on its backing indices.
+
+For an example, refer to <<data-stream-privileges>>.
+
+[discrete]
+[[convert-existing-data-stream-to-tsds]]
+==== Convert an existing data stream to a TSDS
+
+You can also use the above steps to convert an existing regular data stream to
+a TSDS. In this case, you'll want to:
+
+* Edit your existing index lifecycle policy, component templates, and index
+templates instead of creating new ones.
+
+* Instead of creating the TSDS, manually roll over its write index. This ensures
+the current write index and any new backing indices have an
+<<time-series-mode,`index.mode` of `time_series`>>.
++
+You can manually roll over the write index using the
+<<indices-rollover-index,rollover API>>.
++
+[source,console]
+----
+POST metrics-weather_sensors-dev/_rollover
+----
+// TEST[setup:tsds]
+// TEST[teardown:tsds_cleanup]
+
+[discrete]
+[[set-up-tsds-whats-next]]
+==== What's next?
+
+Now that you've set up your TSDS, you can manage and use it like a regular
+data stream. For more information, refer to:
+
+* <<use-a-data-stream>>
+* <<data-streams-change-mappings-and-settings>>
+* <<data-stream-apis,data stream APIs>>

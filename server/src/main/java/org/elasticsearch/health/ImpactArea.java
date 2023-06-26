@@ -10,7 +10,9 @@ package org.elasticsearch.health;
 
 public enum ImpactArea {
     SEARCH("search"),
-    INGEST("ingest");
+    INGEST("ingest"),
+    BACKUP("backup"),
+    DEPLOYMENT_MANAGEMENT("deployment_management");
 
     private final String displayValue;
 

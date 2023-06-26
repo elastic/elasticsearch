@@ -100,32 +100,29 @@ public class InetAddresses {
     }
 
     private static byte[] textToNumericFormatV4(String ipString) {
-        String[] address = ipString.split("\\.", IPV4_PART_COUNT + 1);
-        if (address.length != IPV4_PART_COUNT) {
-            return null;
-        }
-
         byte[] bytes = new byte[IPV4_PART_COUNT];
-        try {
-            for (int i = 0; i < bytes.length; i++) {
-                bytes[i] = parseOctet(address[i]);
+        byte octet = 0;
+        byte digits = 0;
+        for (int i = 0; i < ipString.length(); i++) {
+            char c = ipString.charAt(i);
+            if (c == '.') {
+                octet++;
+                if (octet > 3 /* too many octets */ || digits == 0 /* empty octet */) {
+                    return null;
+                }
+                digits = 0;
+            } else if (c >= '0' && c <= '9') {
+                digits++;
+                var next = bytes[octet] * 10 + (c - '0');
+                if (next > 255 /* octet is outside a byte range */ || (digits > 1 && bytes[octet] == 0) /* octet contains leading 0 */) {
+                    return null;
+                }
+                bytes[octet] = (byte) next;
+            } else {
+                return null;
             }
-        } catch (NumberFormatException ex) {
-            return null;
         }
-
-        return bytes;
-    }
-
-    private static byte parseOctet(String ipPart) {
-        // Note: we already verified that this string contains only hex digits.
-        int octet = Integer.parseInt(ipPart);
-        // Disallow leading zeroes, because no clear standard exists on
-        // whether these should be interpreted as decimal or octal.
-        if (octet > 255 || (ipPart.startsWith("0") && ipPart.length() > 1)) {
-            throw new NumberFormatException();
-        }
-        return (byte) octet;
+        return octet != 3 ? null : bytes;
     }
 
     private static byte[] textToNumericFormatV6(String ipString) {

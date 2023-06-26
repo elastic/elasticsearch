@@ -33,6 +33,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class OperatorPrivilegesIT extends ESRestTestCase {
 
@@ -94,21 +95,54 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         client().performRequest(mainRequest);
     }
 
+    public void testServiceAccountOperatorUserCanCallNonOperatorOnlyApi() throws IOException {
+        final Request mainRequest = new Request("GET", "/");
+        mainRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", "Bearer AAEAAWVsYXN0aWMva2liYW5hL2tpYmFuYS10b2tlbjpndGw5dll2VlRMS2xjcWpHcEJRTWNn")
+        ); // elastic/kibana/kibana-token
+        client().performRequest(mainRequest);
+    }
+
+    public void testServiceAccountUpdateOperatorSettings() throws IOException {
+        final Map<String, Object> settings = new HashMap<>(
+            Map.of("xpack.security.http.filter.enabled", "false", "xpack.security.transport.filter.enabled", "false")
+        );
+
+        ResponseException responseException = expectThrows(ResponseException.class, () -> updateSettings(settings, null));
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(responseException.getMessage(), containsString("is unauthorized for user"));
+        assertThat(responseException.getMessage(), containsString("because it requires operator privileges"));
+        assertTrue(getPersistentSettings().isEmpty());
+
+        // call it with a service account that is listed as an operator. Ideally we would assert a success, but without additional plugins
+        // that change the operator rules, there are not any overlapping actions between service accounts and operator privileges
+        // so the best we can do is to assert that operator privileges are *not* the reason for the failure
+        responseException = expectThrows(
+            ResponseException.class,
+            () -> updateSettings(settings, "Bearer AAEAAWVsYXN0aWMva2liYW5hL2tpYmFuYS10b2tlbjpndGw5dll2VlRMS2xjcWpHcEJRTWNn")
+        );
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(responseException.getMessage(), containsString("is unauthorized for service account"));
+        assertThat(responseException.getMessage(), not(containsString("because it requires operator privileges")));
+        assertTrue(getPersistentSettings().isEmpty());
+    }
+
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
         final String message = "An action should be declared to be either operator-only in ["
-            + OperatorOnlyRegistry.class.getName()
+            + DefaultOperatorOnlyRegistry.class.getName()
             + "] or non-operator in ["
             + Constants.class.getName()
             + "]";
 
-        Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, OperatorOnlyRegistry.SIMPLE_ACTIONS);
+        Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS);
         assertTrue("Actions are both operator-only and non-operator: [" + doubleLabelled + "]. " + message, doubleLabelled.isEmpty());
 
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
         Set<String> allActions = Set.copyOf((List<String>) response.get("actions"));
-        final HashSet<String> labelledActions = new HashSet<>(OperatorOnlyRegistry.SIMPLE_ACTIONS);
+        final HashSet<String> labelledActions = new HashSet<>(DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS);
         labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
 
         final Set<String> unlabelled = Sets.difference(allActions, labelledActions);
@@ -119,7 +153,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             "Actions may no longer be valid: ["
                 + redundant
                 + "]. They should be removed from either the operator-only action registry in ["
-                + OperatorOnlyRegistry.class.getName()
+                + DefaultOperatorOnlyRegistry.class.getName()
                 + "] or the non-operator action list in ["
                 + Constants.class.getName()
                 + "]",
@@ -243,6 +277,18 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             updateSettings(settings, OPERATOR_AUTH_HEADER);
             assertThat(getPersistentSettings().get(operatorSetting.getKey()), equalTo(Double.toString(operatorSetting.getValue())));
         }
+    }
+
+    public void testOperatorUserCallsDesiredNodesAPI() throws IOException {
+        var request = new Request("DELETE", "/_internal/desired_nodes");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        client().performRequest(request);
+    }
+
+    public void testNonOperatorUserWillFailToCallDesiredNodesAPI() throws IOException {
+        var request = new Request("DELETE", "/_internal/desired_nodes");
+        var responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
     private void createSnapshotRepo(String repoName) throws IOException {

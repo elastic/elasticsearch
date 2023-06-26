@@ -10,7 +10,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
@@ -47,8 +47,8 @@ public class RestRollupSearchAction extends BaseRestHandler {
                 size -> searchRequest.source().size(size)
             )
         );
-        RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
-        return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestToXContentListener<>(channel));
+        RestSearchAction.validateSearchRequest(restRequest, searchRequest);
+        return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     @Override

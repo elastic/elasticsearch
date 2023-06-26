@@ -13,7 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
+public class GroupConfigTests extends AbstractXContentSerializingTestCase<GroupConfig> {
 
     // array of illegal characters, see {@link AggregatorFactories#VALID_AGG_NAME}
     private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = { '[', ']', '>' };
@@ -91,6 +91,11 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
     @Override
     protected GroupConfig createTestInstance() {
         return randomGroupConfig();
+    }
+
+    @Override
+    protected GroupConfig mutateInstance(GroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

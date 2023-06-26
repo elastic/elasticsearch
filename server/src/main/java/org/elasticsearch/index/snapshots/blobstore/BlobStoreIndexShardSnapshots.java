@@ -10,20 +10,25 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Contains information about all snapshots for the given shard in repository
@@ -33,54 +38,53 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContentFragment {
 
-    public static final BlobStoreIndexShardSnapshots EMPTY = new BlobStoreIndexShardSnapshots(Collections.emptyList());
+    public static final BlobStoreIndexShardSnapshots EMPTY = new BlobStoreIndexShardSnapshots(Map.of(), List.of());
 
     private final List<SnapshotFiles> shardSnapshots;
     private final Map<String, FileInfo> files;
-    private final Map<String, List<FileInfo>> physicalFiles;
 
-    public BlobStoreIndexShardSnapshots(List<SnapshotFiles> shardSnapshots) {
+    private BlobStoreIndexShardSnapshots(Map<String, FileInfo> files, List<SnapshotFiles> shardSnapshots) {
         this.shardSnapshots = List.copyOf(shardSnapshots);
-        // Map between blob names and file info
+        this.files = files;
+    }
+
+    public BlobStoreIndexShardSnapshots withRetainedSnapshots(Set<SnapshotId> retainedSnapshots) {
+        if (retainedSnapshots.isEmpty()) {
+            return EMPTY;
+        }
+        final var survivingSnapshotNames = retainedSnapshots.stream().map(SnapshotId::getName).collect(Collectors.toSet());
+        final ArrayList<SnapshotFiles> updatedSnapshots = new ArrayList<>(survivingSnapshotNames.size());
         Map<String, FileInfo> newFiles = new HashMap<>();
-        // Map between original physical names and file info
-        Map<String, List<FileInfo>> physicalFiles = new HashMap<>();
         for (SnapshotFiles snapshot : shardSnapshots) {
-            // First we build map between filenames in the repo and their original file info
-            // this map will be used in the next loop
+            if (survivingSnapshotNames.contains(snapshot.snapshot()) == false) {
+                continue;
+            }
+            updatedSnapshots.add(snapshot);
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 FileInfo oldFile = newFiles.put(fileInfo.name(), fileInfo);
                 assert oldFile == null || oldFile.isSame(fileInfo);
             }
-            // We are doing it in two loops here so we keep only one copy of the fileInfo per blob
-            // the first loop de-duplicates fileInfo objects that were loaded from different snapshots but refer to
-            // the same blob
-            for (FileInfo fileInfo : snapshot.indexFiles()) {
-                physicalFiles.computeIfAbsent(fileInfo.physicalName(), k -> new ArrayList<>()).add(newFiles.get(fileInfo.name()));
-            }
         }
-        Map<String, List<FileInfo>> mapBuilder = new HashMap<>();
-        for (Map.Entry<String, List<FileInfo>> entry : physicalFiles.entrySet()) {
-            mapBuilder.put(entry.getKey(), List.copyOf(entry.getValue()));
-        }
-        this.physicalFiles = unmodifiableMap(mapBuilder);
-        this.files = unmodifiableMap(newFiles);
+        return new BlobStoreIndexShardSnapshots(newFiles, updatedSnapshots);
     }
 
-    private BlobStoreIndexShardSnapshots(Map<String, FileInfo> files, List<SnapshotFiles> shardSnapshots) {
-        this.shardSnapshots = shardSnapshots;
-        this.files = files;
-        Map<String, List<FileInfo>> physicalFiles = new HashMap<>();
-        for (SnapshotFiles snapshot : shardSnapshots) {
-            for (FileInfo fileInfo : snapshot.indexFiles()) {
-                physicalFiles.computeIfAbsent(fileInfo.physicalName(), k -> new ArrayList<>()).add(files.get(fileInfo.name()));
+    public BlobStoreIndexShardSnapshots withAddedSnapshot(SnapshotFiles snapshotFiles) {
+        Map<String, FileInfo> updatedFiles = null;
+        for (FileInfo fileInfo : snapshotFiles.indexFiles()) {
+            final FileInfo known = files.get(fileInfo.name());
+            if (known == null) {
+                if (updatedFiles == null) {
+                    updatedFiles = new HashMap<>(files);
+                }
+                updatedFiles.put(fileInfo.name(), fileInfo);
+            } else {
+                assert fileInfo.isSame(known);
             }
         }
-        Map<String, List<FileInfo>> mapBuilder = new HashMap<>();
-        for (Map.Entry<String, List<FileInfo>> entry : physicalFiles.entrySet()) {
-            mapBuilder.put(entry.getKey(), List.copyOf(entry.getValue()));
-        }
-        this.physicalFiles = unmodifiableMap(mapBuilder);
+        return new BlobStoreIndexShardSnapshots(
+            updatedFiles == null ? files : updatedFiles,
+            CollectionUtils.appendToCopyNoNullElements(shardSnapshots, snapshotFiles)
+        );
     }
 
     /**
@@ -102,7 +106,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         if (sourceFiles == null) {
             throw new IllegalArgumentException("unknown source [" + source + "]");
         }
-        return new BlobStoreIndexShardSnapshots(CollectionUtils.appendToCopy(shardSnapshots, sourceFiles.withSnapshotName(target)));
+        return new BlobStoreIndexShardSnapshots(
+            files,
+            CollectionUtils.appendToCopyNoNullElements(shardSnapshots, sourceFiles.withSnapshotName(target))
+        );
     }
 
     /**
@@ -114,14 +121,40 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return this.shardSnapshots;
     }
 
+    // index of Lucene file name to collection of file info in the repository
+    // lazy computed because building this is map is rather expensive and only needed for the snapshot create operation
+    private Map<String, Collection<FileInfo>> physicalFiles;
+
     /**
-     * Finds reference to a snapshotted file by its original name
+     * Finds reference to a snapshotted file by its {@link StoreFileMetadata}
      *
-     * @param physicalName original name
-     * @return a list of file infos that match specified physical file or null if the file is not present in any of snapshots
+     * @param storeFileMetadata store file metadata to find file info for
+     * @return the file info that matches the specified physical file or null if the file is not present in any of snapshots
      */
-    public List<FileInfo> findPhysicalIndexFiles(String physicalName) {
-        return physicalFiles.get(physicalName);
+    public FileInfo findPhysicalIndexFile(StoreFileMetadata storeFileMetadata) {
+        var p = this.physicalFiles;
+        if (p == null) {
+            p = new HashMap<>();
+            for (SnapshotFiles snapshot : shardSnapshots) {
+                for (FileInfo fileInfo : snapshot.indexFiles()) {
+                    // we use identity hash set since we lookup all instances from the same map and thus equality == instance equality
+                    // and we don't want to add the same file to the map multiple times
+                    p.computeIfAbsent(fileInfo.physicalName(), k -> Collections.newSetFromMap(new IdentityHashMap<>()))
+                        .add(files.get(fileInfo.name()));
+                }
+            }
+            physicalFiles = p;
+        }
+        final var found = p.get(storeFileMetadata.name());
+        if (found == null) {
+            return null;
+        }
+        for (FileInfo fileInfo : found) {
+            if (fileInfo.isSame(storeFileMetadata)) {
+                return fileInfo;
+            }
+        }
+        return null;
     }
 
     /**
@@ -228,60 +261,60 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         if (token == null) { // New parser
             token = parser.nextToken();
         }
-        Map<String, List<String>> snapshotsMap = new HashMap<>();
+        // list of tuples of snapshot name and file ids in the snapshot
+        List<Tuple<String, List<String>>> snapshotsAndFiles = new ArrayList<>();
         Map<String, String> historyUUIDs = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            String currentFieldName = parser.currentName();
+        String currentFieldName;
+        while ((currentFieldName = parser.nextFieldName()) != null) {
             token = parser.nextToken();
-            if (token == XContentParser.Token.START_ARRAY) {
-                if (Fields.FILES.equals(currentFieldName) == false) {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
+            switch (token) {
+                case START_ARRAY -> {
+                    if (Fields.FILES.equals(currentFieldName) == false) {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser);
+                    }
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        FileInfo fileInfo = FileInfo.fromXContent(parser);
+                        files.put(fileInfo.name(), fileInfo);
+                    }
                 }
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    FileInfo fileInfo = FileInfo.fromXContent(parser);
-                    files.put(fileInfo.name(), fileInfo);
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.SNAPSHOTS.equals(currentFieldName) == false) {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
-                }
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String snapshot = parser.currentName();
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                            if (Fields.FILES.equals(currentFieldName) && parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                snapshotsMap.put(snapshot, XContentParserUtils.parseList(parser, XContentParser::text));
+                case START_OBJECT -> {
+                    if (Fields.SNAPSHOTS.equals(currentFieldName) == false) {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser);
+                    }
+                    String snapshot;
+                    while ((snapshot = parser.nextFieldName()) != null) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                        while ((currentFieldName = parser.nextFieldName()) != null) {
+                            token = parser.nextToken();
+                            if (Fields.FILES.equals(currentFieldName)) {
+                                if (token == XContentParser.Token.START_ARRAY) {
+                                    snapshotsAndFiles.add(
+                                        Tuple.tuple(snapshot, XContentParserUtils.parseList(parser, XContentParser::text))
+                                    );
+                                }
                             } else if (Fields.SHARD_STATE_ID.equals(currentFieldName)) {
-                                parser.nextToken();
                                 historyUUIDs.put(snapshot, parser.text());
                             }
                         }
                     }
                 }
-            } else {
-                XContentParserUtils.throwUnknownToken(token, parser);
+                default -> XContentParserUtils.throwUnknownToken(token, parser);
             }
         }
 
-        List<SnapshotFiles> snapshots = new ArrayList<>(snapshotsMap.size());
-        for (Map.Entry<String, List<String>> entry : snapshotsMap.entrySet()) {
+        List<SnapshotFiles> snapshots = new ArrayList<>(snapshotsAndFiles.size());
+        for (Tuple<String, List<String>> entry : snapshotsAndFiles) {
             List<FileInfo> fileInfosBuilder = new ArrayList<>();
-            for (String file : entry.getValue()) {
+            for (String file : entry.v2()) {
                 FileInfo fileInfo = files.get(file);
                 assert fileInfo != null;
                 fileInfosBuilder.add(fileInfo);
             }
-            snapshots.add(
-                new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.getKey()))
-            );
+            snapshots.add(new SnapshotFiles(entry.v1(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.v1())));
         }
-        return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));
+        return new BlobStoreIndexShardSnapshots(files, snapshots);
     }
 
 }

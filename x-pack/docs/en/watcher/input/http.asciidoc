@@ -139,6 +139,28 @@ http://openweathermap.org/appid[OpenWeatherMap] service:
 --------------------------------------------------
 // NOTCONSOLE
 
+===== Using token-based authentication
+
+You can also call an API using a `Bearer token` instead of basic authentication. The `request.headers` object contains the HTTP headers:
+
+[source,js]
+--------------------------------------------------
+"input" : {
+  "http" : {
+    "request" : {
+      "url": "https://api.example.com/v1/something",
+      "headers": {
+        "authorization" : "Bearer ABCD1234...",
+        "content-type": "application/json"
+        # other headers params..
+        },
+      "connection_timeout": "30s"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 ==== Using templates
 
 The `http` input supports templating. You can use <<templates,templates>> when

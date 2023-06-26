@@ -1,0 +1,22 @@
+[[migrating-8.9]]
+== Migrating to 8.9
+++++
+<titleabbrev>8.9</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 8.9.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming::[8.9.0]
+
+
+[discrete]
+[[breaking-changes-8.9]]
+=== Breaking changes
+
+// tag::notable-breaking-changes[]
+There are no breaking changes in {es} 8.9.
+// end::notable-breaking-changes[]
+

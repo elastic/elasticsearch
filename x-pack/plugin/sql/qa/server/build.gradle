@@ -34,16 +34,27 @@ dependencies {
 subprojects {
   if (subprojects.isEmpty()) {
     // leaf project
-    apply plugin: 'elasticsearch.standalone-rest-test'
   } else {
     apply plugin: 'elasticsearch.java'
   }
 
+
+  if (project.name != 'security') {
+    // The security project just configures its subprojects
+    apply plugin: 'elasticsearch.legacy-java-rest-test'
+
+    testClusters.matching { it.name == "javaRestTest" }.configureEach {
+      testDistribution = 'DEFAULT'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+    }
+
+
   dependencies {
-    configurations.testRuntimeClasspath {
+    configurations.javaRestTestRuntimeClasspath {
       resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
     }
-    configurations.testRuntimeOnly {
+    configurations.javaRestTestRuntimeOnly {
       // This is also required to make resolveAllDependencies work
       resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
     }
@@ -52,57 +63,48 @@ subprojects {
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
      * them explicitly for non-es projects. */
-    testImplementation(xpackProject('plugin:sql:qa:server')) {
+    javaRestTestImplementation(project(':x-pack:plugin:sql:qa:server')) {
       transitive = false
     }
-    testImplementation project(":test:framework")
-    testRuntimeOnly project(xpackModule('ql:test-fixtures'))
+    javaRestTestImplementation project(":test:framework")
+    javaRestTestRuntimeOnly project(xpackModule('ql:test-fixtures'))
 
     // JDBC testing dependencies
-    testRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
-    testRuntimeOnly "com.h2database:h2:${h2Version}"
+    javaRestTestRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+    javaRestTestRuntimeOnly "com.h2database:h2:${h2Version}"
 
     // H2GIS testing dependencies
-    testRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}")
-    testRuntimeOnly("org.orbisgis:h2gis-api:${h2gisVersion}")
-    testRuntimeOnly("org.orbisgis:h2gis-utilities:${h2gisVersion}")
-    testRuntimeOnly("org.orbisgis:cts:1.5.2")
+    javaRestTestRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}")
+    javaRestTestRuntimeOnly("org.orbisgis:h2gis-api:${h2gisVersion}")
+    javaRestTestRuntimeOnly("org.orbisgis:h2gis-utilities:${h2gisVersion}")
+    javaRestTestRuntimeOnly("org.orbisgis:cts:1.5.2")
 
 
-    testRuntimeOnly project(path: xpackModule('sql:jdbc'))
-    testRuntimeOnly xpackProject('plugin:sql:sql-client')
+    javaRestTestRuntimeOnly project(path: xpackModule('sql:jdbc'))
+    javaRestTestRuntimeOnly project(':x-pack:plugin:sql:sql-client')
 
     // CLI testing dependencies
-    testRuntimeOnly project(path: xpackModule('sql:sql-cli'))
-    testRuntimeOnly(xpackProject('plugin:sql:sql-action')) {
+    javaRestTestRuntimeOnly project(path: xpackModule('sql:sql-cli'))
+    javaRestTestRuntimeOnly(project(':x-pack:plugin:sql:sql-action')) {
       transitive = false
     }
 
-    testRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
+    javaRestTestRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
       exclude group: "net.java.dev.jna"
     }
-    testRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
-    testRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
-    testRuntimeOnly "org.jline:jline-style:${jlineVersion}"
+    javaRestTestRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
+    javaRestTestRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
+    javaRestTestRuntimeOnly "org.jline:jline-style:${jlineVersion}"
 
-    testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
+    javaRestTestRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 
     // spatial dependency
-    testRuntimeOnly project(path: xpackModule('spatial'))
-    testRuntimeOnly project(path: ':modules:legacy-geo')
+    javaRestTestRuntimeOnly project(path: xpackModule('spatial'))
+    javaRestTestRuntimeOnly project(path: ':modules:legacy-geo')
 
-    testRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
+    javaRestTestRuntimeOnly project(path: ':modules:rest-root')
+
+    javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
   }
-
-  if (project.name != 'security') {
-    // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.internal-testclusters'
-    apply plugin: 'elasticsearch.rest-test'
-
-    testClusters.matching { it.name == "integTest" }.configureEach {
-      testDistribution = 'DEFAULT'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
-    }
   }
 }

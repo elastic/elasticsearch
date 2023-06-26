@@ -16,7 +16,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,7 +29,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
 
-public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TTestAggregationBuilder> {
+public class TTestAggregationBuilderTests extends AbstractXContentSerializingTestCase<TTestAggregationBuilder> {
     String aggregationName;
 
     @Before
@@ -78,6 +78,11 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
             aggregationBuilder.testType(randomFrom(tTestType));
         }
         return aggregationBuilder;
+    }
+
+    @Override
+    protected TTestAggregationBuilder mutateInstance(TTestAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

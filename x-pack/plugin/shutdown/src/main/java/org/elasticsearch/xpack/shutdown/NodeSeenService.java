@@ -9,22 +9,24 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 
-import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A class that handles ongoing reactive logic related to Node Shutdown.
@@ -36,8 +38,15 @@ public class NodeSeenService implements ClusterStateListener {
 
     final ClusterService clusterService;
 
+    private final MasterServiceTaskQueue<SetSeenNodesShutdownTask> setSeenTaskQueue;
+
     public NodeSeenService(ClusterService clusterService) {
         this.clusterService = clusterService;
+        this.setSeenTaskQueue = clusterService.createTaskQueue(
+            "shutdown-seen-nodes-updater",
+            Priority.NORMAL,
+            new SetSeenNodesShutdownExecutor()
+        );
         clusterService.addListener(this);
     }
 
@@ -62,7 +71,7 @@ public class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        final Set<String> nodesNotPreviouslySeen = eventShutdownMetadata.getAllNodeMetadataMap()
+        final Set<String> nodesNotPreviouslySeen = eventShutdownMetadata.getAll()
             .values()
             .stream()
             .filter(singleNodeShutdownMetadata -> singleNodeShutdownMetadata.getNodeSeen() == false)
@@ -71,44 +80,48 @@ public class NodeSeenService implements ClusterStateListener {
             .collect(Collectors.toUnmodifiableSet());
 
         if (nodesNotPreviouslySeen.isEmpty() == false) {
-            clusterService.submitStateUpdateTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
-
-                    final Map<String, SingleNodeShutdownMetadata> newShutdownMetadataMap = currentShutdownMetadata.getAllNodeMetadataMap()
-                        .values()
-                        .stream()
-                        .map(singleNodeShutdownMetadata -> {
-                            if (nodesNotPreviouslySeen.contains(singleNodeShutdownMetadata.getNodeId())
-                                || currentState.nodes().nodeExists(singleNodeShutdownMetadata.getNodeId())) {
-                                return SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).setNodeSeen(true).build();
-                            }
-                            return singleNodeShutdownMetadata;
-                        })
-                        .collect(Collectors.toUnmodifiableMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
-
-                    final NodesShutdownMetadata newNodesMetadata = new NodesShutdownMetadata(newShutdownMetadataMap);
-                    if (newNodesMetadata.equals(currentShutdownMetadata)) {
-                        // Turns out the update was a no-op
-                        return currentState;
-                    }
-
-                    return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).putCustom(NodesShutdownMetadata.TYPE, newNodesMetadata).build())
-                        .build();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn(new ParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen), e);
-                }
-            }, newExecutor());
+            setSeenTaskQueue.submitTask("saw new nodes", new SetSeenNodesShutdownTask(nodesNotPreviouslySeen), null);
         }
     }
 
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    record SetSeenNodesShutdownTask(Set<String> nodesNotPreviouslySeen) implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            logger.warn(() -> format("failed to mark shutting down nodes as seen: %s", nodesNotPreviouslySeen), e);
+        }
+    }
+
+    private static class SetSeenNodesShutdownExecutor implements ClusterStateTaskExecutor<SetSeenNodesShutdownTask> {
+
+        @Override
+        public ClusterState execute(BatchExecutionContext<SetSeenNodesShutdownTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            var shutdownMetadata = new HashMap<>(initialState.metadata().nodeShutdowns().getAll());
+
+            var nodesNotPreviouslySeen = new HashSet<>();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                nodesNotPreviouslySeen.addAll(taskContext.getTask().nodesNotPreviouslySeen());
+            }
+
+            var nodes = initialState.nodes();
+            shutdownMetadata.replaceAll((k, v) -> {
+                if (v.getNodeSeen() == false && (nodesNotPreviouslySeen.contains(v.getNodeId()) || nodes.nodeExists(v.getNodeId()))) {
+                    return SingleNodeShutdownMetadata.builder(v).setNodeSeen(true).build();
+                }
+                return v;
+            });
+
+            if (shutdownMetadata.equals(initialState.metadata().nodeShutdowns().getAll())) {
+                return initialState;
+            }
+
+            return ClusterState.builder(initialState)
+                .metadata(
+                    Metadata.builder(initialState.metadata())
+                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+                        .build()
+                )
+                .build();
+        }
     }
 }

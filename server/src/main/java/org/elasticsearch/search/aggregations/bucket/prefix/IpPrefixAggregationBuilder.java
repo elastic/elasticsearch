@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.prefix;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -314,7 +314,7 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_1_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_1_0;
     }
 }

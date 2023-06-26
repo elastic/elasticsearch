@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
+import org.elasticsearch.xpack.eql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
@@ -59,7 +60,7 @@ public class EqlSession {
         this.indexResolver = indexResolver;
         this.preAnalyzer = preAnalyzer;
         this.postAnalyzer = postAnalyzer;
-        this.analyzer = new Analyzer(cfg, functionRegistry, verifier);
+        this.analyzer = new Analyzer(new AnalyzerContext(cfg, functionRegistry), verifier);
         this.optimizer = optimizer;
         this.planner = planner;
         this.circuitBreaker = circuitBreaker;

@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,6 +46,7 @@ public class SecuritySystemIndices {
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
+    public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
 
     private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
@@ -68,11 +69,7 @@ public class SecuritySystemIndices {
     }
 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
-        } else {
-            return List.of(mainDescriptor, tokenDescriptor);
-        }
+        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
     }
 
     public void init(Client client, ClusterService clusterService) {
@@ -247,6 +244,53 @@ public class SecuritySystemIndices {
                     }
                     builder.endObject();
 
+                    if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+                        builder.startObject("remote_indices");
+                        {
+                            builder.field("type", "object");
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("field_security");
+                                {
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("grant");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+
+                                        builder.startObject("except");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+
+                                builder.startObject("names");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("privileges");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("query");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("allow_restricted_indices");
+                                builder.field("type", "boolean");
+                                builder.endObject();
+
+                                builder.startObject("clusters");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+
                     builder.startObject("applications");
                     {
                         builder.field("type", "object");
@@ -350,6 +394,11 @@ public class SecuritySystemIndices {
                     builder.endObject();
 
                     builder.startObject("creation_time");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+
+                    builder.startObject("invalidation_time");
                     builder.field("type", "date");
                     builder.field("format", "epoch_millis");
                     builder.endObject();
@@ -737,8 +786,25 @@ public class SecuritySystemIndices {
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
             .setVersionMetaKey(SECURITY_VERSION_STRING)
-            .setOrigin(SECURITY_PROFILE_ORIGIN)
+            .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN)
+            .setPriorSystemIndexDescriptors(
+                List.of(
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(".security-profile-[0-9]+*")
+                        .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
+                        .setDescription("Contains user profile documents")
+                        .setMappings(getProfileIndexMappings())
+                        .setSettings(getProfileIndexSettings())
+                        .setAliasName(SECURITY_PROFILE_ALIAS)
+                        .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
+                        .setVersionMetaKey(SECURITY_VERSION_STRING)
+                        .setOrigin(SECURITY_ORIGIN)
+                        .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+                        .build()
+                )
+            )
             .build();
     }
 

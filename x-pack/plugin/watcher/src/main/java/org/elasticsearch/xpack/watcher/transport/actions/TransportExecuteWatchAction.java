@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -135,7 +134,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 );
                 executeWatch(request, listener, watch, false);
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("failed to parse [{}]", request.getId()), e);
+                logger.error(() -> "failed to parse [" + request.getId() + "]", e);
                 listener.onFailure(e);
             }
         } else {

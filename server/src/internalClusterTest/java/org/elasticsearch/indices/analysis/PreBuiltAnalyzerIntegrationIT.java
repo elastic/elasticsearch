@@ -11,7 +11,6 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -64,8 +63,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
 
-            Settings versionSettings = settings(randomVersion).build();
-            client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(versionSettings).get();
+            indicesAdmin().prepareCreate(indexName).setMapping(mapping).setSettings(settings(randomVersion)).get();
         }
 
         ensureGreen();
@@ -88,7 +86,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         int amountOfIndicesToClose = randomInt(numIndices - 1);
         for (int i = 0; i < amountOfIndicesToClose; i++) {
             String indexName = indexNames.get(i);
-            client().admin().indices().prepareClose(indexName).execute().actionGet();
+            indicesAdmin().prepareClose(indexName).execute().actionGet();
         }
 
         ensureGreen();

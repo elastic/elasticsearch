@@ -186,7 +186,7 @@ public class ShardPathTests extends ESTestCase {
 
     public void testShardPathSelection() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
-            NodeEnvironment.NodePath[] paths = env.nodePaths();
+            NodeEnvironment.DataPath[] paths = env.dataPaths();
             assertThat(List.of(paths), hasItem(ShardPath.getPathWithMostFreeSpace(env)));
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
 
@@ -197,8 +197,8 @@ public class ShardPathTests extends ESTestCase {
             assertNotNull(shardPath.getDataPath());
 
             List<Path> indexPaths = new ArrayList<>();
-            for (NodeEnvironment.NodePath nodePath : paths) {
-                indexPaths.add(nodePath.indicesPath.resolve("0xDEADBEEF").resolve("0"));
+            for (NodeEnvironment.DataPath dataPath : paths) {
+                indexPaths.add(dataPath.indicesPath.resolve("0xDEADBEEF").resolve("0"));
             }
 
             assertThat(indexPaths, hasItem(shardPath.getDataPath()));

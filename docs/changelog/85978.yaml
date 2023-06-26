@@ -1,5 +1,0 @@
-pr: 85978
-summary: Authentication.token now uses version from the existing authentication
-area: Security
-type: bug
-issues: []

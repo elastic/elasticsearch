@@ -42,6 +42,7 @@ Other mapping options are also respected, including
 The `fields` option returns values in the way that matches how {es} indexes
 them. For standard fields, this means that the `fields` option looks in
 `_source` to find the values, then parses and formats them using the mappings.
+Selected fields that can't be found in `_source` are skipped.
 
 [discrete]
 [[search-fields-request]]
@@ -587,7 +588,7 @@ for loading fields:
 parameter to get values for selected fields. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
-* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
+* Use the <<stored-fields, `stored_fields`>> parameter to
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
 

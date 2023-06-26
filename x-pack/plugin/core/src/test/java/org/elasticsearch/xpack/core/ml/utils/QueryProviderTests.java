@@ -16,7 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvider> {
+public class QueryProviderTests extends AbstractXContentSerializingTestCase<QueryProvider> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

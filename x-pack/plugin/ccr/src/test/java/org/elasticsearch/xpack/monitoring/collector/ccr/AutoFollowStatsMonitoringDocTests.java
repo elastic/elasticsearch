@@ -108,43 +108,44 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
             xContent.utf8ToString(),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    """
-                        {
-                          "cluster_uuid": "_cluster",
-                          "timestamp": "%s",
-                          "interval_ms": %s,
-                          "type": "ccr_auto_follow_stats",
-                          "source_node": {
-                            "uuid": "_uuid",
-                            "host": "_host",
-                            "transport_address": "_addr",
-                            "ip": "_ip",
-                            "name": "_name",
-                            "timestamp": "%s"
-                          },
-                          "ccr_auto_follow_stats": {
-                            "number_of_failed_follow_indices": %s,
-                            "number_of_failed_remote_cluster_state_requests": %s,
-                            "number_of_successful_follow_indices": %s,
-                            "recent_auto_follow_errors": [
-                              {
-                                "leader_index": "%s",
-                                "timestamp": 1,
-                                "auto_follow_exception": {
-                                  "type": "exception",
-                                  "reason": "cannot follow index"
-                                }
+                    Strings.format(
+                        """
+                            {
+                              "cluster_uuid": "_cluster",
+                              "timestamp": "%s",
+                              "interval_ms": %s,
+                              "type": "ccr_auto_follow_stats",
+                              "source_node": {
+                                "uuid": "_uuid",
+                                "host": "_host",
+                                "transport_address": "_addr",
+                                "ip": "_ip",
+                                "name": "_name",
+                                "timestamp": "%s"
+                              },
+                              "ccr_auto_follow_stats": {
+                                "number_of_failed_follow_indices": %s,
+                                "number_of_failed_remote_cluster_state_requests": %s,
+                                "number_of_successful_follow_indices": %s,
+                                "recent_auto_follow_errors": [
+                                  {
+                                    "leader_index": "%s",
+                                    "timestamp": 1,
+                                    "auto_follow_exception": {
+                                      "type": "exception",
+                                      "reason": "cannot follow index"
+                                    }
+                                  }
+                                ],
+                                "auto_followed_clusters": [
+                                  {
+                                    "cluster_name": "%s",
+                                    "time_since_last_check_millis": %s,
+                                    "last_seen_metadata_version": %s
+                                  }
+                                ]
                               }
-                            ],
-                            "auto_followed_clusters": [
-                              {
-                                "cluster_name": "%s",
-                                "time_since_last_check_millis": %s,
-                                "last_seen_metadata_version": %s
-                              }
-                            ]
-                          }
-                        }""".formatted(
+                            }""",
                         DATE_TIME_FORMATTER.formatMillis(timestamp),
                         intervalMillis,
                         DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),

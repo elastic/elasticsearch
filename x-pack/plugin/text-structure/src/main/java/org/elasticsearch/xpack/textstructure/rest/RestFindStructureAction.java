@@ -12,6 +12,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -25,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestFindStructureAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(25, TimeUnit.SECONDS);
@@ -72,6 +75,7 @@ public class RestFindStructureAction extends BaseRestHandler {
         request.setQuote(restRequest.param(FindStructureAction.Request.QUOTE.getPreferredName()));
         request.setShouldTrimFields(restRequest.paramAsBoolean(FindStructureAction.Request.SHOULD_TRIM_FIELDS.getPreferredName(), null));
         request.setGrokPattern(restRequest.param(FindStructureAction.Request.GROK_PATTERN.getPreferredName()));
+        request.setEcsCompatibility(restRequest.param(FindStructureAction.Request.ECS_COMPATIBILITY.getPreferredName()));
         request.setTimestampFormat(restRequest.param(FindStructureAction.Request.TIMESTAMP_FORMAT.getPreferredName()));
         request.setTimestampField(restRequest.param(FindStructureAction.Request.TIMESTAMP_FIELD.getPreferredName()));
         if (restRequest.hasContent()) {

@@ -305,17 +305,7 @@ public class TransportNodesActionTests extends ESTestCase {
             Writeable.Reader<TestNodeRequest> nodeRequest,
             String nodeExecutor
         ) {
-            super(
-                "indices:admin/test",
-                threadPool,
-                clusterService,
-                transportService,
-                actionFilters,
-                request,
-                nodeRequest,
-                nodeExecutor,
-                TestNodeResponse.class
-            );
+            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
 
         @Override

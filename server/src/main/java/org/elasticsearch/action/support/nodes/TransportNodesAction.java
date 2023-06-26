@@ -51,7 +51,6 @@ public abstract class TransportNodesAction<
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
-    protected final Class<NodeResponse> nodeResponseClass;
     protected final String transportNodeAction;
 
     private final Executor finalExecutor;
@@ -65,7 +64,6 @@ public abstract class TransportNodesAction<
      * @param request           node request writer
      * @param nodeRequest       node request reader
      * @param executor          executor to execute node action and final collection
-     * @param nodeResponseClass class of the node responses
      */
     protected TransportNodesAction(
         String actionName,
@@ -75,14 +73,12 @@ public abstract class TransportNodesAction<
         ActionFilters actionFilters,
         Writeable.Reader<NodesRequest> request,
         Writeable.Reader<NodeRequest> nodeRequest,
-        String executor,
-        Class<NodeResponse> nodeResponseClass
+        String executor
     ) {
         super(actionName, transportService, actionFilters, request);
         assert executor.equals(ThreadPool.Names.SAME) == false : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
-        this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
         this.finalExecutor = threadPool.executor(executor);
         this.transportNodeAction = actionName + "[n]";
         transportService.registerRequestHandler(transportNodeAction, executor, nodeRequest, new NodeTransportHandler());

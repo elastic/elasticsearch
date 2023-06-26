@@ -27,6 +27,9 @@ SQL::
 Search::
 * Increase concurrent request of opening point-in-time {es-pull}96782[#96782]
 
+Snapshot/Restore::
+* Fix reused/recovered bytes for files that are only partially recovered from cache {es-pull}95987[#95987] (issues: {es-issue}95970[#95970], {es-issue}95994[#95994])
+
 TSDB::
 * The get data stream api incorrectly prints warning log for upgraded tsdb data streams {es-pull}96606[#96606]
 

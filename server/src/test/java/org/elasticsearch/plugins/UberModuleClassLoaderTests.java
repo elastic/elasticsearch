@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
-import org.junit.After;
 
 import java.io.IOException;
 import java.lang.module.Configuration;
@@ -42,15 +41,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class UberModuleClassLoaderTests extends ESTestCase {
 
     private static Set<URLClassLoader> loaders = new HashSet<>();
-
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        for (URLClassLoader loader : loaders) {
-            loader.close();
-        }
-        loaders = new HashSet<>();
-    }
 
     /**
      * Test the loadClass method, which is the real entrypoint for users of the classloader
@@ -484,23 +474,32 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             // check module descriptor
             ModuleDescriptor synthetic = loader.getLayer().findModule("synthetic").orElseThrow().getDescriptor();
 
-            assertThat(synthetic.uses(), equalTo(Set.of(
-                "p.required.LetterService",
-                "p.optional.AnimalService",
-                "q.jar.one.NumberService",
-                "q.jar.two.FooBarService"
-            )));
+            assertThat(
+                synthetic.uses(),
+                equalTo(
+                    Set.of("p.required.LetterService", "p.optional.AnimalService", "q.jar.one.NumberService", "q.jar.two.FooBarService")
+                )
+            );
             // the descriptor model uses a list ordering that we don't guarantee, so we convert the provider list to maps and sets
-            Map<String, Set<String>> serviceProviders =
-                synthetic.provides().stream().collect(Collectors.toMap(ModuleDescriptor.Provides::service,
-                    provides -> new HashSet<>(provides.providers())));
-            assertThat(serviceProviders, equalTo(Map.of(
-                "p.required.LetterService", Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
-                // optional dependencies found and added
-                "p.optional.AnimalService", Set.of("q.jar.one.JarOneOptionalProvider", "q.jar.two.JarTwoOptionalProvider"),
-                "q.jar.one.NumberService", Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
-                "q.jar.two.FooBarService", Set.of("q.jar.two.JarTwoProvider")
-            )));
+            Map<String, Set<String>> serviceProviders = synthetic.provides()
+                .stream()
+                .collect(Collectors.toMap(ModuleDescriptor.Provides::service, provides -> new HashSet<>(provides.providers())));
+            assertThat(
+                serviceProviders,
+                equalTo(
+                    Map.of(
+                        "p.required.LetterService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        // optional dependencies found and added
+                        "p.optional.AnimalService",
+                        Set.of("q.jar.one.JarOneOptionalProvider", "q.jar.two.JarTwoOptionalProvider"),
+                        "q.jar.one.NumberService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        "q.jar.two.FooBarService",
+                        Set.of("q.jar.two.JarTwoProvider")
+                    )
+                )
+            );
 
             // Now let's make sure the module system lets us load available services
             Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
@@ -514,6 +513,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             assertThat(modular.invoke(instance), equalTo("12"));
             var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
             assertThat(nonModular.invoke(instance), equalTo("foo"));
+        } finally {
+            for (URLClassLoader loader : loaders) {
+                loader.close();
+            }
+            loaders = new HashSet<>();
         }
     }
 
@@ -522,20 +526,24 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
             // check module descriptor
             ModuleDescriptor synthetic = loader.getLayer().findModule("synthetic").orElseThrow().getDescriptor();
-            assertThat(synthetic.uses(), equalTo(Set.of(
-                "p.required.LetterService",
-                "q.jar.one.NumberService",
-                "q.jar.two.FooBarService"
-            )));
+            assertThat(synthetic.uses(), equalTo(Set.of("p.required.LetterService", "q.jar.one.NumberService", "q.jar.two.FooBarService")));
             // the descriptor model uses a list ordering that we don't guarantee, so we convert the provider list to maps and sets
-            Map<String, Set<String>> serviceProviders =
-                synthetic.provides().stream().collect(Collectors.toMap(ModuleDescriptor.Provides::service,
-                    provides -> new HashSet<>(provides.providers())));
-            assertThat(serviceProviders, equalTo(Map.of(
-                "p.required.LetterService", Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
-                "q.jar.one.NumberService", Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
-                "q.jar.two.FooBarService", Set.of("q.jar.two.JarTwoProvider")
-            )));
+            Map<String, Set<String>> serviceProviders = synthetic.provides()
+                .stream()
+                .collect(Collectors.toMap(ModuleDescriptor.Provides::service, provides -> new HashSet<>(provides.providers())));
+            assertThat(
+                serviceProviders,
+                equalTo(
+                    Map.of(
+                        "p.required.LetterService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        "q.jar.one.NumberService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        "q.jar.two.FooBarService",
+                        Set.of("q.jar.two.JarTwoProvider")
+                    )
+                )
+            );
 
             // Now let's make sure the module system lets us load available services
             Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
@@ -550,6 +558,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             assertThat(modular.invoke(instance), equalTo("12"));
             var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
             assertThat(nonModular.invoke(instance), equalTo("foo"));
+        } finally {
+            for (URLClassLoader loader : loaders) {
+                loader.close();
+            }
+            loaders = new HashSet<>();
         }
     }
 
@@ -579,21 +592,18 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             .configuration()
             .resolve(parentModuleFinder, ModuleFinder.of(), moduleNames);
 
-        URLClassLoader parentLoader = new URLClassLoader(new URL[]{pathToUrlUnchecked(parentJar)});
+        URLClassLoader parentLoader = new URLClassLoader(new URL[] { pathToUrlUnchecked(parentJar) });
         loaders.add(parentLoader);
-        URLClassLoader optionalLoader = new URLClassLoader(new URL[]{pathToUrlUnchecked(optionalJar)}, parentLoader);
+        URLClassLoader optionalLoader = new URLClassLoader(new URL[] { pathToUrlUnchecked(optionalJar) }, parentLoader);
         loaders.add(optionalLoader);
-        ModuleLayer parentLayer = ModuleLayer.defineModules(
-            parentLayerConfiguration,
-            List.of(ModuleLayer.boot()),
-            (String moduleName) -> {
-                if (moduleName.equals("p.required")) {
-                    return parentLoader;
-                } else if (includeOptionalDeps && moduleName.equals("p.optional")) {
-                    return optionalLoader;
-                }
-                return null;
-            }).layer();
+        ModuleLayer parentLayer = ModuleLayer.defineModules(parentLayerConfiguration, List.of(ModuleLayer.boot()), (String moduleName) -> {
+            if (moduleName.equals("p.required")) {
+                return parentLoader;
+            } else if (includeOptionalDeps && moduleName.equals("p.optional")) {
+                return optionalLoader;
+            }
+            return null;
+        }).layer();
 
         // jars for the ubermodule
         Path modularJar = createModularizedJarForBundle(libDir);

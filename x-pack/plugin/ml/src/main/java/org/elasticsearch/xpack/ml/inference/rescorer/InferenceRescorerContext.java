@@ -28,7 +28,7 @@ public class InferenceRescorerContext extends RescoreContext {
     /**
      * @param windowSize how many documents to rescore
      * @param rescorer The rescorer to apply
-     * @param inferenceDefinition The local model inference definition
+     * @param inferenceDefinition The local model inference definition, may be null during certain search phases.
      * @param executionContext The local shard search context
      */
     public InferenceRescorerContext(

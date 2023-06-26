@@ -52,6 +52,9 @@ public class InferenceRescorer implements Rescorer {
             return topDocs;
         }
         InferenceRescorerContext ltrRescoreContext = (InferenceRescorerContext) rescoreContext;
+        if (ltrRescoreContext.inferenceDefinition == null) {
+            throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
+        }
         LocalModel definition = ltrRescoreContext.inferenceDefinition;
 
         // First take top slice of incoming docs, to be rescored:

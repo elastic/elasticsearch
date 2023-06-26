@@ -378,7 +378,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
         for (String key : settings.keySet()) {
-            assertEquals(settings.get(key), indexSettingsResp.getSetting(rollupIndex, key));
+            if (LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey().equals(key)) {
+                assertNull(indexSettingsResp.getSetting(rollupIndex, key));
+            } else {
+                assertEquals(settings.get(key), indexSettingsResp.getSetting(rollupIndex, key));
+            }
         }
     }
 

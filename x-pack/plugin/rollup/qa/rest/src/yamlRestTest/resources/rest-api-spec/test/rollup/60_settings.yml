@@ -111,6 +111,8 @@
                   allocation:
                     include:
                       _tier_preference: "data_warm"
+                lifecycle:
+                  name: dummy-lifecycle
             mappings:
               properties:
                 "@timestamp":
@@ -145,6 +147,7 @@
       indices.get_settings:
         index: $datastream-backing-index
   - match: { .$datastream-backing-index.settings.index.routing.allocation.include._tier_preference: "data_warm" }
+  - match: { .$datastream-backing-index.settings.index.lifecycle.name: "dummy-lifecycle" }
 
   - do:
       indices.put_settings:
@@ -167,6 +170,8 @@
       indices.get_settings:
         index: rollup-index
   - match: { rollup-index.settings.index.routing.allocation.include._tier_preference: "data_warm" }
+    # NOTE: copied only if index is managed through ILM
+  - match: { rollup-index.settings.index.lifecycle.name: null }
 
 ---
 teardown:

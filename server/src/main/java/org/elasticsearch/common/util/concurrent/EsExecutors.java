@@ -35,6 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class EsExecutors {
 
+    // although the available processors may technically change, for node sizing we use the number available at launch
+    private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
      * default value is {@link Runtime#availableProcessors()} but should be manually controlled if not all processors on the machine are
@@ -56,9 +59,8 @@ public class EsExecutors {
                 throw new IllegalArgumentException(err);
             }
 
-            final int maxNumberOfProcessors = Runtime.getRuntime().availableProcessors();
-            if (numberOfProcessors > maxNumberOfProcessors) {
-                String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be <= " + maxNumberOfProcessors;
+            if (numberOfProcessors > MAX_NUM_PROCESSORS) {
+                String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be <= " + MAX_NUM_PROCESSORS;
                 throw new IllegalArgumentException(err);
             }
             return Processors.of(numberOfProcessors);

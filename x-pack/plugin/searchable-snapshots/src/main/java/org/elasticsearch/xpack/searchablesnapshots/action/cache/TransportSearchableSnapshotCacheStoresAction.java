@@ -63,7 +63,6 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             Request::new,
             NodeRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.SAME,
             NodeCacheFilesMetadata.class
         );
         this.cacheService = cacheService.get();

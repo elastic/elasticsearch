@@ -147,7 +147,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
                 actionFilters,
                 Request::new,
                 NodeRequest::new,
-                ThreadPool.Names.SAME,
+                ThreadPool.Names.GENERIC,
                 NodeResponse.class
             );
             this.enrichCache = enrichCache;

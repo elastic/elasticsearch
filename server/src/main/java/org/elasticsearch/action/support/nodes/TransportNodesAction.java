@@ -12,11 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -48,13 +49,12 @@ public abstract class TransportNodesAction<
 
     private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
-    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Class<NodeResponse> nodeResponseClass;
     protected final String transportNodeAction;
 
-    private final String finalExecutor;
+    private final Executor finalExecutor;
 
     /**
      * @param actionName        action name
@@ -64,8 +64,7 @@ public abstract class TransportNodesAction<
      * @param actionFilters     action filters
      * @param request           node request writer
      * @param nodeRequest       node request reader
-     * @param nodeExecutor      executor to execute node action on
-     * @param finalExecutor     executor to execute final collection of all responses on
+     * @param executor          executor to execute node action and final collection
      * @param nodeResponseClass class of the node responses
      */
     protected TransportNodesAction(
@@ -76,51 +75,17 @@ public abstract class TransportNodesAction<
         ActionFilters actionFilters,
         Writeable.Reader<NodesRequest> request,
         Writeable.Reader<NodeRequest> nodeRequest,
-        String nodeExecutor,
-        String finalExecutor,
+        String executor,
         Class<NodeResponse> nodeResponseClass
     ) {
         super(actionName, transportService, actionFilters, request);
-        this.threadPool = threadPool;
+        assert executor.equals(ThreadPool.Names.SAME) == false : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
-
+        this.finalExecutor = threadPool.executor(executor);
         this.transportNodeAction = actionName + "[n]";
-        this.finalExecutor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
-        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
-    }
-
-    /**
-     * Same as {@link #TransportNodesAction(String, ThreadPool, ClusterService, TransportService, ActionFilters, Writeable.Reader,
-     * Writeable.Reader, String, String, Class)} but executes final response collection on the transport thread except for when the final
-     * node response is received from the local node, in which case {@code nodeExecutor} is used.
-     * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
-     * on a transport thread.
-     */
-    protected TransportNodesAction(
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> request,
-        Writeable.Reader<NodeRequest> nodeRequest,
-        String nodeExecutor,
-        Class<NodeResponse> nodeResponseClass
-    ) {
-        this(
-            actionName,
-            threadPool,
-            clusterService,
-            transportService,
-            actionFilters,
-            request,
-            nodeRequest,
-            nodeExecutor,
-            ThreadPool.Names.SAME,
-            nodeResponseClass
-        );
+        transportService.registerRequestHandler(transportNodeAction, executor, nodeRequest, new NodeTransportHandler());
     }
 
     @Override
@@ -181,7 +146,7 @@ public abstract class TransportNodesAction<
         }.run(
             task,
             Iterators.forArray(request.concreteNodes()),
-            listener.delegateFailure((l, r) -> threadPool.executor(finalExecutor).execute(ActionRunnable.wrap(l, r)))
+            new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)))
         );
     }
 

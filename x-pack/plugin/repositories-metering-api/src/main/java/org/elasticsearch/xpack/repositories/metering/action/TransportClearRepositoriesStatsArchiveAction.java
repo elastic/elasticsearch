@@ -49,7 +49,7 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
             actionFilters,
             ClearRepositoriesMeteringArchiveRequest::new,
             ClearRepositoriesStatsArchiveNodeRequest::new,
-            ThreadPool.Names.SAME,
+            ThreadPool.Names.GENERIC,
             RepositoriesNodeMeteringResponse.class
         );
         this.repositoriesService = repositoriesService;

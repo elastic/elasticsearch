@@ -14,10 +14,8 @@ import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * Decorates {@link org.elasticsearch.tdigest.TDigest} with custom serialization. The underlying implementation for TDigest is selected
@@ -213,18 +211,6 @@ public class TDigestState {
 
     public void add(double x) {
         tdigest.add(x, 1);
-    }
-
-    public void add(List<? extends TDigestState> others) {
-        List<TDigest> otherTdigests = new ArrayList<>();
-        for (TDigestState other : others) {
-            otherTdigests.add(other.tdigest);
-        }
-        tdigest.add(otherTdigests);
-    }
-
-    public void add(TDigest other) {
-        tdigest.add(other);
     }
 
     public final void compress() {

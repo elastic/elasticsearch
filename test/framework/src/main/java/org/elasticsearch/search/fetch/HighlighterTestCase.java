@@ -109,7 +109,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
 
     private static FetchContext fetchContext(SearchExecutionContext context, SearchSourceBuilder search) throws IOException {
         FetchContext fetchContext = mock(FetchContext.class);
-        when(fetchContext.highlight()).thenReturn(search.highlighter().build(context));
+        when(fetchContext.highlight()).thenReturn(search.highlighter().build(context, search.query()));
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
         when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));

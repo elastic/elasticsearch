@@ -87,7 +87,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             continue;
                         }
 
-                        SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields());
+                        SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), null);
                         FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);
                         StoredFieldLoader storedFields = StoredFieldLoader.fromSpec(processor.storedFieldsSpec());
                         LeafStoredFieldLoader leafStoredFields = storedFields.getLoader(percolatorLeafReaderContext, null);

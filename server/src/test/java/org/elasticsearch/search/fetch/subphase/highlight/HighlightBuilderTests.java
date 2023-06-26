@@ -328,7 +328,7 @@ public class HighlightBuilderTests extends ESTestCase {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
             highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockContext);
-            SearchHighlightContext highlight = highlightBuilder.build(mockContext);
+            SearchHighlightContext highlight = highlightBuilder.build(mockContext, highlightBuilder.highlightQuery);
             for (SearchHighlightContext.Field field : highlight.fields()) {
                 String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;
                 assertEquals(encoder, field.fieldOptions().encoder());

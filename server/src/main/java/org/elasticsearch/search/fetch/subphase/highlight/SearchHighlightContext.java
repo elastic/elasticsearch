@@ -22,14 +22,15 @@ import java.util.Set;
 
 public class SearchHighlightContext {
     private final Map<String, Field> fields;
-    private QueryBuilder originalQuery;
+    private final QueryBuilder originalQuery;
 
-    public SearchHighlightContext(Collection<Field> fields) {
+    public SearchHighlightContext(Collection<Field> fields, QueryBuilder originalQuery) {
         assert fields != null;
         this.fields = Maps.newLinkedHashMapWithExpectedSize(fields.size());
         for (Field field : fields) {
             this.fields.put(field.field, field);
         }
+        this.originalQuery = originalQuery;
     }
 
     public Collection<Field> fields() {
@@ -38,10 +39,6 @@ public class SearchHighlightContext {
 
     public QueryBuilder originalQuery() {
         return originalQuery;
-    }
-
-    public void setOriginalQuery(QueryBuilder originalQuery) {
-        this.originalQuery = originalQuery;
     }
 
     public static class Field {

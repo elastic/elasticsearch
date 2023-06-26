@@ -279,7 +279,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return PARSER.apply(p, new HighlightBuilder());
     }
 
-    public SearchHighlightContext build(SearchExecutionContext context) throws IOException {
+    public SearchHighlightContext build(SearchExecutionContext context, QueryBuilder originalQuery) throws IOException {
         // create template global options that are later merged with any partial field options
         final SearchHighlightContext.FieldOptions.Builder globalOptionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
         globalOptionsBuilder.encoder(this.encoder);
@@ -303,7 +303,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 new SearchHighlightContext.Field(field.name(), fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build())
             );
         }
-        return new SearchHighlightContext(fieldOptions);
+        return new SearchHighlightContext(fieldOptions, originalQuery);
     }
 
     /**

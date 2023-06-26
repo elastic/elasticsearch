@@ -28,10 +28,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -93,12 +95,45 @@ public class DLMFixtures {
         assertTrue(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
-    static DataLifecycle randomDataLifecycle() {
-        return switch (randomInt(3)) {
-            case 0 -> new DataLifecycle();
-            case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL);
-            case 2 -> Template.NO_LIFECYCLE;
-            default -> new DataLifecycle(TimeValue.timeValueDays(randomIntBetween(1, 365)));
+    static DataLifecycle randomLifecycle() {
+        return rarely() ? Template.NO_LIFECYCLE : new DataLifecycle(randomRetention(), randomDownsampling());
+    }
+
+    @Nullable
+    private static DataLifecycle.Retention randomRetention() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Retention.NULL;
+            default -> new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
         };
+    }
+
+    @Nullable
+    private static DataLifecycle.Downsampling randomDownsampling() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Downsampling.NULL;
+            default -> {
+                var count = randomIntBetween(0, 10);
+                List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
+                var previous = new DataLifecycle.Downsampling.Round(
+                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
+                    TimeValue.timeValueHours(randomIntBetween(1, 24))
+                );
+                rounds.add(previous);
+                for (int i = 0; i < count; i++) {
+                    DataLifecycle.Downsampling.Round round = nextRound(previous);
+                    rounds.add(round);
+                    previous = round;
+                }
+                yield new DataLifecycle.Downsampling(rounds);
+            }
+        };
+    }
+
+    private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
+        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
+        var fixedInterval = TimeValue.timeValueHours(previous.after().hours() + randomIntBetween(1, 10));
+        return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

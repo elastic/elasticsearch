@@ -135,8 +135,21 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         return dataRetention;
     }
 
+    /**
+     * The configured downsampling rounds with the `after` and the `fixed_interval` per round. If downsampling is
+     * not configured then it returns null.
+     */
     @Nullable
-    public Downsampling getDownsampling() {
+    public List<Downsampling.Round> getDownsamplingRounds() {
+        return downsampling == null ? null : downsampling.rounds();
+    }
+
+    /**
+     * Returns the configured wrapper object as it was defined in the template. This should be used only during
+     * template composition.
+     */
+    @Nullable
+    Downsampling getDownsampling() {
         return downsampling;
     }
 
@@ -244,7 +257,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         }
 
         static Builder newBuilder(DataLifecycle dataLifecycle) {
-            return new Builder().dataRetention(dataLifecycle.getDataRetention());
+            return new Builder().dataRetention(dataLifecycle.getDataRetention()).downsampling(dataLifecycle.getDownsampling());
         }
     }
 
@@ -339,9 +352,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         public Downsampling {
             if (rounds != null) {
                 if (rounds.isEmpty()) {
-                    throw new IllegalArgumentException(
-                            "Downsampling configuration should have at least one round configured."
-                    );
+                    throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
                 }
                 Round previous = null;
                 for (Round round : rounds) {

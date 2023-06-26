@@ -36,9 +36,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataLifecycleTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
 
-    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(DataLifecycle.Retention.NULL, null);
-    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle((TimeValue) null);
-
     @Override
     protected Writeable.Reader<DataLifecycle> instanceReader() {
         return DataLifecycle::new;
@@ -46,45 +43,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
-        return new DataLifecycle(randomRetention(), randomDownsampling());
-    }
-
-    @Nullable
-    private DataLifecycle.Retention randomRetention() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataLifecycle.Retention.NULL;
-            default -> new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
-        };
-    }
-
-    @Nullable
-    private DataLifecycle.Downsampling randomDownsampling() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataLifecycle.Downsampling.NULL;
-            default -> {
-                var count = randomIntBetween(0, 10);
-                List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-                var previous = new DataLifecycle.Downsampling.Round(
-                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
-                    TimeValue.timeValueHours(randomIntBetween(1, 24))
-                );
-                rounds.add(previous);
-                for (int i = 0; i < count; i++) {
-                    DataLifecycle.Downsampling.Round round = nextRound(previous);
-                    rounds.add(round);
-                    previous = round;
-                }
-                yield new DataLifecycle.Downsampling(rounds);
-            }
-        };
-    }
-
-    private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
-        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = TimeValue.timeValueHours(previous.after().hours() + randomIntBetween(1, 10));
-        return new DataLifecycle.Downsampling.Round(after, fixedInterval);
+        return randomLifecycle();
     }
 
     @Override
@@ -93,7 +52,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         var downsampling = instance.getDownsampling();
         if (randomBoolean()) {
             if (retention == null || retention == DataLifecycle.Retention.NULL) {
-                retention = randomValueOtherThan(retention, this::randomRetention);
+                retention = randomValueOtherThan(retention, DataLifecycleTests::randomRetention);
             } else {
                 retention = switch (randomInt(2)) {
                     case 0 -> null;
@@ -105,7 +64,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
             }
         } else {
             if (downsampling == null || downsampling == DataLifecycle.Downsampling.NULL) {
-                downsampling = randomValueOtherThan(downsampling, this::randomDownsampling);
+                downsampling = randomValueOtherThan(downsampling, DataLifecycleTests::randomDownsampling);
             } else {
                 downsampling = switch (randomInt(2)) {
                     case 0 -> null;
@@ -215,13 +174,53 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         }
         {
             IllegalArgumentException exception = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> new DataLifecycle.Downsampling(List.of())
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(List.of())
             );
-            assertThat(
-                    exception.getMessage(),
-                    equalTo("Downsampling configuration should have at least one round configured.")
-            );
+            assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
+    }
+
+    @Nullable
+    public static DataLifecycle randomLifecycle() {
+        return new DataLifecycle(randomRetention(), randomDownsampling());
+    }
+
+    @Nullable
+    private static DataLifecycle.Retention randomRetention() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Retention.NULL;
+            default -> new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+        };
+    }
+
+    @Nullable
+    private static DataLifecycle.Downsampling randomDownsampling() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Downsampling.NULL;
+            default -> {
+                var count = randomIntBetween(0, 10);
+                List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
+                var previous = new DataLifecycle.Downsampling.Round(
+                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
+                    TimeValue.timeValueHours(randomIntBetween(1, 24))
+                );
+                rounds.add(previous);
+                for (int i = 0; i < count; i++) {
+                    DataLifecycle.Downsampling.Round round = nextRound(previous);
+                    rounds.add(round);
+                    previous = round;
+                }
+                yield new DataLifecycle.Downsampling(rounds);
+            }
+        };
+    }
+
+    private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
+        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
+        var fixedInterval = TimeValue.timeValueHours(previous.after().hours() + randomIntBetween(1, 10));
+        return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

@@ -1500,6 +1500,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
+        DataLifecycle emptyLifecycle = new DataLifecycle();
+
         DataLifecycle lifecycle30d = new DataLifecycle(TimeValue.timeValueDays(30));
         String ct30d = "ct_30d";
         state = addComponentTemplate(service, state, ct30d, lifecycle30d);
@@ -1513,7 +1515,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
 
         String ctEmptyLifecycle = "ct_empty_lifecycle";
-        state = addComponentTemplate(service, state, ctEmptyLifecycle, DataLifecycleTests.IMPLICIT_INFINITE_RETENTION);
+        state = addComponentTemplate(service, state, ctEmptyLifecycle, emptyLifecycle);
 
         String ctNullLifecycle = "ct_null_lifecycle";
         state = addComponentTemplate(service, state, ctNullLifecycle, Template.NO_LIFECYCLE);
@@ -1525,13 +1527,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {}
         // Composable Z: -
         // Result: "lifecycle": {}
-        assertLifecycleResolution(
-            service,
-            state,
-            List.of(ctNoLifecycle, ctEmptyLifecycle),
-            null,
-            DataLifecycleTests.IMPLICIT_INFINITE_RETENTION
-        );
+        assertLifecycleResolution(service, state, List.of(ctNoLifecycle, ctEmptyLifecycle), null, emptyLifecycle);
 
         // Component A: "lifecycle": {}
         // Component B: "lifecycle": {"retention": "30d"}
@@ -1543,7 +1539,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {"retention": "45d"}
         // Composable Z: "lifecycle": {}
         // Result: "lifecycle": {"retention": "45d"}
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycleTests.IMPLICIT_INFINITE_RETENTION, lifecycle45d);
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), emptyLifecycle, lifecycle45d);
 
         // Component A: "lifecycle": {}
         // Component B: "lifecycle": {"retention": "45d"}

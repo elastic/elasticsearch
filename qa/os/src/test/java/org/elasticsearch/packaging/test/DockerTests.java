@@ -918,9 +918,20 @@ public class DockerTests extends PackagingTestCase {
 
         final String[] fields = processes.get(0).trim().split("\\s+", 4);
 
+        String expectedUid;
+        switch (distribution.packaging) {
+            case DOCKER_IRON_BANK:
+            case DOCKER_UBI:
+                expectedUid = "1000";
+                break;
+            default:
+                expectedUid = "0";
+                break;
+        }
+
         assertThat(fields, arrayWithSize(4));
         assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo(distribution.packaging == Packaging.DOCKER_IRON_BANK ? "1000" : "0"));
+        assertThat("Incorrect UID", fields[1], equalTo(expectedUid));
         assertThat("Incorrect GID", fields[2], equalTo("0"));
         assertThat("Incorrect init command", fields[3], startsWith("/bin/tini"));
     }
@@ -1084,5 +1095,23 @@ public class DockerTests extends PackagingTestCase {
     private List<String> listPlugins() {
         final Installation.Executables bin = installation.executables();
         return Arrays.stream(sh.run(bin.pluginTool + " list").stdout.split("\n")).collect(Collectors.toList());
+    }
+
+    public void test600Interrupt() throws Exception {
+        waitForElasticsearch(installation);
+        final Result containerLogs = getContainerLogs();
+
+        assertThat("Container logs should contain starting ...", containerLogs.stdout, containsString("starting ..."));
+
+        final List<String> processes = Arrays.stream(sh.run("pgrep java").stdout.split(System.lineSeparator()))
+            .collect(Collectors.toList());
+        int maxPid = processes.stream().map(i -> Integer.parseInt(i.trim())).max(Integer::compareTo).get();
+
+        sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
+        final Result containerLogsAfter = getContainerLogs();
+
+        assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout, containsString("stopping ..."));
+        assertThat("No errors stdout", containerLogsAfter.stdout, not(containsString("java.security.AccessControlException:")));
+        assertThat("No errors stderr", containerLogsAfter.stderr, not(containsString("java.security.AccessControlException:")));
     }
 }

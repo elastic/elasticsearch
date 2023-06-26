@@ -137,13 +137,13 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-    Path nodePath(final int nodeOrdinal) {
+    Path homePath(final int nodeOrdinal) {
         return parentFolder.resolve(subfolderPrefix + "-" + nodeOrdinal);
     }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        final Path home = nodePath(nodeOrdinal);
+        final Path home = homePath(nodeOrdinal);
         final Path xpackConf = home.resolve("config");
         try {
             Files.createDirectories(xpackConf);
@@ -180,7 +180,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     @Override
     public Path nodeConfigPath(int nodeOrdinal) {
-        return nodePath(nodeOrdinal).resolve("config");
+        return homePath(nodeOrdinal).resolve("config");
     }
 
     @Override

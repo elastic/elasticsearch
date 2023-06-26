@@ -6,7 +6,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.7.1"
+  id "com.gradle.enterprise" version "3.11.4"
 }
 
 includeBuild "build-conventions"
@@ -14,6 +14,14 @@ includeBuild "build-tools"
 includeBuild "build-tools-internal"
 
 rootProject.name = "elasticsearch"
+
+dependencyResolutionManagement {
+  versionCatalogs {
+    buildLibs {
+      from(files("gradle/build.versions.toml"))
+    }
+  }
+}
 
 List projects = [
   'rest-api-spec',
@@ -39,7 +47,6 @@ List projects = [
   'distribution:docker',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
-  'distribution:docker:ironbank-docker-aarch64-export',
   'distribution:docker:ironbank-docker-export',
   'distribution:docker:ubi-docker-aarch64-export',
   'distribution:docker:ubi-docker-export',
@@ -72,7 +79,8 @@ List projects = [
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
-  'test:logger-usage'
+  'test:logger-usage',
+  'test:test-clusters'
 ]
 
 /**

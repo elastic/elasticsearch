@@ -23,6 +23,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -537,22 +539,32 @@ final class StoreRecovery {
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
             if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
-                repository.getRepositoryData(indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
+                repository.getRepositoryData(
+                    new ThreadedActionListener<>(
+                        logger,
+                        indexShard.getThreadPool(),
+                        ThreadPool.Names.GENERIC,
+                        indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())),
+                        false
+                    )
+                );
             } else {
                 indexIdListener.onResponse(indexId);
             }
             assert indexShard.getEngineOrNull() == null;
-            indexIdListener.whenComplete(
-                idx -> repository.restoreShard(
+            indexIdListener.whenComplete(idx -> {
+                assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']')
+                    || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
+                    || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+                repository.restoreShard(
                     indexShard.store(),
                     restoreSource.snapshot().getSnapshotId(),
                     idx,
                     snapshotShardId,
                     indexShard.recoveryState(),
                     restoreListener
-                ),
-                restoreListener::onFailure
-            );
+                );
+            }, restoreListener::onFailure);
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

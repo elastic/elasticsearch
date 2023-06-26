@@ -1,11 +1,13 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
-apply plugin: 'elasticsearch.authenticated-testclusters'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   testImplementation project(':x-pack:qa')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:rank-eval')
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('data-streams'))
 }
 
 restResources {
@@ -14,29 +16,10 @@ restResources {
   }
 }
 
-def clusterCredentials = [
-        username: providers.systemProperty('tests.rest.cluster.username')
-                .orElse('test_admin')
-                .forUseAtConfigurationTime()
-                .get(),
-        password: providers.systemProperty('tests.rest.cluster.password')
-                .orElse('x-pack-test-password')
-                .forUseAtConfigurationTime()
-                .get()
-]
-
-tasks.named("integTest").configure {
+tasks.named("yamlRestTest").configure {
     systemProperty 'tests.rest.blacklist',
       [
         'index/10_with_id/Index with ID',
         'indices.get_alias/10_basic/Get alias against closed indices'
       ].join(',')
-}
-
-testClusters.matching { it.name == "integTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'indices.lifecycle.history_index_enabled', 'false'
 }

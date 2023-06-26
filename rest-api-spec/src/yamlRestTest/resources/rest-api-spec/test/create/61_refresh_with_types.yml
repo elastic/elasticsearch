@@ -12,7 +12,7 @@
       create:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
@@ -20,7 +20,7 @@
           rest_total_hits_as_int: true
           index:   test_1
           body:
-            query:   { term: { _id: 1 }}
+            query:   { term: { _id: "1" }}
 
  - match: { hits.total: 0 }
 
@@ -28,7 +28,7 @@
       create:
           index:   test_1
           type:    test
-          id:      2
+          id:      "2"
           refresh: true
           body:    { foo: bar }
  - is_true: forced_refresh
@@ -38,7 +38,7 @@
           rest_total_hits_as_int: true
           index:   test_1
           body:
-            query:   { term: { _id: 2 }}
+            query:   { term: { _id: "2" }}
 
  - match: { hits.total: 1 }
 
@@ -48,7 +48,7 @@
       create:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           refresh: ""
           body:    { foo: bar }
  - is_true: forced_refresh
@@ -58,7 +58,7 @@
           rest_total_hits_as_int: true
           index:   test_1
           body:
-            query:   { term: { _id: 1 }}
+            query:   { term: { _id: "1" }}
 
  - match: { hits.total: 1 }
 

@@ -77,80 +77,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         clusterService = new ClusterService(settings, clusterSettings, tp);
     }
 
-    public void testNumInferenceProcessors() throws Exception {
-        Metadata metadata = null;
-
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY);
-        processorFactory.accept(buildClusterState(metadata));
-
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
-        metadata = Metadata.builder().build();
-
-        processorFactory.accept(buildClusterState(metadata));
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
-
-        processorFactory.accept(buildClusterStateWithModelReferences("model1", "model2", "model3"));
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
-    }
-
-    public void testNumInferenceProcessorsRecursivelyDefined() throws Exception {
-        Metadata metadata = null;
-
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY);
-        processorFactory.accept(buildClusterState(metadata));
-
-        Map<String, PipelineConfiguration> configurations = new HashMap<>();
-        configurations.put(
-            "pipeline_with_model_top_level",
-            randomBoolean()
-                ? newConfigurationWithInferenceProcessor("top_level")
-                : newConfigurationWithForeachProcessorProcessor("top_level")
-        );
-        try (
-            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-                .map(
-                    Collections.singletonMap(
-                        "processors",
-                        Collections.singletonList(Collections.singletonMap("set", new HashMap<String, Object>() {
-                            {
-                                put("field", "foo");
-                                put("value", "bar");
-                                put(
-                                    "on_failure",
-                                    Arrays.asList(inferenceProcessorForModel("second_level"), forEachProcessorWithInference("third_level"))
-                                );
-                            }
-                        }))
-                    )
-                )
-        ) {
-            configurations.put(
-                "pipeline_with_model_nested",
-                new PipelineConfiguration("pipeline_with_model_nested", BytesReference.bytes(xContentBuilder), XContentType.JSON)
-            );
-        }
-
-        IngestMetadata ingestMetadata = new IngestMetadata(configurations);
-
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                    .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
-                    .localNodeId("_node_id")
-                    .masterNodeId("_node_id")
-            )
-            .build();
-
-        processorFactory.accept(cs);
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
-    }
-
-    public void testNumInferenceWhenLevelExceedsMaxRecurions() {
-        assertThat(InferenceProcessor.Factory.numInferenceProcessors(InferenceProcessor.TYPE, Collections.emptyMap(), 100), equalTo(0));
-    }
-
     public void testCreateProcessorWithTooManyExisting() throws Exception {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
             client,
@@ -359,10 +285,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression)
         );
         assertThat(ex.getMessage(), equalTo("Invalid inference config. " + "More than one field is configured as [warning]"));
-    }
-
-    private static ClusterState buildClusterState(Metadata metadata) {
-        return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
     }
 
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {

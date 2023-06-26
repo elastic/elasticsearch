@@ -70,6 +70,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -846,42 +847,54 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
+        /*
+         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
+         * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
+         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
+         * is only executed once.
+         */
+        final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
-            long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-            totalMetrics.postIngest(ingestTimeInNanos);
-            if (e != null) {
-                totalMetrics.ingestFailed();
-                handler.accept(e);
-            } else if (result == null) {
-                itemDroppedHandler.accept(slot);
-                handler.accept(null);
+            if (listenerHasBeenCalled.getAndSet(true)) {
+                logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                assert false : "A listener was unexpectedly called more than once";
             } else {
-                Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
-                // it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                // before ingestion, which might also get modified during ingestion.
-                indexRequest.index((String) metadataMap.get(IngestDocument.Metadata.INDEX));
-                indexRequest.type((String) metadataMap.get(IngestDocument.Metadata.TYPE));
-                indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
-                indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
-                indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
-                if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
-                    indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                totalMetrics.postIngest(ingestTimeInNanos);
+                if (e != null) {
+                    totalMetrics.ingestFailed();
+                    handler.accept(e);
+                } else if (result == null) {
+                    itemDroppedHandler.accept(slot);
+                    handler.accept(null);
+                } else {
+                    Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
+                    // it's fine to set all metadata fields all the time, as ingest document holds their starting values
+                    // before ingestion, which might also get modified during ingestion.
+                    indexRequest.index((String) metadataMap.get(IngestDocument.Metadata.INDEX));
+                    indexRequest.type((String) metadataMap.get(IngestDocument.Metadata.TYPE));
+                    indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
+                    indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
+                    indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
+                    if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
+                        indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+                    }
+                    if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
+                        indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+                    }
+                    if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
+                        indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+                    }
+                    indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                    if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
+                        Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
+                        @SuppressWarnings("unchecked")
+                        Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
+                        mergedDynamicTemplates.putAll(map);
+                        indexRequest.setDynamicTemplates(mergedDynamicTemplates);
+                    }
+                    handler.accept(null);
                 }
-                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
-                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
-                }
-                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
-                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
-                }
-                indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
-                if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
-                    Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    @SuppressWarnings("unchecked")
-                    Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
-                    mergedDynamicTemplates.putAll(map);
-                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
-                }
-                handler.accept(null);
             }
         });
     }

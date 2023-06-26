@@ -7,7 +7,7 @@
       index:
         index: test_1
         type:  test
-        id:    1
+        id:    "1"
         body:  { "body": "foo" }
 
   - do:
@@ -16,7 +16,7 @@
       get:
         index: test_1
         type: _all
-        id:   1
+        id:   "1"
 
   - match: {_index: "test_1"}
   - match: {_type: "test"}

@@ -14,7 +14,6 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +30,7 @@ import static java.util.stream.Collectors.toList;
  */
 public class ReleaseNotesGenerator {
     /**
-     * These mappings translate change types into the headings as they should appears in the release notes.
+     * These mappings translate change types into the headings as they should appear in the release notes.
      */
     private static final Map<String, String> TYPE_LABELS = new HashMap<>();
 
@@ -47,63 +46,51 @@ public class ReleaseNotesGenerator {
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
 
-    static void update(File templateFile, File outputFile, Map<QualifiedVersion, Set<ChangelogEntry>> changelogs) throws IOException {
+    static void update(File templateFile, File outputFile, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
         final String templateString = Files.readString(templateFile.toPath());
 
         try (FileWriter output = new FileWriter(outputFile)) {
-            output.write(generateFile(templateString, changelogs));
+            output.write(generateFile(templateString, version, changelogs));
         }
     }
 
     @VisibleForTesting
-    static String generateFile(String template, Map<QualifiedVersion, Set<ChangelogEntry>> changelogs) throws IOException {
-        final var changelogsByVersionByTypeByArea = buildChangelogBreakdown(changelogs);
+    static String generateFile(String template, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
+        final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("changelogsByVersionByTypeByArea", changelogsByVersionByTypeByArea);
+        bindings.put("version", version);
+        bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
 
         return TemplateUtils.render(template, bindings);
     }
 
-    private static Map<QualifiedVersion, Map<String, Map<String, List<ChangelogEntry>>>> buildChangelogBreakdown(
-        Map<QualifiedVersion, Set<ChangelogEntry>> changelogsByVersion
-    ) {
-        Map<QualifiedVersion, Map<String, Map<String, List<ChangelogEntry>>>> changelogsByVersionByTypeByArea = new TreeMap<>(
-            Comparator.reverseOrder()
-        );
-
-        changelogsByVersion.forEach((version, changelogs) -> {
-            Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
-                .collect(
+    private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(Set<ChangelogEntry> changelogs) {
+        Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
+            // Special case - we have a changelog file that isn't in the 'known-issue' or 'security' areas, but
+            // doesn't have an ES PR for it.
+            .filter(each -> each.getPr() == null || each.getPr() != -1)
+            .collect(
+                groupingBy(
+                    // Entries with breaking info are always put in the breaking section
+                    entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
+                    TreeMap::new,
+                    // Group changelogs for each type by their team area
                     groupingBy(
-                        // Entries with breaking info are always put in the breaking section
-                        entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
+                        // `security` and `known-issue` areas don't need to supply an area
+                        entry -> entry.getType().equals("known-issue") || entry.getType().equals("security") ? "_all_" : entry.getArea(),
                         TreeMap::new,
-                        // Group changelogs for each type by their team area
-                        groupingBy(
-                            // `security` and `known-issue` areas don't need to supply an area
-                            entry -> entry.getType().equals("known-issue") || entry.getType().equals("security")
-                                ? "_all_"
-                                : entry.getArea(),
-                            TreeMap::new,
-                            toList()
-                        )
+                        toList()
                     )
-                );
-
-            changelogsByVersionByTypeByArea.put(version, changelogsByTypeByArea);
-        });
+                )
+            );
 
         // Sort per-area changelogs by their summary text. Assumes that the underlying list is sortable
-        changelogsByVersionByTypeByArea.forEach(
-            (_version, byVersion) -> byVersion.forEach(
-                (_type, byTeam) -> byTeam.forEach(
-                    (_team, changelogsForTeam) -> changelogsForTeam.sort(comparing(ChangelogEntry::getSummary))
-                )
-            )
+        changelogsByTypeByArea.forEach(
+            (_type, byTeam) -> byTeam.forEach((_team, changelogsForTeam) -> changelogsForTeam.sort(comparing(ChangelogEntry::getSummary)))
         );
 
-        return changelogsByVersionByTypeByArea;
+        return changelogsByTypeByArea;
     }
 }

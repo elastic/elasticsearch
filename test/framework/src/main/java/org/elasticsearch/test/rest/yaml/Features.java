@@ -73,7 +73,9 @@ public final class Features {
     }
 
     private static boolean isSupported(String feature) {
-        if (feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) && JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
+        String runtimeJavaProp = System.getProperty("tests.runtime.java.version");
+        JavaVersion runtimeJava = runtimeJavaProp != null ? JavaVersion.parse(runtimeJavaProp) : JavaVersion.current();
+        if (feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) && runtimeJava.compareTo(JavaVersion.parse("9")) >= 0) {
             return true;
         }
         return SUPPORTED.contains(feature);

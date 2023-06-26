@@ -158,10 +158,7 @@ remains very low (1-6% as seen in the above graph) even when counting millions o
 
 The HyperLogLog++ algorithm depends on the leading zeros of hashed
 values, the exact distributions of hashes in a dataset can affect the 
-accuracy of the cardinality.  
-
-Please also note that even with a threshold as low as 100, the error remains
-very low, even when counting millions of items.
+accuracy of the cardinality.
 
 ==== Pre-computed hashes
 

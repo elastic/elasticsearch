@@ -10,12 +10,17 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -64,9 +69,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // for overriding in tests
+    private static final String DEFAULT_ENDPOINT = System.getProperty(
+        "ingest.geoip.downloader.endpoint.default",
+        "https://geoip.elastic.co/v1/database"
+    );
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString(
         "ingest.geoip.downloader.endpoint",
-        "https://geoip.elastic.co/v1/database",
+        DEFAULT_ENDPOINT,
         Property.NodeScope
     );
 
@@ -119,6 +130,19 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     void updateDatabases() throws IOException {
+        ClusterState clusterState = clusterService.state();
+        IndexAbstraction geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        if (geoipIndex != null) {
+            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+                throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
+            }
+            ClusterBlockException blockException = clusterState.blocks()
+                .indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            if (blockException != null) {
+                throw blockException;
+            }
+        }
+
         logger.info("updating geoip databases");
         List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
@@ -149,7 +173,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             updateTimestamp(name, state.get(name));
             return;
         }
-        logger.info("updating geoip database [" + name + "]");
+        logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
             // relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
@@ -164,7 +188,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
-                logger.info("updated geoip database [" + name + "]");
+                logger.info("successfully downloaded geoip database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
@@ -259,6 +283,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases();
         } catch (Exception e) {
+            stats = stats.failedDownload();
             logger.error("exception during geoip databases update", e);
         }
         try {
@@ -293,6 +318,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (scheduled != null) {
             scheduled.cancel();
         }
+        markAsCompleted();
     }
 
     @Override

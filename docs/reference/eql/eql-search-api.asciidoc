@@ -47,8 +47,9 @@ or alias.
 
 * See <<eql-required-fields>>.
 
-* experimental:[] For cross-cluster search, the local and remote clusters must
-use the same {es} version. For security, see <<remote-clusters-security>>.
+* experimental:[] For cross-cluster search, the local and remote clusters must use the same {es} version.
+Local clusters version 7.17.7 or later also support cross-cluster search to remote clusters version 7.15.0 or later.
+For security, see <<remote-clusters-security>>.
 
 [[eql-search-api-limitations]]
 ===== Limitations
@@ -109,8 +110,8 @@ Comma-separated list of filters for the API response. See
 <<common-options-response-filtering>>.
 
 `ignore_unavailable`::
-(Optional, Boolean) If `true`, missing or closed indices are not included in the
-response. Defaults to `true`.
+(Optional, Boolean) If `false`, the request returns an error if it targets a
+missing or closed index. Defaults to `true`.
 
 `keep_alive`::
 +

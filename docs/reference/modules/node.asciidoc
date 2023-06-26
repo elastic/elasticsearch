@@ -194,13 +194,6 @@ High availability (HA) clusters require at least three master-eligible nodes, at
 least two of which are not voting-only nodes. Such a cluster will be able to
 elect a master node even if one of the nodes fails.
 
-Since voting-only nodes never act as the cluster's elected master, they may
-require less heap and a less powerful CPU than the true master nodes.
-However all master-eligible nodes, including voting-only nodes, require
-reasonably fast persistent storage and a reliable and low-latency network
-connection to the rest of the cluster, since they are on the critical path for
-<<cluster-state-publishing,publishing cluster state updates>>.
-
 Voting-only master-eligible nodes may also fill other roles in your cluster.
 For instance, a node may be both a data node and a voting-only master-eligible
 node. A _dedicated_ voting-only master-eligible nodes is a voting-only
@@ -211,6 +204,20 @@ dedicated voting-only master-eligible node, set:
 -------------------
 node.roles: [ master, voting_only ]
 -------------------
+
+Since dedicated voting-only nodes never act as the cluster's elected master,
+they may require less heap and a less powerful CPU than the true master nodes.
+However all master-eligible nodes, including voting-only nodes, are on the
+critical path for <<cluster-state-publishing,publishing cluster state
+updates>>. Cluster state updates are usually independent of
+performance-critical workloads such as indexing or searches, but they are
+involved in management activities such as index creation and rollover, mapping
+updates, and recovery after a failure. The performance characteristics of these
+activities are a function of the speed of the storage on each master-eligible
+node, as well as the reliability and latency of the network interconnections
+between the elected master node and the other nodes in the cluster. You must
+therefore ensure that the storage and networking available to the nodes in your
+cluster are good enough to meet your performance goals.
 
 [[data-node]]
 ==== Data node
@@ -238,8 +245,8 @@ that has one of the specialized data roles cannot have the generic `data` role.
 [[data-content-node]]
 ==== Content data node
 
-Content data nodes accommodate user-created content. They enable operations like CRUD,
-search and aggregations.
+Content data nodes are part of the content tier.
+include::{es-repo-dir}/datatiers.asciidoc[tag=content-tier]
 
 To create a dedicated content node, set:
 [source,yaml]
@@ -251,8 +258,8 @@ node.roles: [ data_content ]
 [[data-hot-node]]
 ==== Hot data node
 
-Hot data nodes store time series data as it enters {es}. The hot tier must be fast for
-both reads and writes, and requires more hardware resources (such as SSD drives).
+Hot data nodes are part of the hot tier.
+include::{es-repo-dir}/datatiers.asciidoc[tag=hot-tier]
 
 To create a dedicated hot node, set:
 [source,yaml]
@@ -264,9 +271,8 @@ node.roles: [ data_hot ]
 [[data-warm-node]]
 ==== Warm data node
 
-Warm data nodes store indices that are no longer being regularly updated, but are still being
-queried. Query volume is usually at a lower frequency than it was while the index was in the hot tier.
-Less performant hardware can usually be used for nodes in this tier.
+Warm data nodes are part of the warm tier.
+include::{es-repo-dir}/datatiers.asciidoc[tag=warm-tier]
 
 To create a dedicated warm node, set:
 [source,yaml]
@@ -278,7 +284,8 @@ node.roles: [ data_warm ]
 [[data-cold-node]]
 ==== Cold data node
 
-Cold data nodes store read-only indices that are accessed less frequently. This tier uses less performant hardware and may leverage searchable snapshot indices to minimize the resources required.
+Cold data nodes are part of the cold tier.
+include::{es-repo-dir}/datatiers.asciidoc[tag=cold-tier]
 
 To create a dedicated cold node, set:
 [source,yaml]
@@ -290,11 +297,10 @@ node.roles: [ data_cold ]
 [[data-frozen-node]]
 ==== Frozen data node
 
-The frozen tier stores <<partially-mounted,partially mounted indices>>
-exclusively. We recommend you use dedicated nodes in the frozen tier.
+Frozen data nodes are part of the frozen tier.
+include::{es-repo-dir}/datatiers.asciidoc[tag=frozen-tier]
 
 To create a dedicated frozen node, set:
-
 [source,yaml]
 ----
 node.roles: [ data_frozen ]

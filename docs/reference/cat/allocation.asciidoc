@@ -4,6 +4,11 @@
 <titleabbrev>cat allocation</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications.
+====
 
 Provides a snapshot of the number of shards allocated to each data node
 and their disk space.

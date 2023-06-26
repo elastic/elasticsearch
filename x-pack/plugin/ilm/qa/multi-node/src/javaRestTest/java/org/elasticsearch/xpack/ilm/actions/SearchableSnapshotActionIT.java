@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
@@ -94,7 +95,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );
@@ -125,7 +126,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream, new Template(null, null, null));
+        createComposableTemplate(
+            client(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            dataStream,
+            new Template(null, null, null)
+        );
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
@@ -195,7 +201,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );
@@ -289,7 +295,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -381,7 +387,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -647,7 +653,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -678,5 +684,49 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
         assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
+
+        assertOK(client().performRequest(new Request("DELETE", "_data_stream/" + dataStream)));
+        assertOK(client().performRequest(new Request("DELETE", "_ilm/policy/" + policy)));
+    }
+
+    // See: https://github.com/elastic/elasticsearch/issues/77269
+    public void testSearchableSnapshotInvokesAsyncActionOnNewIndex() throws Exception {
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        Map<String, LifecycleAction> coldActions = new HashMap<>(2);
+        coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()));
+        // Normally putting an allocate action in the cold phase with a searchable snapshot action
+        // would cause the new index to get "stuck" since the async action would never be invoked
+        // for the new index.
+        coldActions.put(AllocateAction.NAME, new AllocateAction(null, 1, null, null, null));
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, coldActions);
+        createPolicy(client(), policy, null, null, coldPhase, null, null);
+
+        createComposableTemplate(
+            client(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            dataStream,
+            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
+        );
+
+        indexDocument(client(), dataStream, true);
+
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        assertBusy(
+            () -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)),
+            30,
+            TimeUnit.SECONDS
+        );
     }
 }

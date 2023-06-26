@@ -142,18 +142,6 @@ public class GeoPolygonDecomposer {
         }
     }
 
-    private static Point position(Point p1, Point p2, double position) {
-        if (position == 0) {
-            return p1;
-        } else if (position == 1) {
-            return p2;
-        } else {
-            final double x = p1.getX() + position * (p2.getX() - p1.getX());
-            final double y = p1.getY() + position * (p2.getY() - p1.getY());
-            return new Point(x, y);
-        }
-    }
-
     private static int createEdges(
         int component,
         boolean orientation,
@@ -207,13 +195,9 @@ public class GeoPolygonDecomposer {
             minX = Math.min(minX, points[i].getX());
             maxX = Math.max(maxX, points[i].getX());
         }
-        if (signedArea == 0) {
-            // Points are collinear or self-intersection
-            throw new IllegalArgumentException(
-                "Cannot determine orientation: signed area equal to 0." + " Points are collinear or polygon self-intersects."
-            );
-        }
-        boolean orientation = signedArea < 0;
+        // if the polygon is tiny, the computed area can result in zero. In that case
+        // we assume orientation is correct
+        boolean orientation = signedArea == 0 ? handedness != false : signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
@@ -402,7 +386,7 @@ public class GeoPolygonDecomposer {
 
             double position = intersection(p1.getX(), p2.getX(), dateline);
             if (Double.isNaN(position) == false) {
-                edges[i].intersection(position);
+                edges[i].setIntersection(position, dateline);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
             }
@@ -763,13 +747,20 @@ public class GeoPolygonDecomposer {
         }
 
         /**
-         * Set the intersection of this line segment to the given position
+         * Set the intersection of this line segment with the given dateline
          *
          * @param position position of the intersection [0..1]
-         * @return the {@link Point} of the intersection
+         * @param dateline of the intersection
          */
-        Point intersection(double position) {
-            return intersect = position(coordinate, next.coordinate, position);
+        void setIntersection(double position, double dateline) {
+            if (position == 0) {
+                this.intersect = coordinate;
+            } else if (position == 1) {
+                this.intersect = next.coordinate;
+            } else {
+                final double y = coordinate.getY() + position * (next.coordinate.getY() - coordinate.getY());
+                this.intersect = new Point(dateline, y);
+            }
         }
 
         @Override

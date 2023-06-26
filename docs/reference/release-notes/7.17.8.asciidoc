@@ -1,0 +1,56 @@
+[[release-notes-7.17.8]]
+== {es} version 7.17.8
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.8]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[bug-7.17.8]]
+[float]
+=== Bug fixes
+
+EQL::
+* Fix serialization of `resultPosition` in `EqlSearchRequest` {es-pull}91497[#91497]
+* Limit CCS to v 7.15 {es-pull}91834[#91834] (issue: {es-issue}91762[#91762])
+
+Infra/Core::
+* Add `trace.id` to request trace logs {es-pull}91772[#91772] (issue: {es-issue}88174[#88174])
+* `DoPrivileged` in `ElasticsearchEncaughtExceptionHandler` and check modify thread {es-pull}91704[#91704] (issue: {es-issue}91650[#91650])
+
+Ingest Node::
+* Set the enrich maintenance cluster lifecycle listener only once {es-pull}90486[#90486]
+
+Machine Learning::
+* ML stats failures should not stop the usage API working {es-pull}91917[#91917] (issue: {es-issue}91893[#91893])
+
+Search::
+* Fix integer overflow in `AsyncTaskIndexService` {es-pull}91044[#91044]
+
+Transform::
+* Make transform `_preview` request cancellable {es-pull}91313[#91313] (issue: {es-issue}91286[#91286])
+
+[[enhancement-7.17.8]]
+[float]
+=== Enhancements
+
+Infra/Core::
+* Check for unassigned shards on node shutdown {es-pull}91297[#91297] (issue: {es-issue}88635[#88635])
+* Extend systemd startup timeout to 900s {es-pull}91338[#91338]
+
+Snapshot/Restore::
+* Update HDFS Repository to HDFS 3.3.3 {es-pull}88039[#88039]
+
+TLS::
+* Support SAN/dnsName for restricted trust {es-pull}91946[#91946]
+
+[[upgrade-7.17.8]]
+[float]
+=== Upgrades
+
+Packaging::
+* Update bundled JDK to Java 19.0.1 {es-pull}91025[#91025] (issue: {es-issue}91010[#91010])
+
+

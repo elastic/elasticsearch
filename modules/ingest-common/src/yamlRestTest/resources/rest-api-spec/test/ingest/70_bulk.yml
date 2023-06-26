@@ -144,3 +144,40 @@ teardown:
 
   - is_false: _source.field1
   - match: {_source.field2: value2}
+
+---
+"Update with pipeline":
+  - skip:
+      version: " - 7.17.4"
+      reason: "fixed in 7.17.5"
+
+  - do:
+      ingest.put_pipeline:
+        id: "lowercase-pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "lowercase" : {
+                  "field" : "my_field"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"update":{"_id":"1","_index":"test_index","pipeline":"lowercase-pipeline"}}'
+          - '{"upsert":{"my_field":"UPPER"},"script":{"source":"ctx._source.my_field = ctx._source.my_field.toLowercase()"}}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: created }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+  - match: { _source:  { my_field: "upper" } }

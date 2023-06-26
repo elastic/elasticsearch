@@ -38,7 +38,7 @@
     unfair. -->
   <module name="LineLength">
     <property name="max" value="140" />
-    <property name="ignorePattern" value="^ *\* *https?://[^ ]+$" />
+    <property name="ignorePattern" value="^(?:(?:package|import) .*| *\* *https?://[^ ]+)$" />
   </module>
 
   <module name="TreeWalker">
@@ -119,6 +119,15 @@
         <message key="hidden.field" value="''{0}'' hides a field." />
     </module>
     -->
+
+    <module name="org.elasticsearch.gradle.internal.checkstyle.SwitchBetweenCheck">
+        <message
+            key="forbidden.switch.between"
+            value="Case ''{0}'' is outside the range of the ''{1}({2}, {3})'' call of the enclosing switch." />
+        <message
+            key="forbidden.switch.randomInt"
+            value="Case ''{0}'' is outside the range of the ''{1}({2})'' call of the enclosing switch." />
+    </module>
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use

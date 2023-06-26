@@ -16,6 +16,9 @@ If you run {es} from the command line, {es} prints logs to the standard output
 [[loggin-configuration]]
 === Logging configuration
 
+IMPORTANT: Elastic strongly recommends using the Log4j 2 configuration that is shipped by default.
+
+
 Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
 logging. Log4j 2 can be configured using the log4j2.properties
 file. Elasticsearch exposes three properties, `${sys:es.logs.base_path}`,
@@ -207,12 +210,26 @@ critical feature was used, it won't be removed in next major version, but might
 be removed in the future.
 
 To stop writing deprecation log messages, set `logger.deprecation.level`
-to `OFF`:
+to `OFF` in `log4j2.properties` :
 
 [source,properties]
 ----
 logger.deprecation.level = OFF
 ----
+Alternatively, you can change the logging level dynamically: 
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.org.elasticsearch.deprecation": "OFF"
+  }
+}
+----
+
+Refer to <<configuring-logging-levels,Configuring logging levels>>.
+
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
 The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.

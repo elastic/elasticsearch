@@ -10,8 +10,8 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.lucene.RegExp;
 
 import java.util.Collections;
 import java.util.List;

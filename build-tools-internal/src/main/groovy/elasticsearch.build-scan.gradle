@@ -16,8 +16,15 @@ import java.util.concurrent.TimeUnit
 long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
 
 buildScan {
+  URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+
+  // Automatically publish scans from Elasticsearch CI
+  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
+    publishAlways()
+    buildScan.server = 'https://gradle-enterprise.elastic.co'
+  }
+
   background {
-    URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
     String buildNumber = System.getenv('BUILD_NUMBER')
     String buildUrl = System.getenv('BUILD_URL')
     String jobName = System.getenv('JOB_NAME')
@@ -32,18 +39,12 @@ buildScan {
       tag 'FIPS'
     }
 
-    // Automatically publish scans from Elasticsearch CI
-    if (jenkinsUrl?.host?.endsWith('elastic.co')) {
-      publishAlways()
-      buildScan.server = 'https://gradle-enterprise.elastic.co'
-    }
-
     // Link to Jenkins worker logs and system metrics
     if (nodeName) {
-      link 'System logs', "https://infra-stats.elastic.co/app/infra#/logs?" +
+      link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?" +
         "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
       buildFinished {
-        link 'System metrics', "https://infra-stats.elastic.co/app/metrics/detail/host/" +
+        link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/" +
           "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
           "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
           "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"

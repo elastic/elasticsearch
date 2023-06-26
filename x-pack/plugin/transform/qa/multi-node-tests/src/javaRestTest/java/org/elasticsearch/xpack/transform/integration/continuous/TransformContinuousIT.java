@@ -389,7 +389,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .startObject("script")
                     .field(
                         "source",
-                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value.minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value"
+                            + ".minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
                     )
                     .endObject()
                     .endObject()
@@ -398,7 +399,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .startObject("script")
                     .field(
                         "source",
-                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value.minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value"
+                            + ".minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
                     )
                     .endObject()
                     .endObject();

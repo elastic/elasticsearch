@@ -26,6 +26,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
+import java.util.Locale;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
@@ -40,14 +41,14 @@ public final class DateUtils {
     private static final DateTimeFormatter ISO_LOCAL_TIME_OPTIONAL_TZ = new DateTimeFormatterBuilder().append(ISO_LOCAL_TIME)
         .optionalStart()
         .appendZoneOrOffsetId()
-        .toFormatter()
+        .toFormatter(Locale.ROOT)
         .withZone(UTC);
     private static final DateTimeFormatter ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder().append(
         ISO_LOCAL_DATE
-    ).optionalStart().appendLiteral(' ').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter().withZone(UTC);
+    ).optionalStart().appendLiteral(' ').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter(Locale.ROOT).withZone(UTC);
     private static final DateTimeFormatter ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder().append(
         ISO_LOCAL_DATE
-    ).optionalStart().appendLiteral('T').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter().withZone(UTC);
+    ).optionalStart().appendLiteral('T').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter(Locale.ROOT).withZone(UTC);
 
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;

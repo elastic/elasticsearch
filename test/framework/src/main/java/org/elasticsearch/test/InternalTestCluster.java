@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -386,8 +387,8 @@ public final class InternalTestCluster extends TestCluster {
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TransportSettings.PORT.getKey(), 0);
-        builder.put("http.port", 0);
+        builder.put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange());
+        builder.put("http.port", ESTestCase.getPortRange());
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }
@@ -443,6 +444,7 @@ public final class InternalTestCluster extends TestCluster {
             Integer.MAX_VALUE,
             0,
             TimeUnit.SECONDS,
+            true,
             EsExecutors.daemonThreadFactory("test_" + clusterName),
             new ThreadContext(Settings.EMPTY)
         );
@@ -1363,16 +1365,15 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        try {
-            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
-            ClusterServiceUtils.awaitClusterState(
-                logger,
-                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
-                getInstance(ClusterService.class)
-            );
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+        assertFalse(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes(Integer.toString(expectedNodes.size()))
+                .get()
+                .isTimedOut()
+        );
         try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
@@ -1754,6 +1755,9 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, DATA_NODE_PREDICATE);
     }
 
+    /**
+     * Return the instance of the given class &gt;T&lt; from the elected master node. See also {@link #getAnyMasterNodeInstance}.
+     */
     public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, new NodeNamePredicate(getMasterName()));
     }
@@ -1786,7 +1790,11 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, DATA_NODE_PREDICATE);
     }
 
-    public <T> T getMasterNodeInstance(Class<T> clazz) {
+    /**
+     * Return the instance of the given class &gt;T&lt; from any of the master-eligible nodes (not necessarily the elected master). See
+     * also {@link #getCurrentMasterNodeInstance}.
+     */
+    public <T> T getAnyMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, MASTER_NODE_PREDICATE);
     }
 

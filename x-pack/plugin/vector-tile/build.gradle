@@ -14,7 +14,7 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
   name 'vector-tile'
@@ -29,11 +29,11 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   compileOnly "org.locationtech.jts:jts-core:${versions.jts}"
   api "com.wdtinc:mapbox-vector-tile:3.1.0"
-  api "com.google.protobuf:protobuf-java:3.14.0"
+  api "com.google.protobuf:protobuf-java:3.16.3"
   runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
   javaRestTestImplementation("com.wdtinc:mapbox-vector-tile:3.1.0")
-  javaRestTestImplementation("com.google.protobuf:protobuf-java:3.14.0")
+  javaRestTestImplementation("com.google.protobuf:protobuf-java:3.16.3")
 }
 
 testClusters.configureEach {

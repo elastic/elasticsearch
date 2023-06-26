@@ -11,6 +11,8 @@ include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 [[enhancement-7.12.1]]
 [float]
 === Enhancements

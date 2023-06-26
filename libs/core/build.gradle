@@ -8,7 +8,6 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * Side Public License, v 1.
  */
 
-apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
 
 archivesBaseName = 'elasticsearch-core'

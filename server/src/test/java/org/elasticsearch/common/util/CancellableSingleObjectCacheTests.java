@@ -12,7 +12,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -193,10 +195,11 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
     public void testConcurrentRefreshesAndCancellation() throws InterruptedException {
         final ThreadPool threadPool = new TestThreadPool("test");
         try {
+            final ThreadContext threadContext = threadPool.getThreadContext();
             final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<
                 String,
                 String,
-                Integer>() {
+                Integer>(threadContext) {
                 @Override
                 protected void refresh(
                     String s,
@@ -222,6 +225,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             final CountDownLatch startLatch = new CountDownLatch(1);
             final CountDownLatch finishLatch = new CountDownLatch(count);
             final BlockingQueue<Runnable> queue = ConcurrentCollections.newBlockingQueue();
+            final String contextHeader = "test-context-header";
 
             for (int i = 0; i < count; i++) {
                 final boolean cancel = randomBoolean();
@@ -236,11 +240,14 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                     final StepListener<Integer> stepListener = new StepListener<>();
                     final AtomicBoolean isComplete = new AtomicBoolean();
                     final AtomicBoolean isCancelled = new AtomicBoolean();
-                    testCache.get(
-                        input,
-                        isCancelled::get,
-                        ActionListener.runBefore(stepListener, () -> assertTrue(isComplete.compareAndSet(false, true)))
-                    );
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        final String contextValue = randomAlphaOfLength(10);
+                        threadContext.putHeader(contextHeader, contextValue);
+                        testCache.get(input, isCancelled::get, ActionListener.runBefore(stepListener, () -> {
+                            assertTrue(isComplete.compareAndSet(false, true));
+                            assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
+                        }));
+                    }
 
                     final Runnable next = queue.poll();
                     if (next != null) {
@@ -283,7 +290,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<
                 String,
                 String,
-                Integer>() {
+                Integer>(threadPool.getThreadContext()) {
                 @Override
                 protected void refresh(
                     String s,
@@ -386,10 +393,9 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             }
         };
 
-        final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<
-            String,
-            String,
-            Integer>() {
+        final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<String, String, Integer>(
+            testThreadContext
+        ) {
             @Override
             protected void refresh(
                 String s,
@@ -433,9 +439,15 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         expectThrows(TaskCancelledException.class, () -> cancelledFuture.actionGet(0L));
     }
 
+    private static final ThreadContext testThreadContext = new ThreadContext(Settings.EMPTY);
+
     private static class TestCache extends CancellableSingleObjectCache<String, String, Integer> {
 
         private final LinkedList<StepListener<Function<String, Integer>>> pendingRefreshes = new LinkedList<>();
+
+        private TestCache() {
+            super(testThreadContext);
+        }
 
         @Override
         protected void refresh(

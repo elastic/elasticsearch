@@ -720,7 +720,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 

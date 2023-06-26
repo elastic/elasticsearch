@@ -6,6 +6,10 @@
  * Side Public License, v 1.
  */
 
+plugins {
+  id "com.gradle.enterprise" version "3.11.4"
+}
+
 // Include all subdirectories as example projects
 rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }.each { subDir ->
   include ":${subDir.name}"
@@ -14,15 +18,11 @@ rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exist
 gradle.rootProject {
   ext {
     // Fetch Elasticsearch version from outer build
-    if (!gradle.includedBuilds) {
-      new File(rootDir.parentFile.parentFile, 'build-tools-internal/version.properties').withInputStream { is ->
-        def props = new Properties()
-        props.load(is)
-        elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
-      }
-    } else {
-        // In a composite we substitute these dependencies so the version doesn't matter
-        elasticsearchVersion = '0.0.1-SNAPSHOT'
+    new File(rootDir.parentFile.parentFile, 'build-tools-internal/version.properties').withInputStream { is ->
+      def props = new Properties()
+      props.load(is)
+      elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
+      log4jVersion = props.get('log4j')
     }
   }
 }
@@ -67,7 +67,7 @@ static def getDefaultDistroProjectName() {
   } else if (os.startsWith("Linux") || os.startsWith("LINUX")) {
     return isArm ? 'linux-aarch64-tar' : 'linux-tar'
   } else if (os.startsWith("Mac")) {
-    return isArm ? 'darwing-aarch64-tar' : 'darwin-tar'
+    return isArm ? 'darwin-aarch64-tar' : 'darwin-tar'
   } else {
     throw new GradleException("Unable to determine system platform type.")
   }

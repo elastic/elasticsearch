@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -463,6 +464,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
         getStats().markStartDelete();
 
+        ActionListener<RefreshResponse> deleteByQueryAndRefreshDoneListener = ActionListener.wrap(
+            refreshResponse -> finalizeCheckpoint(listener),
+            listener::onFailure
+        );
+
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
             logger.trace(() -> new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
 
@@ -493,7 +499,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 return;
             }
 
-            finalizeCheckpoint(listener);
+            // Since we configure DBQ request *not* to perform a refresh, we need to perform the refresh manually.
+            // This separation ensures that the DBQ runs with user permissions and the refresh runs with system permissions.
+            refreshDestinationIndex(deleteByQueryAndRefreshDoneListener);
         }, listener::onFailure));
     }
 
@@ -570,6 +578,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     public synchronized boolean maybeTriggerAsyncJob(long now) {
+        // threadpool: trigger_engine_scheduler if triggered from the scheduler, generic if called from the task on start
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getJobId());
             return false;
@@ -929,7 +938,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         // irrecoverable error without special handling
-        if (unwrappedException instanceof ElasticsearchException) {
+        // gh#89802 treat ClusterBlockException is retry-able
+        if (unwrappedException instanceof ClusterBlockException == false && unwrappedException instanceof ElasticsearchException) {
             ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedException;
             if (ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
                 failIndexer("task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage());

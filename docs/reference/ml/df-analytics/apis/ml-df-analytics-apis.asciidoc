@@ -12,4 +12,3 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 * <<get-dfanalytics-stats,Get {dfanalytics-jobs} statistics>>
 * <<start-dfanalytics,Start {dfanalytics-jobs}>>
 * <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
-* <<update-dfanalytics,Update {dfanalytics-jobs}>>

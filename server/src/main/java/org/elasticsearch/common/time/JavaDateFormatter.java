@@ -16,47 +16,66 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
+import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import java.util.function.BiConsumer;
+import java.util.function.UnaryOperator;
 
 class JavaDateFormatter implements DateFormatter {
+    /**
+    * A default consumer that allows to round up fields (used for range searches, optional fields missing)
+    * it relies on toString implementation of DateTimeFormatter and ChronoField.
+    * For instance for pattern
+    * the parser would have a toString()
+    * <code>
+    *  Value(MonthOfYear,2)'/'Value(DayOfMonth,2)'/'Value(YearOfEra,4,19,EXCEEDS_PAD)'
+    * 'Value(ClockHourOfAmPm,2)':'Value(MinuteOfHour,2)' 'Text(AmPmOfDay,SHORT)
+    * </code>
+    * and ChronoField.CLOCK_HOUR_OF_AMPM would have toString() ClockHourOfAmPm
+    * this allows the rounding logic to default CLOCK_HOUR_OF_AMPM field instead of HOUR_OF_DAY
+    * without this logic, the rounding would result in a conflict as HOUR_OF_DAY would be missing, but CLOCK_HOUR_OF_AMPM would be provided
+    */
+    private static final BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> DEFAULT_ROUND_UP = (builder, parser) -> {
+        String parserAsString = parser.toString();
+        if (parserAsString.contains(ChronoField.DAY_OF_YEAR.toString())) {
+            builder.parseDefaulting(ChronoField.DAY_OF_YEAR, 1L);
+            // TODO ideally we should make defaulting for weekbased year here too,
+            // but this will not work when locale is changed
+            // weekbased rounding relies on DateFormatters#localDateFromWeekBasedDate
+            // Applying month of year or dayOfMonth when weekbased fields are used will result in a conflict
+        } else if (parserAsString.contains(IsoFields.WEEK_BASED_YEAR.toString()) == false) {
+            builder.parseDefaulting(ChronoField.MONTH_OF_YEAR, 1L);
+            builder.parseDefaulting(ChronoField.DAY_OF_MONTH, 1L);
+        }
 
-    // base fields which should be used for default parsing, when we round up for date math
-    private static final Map<TemporalField, Long> ROUND_UP_BASE_FIELDS = new HashMap<>(6);
-
-    {
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MONTH_OF_YEAR, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.DAY_OF_MONTH, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.NANO_OF_SECOND, 999_999_999L);
-    }
+        if (parserAsString.contains(ChronoField.CLOCK_HOUR_OF_AMPM.toString())) {
+            builder.parseDefaulting(ChronoField.CLOCK_HOUR_OF_AMPM, 11L);
+            builder.parseDefaulting(ChronoField.AMPM_OF_DAY, 1L);
+        } else if (parserAsString.contains(ChronoField.HOUR_OF_AMPM.toString())) {
+            builder.parseDefaulting(ChronoField.HOUR_OF_AMPM, 11L);
+            builder.parseDefaulting(ChronoField.AMPM_OF_DAY, 1L);
+        } else {
+            builder.parseDefaulting(ChronoField.HOUR_OF_DAY, 23L);
+        }
+        builder.parseDefaulting(ChronoField.MINUTE_OF_HOUR, 59L);
+        builder.parseDefaulting(ChronoField.SECOND_OF_MINUTE, 59L);
+        builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L);
+    };
 
     private final String format;
     private final DateTimeFormatter printer;
-    private final List<DateTimeFormatter> parsers;
-    private final JavaDateFormatter roundupParser;
+    private final DateTimeFormatter[] parsers;
+    private final RoundUpFormatter roundupParser;
 
-    static class RoundUpFormatter extends JavaDateFormatter {
+    private static final class RoundUpFormatter extends JavaDateFormatter {
 
-        RoundUpFormatter(String format, List<DateTimeFormatter> roundUpParsers) {
-            super(format, firstFrom(roundUpParsers), null, roundUpParsers);
-        }
-
-        private static DateTimeFormatter firstFrom(List<DateTimeFormatter> roundUpParsers) {
-            return roundUpParsers.get(0);
+        RoundUpFormatter(String format, DateTimeFormatter[] roundUpParsers) {
+            super(format, roundUpParsers[0], (RoundUpFormatter) null, roundUpParsers);
         }
 
         @Override
@@ -67,37 +86,47 @@ class JavaDateFormatter implements DateFormatter {
 
     // named formatters use default roundUpParser
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
-        this(format, printer, builder -> ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting), parsers);
+        this(
+            format,
+            printer,
+            // set up base fields which should be used for default parsing, when we round up for date math
+            DEFAULT_ROUND_UP,
+            parsers
+        );
     }
 
     // subclasses override roundUpParser
     JavaDateFormatter(
         String format,
         DateTimeFormatter printer,
-        Consumer<DateTimeFormatterBuilder> roundupParserConsumer,
+        BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer,
         DateTimeFormatter... parsers
     ) {
         if (printer == null) {
             throw new IllegalArgumentException("printer may not be null");
         }
-        long distinctZones = Arrays.stream(parsers).map(DateTimeFormatter::getZone).distinct().count();
-        if (distinctZones > 1) {
-            throw new IllegalArgumentException("formatters must have the same time zone");
-        }
-        long distinctLocales = Arrays.stream(parsers).map(DateTimeFormatter::getLocale).distinct().count();
-        if (distinctLocales > 1) {
-            throw new IllegalArgumentException("formatters must have the same locale");
-        }
         this.printer = printer;
         this.format = format;
+        this.parsers = parsersArray(printer, parsers);
+        this.roundupParser = createRoundUpParser(format, roundupParserConsumer, locale(), this.parsers);
+    }
 
+    private static DateTimeFormatter[] parsersArray(DateTimeFormatter printer, DateTimeFormatter... parsers) {
         if (parsers.length == 0) {
-            this.parsers = Collections.singletonList(printer);
-        } else {
-            this.parsers = Arrays.asList(parsers);
+            return new DateTimeFormatter[] { printer };
         }
-        List<DateTimeFormatter> roundUp = createRoundUpParser(format, roundupParserConsumer);
-        this.roundupParser = new RoundUpFormatter(format, roundUp);
+        final ZoneId zoneId = parsers[0].getZone();
+        final Locale locale = parsers[0].getLocale();
+        for (int i = 1; i < parsers.length; i++) {
+            final DateTimeFormatter parser = parsers[i];
+            if (Objects.equals(parser.getZone(), zoneId) == false) {
+                throw new IllegalArgumentException("formatters must have the same time zone");
+            }
+            if (Objects.equals(parser.getLocale(), locale) == false) {
+                throw new IllegalArgumentException("formatters must have the same locale");
+            }
+        }
+        return parsers;
     }
 
     /**
@@ -109,16 +138,19 @@ class JavaDateFormatter implements DateFormatter {
      * <code>DateFormatters</code>.
      * This means that we need to also have multiple RoundUp parsers.
      */
-    private List<DateTimeFormatter> createRoundUpParser(String format, Consumer<DateTimeFormatterBuilder> roundupParserConsumer) {
+    private static RoundUpFormatter createRoundUpParser(
+        String format,
+        BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer,
+        Locale locale,
+        DateTimeFormatter[] parsers
+    ) {
         if (format.contains("||") == false) {
-            List<DateTimeFormatter> roundUpParsers = new ArrayList<>();
-            for (DateTimeFormatter parser : this.parsers) {
+            return new RoundUpFormatter(format, mapParsers(parser -> {
                 DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
                 builder.append(parser);
-                roundupParserConsumer.accept(builder);
-                roundUpParsers.add(builder.toFormatter(locale()));
-            }
-            return roundUpParsers;
+                roundupParserConsumer.accept(builder, parser);
+                return builder.toFormatter(locale);
+            }, parsers));
         }
         return null;
     }
@@ -136,22 +168,26 @@ class JavaDateFormatter implements DateFormatter {
             if (printer == null) {
                 printer = javaDateFormatter.getPrinter();
             }
-            parsers.addAll(javaDateFormatter.getParsers());
-            roundUpParsers.addAll(javaDateFormatter.getRoundupParser().getParsers());
+            Collections.addAll(parsers, javaDateFormatter.parsers);
+            Collections.addAll(roundUpParsers, javaDateFormatter.getRoundupParser().parsers);
         }
 
-        return new JavaDateFormatter(input, printer, roundUpParsers, parsers);
+        return new JavaDateFormatter(
+            input,
+            printer,
+            roundUpParsers.toArray(new DateTimeFormatter[0]),
+            parsers.toArray(new DateTimeFormatter[0])
+        );
     }
 
-    private JavaDateFormatter(
-        String format,
-        DateTimeFormatter printer,
-        List<DateTimeFormatter> roundUpParsers,
-        List<DateTimeFormatter> parsers
-    ) {
+    private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter[] roundUpParsers, DateTimeFormatter[] parsers) {
+        this(format, printer, new RoundUpFormatter(format, roundUpParsers), parsers);
+    }
+
+    private JavaDateFormatter(String format, DateTimeFormatter printer, RoundUpFormatter roundupParser, DateTimeFormatter[] parsers) {
         this.format = format;
         this.printer = printer;
-        this.roundupParser = roundUpParsers != null ? new RoundUpFormatter(format, roundUpParsers) : null;
+        this.roundupParser = roundupParser;
         this.parsers = parsers;
     }
 
@@ -191,7 +227,7 @@ class JavaDateFormatter implements DateFormatter {
      * @throws DateTimeParseException when unable to parse with any parsers
      */
     private TemporalAccessor doParse(String input) {
-        if (parsers.size() > 1) {
+        if (parsers.length > 1) {
             for (DateTimeFormatter formatter : parsers) {
                 ParsePosition pos = new ParsePosition(0);
                 Object object = formatter.toFormat().parseObject(input, pos);
@@ -201,10 +237,10 @@ class JavaDateFormatter implements DateFormatter {
             }
             throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
         }
-        return this.parsers.get(0).parse(input);
+        return this.parsers[0].parse(input);
     }
 
-    private boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
+    private static boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
         return object != null && pos.getIndex() == input.length();
     }
 
@@ -214,12 +250,7 @@ class JavaDateFormatter implements DateFormatter {
         if (zoneId.equals(zone())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList());
-        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
-            .stream()
-            .map(p -> p.withZone(zoneId))
-            .collect(Collectors.toList());
-        return new JavaDateFormatter(format, printer.withZone(zoneId), roundUpParsers, parsers);
+        return mapParsers(p -> p.withZone(zoneId));
     }
 
     @Override
@@ -228,12 +259,24 @@ class JavaDateFormatter implements DateFormatter {
         if (locale.equals(locale())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList());
-        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
-            .stream()
-            .map(p -> p.withLocale(locale))
-            .collect(Collectors.toList());
-        return new JavaDateFormatter(format, printer.withLocale(locale), roundUpParsers, parsers);
+        return mapParsers(p -> p.withLocale(locale));
+    }
+
+    private JavaDateFormatter mapParsers(UnaryOperator<DateTimeFormatter> mapping) {
+        return new JavaDateFormatter(
+            format,
+            mapping.apply(printer),
+            mapParsers(mapping, ((JavaDateFormatter) this.roundupParser).parsers),
+            mapParsers(mapping, this.parsers)
+        );
+    }
+
+    private static DateTimeFormatter[] mapParsers(UnaryOperator<DateTimeFormatter> mapping, DateTimeFormatter[] parsers) {
+        DateTimeFormatter[] res = new DateTimeFormatter[parsers.length];
+        for (int i = 0; i < parsers.length; i++) {
+            res[i] = mapping.apply(parsers[i]);
+        }
+        return res;
     }
 
     @Override
@@ -283,7 +326,4 @@ class JavaDateFormatter implements DateFormatter {
         return String.format(Locale.ROOT, "format[%s] locale[%s]", format, locale());
     }
 
-    Collection<DateTimeFormatter> getParsers() {
-        return parsers;
-    }
 }

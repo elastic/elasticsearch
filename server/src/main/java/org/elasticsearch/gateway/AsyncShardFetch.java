@@ -68,6 +68,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
+    private volatile int fetchingCount;
 
     @SuppressWarnings("unchecked")
     protected AsyncShardFetch(
@@ -81,6 +82,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
+        this.fetchingCount = 0;
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
     }
 
@@ -92,14 +94,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Returns the number of async fetches that are currently ongoing.
      */
-    public synchronized int getNumberOfInFlightFetches() {
-        int count = 0;
-        for (NodeEntry<T> nodeEntry : cache.values()) {
-            if (nodeEntry.isFetching()) {
-                count++;
-            }
-        }
-        return count;
+    public int getNumberOfInFlightFetches() {
+        return fetchingCount;
     }
 
     /**
@@ -122,6 +118,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             final long fetchingRound = round.incrementAndGet();
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodeEntry.markAsFetching(fetchingRound);
+                fetchingCount++;
             }
             DiscoveryNode[] discoNodesToFetch = nodesToFetch.stream()
                 .map(NodeEntry::getNodeId)
@@ -130,8 +127,10 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             asyncFetch(discoNodesToFetch, fetchingRound);
         }
 
+        assert assertFetchingCountConsistent();
+
         // if we are still fetching, return null to indicate it
-        if (hasAnyNodeFetching(cache)) {
+        if (hasAnyNodeFetching()) {
             return new FetchResult<>(shardId, null, emptySet());
         } else {
             // nothing to fetch, yay, build the return value
@@ -209,6 +208,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                         // if the entry is there, for the right fetching round and not marked as failed already, process it
                         logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
                         nodeEntry.doneFetching(response);
+                        fetchingCount--;
                     }
                 }
             }
@@ -236,6 +236,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                             || unwrappedCause instanceof ReceiveTimeoutTransportException
                             || unwrappedCause instanceof ElasticsearchTimeoutException) {
                             nodeEntry.restartFetching();
+                            fetchingCount--;
                         } else {
                             logger.warn(
                                 () -> new ParameterizedMessage(
@@ -247,12 +248,14 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                                 failure
                             );
                             nodeEntry.doneFetching(failure.getCause());
+                            fetchingCount--;
                         }
                     }
                 }
             }
         }
         reroute(shardId, "post_response");
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -264,7 +267,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Clear cache for node, ensuring next fetch will fetch a fresh copy.
      */
     synchronized void clearCacheForNode(String nodeId) {
-        cache.remove(nodeId);
+        NodeEntry<T> nodeEntry = cache.remove(nodeId);
+        if (nodeEntry != null && nodeEntry.fetching) {
+            fetchingCount--;
+        }
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -280,7 +287,18 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             }
         }
         // remove nodes that are not longer part of the data nodes set
-        shardCache.keySet().removeIf(nodeId -> nodes.nodeExists(nodeId) == false);
+        for (Iterator<Map.Entry<String, NodeEntry<T>>> iterator = shardCache.entrySet().iterator(); iterator.hasNext();) {
+            Map.Entry<String, NodeEntry<T>> entry = iterator.next();
+            String nodeId = entry.getKey();
+            NodeEntry<T> nodeEntry = entry.getValue();
+            if (nodes.nodeExists(nodeId) == false) {
+                if (nodeEntry.fetching) {
+                    fetchingCount--;
+                }
+                iterator.remove();
+            }
+        }
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -300,13 +318,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Are there any nodes that are fetching data?
      */
-    private boolean hasAnyNodeFetching(Map<String, NodeEntry<T>> shardCache) {
-        for (NodeEntry<T> nodeEntry : shardCache.values()) {
-            if (nodeEntry.isFetching()) {
-                return true;
-            }
-        }
-        return false;
+    private boolean hasAnyNodeFetching() {
+        return fetchingCount != 0;
     }
 
     /**
@@ -464,5 +477,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         long getFetchingRound() {
             return fetchingRound;
         }
+    }
+
+    private boolean assertFetchingCountConsistent() {
+        assert Thread.holdsLock(this);
+        assert fetchingCount == cache.values().stream().filter(NodeEntry::isFetching).count();
+        return true;
     }
 }

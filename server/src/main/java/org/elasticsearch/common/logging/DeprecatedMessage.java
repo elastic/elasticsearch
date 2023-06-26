@@ -49,7 +49,7 @@ public class DeprecatedMessage extends ESLogMessage {
         if (Strings.isNullOrEmpty(xOpaqueId) == false) {
             builder.put(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
         }
-        if (Strings.isNullOrEmpty(xOpaqueId) == false) {
+        if (Strings.isNullOrEmpty(productOrigin) == false) {
             builder.put(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
         }
         return builder.immutableMap();

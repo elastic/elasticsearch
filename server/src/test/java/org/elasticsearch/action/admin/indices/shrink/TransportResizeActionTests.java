@@ -278,16 +278,17 @@ public class TransportResizeActionTests extends ESTestCase {
     }
 
     public void testCalculateTargetShardsNum() {
-        assertEquals(TransportResizeAction.calTargetShardsNum(0, 0), 1);
-        assertEquals(TransportResizeAction.calTargetShardsNum(10, 0), 1);
-        assertEquals(TransportResizeAction.calTargetShardsNum(10, 1), 1);
-        assertEquals(TransportResizeAction.calTargetShardsNum(10, 2), 2);
-        assertEquals(TransportResizeAction.calTargetShardsNum(10, 3), 5);
-        assertEquals(TransportResizeAction.calTargetShardsNum(10, 6), 10);
-        assertEquals(TransportResizeAction.calTargetShardsNum(10, 11), 10);
-        assertEquals(TransportResizeAction.calTargetShardsNum(59, 21), 59);
-        assertEquals(TransportResizeAction.calTargetShardsNum(60, 21), 30);
-        assertEquals(TransportResizeAction.calTargetShardsNum(60, 31), 60);
+        assertEquals(1, TransportResizeAction.calTargetShardsNum(0, 0));
+        assertEquals(3, TransportResizeAction.calTargetShardsNum(9, 2));
+        assertEquals(1, TransportResizeAction.calTargetShardsNum(10, 0));
+        assertEquals(1, TransportResizeAction.calTargetShardsNum(10, 1));
+        assertEquals(2, TransportResizeAction.calTargetShardsNum(10, 2));
+        assertEquals(5, TransportResizeAction.calTargetShardsNum(10, 3));
+        assertEquals(10, TransportResizeAction.calTargetShardsNum(10, 6));
+        assertEquals(10, TransportResizeAction.calTargetShardsNum(10, 11));
+        assertEquals(59, TransportResizeAction.calTargetShardsNum(59, 21));
+        assertEquals(30, TransportResizeAction.calTargetShardsNum(60, 21));
+        assertEquals(60, TransportResizeAction.calTargetShardsNum(60, 31));
     }
 
     public void testShrinkWithMaxPrimaryShardSize() {

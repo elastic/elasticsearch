@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.core.TimeValue;
@@ -236,7 +237,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         grb.createNextHop(timeoutQuery).addVertexRequest("people").size(100).minDocCount(1);
 
         GraphExploreResponse response = grb.get();
-        assertTrue(response.isTimedOut());
+        assertTrue(Strings.toString(response), response.isTimedOut());
 
         checkVertexDepth(response, 0, "john", "paul", "george", "ringo");
 

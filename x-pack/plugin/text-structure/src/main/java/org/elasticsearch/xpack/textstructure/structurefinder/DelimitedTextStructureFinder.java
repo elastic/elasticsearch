@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
@@ -36,6 +37,8 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
     private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
     private static final int LONG_FIELD_THRESHOLD = 100;
+    private static final int LOW_CARDINALITY_MAX_SIZE = 5;
+    private static final int LOW_CARDINALITY_MIN_RATIO = 3;
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
@@ -188,11 +191,14 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                         explanation,
                         columnNamesList,
                         maxLinesPerMessage,
+                        delimiter,
                         delimiterPattern,
                         quotePattern,
                         fieldMappings,
+                        sampleRecords,
                         timeField.v1(),
-                        timeField.v2()
+                        timeField.v2(),
+                        timeoutChecker
                     )
                 );
 
@@ -215,11 +221,14 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                     explanation,
                     columnNamesList,
                     maxLinesPerMessage,
+                    delimiter,
                     delimiterPattern,
                     quotePattern,
                     fieldMappings,
+                    sampleRecords,
                     null,
-                    null
+                    null,
+                    timeoutChecker
                 )
             );
         }
@@ -752,11 +761,14 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         List<String> explanation,
         List<String> columnNames,
         int maxLinesPerMessage,
+        char delimiter,
         String delimiterPattern,
         String quotePattern,
         Map<String, Object> fieldMappings,
+        List<Map<String, ?>> sampleRecords,
         String timeFieldName,
-        TimestampFormatFinder timeFieldFormat
+        TimestampFormatFinder timeFieldFormat,
+        TimeoutChecker timeoutChecker
     ) {
 
         assert columnNames.isEmpty() == false;
@@ -801,6 +813,9 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                         case "double":
                             columnPattern = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
                             break;
+                        case "keyword":
+                            columnPattern = findLowCardinalityKeywordPattern(columnName, sampleRecords, timeoutChecker);
+                            break;
                         default:
                             columnPattern = null;
                             break;
@@ -819,12 +834,121 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                     }
                 }
             }
-            builder.append(".*?").append(delimiterPattern);
+            // We need to be strict about how many delimiters precede the chosen field,
+            // so if it's not the first then we cannot tolerate the preceding fields
+            // containing the delimiter. Additionally, there's no point choosing a field
+            // after a field that sometimes contains line breaks to identify the first
+            // line.
+            if (columnValueContainsDelimiterOrLineBreak(columnName, delimiter, sampleRecords, timeoutChecker)) {
+                throw new IllegalArgumentException(
+                    "Cannot create a multi-line start pattern. "
+                        + "No suitable column to match exists before the first column whose values contain line breaks or delimiters ["
+                        + columnName
+                        + "]. If the timestamp format was not identified correctly adding an override for this may help."
+                );
+            }
+            builder.append("[^");
+            // Within a negated character class we don't want to escape special regex
+            // characters like dot, hence shouldn't use the pre-built pattern
+            if (delimiter == '\t') {
+                builder.append("\\t");
+            } else {
+                builder.append(delimiter);
+            }
+            builder.append("]*?").append(delimiterPattern);
         }
         // TODO: if this happens a lot then we should try looking for the a multi-line END pattern instead of a start pattern.
         // But this would require changing the find_structure response, and the file upload UI, and would make creating Filebeat
         // configs from the find_structure response more complex, so let's wait to see if there's significant demand.
         explanation.add("Failed to create a suitable multi-line start pattern");
         return null;
+    }
+
+    /**
+     * @return <code>true</code> if the value of the field {@code columnName} in any record in the {@code sampleRecords}
+     *         contains the {@code delimiter} or a line break.
+     */
+    static boolean columnValueContainsDelimiterOrLineBreak(
+        String columnName,
+        char delimiter,
+        List<Map<String, ?>> sampleRecords,
+        TimeoutChecker timeoutChecker
+    ) {
+        for (Map<String, ?> sampleRecord : sampleRecords) {
+            timeoutChecker.check("delimiter search in multi-line start pattern determination");
+            Object value = sampleRecord.get(columnName);
+            if (value != null) {
+                String str = value.toString();
+                if (str.indexOf(delimiter) >= 0 || str.indexOf('\n') >= 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Try to find a regular expression that will match any of the values of a keyword field, providing:
+     * 1. There are only a small number of distinct values of that keyword field
+     * 2. The number of sampled records is several times bigger than the number of distinct values
+     * 3. None of the values is empty or contains a line break
+     * 4. None of the values matches the last line of a value of some other field in the sampled records
+     * @return A regular expression that will match the small number of distinct values of the keyword field, or
+     *         <code>null</code> if a suitable regular expression could not be found.
+     */
+    static String findLowCardinalityKeywordPattern(String columnName, List<Map<String, ?>> sampleRecords, TimeoutChecker timeoutChecker) {
+
+        int maxCardinality = Math.min(LOW_CARDINALITY_MAX_SIZE, sampleRecords.size() / LOW_CARDINALITY_MIN_RATIO);
+
+        // Find the distinct values of the column, aborting if there are too many or if any contain newlines.
+        Set<String> values = new HashSet<>();
+        for (Map<String, ?> sampleRecord : sampleRecords) {
+            Object value = sampleRecord.get(columnName);
+            if (value == null) {
+                return null;
+            }
+            String str = value.toString();
+            if (str.isEmpty() || str.indexOf('\n') >= 0) {
+                return null;
+            }
+            values.add(str);
+            if (values.size() > maxCardinality) {
+                return null;
+            }
+        }
+
+        // Check that none of the values exist in other columns.
+        // In the case of field values that span multiple lines, it's the part after the last newline that matters.
+        for (Map<String, ?> sampleRecord : sampleRecords) {
+            timeoutChecker.check("keyword-based multi-line start pattern determination");
+            if (sampleRecord.entrySet()
+                .stream()
+                .anyMatch(entry -> entry.getKey().equals(columnName) == false && containsLastLine(values, entry.getValue()))) {
+                return null;
+            }
+        }
+
+        return values.stream()
+            .map(value -> value.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1"))
+            .sorted()
+            .collect(Collectors.joining("|", "(?:", ")"));
+    }
+
+    /**
+     * @param set A set of strings.
+     * @param obj An object whose string representation may or may not contain line breaks.
+     * @return true if {@code set} contains the last line of {@code str} (i.e. the whole of {@code str} if it has no line breaks).
+     */
+    static boolean containsLastLine(Set<String> set, Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        String str = obj.toString();
+        int lastNewline = str.lastIndexOf('\n');
+        if (lastNewline >= 0) {
+            return set.contains(str.substring(lastNewline + 1));
+        } else {
+            return set.contains(str);
+        }
     }
 }

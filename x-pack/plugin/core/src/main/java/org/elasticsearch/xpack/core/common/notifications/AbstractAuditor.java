@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -169,10 +170,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 hasLatestTemplate.set(true);
             }
             logger.info("Auditor template [{}] successfully installed", templateName);
-            writeBacklog();
             putTemplateInProgress.set(false);
+            writeBacklog();
         }, e -> {
-            logger.warn("Error putting latest template [{}]", templateName);
+            logger.warn(String.format(Locale.ROOT, "Error putting latest template [%s]", templateName), e);
             putTemplateInProgress.set(false);
         });
 
@@ -187,7 +188,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                     }
                     backlog.add(toXContent);
                 } else {
-                    logger.error("Latest audit template missing but the back log has been written");
+                    logger.error("Latest audit template missing and audit message cannot be added to the backlog");
                 }
 
                 // stop multiple invocations

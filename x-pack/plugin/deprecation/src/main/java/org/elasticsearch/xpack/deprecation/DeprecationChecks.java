@@ -47,7 +47,6 @@ public class DeprecationChecks {
         Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
-            ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
             ClusterDeprecationChecks::checkTemplatesWithCustomAndMultipleTypes,
             ClusterDeprecationChecks::checkTemplatesWithChainedMultiFields,
@@ -58,11 +57,11 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkComponentTemplatesWithBoostedFields,
             ClusterDeprecationChecks::checkTemplatesWithBoostFieldsInDynamicTemplates,
             ClusterDeprecationChecks::checkComponentTemplatesWithBoostedFieldsInDynamicTemplates,
-            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,
             ClusterDeprecationChecks::checkILMFreezeActions,
-            ClusterDeprecationChecks::emptyDataTierPreferenceCheck
+            ClusterDeprecationChecks::emptyDataTierPreferenceCheck,
+            ClusterDeprecationChecks::checkShards
         )
     );
 
@@ -241,7 +240,9 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkXpackDataFrameEnabledSetting,
                 NodeDeprecationChecks::checkWatcherHistoryCleanerServiceSetting,
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
-                NodeDeprecationChecks::checkEqlEnabledSetting
+                NodeDeprecationChecks::checkEqlEnabledSetting,
+                NodeDeprecationChecks::checkNodeAttrData,
+                NodeDeprecationChecks::checkPollIntervalTooLow
             )
         ).collect(Collectors.toList());
     }
@@ -249,12 +250,12 @@ public class DeprecationChecks {
     static List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = Collections.unmodifiableList(
         Arrays.asList(
             (clusterState, indexMetadata) -> IndexDeprecationChecks.oldIndicesCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.tooManyFieldsCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsDynamicTemplateCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.boostMappingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.boostDynamicTemplateCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedJodaDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedCamelCasePattern(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.translogRetentionSettingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.fieldNamesDisabledCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexDataPath(indexMetadata),

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
+import org.elasticsearch.gradle.internal.util.SerializableFunction;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
@@ -15,6 +16,7 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -28,7 +30,6 @@ import org.gradle.internal.Factory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -53,8 +54,8 @@ public class CopyRestApiTask extends DefaultTask {
     private boolean skipHasRestTestCheck;
     private FileCollection config;
     private FileCollection additionalConfig;
-    private Function<FileCollection, FileTree> configToFileTree = FileCollection::getAsFileTree;
-    private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> configToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable patternSet;
     private final ProjectLayout projectLayout;
@@ -86,6 +87,7 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     @SkipWhenEmpty
+    @IgnoreEmptyDirectories
     @InputFiles
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
@@ -174,11 +176,11 @@ public class CopyRestApiTask extends DefaultTask {
         this.additionalConfig = additionalConfig;
     }
 
-    public void setConfigToFileTree(Function<FileCollection, FileTree> configToFileTree) {
+    public void setConfigToFileTree(SerializableFunction<FileCollection, FileTree> configToFileTree) {
         this.configToFileTree = configToFileTree;
     }
 
-    public void setAdditionalConfigToFileTree(Function<FileCollection, FileTree> additionalConfigToFileTree) {
+    public void setAdditionalConfigToFileTree(SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree) {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 

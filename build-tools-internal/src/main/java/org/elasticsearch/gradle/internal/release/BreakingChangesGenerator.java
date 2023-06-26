@@ -21,51 +21,61 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
 
 /**
- * Generates the page that lists the breaking changes and deprecations for a minor version release.
+ * Generates the page that contains breaking changes deprecations for a minor release series.
  */
 public class BreakingChangesGenerator {
 
-    static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
-        try (FileWriter output = new FileWriter(outputFile)) {
+    static void update(File migrationTemplateFile, File migrationOutputFile, List<ChangelogEntry> entries) throws IOException {
+        try (FileWriter output = new FileWriter(migrationOutputFile)) {
             output.write(
-                generateFile(QualifiedVersion.of(VersionProperties.getElasticsearch()), Files.readString(templateFile.toPath()), entries)
+                generateMigrationFile(
+                    QualifiedVersion.of(VersionProperties.getElasticsearch()),
+                    Files.readString(migrationTemplateFile.toPath()),
+                    entries
+                )
             );
         }
     }
 
     @VisibleForTesting
-    static String generateFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
+    static String generateMigrationFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
+        final Map<Boolean, Map<String, List<ChangelogEntry.Deprecation>>> deprecationsByNotabilityByArea = entries.stream()
+            .map(ChangelogEntry::getDeprecation)
+            .filter(Objects::nonNull)
+            .sorted(comparing(ChangelogEntry.Deprecation::getTitle))
+            .collect(
+                groupingBy(
+                    ChangelogEntry.Deprecation::isNotable,
+                    TreeMap::new,
+                    groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, toList())
+                )
+            );
 
-        final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingChangesByNotabilityByArea = entries.stream()
+        final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingByNotabilityByArea = entries.stream()
             .map(ChangelogEntry::getBreaking)
             .filter(Objects::nonNull)
             .sorted(comparing(ChangelogEntry.Breaking::getTitle))
             .collect(
                 groupingBy(
                     ChangelogEntry.Breaking::isNotable,
-                    groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, Collectors.toList())
+                    TreeMap::new,
+                    groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, toList())
                 )
             );
 
-        final Map<String, List<ChangelogEntry.Deprecation>> deprecationsByArea = entries.stream()
-            .map(ChangelogEntry::getDeprecation)
-            .filter(Objects::nonNull)
-            .sorted(comparing(ChangelogEntry.Deprecation::getTitle))
-            .collect(groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, Collectors.toList()));
-
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("breakingChangesByNotabilityByArea", breakingChangesByNotabilityByArea);
-        bindings.put("deprecationsByArea", deprecationsByArea);
+        bindings.put("breakingByNotabilityByArea", breakingByNotabilityByArea);
+        bindings.put("deprecationsByNotabilityByArea", deprecationsByNotabilityByArea);
         bindings.put("isElasticsearchSnapshot", version.isSnapshot());
-        bindings.put("majorDotMinor", version.getMajor() + "." + version.getMinor());
-        bindings.put("majorMinor", String.valueOf(version.getMajor()) + version.getMinor());
-        bindings.put("nextMajor", (version.getMajor() + 1) + ".0");
+        bindings.put("majorDotMinor", version.major() + "." + version.minor());
+        bindings.put("majorMinor", String.valueOf(version.major()) + version.minor());
+        bindings.put("nextMajor", (version.major() + 1) + ".0");
         bindings.put("version", version);
 
         return TemplateUtils.render(template, bindings);

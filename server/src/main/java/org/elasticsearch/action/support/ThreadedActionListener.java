@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.Client;
@@ -90,6 +89,11 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
             protected void doRun() {
                 listener.onResponse(response);
             }
+
+            @Override
+            public String toString() {
+                return ThreadedActionListener.this + "/onResponse";
+            }
         });
     }
 
@@ -102,14 +106,36 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 delegate.onFailure(e);
             }
 
             @Override
+            public void onRejection(Exception e2) {
+                e.addSuppressed(e2);
+                try {
+                    delegate.onFailure(e);
+                } catch (Exception e3) {
+                    e.addSuppressed(e3);
+                    onFailure(e);
+                }
+            }
+
+            @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to execute failure callback on [{}]", delegate), e);
+                assert false : e;
+                logger.error(() -> "failed to execute failure callback on [" + delegate + "]", e);
+            }
+
+            @Override
+            public String toString() {
+                return ThreadedActionListener.this + "/onFailure";
             }
         });
+    }
+
+    @Override
+    public String toString() {
+        return "ThreadedActionListener[" + executor + "/" + delegate + "]";
     }
 }

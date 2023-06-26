@@ -66,12 +66,12 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
-  api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
-  api "com.nimbusds:nimbus-jose-jwt:9.8.1"
+  api "com.nimbusds:oauth2-oidc-sdk:9.37"
+  api "com.nimbusds:nimbus-jose-jwt:9.23"
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
-  api "net.minidev:json-smart:2.4.2"
+  api "net.minidev:json-smart:2.4.10"
   api "net.minidev:accessors-smart:2.4.2"
   api "org.ow2.asm:asm:9.1"
 
@@ -90,7 +90,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:9.8.1')
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.23')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')
@@ -186,7 +186,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.servlet.FilterConfig',
     'javax.servlet.RequestDispatcher',
     'javax.servlet.ServletContext',
-    'javax.servlet.ServletException',
     'javax.servlet.ServletInputStream',
     'javax.servlet.ServletOutputStream',
     'javax.servlet.ServletRequest',
@@ -201,7 +200,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.velocity.VelocityContext',
     'org.apache.velocity.app.VelocityEngine',
     'org.apache.velocity.context.Context',
-    'org.apache.velocity.exception.VelocityException',
     'org.apache.velocity.runtime.RuntimeServices',
     'org.apache.velocity.runtime.log.LogChute',
     'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
@@ -209,7 +207,6 @@ tasks.named("thirdPartyAudit").configure {
     // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
     'org.apache.xml.dtm.DTM',
     'org.apache.xml.utils.PrefixResolver',
-    'org.apache.xml.utils.PrefixResolverDefault',
     'org.apache.xpath.Expression',
     'org.apache.xpath.NodeSetDTM',
     'org.apache.xpath.XPath',
@@ -223,12 +220,10 @@ tasks.named("thirdPartyAudit").configure {
     'org.ldaptive.AttributeModificationType',
     'org.ldaptive.Connection',
     'org.ldaptive.DeleteOperation',
-    'org.ldaptive.DeleteRequest',
     'org.ldaptive.LdapAttribute',
     'org.ldaptive.LdapEntry',
     'org.ldaptive.LdapException',
     'org.ldaptive.ModifyOperation',
-    'org.ldaptive.ModifyRequest',
     'org.ldaptive.Response',
     'org.ldaptive.ResultCode',
     'org.ldaptive.SearchOperation',
@@ -240,7 +235,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.ldaptive.pool.PooledConnectionFactory',
     // [missing classes] OpenSAML storage has an optional JSON-backed storage impl
     'javax.json.Json',
-    'javax.json.JsonException',
     'javax.json.JsonNumber',
     'javax.json.JsonObject',
     'javax.json.JsonReader',
@@ -277,7 +271,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.asn1.ASN1Sequence',
     'org.bouncycastle.asn1.ASN1TaggedObject',
     'org.bouncycastle.asn1.DEROctetString',
-    'org.bouncycastle.asn1.DERSequence',
     'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
     'org.bouncycastle.asn1.pkcs.EncryptionScheme',
     'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
@@ -316,72 +309,16 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.crypto.InvalidCipherTextException',
     'org.bouncycastle.crypto.PBEParametersGenerator',
     'org.bouncycastle.crypto.StreamCipher',
-    'org.bouncycastle.crypto.digests.GOST3411Digest',
-    'org.bouncycastle.crypto.digests.MD2Digest',
-    'org.bouncycastle.crypto.digests.MD4Digest',
-    'org.bouncycastle.crypto.digests.MD5Digest',
-    'org.bouncycastle.crypto.digests.RIPEMD128Digest',
-    'org.bouncycastle.crypto.digests.RIPEMD160Digest',
-    'org.bouncycastle.crypto.digests.RIPEMD256Digest',
-    'org.bouncycastle.crypto.digests.RIPEMD320Digest',
-    'org.bouncycastle.crypto.digests.SHA1Digest',
-    'org.bouncycastle.crypto.digests.SHA224Digest',
-    'org.bouncycastle.crypto.digests.SHA256Digest',
-    'org.bouncycastle.crypto.digests.SHA384Digest',
-    'org.bouncycastle.crypto.digests.SHA3Digest',
-    'org.bouncycastle.crypto.digests.SHA512Digest',
-    'org.bouncycastle.crypto.digests.TigerDigest',
-    'org.bouncycastle.crypto.digests.WhirlpoolDigest',
     'org.bouncycastle.crypto.engines.AESEngine',
-    'org.bouncycastle.crypto.engines.BlowfishEngine',
-    'org.bouncycastle.crypto.engines.CAST5Engine',
-    'org.bouncycastle.crypto.engines.CAST6Engine',
-    'org.bouncycastle.crypto.engines.CamelliaEngine',
-    'org.bouncycastle.crypto.engines.DESEngine',
-    'org.bouncycastle.crypto.engines.DESedeEngine',
-    'org.bouncycastle.crypto.engines.GOST28147Engine',
-    'org.bouncycastle.crypto.engines.Grain128Engine',
-    'org.bouncycastle.crypto.engines.HC128Engine',
-    'org.bouncycastle.crypto.engines.HC256Engine',
-    'org.bouncycastle.crypto.engines.ISAACEngine',
-    'org.bouncycastle.crypto.engines.NoekeonEngine',
-    'org.bouncycastle.crypto.engines.RC2Engine',
-    'org.bouncycastle.crypto.engines.RC4Engine',
-    'org.bouncycastle.crypto.engines.RC532Engine',
-    'org.bouncycastle.crypto.engines.RC564Engine',
-    'org.bouncycastle.crypto.engines.RC6Engine',
-    'org.bouncycastle.crypto.engines.SEEDEngine',
-    'org.bouncycastle.crypto.engines.Salsa20Engine',
-    'org.bouncycastle.crypto.engines.SerpentEngine',
-    'org.bouncycastle.crypto.engines.SkipjackEngine',
-    'org.bouncycastle.crypto.engines.TEAEngine',
-    'org.bouncycastle.crypto.engines.TwofishEngine',
-    'org.bouncycastle.crypto.engines.VMPCEngine',
-    'org.bouncycastle.crypto.engines.XTEAEngine',
     'org.bouncycastle.crypto.generators.BCrypt',
     'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
     'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
     'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
-    'org.bouncycastle.crypto.io.CipherInputStream',
-    'org.bouncycastle.crypto.io.CipherOutputStream',
     'org.bouncycastle.crypto.macs.HMac',
     'org.bouncycastle.crypto.modes.AEADBlockCipher',
-    'org.bouncycastle.crypto.modes.CBCBlockCipher',
-    'org.bouncycastle.crypto.modes.CCMBlockCipher',
-    'org.bouncycastle.crypto.modes.CFBBlockCipher',
-    'org.bouncycastle.crypto.modes.EAXBlockCipher',
     'org.bouncycastle.crypto.modes.GCMBlockCipher',
-    'org.bouncycastle.crypto.modes.OCBBlockCipher',
-    'org.bouncycastle.crypto.modes.OFBBlockCipher',
     'org.bouncycastle.crypto.paddings.BlockCipherPadding',
-    'org.bouncycastle.crypto.paddings.ISO10126d2Padding',
-    'org.bouncycastle.crypto.paddings.ISO7816d4Padding',
-    'org.bouncycastle.crypto.paddings.PKCS7Padding',
     'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
-    'org.bouncycastle.crypto.paddings.TBCPadding',
-    'org.bouncycastle.crypto.paddings.X923Padding',
-    'org.bouncycastle.crypto.paddings.ZeroBytePadding',
-    'org.bouncycastle.crypto.params.AEADParameters',
     'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
     'org.bouncycastle.crypto.params.DSAKeyParameters',
     'org.bouncycastle.crypto.params.DSAParameters',
@@ -392,15 +329,11 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
     'org.bouncycastle.crypto.params.ECPublicKeyParameters',
     'org.bouncycastle.crypto.params.KeyParameter',
-    'org.bouncycastle.crypto.params.ParametersWithIV',
-    'org.bouncycastle.crypto.params.RC2Parameters',
-    'org.bouncycastle.crypto.params.RC5Parameters',
     'org.bouncycastle.crypto.params.RSAKeyParameters',
     'org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters',
     'org.bouncycastle.crypto.prng.EntropySource',
     'org.bouncycastle.crypto.prng.SP800SecureRandom',
     'org.bouncycastle.crypto.prng.SP800SecureRandomBuilder',
-    'org.bouncycastle.crypto.prng.drbg.HashSP800DRBG',
     'org.bouncycastle.crypto.prng.drbg.SP80090DRBG',
     'org.bouncycastle.crypto.signers.DSASigner',
     'org.bouncycastle.crypto.signers.ECDSASigner',
@@ -416,12 +349,10 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
     'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-    'org.bouncycastle.jce.spec.ECNamedCurveGenParameterSpec',
     'org.bouncycastle.math.ec.ECFieldElement',
     'org.bouncycastle.math.ec.ECPoint',
     'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-    'org.bouncycastle.operator.OperatorCreationException',
     'org.bouncycastle.util.Arrays',
     'org.bouncycastle.util.Strings',
     'org.bouncycastle.util.io.Streams',
@@ -453,6 +384,7 @@ tasks.named("thirdPartyAudit").configure {
           'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
           'com.google.crypto.tink.subtle.Ed25519Verify',
           'com.google.crypto.tink.subtle.X25519',
+          'com.google.crypto.tink.subtle.XChaCha20Poly1305',
           'com.nimbusds.common.contenttype.ContentType'
   )
 

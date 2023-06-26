@@ -22,6 +22,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -69,10 +70,11 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
-        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
+        final Store store = indexShard.store();
+        final SearchableSnapshotDirectory directory = unwrapDirectory(store.directory());
         assert directory != null;
         final StepListener<Void> preWarmListener = new StepListener<>();
-        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);
+        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), store::isClosing, preWarmListener);
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();

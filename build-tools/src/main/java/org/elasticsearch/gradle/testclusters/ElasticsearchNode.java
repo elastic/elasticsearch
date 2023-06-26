@@ -38,7 +38,6 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -154,8 +153,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
-    private final Path esLogFile;
-    private final Path esStdinFile;
+    private final Path esOutputFile;
+    private final Path esInputFile;
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
 
@@ -203,8 +202,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
-        esLogFile = confPathLogs.resolve(clusterName + ".log");
-        esStdinFile = workingDir.resolve("es.stdin");
+        esOutputFile = confPathLogs.resolve("es.out");
+        esInputFile = workingDir.resolve("es.in");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
         defaultConfig.put("cluster.name", clusterName);
@@ -338,7 +337,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
         Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
-        extractedConfig.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         extractedConfig.getAttributes().attribute(bundleAttribute, true);
         pluginAndModuleConfiguration.from(extractedConfig);
     }
@@ -348,10 +347,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
                 .attribute(bundleAttribute, true);
             transformSpec.getTo()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(bundleAttribute, true);
             transformSpec.getParameters().setAsFiletreeOutput(true);
         });
@@ -475,15 +474,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
-    /**
-     * Returns a stream of lines in the generated logs similar to Files.lines
-     *
-     * @return stream of log lines
-     */
-    public Stream<String> logLines() throws IOException {
-        return Files.lines(esLogFile, StandardCharsets.UTF_8);
-    }
-
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
@@ -604,11 +594,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void logToProcessStdout(String message) {
         try {
-            if (Files.exists(esLogFile.getParent()) == false) {
-                Files.createDirectories(esLogFile.getParent());
+            if (Files.exists(esOutputFile.getParent()) == false) {
+                Files.createDirectories(esOutputFile.getParent());
             }
             Files.write(
-                esLogFile,
+                esOutputFile,
                 ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
@@ -907,14 +897,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getESEnvironment());
 
-        // Just toss the output since we rely on the normal log file written by Elasticsearch
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
+        // Direct the stderr to the ES log file. This should capture any jvm problems to start.
+        // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esOutputFile.toFile()));
+        processBuilder.redirectErrorStream(true);
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
-                Files.write(esStdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
-                processBuilder.redirectInput(esStdinFile.toFile());
+                Files.write(esInputFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+                processBuilder.redirectInput(esInputFile.toFile());
             } catch (IOException e) {
                 throw new TestClustersException("Failed to set the keystore password for " + this, e);
             }
@@ -1006,7 +997,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        logFileContents("Log output of node", esLogFile, tailLogs);
+        logFileContents("Log output of node", esOutputFile, tailLogs);
     }
 
     @Override
@@ -1578,8 +1569,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    Path getEsLogFile() {
-        return esLogFile;
+    Path getEsOutputFile() {
+        return esOutputFile;
     }
 
     private static class FileEntry implements Named {

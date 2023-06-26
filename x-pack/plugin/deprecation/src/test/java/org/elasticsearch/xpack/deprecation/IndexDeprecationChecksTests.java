@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -41,7 +41,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
@@ -81,87 +80,6 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata)
         );
         assertEquals(singletonList(expected), issues);
-    }
-
-    public void testTooManyFieldsCheck() throws IOException {
-        String simpleMapping = "{\n"
-            + "  \"properties\": {\n"
-            + "    \"some_field\": {\n"
-            + "      \"type\": \"text\"\n"
-            + "    },\n"
-            + "    \"other_field\": {\n"
-            + "      \"type\": \"text\",\n"
-            + "      \"properties\": {\n"
-            + "        \"raw\": {\"type\": \"keyword\"}\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
-
-        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_0_0))
-            .numberOfShards(randomIntBetween(1, 100))
-            .numberOfReplicas(randomIntBetween(1, 100))
-            .putMapping("_doc", simpleMapping)
-            .build();
-        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(
-            INDEX_SETTINGS_CHECKS,
-            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
-        );
-        assertEquals(0, noIssues.size());
-
-        // Test that it catches having too many fields
-        int fieldCount = randomIntBetween(1025, 10_000); // 10_000 is arbitrary
-
-        XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject();
-        {
-            mappingBuilder.startObject("properties");
-            {
-                addRandomFields(fieldCount, mappingBuilder);
-            }
-            mappingBuilder.endObject();
-        }
-        mappingBuilder.endObject();
-
-        IndexMetadata tooManyFieldsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_0_0))
-            .numberOfShards(randomIntBetween(1, 100))
-            .numberOfReplicas(randomIntBetween(1, 100))
-            .putMapping("_doc", Strings.toString(mappingBuilder))
-            .build();
-        DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
-            "Number of fields exceeds automatic field expansion limit",
-            "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-            "This index has "
-                + fieldCount
-                + " fields, which exceeds the automatic field expansion limit (1024). Set "
-                + IndexSettings.DEFAULT_FIELD_SETTING.getKey()
-                + " to prevent queries that support automatic field expansion from failing "
-                + "if no fields are specified. Otherwise, you must explicitly specify fields in all query_string, simple_query_string, and "
-                + "multi_match queries.",
-            false,
-            null
-        );
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            INDEX_SETTINGS_CHECKS,
-            c -> c.apply(ClusterState.EMPTY_STATE, tooManyFieldsIndex)
-        );
-        assertEquals(singletonList(expected), issues);
-
-        // Check that it's okay to have too many fields as long as `index.query.default_field` is set
-        IndexMetadata tooManyFieldsOk = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_0_0).put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), randomAlphaOfLength(5)))
-            .numberOfShards(randomIntBetween(1, 100))
-            .numberOfReplicas(randomIntBetween(1, 100))
-            .putMapping("_doc", Strings.toString(mappingBuilder))
-            .build();
-        List<DeprecationIssue> withDefaultFieldIssues = DeprecationChecks.filterChecks(
-            INDEX_SETTINGS_CHECKS,
-            c -> c.apply(ClusterState.EMPTY_STATE, tooManyFieldsOk)
-        );
-        assertEquals(0, withDefaultFieldIssues.size());
     }
 
     public void testChainedMultiFields() throws IOException {
@@ -430,7 +348,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "}";
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
-        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedJodaDateTimeFormat(simpleIndex);
         assertNull(issue);
     }
 
@@ -445,7 +363,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "}";
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
-        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedJodaDateTimeFormat(simpleIndex);
         assertNull(issue);
     }
 
@@ -604,6 +522,73 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, hasItem(expected));
     }
 
+    public void testCamelCaseDeprecation() throws IOException {
+        String simpleMapping = "{\n"
+            + "\"properties\" : {\n"
+            + "   \"date_time_field\" : {\n"
+            + "       \"type\" : \"date\",\n"
+            + "       \"format\" : \"strictDateOptionalTime\"\n"
+            + "       }\n"
+            + "   }"
+            + "}";
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_0_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", simpleMapping)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Date fields use deprecated camel case formats",
+            "https://ela.st/es-deprecation-7-camel-case-format",
+            "Convert [date_time_field] format [strictDateOptionalTime] "
+                + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time].",
+            false,
+            null
+        );
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testCamelCaseDeprecationOnCombined() throws IOException {
+        String simpleMapping = "{\n"
+            + "\"properties\" : {\n"
+            + "   \"date_time_field\" : {\n"
+            + "       \"type\" : \"date\",\n"
+            + "       \"format\" : \"strictDateOptionalTime||strictWeekDateTime||epoch_seconds\"\n"
+            + "       }\n"
+            + "   }"
+            + "}";
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_0_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", simpleMapping)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Date fields use deprecated camel case formats",
+            "https://ela.st/es-deprecation-7-camel-case-format",
+            "Convert [date_time_field] format [strictDateOptionalTime||strictWeekDateTime||epoch_seconds] "
+                + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time]. "
+                + "[strictWeekDateTime] to [strict_week_date_time].",
+            false,
+            null
+        );
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
     public IndexMetadata createV6Index(String simpleMapping) throws IOException {
         return IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
             .settings(
@@ -673,7 +658,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                         + "The translog has not been used in peer recoveries with soft-deletes enabled since 7.0 and these settings "
                         + "have no effect.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Arrays.asList("index.translog.retention.size", "index.translog.retention.age")
+                    )
                 )
             )
         );
@@ -764,21 +751,25 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             issues,
             containsInAnyOrder(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "Setting [index.search.slowlog.level] is deprecated",
                     expectedUrl,
                     "Remove the [index.search.slowlog.level] setting. Use the [index.*.slowlog.threshold] settings to set the log levels.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Collections.singletonList(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey())
+                    )
                 ),
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "Setting [index.indexing.slowlog.level] is deprecated",
                     expectedUrl,
                     "Remove the [index.indexing.slowlog.level] setting. Use the [index.*.slowlog.threshold]"
                         + " settings to set the log levels.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Collections.singletonList(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey())
+                    )
                 )
             )
         );
@@ -825,7 +816,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 settingValue
             ),
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(INDEX_ROUTING_REQUIRE_SETTING.getKey()))
         );
         final DeprecationIssue expectedIncludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -838,7 +829,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 settingValue
             ),
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(INDEX_ROUTING_INCLUDE_SETTING.getKey()))
         );
         final DeprecationIssue expectedExcludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -850,7 +841,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey()
             ),
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(INDEX_ROUTING_EXCLUDE_SETTING.getKey()))
         );
 
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
@@ -979,7 +970,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "Remove the [index.max_adjacency_matrix_filters] setting. Set [indices.query.bool.max_clause_count] to [5]. "
                         + "[index.max_adjacency_matrix_filters] will be ignored in 8.0.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Collections.singletonList(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey())
+                    )
                 )
             )
         );
@@ -1057,7 +1050,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-mapper-dynamic-setting",
             "Remove the [index.mapper.dynamic] setting.",
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(
+                Collections.singletonList(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey())
+            )
         );
         assertThat(issues, hasItem(expected));
     }

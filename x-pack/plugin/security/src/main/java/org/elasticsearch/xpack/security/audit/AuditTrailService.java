@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -150,10 +150,10 @@ public class AuditTrailService {
         public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {}
 
         @Override
-        public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {}
+        public void connectionGranted(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule) {}
 
         @Override
-        public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {}
+        public void connectionDenied(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule) {}
 
         @Override
         public void runAsGranted(
@@ -362,14 +362,14 @@ public class AuditTrailService {
         }
 
         @Override
-        public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
+        public void connectionGranted(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.connectionGranted(inetAddress, profile, rule);
             }
         }
 
         @Override
-        public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
+        public void connectionDenied(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.connectionDenied(inetAddress, profile, rule);
             }

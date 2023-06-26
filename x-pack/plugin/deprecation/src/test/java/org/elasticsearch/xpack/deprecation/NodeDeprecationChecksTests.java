@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -17,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -76,15 +78,18 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.coordination.JoinHelper.JOIN_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.elasticsearch.common.settings.Setting.Property;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.JAVA_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -722,7 +727,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
         assertThat(issue, not(nullValue()));
-        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
         assertThat(issue.getMessage(), equalTo("Specifying multiple data paths is deprecated"));
         assertThat(
             issue.getDetails(),
@@ -747,7 +752,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
         assertThat(issue, not(nullValue()));
-        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
         assertThat(issue.getMessage(), equalTo("Multiple data paths are not supported"));
         assertThat(
             issue.getDetails(),
@@ -779,7 +784,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue,
             equalTo(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "Setting [path.shared_data] is deprecated",
                     expectedUrl,
                     "Remove the [path.shared_data] setting. This setting has had no effect since 6.0.",
@@ -884,6 +889,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testMonitoringExporterPassword() {
+        DiscoveryNode node1 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1);
+
         // test for presence of deprecated exporter passwords
         final int numExporterPasswords = randomIntBetween(1, 3);
         final String[] exporterNames = new String[numExporterPasswords];
@@ -894,7 +902,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
         final Settings settings = b.build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null, licenseState);
+        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, state, licenseState);
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-passwords";
         final String joinedNames = Arrays.stream(exporterNames)
             .map(s -> "xpack.monitoring.exporters." + s + ".auth.password")
@@ -921,7 +929,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, state, licenseState);
         assertThat(issue, nullValue());
     }
 
@@ -953,6 +961,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testCheckSearchRemoteSettings() {
+        DiscoveryNode node1 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1);
+
         // test for presence of deprecated exporter passwords
         final int numClusters = randomIntBetween(1, 3);
         final String[] clusterNames = new String[numClusters];
@@ -1003,7 +1014,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, state, licenseState);
         assertThat(issue, nullValue());
     }
 
@@ -1412,59 +1423,69 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testTierAllocationSettings() {
-        String settingValue = DataTier.DATA_HOT;
-        final Settings settings = settings(Version.CURRENT).put(INDEX_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
-            .put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
-            .put(INDEX_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+        final Settings settings = settings(Version.CURRENT).put(CLUSTER_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(CLUSTER_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(CLUSTER_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
             .build();
         final DeprecationIssue expectedRequireIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", CLUSTER_ROUTING_REQUIRE_SETTING.getKey()),
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(
                 Locale.ROOT,
                 "Remove the [%s] setting. Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
-                INDEX_ROUTING_REQUIRE_SETTING.getKey()
+                CLUSTER_ROUTING_REQUIRE_SETTING.getKey()
             ),
             false,
             null
         );
         final DeprecationIssue expectedIncludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", CLUSTER_ROUTING_INCLUDE_SETTING.getKey()),
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(
                 Locale.ROOT,
                 "Remove the [%s] setting. Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
-                INDEX_ROUTING_INCLUDE_SETTING.getKey()
+                CLUSTER_ROUTING_INCLUDE_SETTING.getKey()
             ),
             false,
             null
         );
         final DeprecationIssue expectedExcludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", CLUSTER_ROUTING_EXCLUDE_SETTING.getKey()),
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(
                 Locale.ROOT,
                 "Remove the [%s] setting. Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
-                INDEX_ROUTING_EXCLUDE_SETTING.getKey()
+                CLUSTER_ROUTING_EXCLUDE_SETTING.getKey()
             ),
             false,
             null
         );
 
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        assertThat(IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata), equalTo(expectedRequireIssue));
-        assertThat(IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata), equalTo(expectedIncludeIssue));
-        assertThat(IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata), equalTo(expectedExcludeIssue));
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        ClusterState clusterState = ClusterState.EMPTY_STATE;
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingRequireSetting(settings, pluginsAndModules, clusterState, licenseState),
+            equalTo(expectedRequireIssue)
+        );
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingIncludeSetting(settings, pluginsAndModules, clusterState, licenseState),
+            equalTo(expectedIncludeIssue)
+        );
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingExcludeSetting(settings, pluginsAndModules, clusterState, licenseState),
+            equalTo(expectedExcludeIssue)
+        );
 
         final String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! "
             + "See the breaking changes documentation for the next major version.";
         final String[] expectedWarnings = {
-            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_REQUIRE_SETTING.getKey()),
-            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_INCLUDE_SETTING.getKey()),
-            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_EXCLUDE_SETTING.getKey()), };
+            String.format(Locale.ROOT, warningTemplate, CLUSTER_ROUTING_REQUIRE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, CLUSTER_ROUTING_INCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, CLUSTER_ROUTING_EXCLUDE_SETTING.getKey()), };
 
         assertWarnings(expectedWarnings);
     }
@@ -1849,7 +1870,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + settingKey + "]",
+                    "Remove the following settings: [" + settingKey + "]",
                     false,
                     null
                 )
@@ -1857,26 +1878,41 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    void monitoringExporterGroupedSetting(String suffix, String value) {
-        String settingKey = "xpack.monitoring.exporters.test." + suffix;
-        String subSettingKey = settingKey + ".subsetting";
-        Settings settings = Settings.builder().put(subSettingKey, value).build();
-        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+    void monitoringExporterGroupedSetting(String suffix, String value) throws JsonProcessingException {
+        String settingKey1 = "xpack.monitoring.exporters.test1." + suffix;
+        String settingKey2 = "xpack.monitoring.exporters.test2." + suffix;
+        String subSettingKey1 = settingKey1 + ".subsetting1";
+        String subSetting1Key2 = settingKey2 + ".subsetting1";
+        String subSetting2Key2 = settingKey2 + ".subsetting2";
+        Settings nodeSettings = Settings.builder().put(subSettingKey1, value).build();
+        Settings dynamicSettings = Settings.builder().put(subSetting1Key2, value).put(subSetting2Key2, value).build();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.persistentSettings(dynamicSettings);
+        } else {
+            metadataBuilder.transientSettings(dynamicSettings);
+        }
+        Metadata metadata = metadataBuilder.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(nodeSettings, () -> 0);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             MONITORING_SETTINGS_CHECKS,
-            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
+            c -> c.apply(nodeSettings, null, clusterState, licenseState)
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        Map<String, Object> meta = null;
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
+                    "The [" + settingKey1 + ".*," + settingKey2 + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + subSettingKey + "]",
+                    "Remove the following settings: [" + subSettingKey1 + "," + subSetting1Key2 + "," + subSetting2Key2 + "]",
                     false,
-                    null
+                    meta
                 )
             )
         );
@@ -1972,7 +2008,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         monitoringExporterSecureSetting("auth.secure_password", "abcdef");
     }
 
-    public void testCheckMonitoringSettingExportersSSL() {
+    public void testCheckMonitoringSettingExportersSSL() throws JsonProcessingException {
         monitoringExporterGroupedSetting("ssl", "abcdef");
     }
 
@@ -1984,7 +2020,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         monitoringExporterSetting("sniff.enabled", "true");
     }
 
-    public void testCheckMonitoringSettingExportersHeaders() {
+    public void testCheckMonitoringSettingExportersHeaders() throws JsonProcessingException {
         monitoringExporterGroupedSetting("headers", "abcdef");
     }
 
@@ -2036,7 +2072,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.use_ingest", true).build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterUseIngestPipelineSettings(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterUseIngestPipelineSettings(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting";
@@ -2047,7 +2083,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.use_ingest]",
                     false,
                     null
                 )
@@ -2061,7 +2097,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterPipelineMasterTimeoutSetting(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterPipelineMasterTimeoutSetting(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting";
@@ -2073,7 +2109,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are"
                         + " deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,
                     null
                 )
@@ -2085,7 +2121,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.index.template.create_legacy_templates", true).build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterCreateLegacyTemplateSetting(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterCreateLegacyTemplateSetting(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting";
@@ -2097,8 +2133,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be "
                         + "removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: "
-                        + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
+                    "Remove the following settings: " + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                     false,
                     null
                 )
@@ -2207,7 +2242,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
     }
 
-    public void testDynamicSettings() {
+    public void testDynamicSettings() throws JsonProcessingException {
         Settings clusterSettings = Settings.builder()
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
             .build();
@@ -2230,6 +2265,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         Collection<Setting<?>> deprecatedSettings = Set.of(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING);
+        Map<String, Object> meta = buildMetaObjectForRemovableSettings("discovery.zen.minimum_master_nodes");
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
@@ -2237,10 +2273,19 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "https://ela.st/es-deprecation-7-unused_zen_settings",
                 "Remove the [" + deprecatedSetting.getKey() + "] setting.",
                 false,
-                null
+                meta
             );
             assertThat(issues, hasItem(expected));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
+        String settingNamesString = Arrays.stream(settingNames)
+            .map(settingName -> "\"" + settingName + "\"")
+            .collect(Collectors.joining(","));
+        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[" + settingNamesString + "]}]}";
+        return new ObjectMapper().readValue(metaString, Map.class);
     }
 
     public void testAutoImportDanglingIndicesSetting() {
@@ -2456,5 +2501,72 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     + " See the breaking changes documentation for the next major version."
             )
         );
+    }
+
+    public void testCheckNodeAttrData() {
+        Settings settings = Settings.builder().put("node.attr.data", randomAlphaOfLength(randomIntBetween(4, 20))).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting node.attributes.data is not recommended",
+            "https://ela.st/es-deprecation-7-node-attr-data-setting",
+            "One or more of your nodes is configured with node.attributes.data settings. This is typically used to create a "
+                + "hot/warm or tiered architecture, based on legacy guidelines. Data tiers are a recommended replacement for tiered "
+                + "architecture clusters.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testPollIntervalTooLow() throws JsonProcessingException {
+        {
+            Settings settings = Settings.builder()
+                .put(LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.getKey(), randomTimeValue())
+                .build();
+            final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+            final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+            final String tooLowInterval = randomTimeValue(1, 999, "ms", "micros", "nanos");
+            Metadata badMetaDtata = Metadata.builder()
+                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), tooLowInterval).build())
+                .build();
+            ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetaDtata).build();
+            final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+                DeprecationChecks.NODE_SETTINGS_CHECKS,
+                c -> c.apply(settings, pluginsAndModules, badState, licenseState)
+            );
+
+            DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Index Lifecycle Management poll interval is set too low",
+                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
+                "The ILM ["
+                    + LIFECYCLE_POLL_INTERVAL_SETTING.getKey()
+                    + "] setting is set to ["
+                    + tooLowInterval
+                    + "]. "
+                    + "Set the interval to at least 1s.",
+                false,
+                buildMetaObjectForRemovableSettings("indices.lifecycle.poll_interval")
+            );
+            assertThat(issues, hasItem(expected));
+            assertWarnings(
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed "
+                    + "in a future release! See the breaking changes documentation for the next major version."
+            );
+        }
+
+        // Test that other values are ok
+        {
+            final String okInterval = randomTimeValue(1, 9999, "d", "h", "s");
+            Metadata okMetadata = Metadata.builder()
+                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), okInterval).build())
+                .build();
+            ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(okMetadata).build();
+            List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
+            assertThat(noIssues, hasSize(0));
+        }
     }
 }

@@ -211,6 +211,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private SortedMap<String, IndexAbstraction> indicesLookup;
 
+    private final Version oldestIndexVersion;
+
     private Metadata(
         String clusterUUID,
         boolean clusterUUIDCommitted,
@@ -231,7 +233,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] visibleOpenIndices,
         String[] allClosedIndices,
         String[] visibleClosedIndices,
-        SortedMap<String, IndexAbstraction> indicesLookup
+        SortedMap<String, IndexAbstraction> indicesLookup,
+        Version oldestIndexVersion
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -253,6 +256,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
+        this.oldestIndexVersion = oldestIndexVersion;
     }
 
     public Metadata withIncrementedVersion() {
@@ -276,7 +280,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             visibleOpenIndices,
             allClosedIndices,
             visibleClosedIndices,
-            indicesLookup
+            indicesLookup,
+            oldestIndexVersion
         );
     }
 
@@ -317,6 +322,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public CoordinationMetadata coordinationMetadata() {
         return this.coordinationMetadata;
+    }
+
+    public Version oldestIndexVersion() {
+        return this.oldestIndexVersion;
     }
 
     public boolean hasAlias(String alias) {
@@ -1465,6 +1474,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        public DataStreamMetadata dataStreamMetadata() {
+            return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
+        }
+
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
 
@@ -1717,6 +1730,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
             final Set<String> allAliases = new HashSet<>();
+
+            int oldestIndexVersionId = Version.CURRENT.id;
+
             for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
                 final IndexMetadata indexMetadata = cursor.value;
                 final String name = indexMetadata.getIndex().getName();
@@ -1738,6 +1754,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     }
                 }
                 indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
+                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCreationVersion().id);
             }
 
             final ArrayList<String> duplicates = new ArrayList<>();
@@ -1859,7 +1876,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 visibleOpenIndicesArray,
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
-                indicesLookup
+                indicesLookup,
+                Version.fromId(oldestIndexVersionId)
             );
         }
 

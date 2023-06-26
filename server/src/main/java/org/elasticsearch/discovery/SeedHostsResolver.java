@@ -215,6 +215,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                 concurrentConnects,
                 60,
                 TimeUnit.SECONDS,
+                false,
                 threadFactory,
                 transportService.getThreadPool().getThreadContext()
             )

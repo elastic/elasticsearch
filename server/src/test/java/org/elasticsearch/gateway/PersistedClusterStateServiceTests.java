@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -263,7 +264,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final String message = expectThrows(
             CorruptStateException.class,
             () -> new PersistedClusterStateService(
-                Stream.of(combinedPaths).map(path -> NodeEnvironment.resolveNodePath(path, 0)).toArray(Path[]::new),
+                Stream.of(combinedPaths).map(path -> NodeEnvironment.resolveDataPath(path, 0)).toArray(Path[]::new),
                 nodeIds[0],
                 xContentRegistry(),
                 BigArrays.NON_RECYCLING_INSTANCE,
@@ -526,7 +527,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -578,7 +579,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -1257,6 +1258,46 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testOldestIndexVersionIsCorrectlySerialized() throws IOException {
+        final Path[] dataPaths1 = createDataPaths();
+        final Path[] dataPaths2 = createDataPaths();
+        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
+
+        final Version[] indexVersions = new Version[] { Version.V_6_1_0, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) };
+        int lastIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (Version indexVersion : indexVersions) {
+            String indexUUID = UUIDs.randomBase64UUID(random());
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
+                .settings(settings(indexVersion).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
+        }
+
+        Metadata metadata = b.build();
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(
+                    writer,
+                    0L,
+                    ClusterState.builder(clusterState).metadata(metadata).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
+                    clusterState
+                );
+            }
+
+            PersistedClusterStateService.OnDiskState fromDisk = newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState();
+            NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodeEnvironment.nodeDataPaths());
+
+            assertEquals(Version.V_6_1_0, nodeMetadata.oldestIndexVersion());
+            assertEquals(Version.V_6_1_0, fromDisk.metadata.oldestIndexVersion());
         }
     }
 

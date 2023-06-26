@@ -212,8 +212,13 @@ the `repository-s3` plugin allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
 include a port. For example, the endpoint may be `172.17.0.2` or
-`172.17.0.2:9000`. You may also need to set `s3.client.CLIENT_NAME.protocol` to
-`http` if the endpoint does not support HTTPS.
+`172.17.0.2:9000`.
+
+By default {es} communicates with your storage system using HTTPS, and
+validates the repository's certificate chain using the JVM-wide truststore.
+Ensure that the JVM-wide truststore includes an entry for your repository. If
+you wish to use unsecured HTTP communication instead of HTTPS, set
+`s3.client.CLIENT_NAME.protocol` to `http`.
 
 https://minio.io[MinIO] is an example of a storage system that provides an
 S3-compatible API. The `repository-s3` plugin allows {es} to work with
@@ -221,14 +226,14 @@ MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
 
-Note that some storage systems claim to be S3-compatible without correctly
-supporting the full S3 API. The `repository-s3` plugin requires full
+Note that some storage systems claim to be S3-compatible but do not faithfully
+emulate S3's behaviour in full. The `repository-s3` type requires full
 compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer a consistency
-model no weaker than S3's when accessed concurrently by multiple nodes.
-Incompatible error codes and consistency models may be particularly hard to
-track down since errors and consistency failures are usually rare and hard to
-reproduce.
+endpoints, return the same errors in case of failures, and offer consistency
+and performance at least as good as S3 even when accessed concurrently by
+multiple nodes. Incompatible error codes, consistency or performance may be
+particularly hard to track down since errors, consistency failures, and
+performance issues are usually rare and hard to reproduce.
 
 You can perform some basic checks of the suitability of your storage system
 using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
@@ -323,13 +328,14 @@ include::repository-shared-settings.asciidoc[]
 
     Sets the S3 storage class for objects stored in the snapshot repository.
     Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia`
-    and `intelligent_tiering`. Defaults to `standard`.
-    Changing this setting on an existing repository only affects the
-    storage class for newly created objects, resulting in a mixed usage of
-    storage classes. Additionally, S3 Lifecycle Policies can be used to manage
-    the storage class of existing objects. Due to the extra complexity with the
-    Glacier class lifecycle, it is not currently supported by the plugin. For
-    more information about the different classes, see
+    and `intelligent_tiering`. Defaults to `standard`. Changing this setting on
+    an existing repository only affects the storage class for newly created
+    objects, resulting in a mixed usage of storage classes. You may use an S3
+    Lifecycle Policy to adjust the storage class of existing objects in your
+    repository, but you must not transition objects to Glacier classes and you
+    must not expire objects. If you use Glacier storage classes or object
+    expiry then you may permanently lose access to your repository contents.
+    For more information about S3 storage classes, see
     https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
     Storage Classes Guide]
 

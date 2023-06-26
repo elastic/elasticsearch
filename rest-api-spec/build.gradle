@@ -21,7 +21,7 @@ configurations {
   // easy and efficient
   basicRestSpecs {
     attributes {
-      attribute(org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
   }
 }
@@ -32,8 +32,8 @@ artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-testClusters.configureEach {
-  module ':modules:mapper-extras'
+dependencies {
+  clusterModules project(":modules:mapper-extras")
 }
 
 tasks.named("test").configure {enabled = false }

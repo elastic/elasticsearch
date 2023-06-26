@@ -57,7 +57,9 @@ public class MockTransport extends StubbableTransport {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
+        final StubbableConnectionManager connectionManager = new StubbableConnectionManager(
+            new ClusterConnectionManager(settings, this, threadPool.getThreadContext())
+        );
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(

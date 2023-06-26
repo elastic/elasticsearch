@@ -19,6 +19,7 @@ import java.security.GeneralSecurityException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
@@ -30,10 +31,15 @@ import javax.net.ssl.X509ExtendedTrustManager;
 public final class RestrictedTrustConfig extends TrustConfig {
 
     private static final String RESTRICTIONS_KEY_SUBJECT_NAME = "trust.subject_name";
+    public static final String SAN_OTHER_COMMON = "subjectAltName.otherName.commonName";
+    public static final String SAN_DNS = "subjectAltName.dnsName";
+    static final Set<String> SUPPORTED_X_509_FIELDS = org.elasticsearch.core.Set.of(SAN_OTHER_COMMON, SAN_DNS);
     private final String groupConfigPath;
     private final TrustConfig delegate;
+    private final Set<String> configuredX509Fields;
 
-    RestrictedTrustConfig(String groupConfigPath, TrustConfig delegate) {
+    RestrictedTrustConfig(String groupConfigPath, Set<String> configuredX509Fields, TrustConfig delegate) {
+        this.configuredX509Fields = configuredX509Fields;
         this.groupConfigPath = Objects.requireNonNull(groupConfigPath);
         this.delegate = Objects.requireNonNull(delegate);
     }
@@ -43,7 +49,7 @@ public final class RestrictedTrustConfig extends TrustConfig {
         try {
             final X509ExtendedTrustManager delegateTrustManager = delegate.createTrustManager(environment);
             final CertificateTrustRestrictions trustGroupConfig = readTrustGroup(resolveGroupConfigPath(environment));
-            return new RestrictedTrustManager(delegateTrustManager, trustGroupConfig);
+            return new RestrictedTrustManager(delegateTrustManager, trustGroupConfig, configuredX509Fields);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to initialize TrustManager for {}", e, toString());
         }

@@ -5,7 +5,7 @@ import org.elasticsearch.gradle.LoggedExec
 
 import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
 

@@ -13,14 +13,23 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 
 // The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("mapper-extras")
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -29,5 +38,10 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

@@ -23,7 +23,7 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(InternalTestArtifactBasePlugin.class);
         InternalTestArtifactExtension testArtifactExtension = project.getExtensions().getByType(InternalTestArtifactExtension.class);
-        SourceSet testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
+        SourceSet testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).maybeCreate("test");
         testArtifactExtension.registerTestArtifactFromSourceSet(testSourceSet);
     }
 }

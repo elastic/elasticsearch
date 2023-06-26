@@ -51,6 +51,11 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(

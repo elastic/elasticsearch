@@ -2192,7 +2192,7 @@ public class DateFormatters {
      * - If no time is given, the start of the day is used
      * - If no month of the year is found, the first day of the year is used
      * - If an iso based weekyear is found, but not week is specified, the first monday
-     *   of the new year is chosen (reataining BWC to joda time)
+     *   of the new year is chosen (retaining BWC with joda time)
      * - If an iso based weekyear is found and an iso based weekyear week, the start
      *   of the day is used
      *

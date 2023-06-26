@@ -599,6 +599,74 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         assertNotNull(slm.get("policy_stats"));
     }
 
+    public void testSnapshotRetentionWithMissingRepo() throws Exception {
+        // Create two snapshot repositories
+        String repo = "test-repo";
+        initializeRepo(repo);
+        String missingRepo = "missing-repo";
+        initializeRepo(missingRepo);
+
+        // Create a policy per repository
+        final String indexName = "test";
+        final String policyName = "policy-1";
+        createSnapshotPolicy(
+            policyName,
+            "snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            repo,
+            indexName,
+            true,
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null)
+        );
+        final String policyWithMissingRepo = "policy-2";
+        createSnapshotPolicy(
+            policyWithMissingRepo,
+            "snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            missingRepo,
+            indexName,
+            true,
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null)
+        );
+
+        // Delete the repo of one of the policies
+        deleteRepository(missingRepo);
+
+        // Manually create a snapshot based on the "correct" policy
+        final String snapshotName = executePolicy(policyName);
+
+        // Check that the executed snapshot is created
+        assertBusy(() -> {
+            try {
+                Response response = client().performRequest(new Request("GET", "/_snapshot/" + repo + "/" + snapshotName));
+                Map<String, Object> snapshotResponseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                assertThat(snapshotResponseMap.size(), greaterThan(0));
+                final Map<String, Object> metadata = extractMetadata(snapshotResponseMap, snapshotName);
+                assertNotNull(metadata);
+                assertThat(metadata.get("policy"), equalTo(policyName));
+                assertHistoryIsPresent(policyName, true, repo, CREATE_OPERATION);
+            } catch (ResponseException e) {
+                fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+            }
+        }, 60, TimeUnit.SECONDS);
+
+        execute_retention(client());
+
+        // Check that the snapshot created by the policy has been removed by retention
+        assertBusy(() -> {
+            try {
+                Response response = client().performRequest(new Request("GET", "/_snapshot/" + repo + "/" + snapshotName));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
+            } catch (ResponseException e) {
+                assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
+            }
+            assertHistoryIsPresent(policyName, true, repo, DELETE_OPERATION);
+        }, 60, TimeUnit.SECONDS);
+    }
+
     public Map<String, Object> getLocation(String path) {
         try {
             Response executeRepsonse = client().performRequest(new Request("GET", path));
@@ -727,8 +795,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         assertHistoryIndexWaitingForRollover();
     }
 
+    @SuppressWarnings("unchecked")
     private void assertHistoryIndexWaitingForRollover() throws IOException {
-        Step.StepKey stepKey = getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(SLM_HISTORY_DATA_STREAM, 1));
+        Response response = client().performRequest(new Request("GET", "/_data_stream/" + SLM_HISTORY_DATA_STREAM));
+        assertOK(response);
+        List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
+        assertEquals(1, dataStreams.size());
+        Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
+        List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
+        assertEquals(1, indices.size());
+
+        Step.StepKey stepKey = getStepKeyForIndex(client(), indices.get(0).get("index_name"));
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
@@ -834,6 +911,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         document.endObject();
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
+        assertOK(client.performRequest(request));
+    }
+
+    private static void execute_retention(RestClient client) throws IOException {
+        final Request request = new Request("POST", "/_slm/_execute_retention");
         assertOK(client.performRequest(request));
     }
 

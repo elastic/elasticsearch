@@ -728,7 +728,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteRepositoryAction());
         registerHandler.accept(new RestVerifyRepositoryAction());
         registerHandler.accept(new RestCleanupRepositoryAction());
-        registerHandler.accept(new RestGetSnapshotsAction());
+        registerHandler.accept(new RestGetSnapshotsAction(threadPool));
         registerHandler.accept(new RestCreateSnapshotAction());
         registerHandler.accept(new RestCloneSnapshotAction());
         registerHandler.accept(new RestRestoreSnapshotAction());
@@ -738,7 +738,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResetFeatureStateAction());
         registerHandler.accept(new RestGetFeatureUpgradeStatusAction());
         registerHandler.accept(new RestPostFeatureUpgradeAction());
-        registerHandler.accept(new RestGetIndicesAction());
+        registerHandler.accept(new RestGetIndicesAction(threadPool));
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction(threadPool));
         registerHandler.accept(new RestIndicesShardStoresAction());

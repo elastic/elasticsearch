@@ -11,7 +11,7 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
-import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -24,6 +24,18 @@ plugins {
 
 configurations {
   log4jConfig
+  dependencyInfos {
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
+    }
+  }
+}
+
+def thisProj = project
+rootProject.allprojects { proj ->
+    proj.plugins.withType(DependenciesInfoPlugin) {
+      thisProj.dependencies.add("dependencyInfos", project.dependencies.project(path: proj.path))
+    }
 }
 
 /*****************************************************************************
@@ -32,12 +44,10 @@ configurations {
 
 // Concatenates the dependencies CSV files into a single file
 tasks.register("generateDependenciesReport", ConcatFilesTask) {
-  dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
-  files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
+  files = configurations.dependencyInfos
   headerLine = "name,version,url,license,sourceURL"
   target = new File(providers.systemProperty('csv')
                       .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
-                      .forUseAtConfigurationTime()
                       .get()
   )
   // explicitly add our dependency on the JDK
@@ -89,7 +99,7 @@ tasks.withType(NoticeTask).configureEach {
 String ossOutputs = 'build/outputs/oss'
 String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
-String transportOutputs = 'build/outputs/transport-only'
+String integTestOutputs = 'build/outputs/integ-test'
 String externalTestOutputs = 'build/outputs/external-test'
 
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
@@ -106,8 +116,9 @@ def processExternalTestOutputsTaskProvider = tasks.register("processExternalTest
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
 // All transport modules are included so that they may be randomized for testing
-def processTransportOutputsTaskProvider = tasks.register("processTransportOutputs", Sync) {
-  into transportOutputs
+// Additionally install security plugin so we can run tests with security enabled using this distribution
+def processIntegTestOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
+  into integTestOutputs
 }
 
 def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
@@ -117,17 +128,23 @@ def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
 def defaultBinFiles = fileTree("${defaultOutputs}/bin") {
   builtBy processDefaultOutputsTaskProvider
 }
+def integTestBinFiles = fileTree("${integTestOutputs}/bin") {
+  builtBy processIntegTestOutputsTaskProvider
+}
 def defaultConfigFiles = fileTree("${defaultOutputs}/config") {
   builtBy processDefaultOutputsTaskProvider
+}
+def integTestConfigFiles = fileTree("${integTestOutputs}/config") {
+  builtBy processIntegTestOutputsTaskProvider
 }
 
 def systemdModuleFiles = fileTree("${systemdOutputs}/modules") {
   builtBy processSystemdOutputsTaskProvider
 }
 
-def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
-  dependsOn processTransportOutputsTaskProvider
-  outputs.dir "${transportOutputs}/modules"
+def buildIntegTestModulesTaskProvider = tasks.register("buildIntegTestModules") {
+  dependsOn processIntegTestOutputsTaskProvider
+  outputs.dir "${integTestOutputs}/modules"
 }
 def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
@@ -153,7 +170,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
       exclude 'config/log4j2.properties'
 
       eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.internal-es-plugin') ? module.esplugin.name : module.es_meta_plugin.name
+        String name = module.esplugin.name
         // Copy all non config/bin files
         // Note these might be unde a subdirectory in the case of a meta plugin
         if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
@@ -216,7 +233,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   copyModule(processDefaultOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
-    copyModule(processTransportOutputsTaskProvider, module)
+    copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
   restTestExpansions['expected.modules.count'] += 1
@@ -233,6 +250,9 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+    copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+  }
 }
 
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
@@ -354,8 +374,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    transportModulesFiles = copySpec {
-      from buildTransportModulesTaskProvider
+    integTestModulesFiles = copySpec {
+      from buildIntegTestModulesTaskProvider
     }
 
     configFiles = { distributionType, testDistro, jdk ->
@@ -367,7 +387,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
-        from defaultConfigFiles
+        from testDistro ? integTestConfigFiles : defaultConfigFiles
       }
     }
 
@@ -397,9 +417,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if(testDistro == false) {
-            from(defaultBinFiles)
-          }
+          from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
           }
@@ -627,4 +645,9 @@ artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
   type 'file'
   name 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
+}
+
+tasks.named('resolveAllDependencies') {
+  // We don't want to build all our distribution artifacts when priming our dependency cache
+  configs = []
 }

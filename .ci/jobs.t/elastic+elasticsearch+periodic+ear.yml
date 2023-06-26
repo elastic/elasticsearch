@@ -1,7 +1,6 @@
 ---
 - job:
     name: elastic+elasticsearch+%BRANCH%+periodic+ear
-    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+ear
     display-name: "elastic / elasticsearch # %BRANCH% - encryption at rest"
     description: "The Elasticsearch %BRANCH% branch encryption at rest compatibility tests.\n\n"
     node: packaging-large
@@ -10,7 +9,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA11_HOME=$HOME/.java/java11
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |

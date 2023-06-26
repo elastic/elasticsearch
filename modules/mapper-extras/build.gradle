@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -34,4 +34,9 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.index.mapper.ScaledFloatFieldMapper',
     'org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper',
     'org.elasticsearch.index.mapper.TokenCountFieldMapper'
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.index.mapper.MapperTestCase'
+  baseClass 'org.elasticsearch.test.ESIntegTestCase'
 }

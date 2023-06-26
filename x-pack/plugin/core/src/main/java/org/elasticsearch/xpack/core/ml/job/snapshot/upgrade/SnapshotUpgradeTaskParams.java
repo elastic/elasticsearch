@@ -38,10 +38,6 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_ID);
     }
 
-    public static SnapshotUpgradeTaskParams fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
     public static final String NAME = JOB_SNAPSHOT_UPGRADE_TASK_NAME;
 
     private final String jobId;
@@ -106,5 +102,9 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
     @Override
     public String getMlId() {
         return jobId;
+    }
+
+    public static SnapshotUpgradeTaskParams fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

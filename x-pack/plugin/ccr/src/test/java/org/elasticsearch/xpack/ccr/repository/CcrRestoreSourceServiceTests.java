@@ -167,8 +167,10 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         byte[] expectedBytes = new byte[(int) fileMetadata.length()];
         byte[] actualBytes = new byte[(int) fileMetadata.length()];
-        Engine.IndexCommitRef indexCommitRef = indexShard1.acquireSafeIndexCommit();
-        try (IndexInput indexInput = indexCommitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)) {
+        try (
+            Engine.IndexCommitRef indexCommitRef = indexShard1.acquireSafeIndexCommit();
+            IndexInput indexInput = indexCommitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)
+        ) {
             indexInput.seek(0);
             indexInput.readBytes(expectedBytes, 0, (int) fileMetadata.length());
         }

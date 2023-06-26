@@ -21,14 +21,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36" }
   - match: { _source.user_agent.name: "Test" }
   - is_false: _source.user_agent.os

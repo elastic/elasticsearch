@@ -107,7 +107,7 @@ public class GatewayMetaState implements Closeable {
             final Tuple<Manifest, Metadata> manifestClusterStateTuple;
             try {
                 NodeMetadata.FORMAT.writeAndCleanup(
-                    new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                    new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, Version.V_EMPTY),
                     persistedClusterStateService.getDataPaths()
                 );
                 manifestClusterStateTuple = metaStateService.loadFullState();
@@ -118,6 +118,19 @@ public class GatewayMetaState implements Closeable {
                 .version(manifestClusterStateTuple.v1().getClusterStateVersion())
                 .metadata(manifestClusterStateTuple.v2())
                 .build();
+
+            try {
+                NodeMetadata.FORMAT.writeAndCleanup(
+                    new NodeMetadata(
+                        persistedClusterStateService.getNodeId(),
+                        Version.CURRENT,
+                        clusterState.metadata().oldestIndexVersion()
+                    ),
+                    persistedClusterStateService.getDataPaths()
+                );
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
 
             final IncrementalClusterStateWriter incrementalClusterStateWriter = new IncrementalClusterStateWriter(
                 settings,
@@ -182,7 +195,11 @@ public class GatewayMetaState implements Closeable {
                     }
                     // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
                     NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        new NodeMetadata(
+                            persistedClusterStateService.getNodeId(),
+                            Version.CURRENT,
+                            clusterState.metadata().oldestIndexVersion()
+                        ),
                         persistedClusterStateService.getDataPaths()
                     );
                     success = true;
@@ -216,7 +233,11 @@ public class GatewayMetaState implements Closeable {
                     metaStateService.deleteAll();
                     // write legacy node metadata to prevent downgrades from spawning empty cluster state
                     NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        new NodeMetadata(
+                            persistedClusterStateService.getNodeId(),
+                            Version.CURRENT,
+                            clusterState.metadata().oldestIndexVersion()
+                        ),
                         persistedClusterStateService.getDataPaths()
                     );
                 } catch (IOException e) {
@@ -541,7 +562,11 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
                 } else {
                     writeNextStateFully = true; // in case of failure; this flag is cleared on success
-                    getWriterSafe().writeIncrementalTermUpdateAndCommit(currentTerm, lastAcceptedState.version());
+                    getWriterSafe().writeIncrementalTermUpdateAndCommit(
+                        currentTerm,
+                        lastAcceptedState.version(),
+                        lastAcceptedState.metadata().oldestIndexVersion()
+                    );
                 }
             } catch (IOException e) {
                 throw new ElasticsearchException(e);

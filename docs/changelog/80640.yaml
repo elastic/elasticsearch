@@ -1,5 +1,0 @@
-pr: 80640
-summary: Switch Docker base image to Ubuntu 20.04
-area: Packaging
-type: enhancement
-issues: []

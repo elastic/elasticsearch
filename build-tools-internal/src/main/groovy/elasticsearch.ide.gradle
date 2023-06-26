@@ -69,7 +69,7 @@ tasks.register('configureIdeCheckstyle') {
 }
 
 // Applying this stuff, particularly the idea-ext plugin, has a cost so avoid it unless we're running in the IDE
-if (providers.systemProperty('idea.active').forUseAtConfigurationTime().getOrNull() == 'true') {
+if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   project.apply(plugin: org.jetbrains.gradle.ext.IdeaExtPlugin)
 
   tasks.register('configureIdeaGradleJvm') {
@@ -88,7 +88,7 @@ if (providers.systemProperty('idea.active').forUseAtConfigurationTime().getOrNul
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
-    dependsOn ':plugins:repository-hdfs:hadoop-client-api:shadowJar', ':plugins:repository-azure:azure-storage-blob:shadowJar'
+    dependsOn ':plugins:repository-hdfs:hadoop-client-api:shadowJar'
   }
 
   idea {

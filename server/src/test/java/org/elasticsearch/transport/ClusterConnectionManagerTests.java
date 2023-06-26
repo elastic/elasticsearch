@@ -19,6 +19,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -33,6 +37,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,13 +45,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,7 +72,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", ClusterConnectionManagerTests.class.getSimpleName()).build();
         threadPool = new ThreadPool(settings);
         transport = mock(Transport.class);
-        connectionManager = new ClusterConnectionManager(settings, transport);
+        connectionManager = new ClusterConnectionManager(settings, transport, threadPool.getThreadContext());
         TimeValue oneSecond = new TimeValue(1000);
         TimeValue oneMinute = TimeValue.timeValueMinutes(1);
         connectionProfile = ConnectionProfile.buildSingleChannelProfile(
@@ -256,6 +263,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         int threadCount = between(1, 10);
         Releasable[] releasables = new Releasable[threadCount];
 
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String contextHeader = "test-context-header";
+
         CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
         Semaphore pendingCloses = new Semaphore(threadCount);
         for (int i = 0; i < threadCount; i++) {
@@ -267,27 +277,33 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 CountDownLatch latch = new CountDownLatch(1);
-                connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.wrap(c -> {
-                    assert connectionManager.nodeConnected(node);
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    final String contextValue = randomAlphaOfLength(10);
+                    threadContext.putHeader(contextHeader, contextValue);
+                    connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.wrap(c -> {
+                        assert connectionManager.nodeConnected(node);
+                        assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
 
-                    assertTrue(pendingCloses.tryAcquire());
-                    connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
+                        assertTrue(pendingCloses.tryAcquire());
+                        connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
 
-                    if (randomBoolean()) {
-                        releasables[threadIndex] = c;
-                        nodeConnectedCount.incrementAndGet();
-                    } else {
-                        Releasables.close(c);
-                        nodeClosedCount.incrementAndGet();
-                    }
+                        if (randomBoolean()) {
+                            releasables[threadIndex] = c;
+                            nodeConnectedCount.incrementAndGet();
+                        } else {
+                            Releasables.close(c);
+                            nodeClosedCount.incrementAndGet();
+                        }
 
-                    assert latch.getCount() == 1;
-                    latch.countDown();
-                }, e -> {
-                    nodeFailureCount.incrementAndGet();
-                    assert latch.getCount() == 1;
-                    latch.countDown();
-                }));
+                        assert latch.getCount() == 1;
+                        latch.countDown();
+                    }, e -> {
+                        assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
+                        nodeFailureCount.incrementAndGet();
+                        assert latch.getCount() == 1;
+                        latch.countDown();
+                    }));
+                }
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
@@ -335,7 +351,127 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77728")
+    public void testConcurrentConnectsDuringClose() throws Exception {
+
+        // This test ensures that closing the connection manager doesn't block forever, even if there's a constant stream of attempts to
+        // open connections. Note that closing the connection manager _does_ block while there are in-flight connection attempts, and in
+        // practice each attempt will (eventually) finish, so we're just trying to test that constant open attempts do not cause starvation.
+        //
+        // It works by spawning connection-open attempts in several concurrent loops, putting a Runnable to complete each attempt into a
+        // queue, and then consuming and completing the enqueued runnables in a separate thread. The consuming thread is throttled via a
+        // Semaphore, from which the main thread steals a permit which ensures that there's always at least one pending connection while the
+        // close is ongoing even though no connection attempt blocks forever.
+
+        final Semaphore pendingConnectionPermits = new Semaphore(0);
+        final Queue<Runnable> pendingConnections = ConcurrentCollections.newQueue();
+
+        // transport#openConnection enqueues a Runnable to complete the connection attempt
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            final DiscoveryNode targetNode = (DiscoveryNode) invocationOnMock.getArguments()[0];
+            pendingConnections.add(() -> listener.onResponse(new TestConnect(targetNode)));
+            pendingConnectionPermits.release();
+            return null;
+        }).when(transport).openConnection(any(), eq(connectionProfile), anyActionListener());
+
+        final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
+
+        // Once we start to see connections being rejected, we give back the stolen permit so that the last connection can complete
+        final Runnable onConnectException = new RunOnce(pendingConnectionPermits::release);
+
+        // Create a few threads which open connections in a loop. Must be at least 2 so that there's always more connections incoming.
+        final int connectionLoops = between(2, 4);
+        final CountDownLatch connectionLoopCountDown = new CountDownLatch(connectionLoops);
+        final AtomicBoolean expectConnectionFailures = new AtomicBoolean(); // unexpected failures would make this test pass vacuously
+
+        class ConnectionLoop extends AbstractRunnable {
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                final DiscoveryNode discoveryNode = new DiscoveryNode(
+                    "",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 0),
+                    Version.CURRENT
+                );
+                final ActionListener<Releasable> listener = new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        releasable.close();
+                        threadPool.generic().execute(ConnectionLoop.this);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertTrue(expectConnectionFailures.get());
+                        assertThat(e, instanceOf(ConnectTransportException.class));
+                        assertThat(e.getMessage(), containsString("connection manager is closed"));
+                        onConnectException.run();
+                        connectionLoopCountDown.countDown();
+                    }
+                };
+
+                connectionManager.connectToNode(discoveryNode, connectionProfile, validator, listener);
+            }
+        }
+
+        for (int i = 0; i < connectionLoops; i++) {
+            threadPool.generic().execute(new ConnectionLoop());
+        }
+
+        // Create a separate thread to complete pending connection attempts, throttled by the pendingConnectionPermits semaphore
+        final Thread completionThread = new Thread(() -> {
+            while (true) {
+                try {
+                    assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    // There could still be items in the queue when we are interrupted, so drain the queue before exiting:
+                    while (pendingConnectionPermits.tryAcquire()) {
+                        // noinspection ConstantConditions
+                        pendingConnections.poll().run();
+                    }
+                    return;
+                }
+                // noinspection ConstantConditions
+                pendingConnections.poll().run();
+            }
+        });
+        completionThread.start();
+
+        // Steal a permit so that the consumer lags behind the producers ...
+        assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
+        // ... and then send a connection attempt through the system to ensure that the lagging has started
+        Releasables.closeExpectNoException(
+            PlainActionFuture.<Releasable, RuntimeException>get(
+                fut -> connectionManager.connectToNode(
+                    new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT),
+                    connectionProfile,
+                    validator,
+                    fut
+                ),
+                30,
+                TimeUnit.SECONDS
+            )
+        );
+
+        // Now close the connection manager
+        expectConnectionFailures.set(true);
+        connectionManager.close();
+        // Success! The close call returned
+
+        // Clean up and check everything completed properly
+        assertTrue(connectionLoopCountDown.await(10, TimeUnit.SECONDS));
+        completionThread.interrupt();
+        completionThread.join();
+        assertTrue(pendingConnections.isEmpty());
+    }
+
     public void testConcurrentConnectsAndDisconnects() throws Exception {
         final DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
@@ -345,24 +481,27 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             return null;
         }).when(transport).openConnection(eq(node), any(), anyActionListener());
 
+        final Semaphore validatorPermits = new Semaphore(Integer.MAX_VALUE);
+
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
-            if (randomBoolean()) {
-                l.onResponse(null);
-            } else {
-                threadPool.generic().execute(() -> l.onResponse(null));
-            }
+            assertTrue(validatorPermits.tryAcquire());
+            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+                try {
+                    l.onResponse(null);
+                } finally {
+                    validatorPermits.release();
+                }
+            });
         };
 
-        final Semaphore pendingConnections = new Semaphore(1000);
+        final Semaphore pendingConnections = new Semaphore(between(1, 1000));
         final int threadCount = between(1, 10);
         final CountDownLatch countDownLatch = new CountDownLatch(threadCount);
-        final ReadWriteLock connectCompletionLock = new ReentrantReadWriteLock();
 
         final Runnable action = new Runnable() {
             @Override
             public void run() {
                 if (pendingConnections.tryAcquire()) {
-                    assertTrue(connectCompletionLock.readLock().tryLock());
                     connectionManager.connectToNode(node, null, validator, new ActionListener<Releasable>() {
                         @Override
                         public void onResponse(Releasable releasable) {
@@ -385,7 +524,6 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                             }
                         }
                     });
-                    connectCompletionLock.readLock().unlock();
                 } else {
                     countDownLatch.countDown();
                 }
@@ -396,9 +534,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             threadPool.generic().execute(action);
         }
 
-        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
-        assertTrue(connectCompletionLock.writeLock().tryLock(10, TimeUnit.SECONDS));
-        assertFalse(connectionManager.nodeConnected(node));
+        assertTrue("threads did not all complete", countDownLatch.await(10, TimeUnit.SECONDS));
+        assertTrue("validatorPermits not all released", validatorPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        assertFalse("node still connected", connectionManager.nodeConnected(node));
         connectionManager.close();
     }
 

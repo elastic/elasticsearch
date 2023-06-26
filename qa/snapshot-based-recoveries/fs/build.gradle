@@ -8,12 +8,11 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation testArtifact(project(':qa:snapshot-based-recoveries'))
+  javaRestTestImplementation testArtifact(project(':qa:snapshot-based-recoveries'))
 }
 
 final File repoDir = file("$buildDir/testclusters/snapshot-recoveries-repo")
@@ -31,7 +30,7 @@ tasks.withType(Test).configureEach {
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
   setting 'path.repo', repoDir.absolutePath

@@ -31,37 +31,35 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   // GCS dependencies
-  api 'com.google.cloud:google-cloud-storage:1.117.1'
-  api 'com.google.cloud:google-cloud-core:1.95.4'
-  runtimeOnly 'com.google.guava:guava:30.1.1-jre'
+  api 'com.google.cloud:google-cloud-storage:2.13.1'
+  api 'com.google.cloud:google-cloud-core:2.8.28'
+  api 'com.google.cloud:google-cloud-core-http:2.8.28'
+  runtimeOnly 'com.google.guava:guava:31.1-jre'
   api 'com.google.guava:failureaccess:1.0.1'
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'com.google.api:api-common:1.10.4'
-  api 'com.google.api:gax:1.66.0'
-  api 'org.threeten:threetenbp:1.5.1'
+  api 'com.google.api:api-common:2.3.1'
+  api 'com.google.api:gax:2.20.1'
+  api 'org.threeten:threetenbp:1.6.5'
   api 'com.google.protobuf:protobuf-java-util:3.17.3'
-  api 'com.google.protobuf:protobuf-java:3.17.3'
-  api 'com.google.code.gson:gson:2.8.7'
-  api 'com.google.api.grpc:proto-google-common-protos:2.3.2'
-  api 'com.google.api.grpc:proto-google-iam-v1:1.0.14'
-  api 'com.google.cloud:google-cloud-core-http:1.95.4'
-  api 'com.google.auth:google-auth-library-credentials:0.26.0'
-  api 'com.google.auth:google-auth-library-oauth2-http:0.26.0'
-  api 'com.google.oauth-client:google-oauth-client:1.31.5'
-  api 'com.google.api-client:google-api-client:1.32.1'
-  api 'com.google.http-client:google-http-client:1.39.2'
-  api 'com.google.http-client:google-http-client-gson:1.39.2'
-  api 'com.google.http-client:google-http-client-appengine:1.39.2'
-  api 'com.google.http-client:google-http-client-jackson2:1.39.2'
-  api 'com.google.api:gax-httpjson:0.83.0'
-  api 'io.grpc:grpc-context:1.39.0'
-  api 'io.opencensus:opencensus-api:0.28.0'
-  api 'io.opencensus:opencensus-contrib-http-util:0.28.0'
-  api 'com.google.apis:google-api-services-storage:v1-rev20210127-1.31.5'
+  api 'com.google.protobuf:protobuf-java:3.21.7'
+  api 'com.google.code.gson:gson:2.10'
+  api 'com.google.api.grpc:proto-google-common-protos:2.9.6'
+  api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
+  api 'com.google.auth:google-auth-library-credentials:1.11.0'
+  api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
+  api 'com.google.oauth-client:google-oauth-client:1.34.1'
+  api 'com.google.api-client:google-api-client:2.1.1'
+  api 'com.google.http-client:google-http-client:1.42.3'
+  api 'com.google.http-client:google-http-client-gson:1.42.3'
+  api 'com.google.http-client:google-http-client-appengine:1.42.3'
+  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
+  api 'com.google.api:gax-httpjson:0.105.1'
+  api 'io.grpc:grpc-context:1.49.2'
+  api 'io.opencensus:opencensus-api:0.31.1'
+  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  api 'com.google.apis:google-api-services-storage:v1-rev20220705-2.0.0'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
@@ -190,6 +188,12 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
+          // com.google.api.gax optional dependencies
+          'org.graalvm.nativeimage.hosted.Feature',
+          'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+          'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
+          'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+          'org.graalvm.nativeimage.hosted.RuntimeReflection',
           // commons-logging provided dependencies
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener'

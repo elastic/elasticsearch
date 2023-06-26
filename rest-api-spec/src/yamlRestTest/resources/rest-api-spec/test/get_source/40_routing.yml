@@ -23,14 +23,14 @@
  - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
           body:    { foo: bar }
 
  - do:
       get_source:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
 
  - match:   { '': {foo: bar}}
@@ -39,4 +39,4 @@
       catch: missing
       get_source:
           index:   test_1
-          id:      1
+          id:      "1"

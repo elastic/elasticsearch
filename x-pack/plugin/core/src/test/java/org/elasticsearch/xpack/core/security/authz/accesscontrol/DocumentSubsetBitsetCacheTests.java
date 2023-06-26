@@ -355,7 +355,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51914")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91471")
     public void testCacheUnderConcurrentAccess() throws Exception {
         // This value is based on the internal implementation details of lucene's FixedBitSet
         // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset

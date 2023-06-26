@@ -98,6 +98,7 @@ publishing.publications.named("elastic").configure {
 
 configurations {
     integTestImplementation.extendsFrom(testFixturesApi)
+    integTestImplementation.extendsFrom(testImplementation)
     integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
     register("reaper")
 }
@@ -108,44 +109,51 @@ repositories {
 }
 
 dependencies {
+    constraints {
+        // ensuring brought asm version brought in by spock is up-to-date
+        testFixturesApi buildLibs.asm
+        integTestImplementation buildLibs.asm
+    }
     reaper project('reaper')
 
     api localGroovy()
     api gradleApi()
-    api 'org.apache.commons:commons-compress:1.19'
-    api 'org.apache.ant:ant:1.10.8'
-    api 'commons-io:commons-io:2.2'
+    api buildLibs.apache.compress
+    api buildLibs.ant
+    api buildLibs.commmons.io
 
     testFixturesApi "junit:junit:${versions.getProperty('junit')}"
     testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.getProperty('randomizedrunner')}"
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
-    testFixturesApi 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-    testFixturesApi platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
-    testFixturesApi("org.spockframework:spock-core") {
+    testFixturesApi buildLibs.junit
+    testFixturesApi buildLibs.wiremock
+    testFixturesApi platform(buildLibs.spock.platform)
+    testFixturesApi(buildLibs.spock.core) {
         exclude module: "groovy"
     }
 
-    integTestImplementation("org.spockframework:spock-junit4") {
+    testImplementation(buildLibs.spock.junit4) {
         because 'required as we rely on junit4 rules'
     }
 
-    integTestImplementation(platform("org.junit:junit-bom:${versions.getProperty('junit5')}"))
-    integTestImplementation("org.junit.jupiter:junit-jupiter") {
+    testImplementation(platform(buildLibs.junit5.platform))
+    testImplementation(buildLibs.junit5.jupiter) {
         because 'allows to write and run Jupiter tests'
     }
-    integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+    testRuntimeOnly(buildLibs.junit5.vintage) {
         because 'allows JUnit 3 and JUnit 4 tests to run'
     }
 
-    integTestRuntimeOnly("org.junit.platform:junit-platform-launcher") {
+    testRuntimeOnly(buildLibs.junit5.platform.launcher) {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
 }
 
+tasks.named('test').configure {
+    useJUnitPlatform()
+}
 tasks.register("integTest", Test) {
-    inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
-    systemProperty 'test.version_under_test', version
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
     useJUnitPlatform()

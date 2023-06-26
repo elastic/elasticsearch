@@ -194,49 +194,5 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         if (netNewSystemIndices.isEmpty() == false) {
             throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemIndices);
         }
-        checkSystemAliasAccess(request, systemIndices, systemIndexAccessLevel, threadContext);
-    }
-
-    private static void checkSystemAliasAccess(
-        GetAliasesRequest request,
-        SystemIndices systemIndices,
-        SystemIndexAccessLevel systemIndexAccessLevel,
-        ThreadContext threadContext
-    ) {
-        final Predicate<String> systemIndexAccessAllowPredicate;
-        if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
-            systemIndexAccessAllowPredicate = name -> true;
-        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
-            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext).negate();
-        } else {
-            throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
-        }
-
-        final List<String> systemAliases = new ArrayList<>();
-        final List<String> netNewSystemAliases = new ArrayList<>();
-        for (String alias : request.aliases()) {
-            if (systemIndices.isSystemName(alias)) {
-                if (systemIndexAccessAllowPredicate.test(alias)) {
-                    if (systemIndices.isNetNewSystemIndex(alias)) {
-                        netNewSystemAliases.add(alias);
-                    } else {
-                        systemAliases.add(alias);
-                    }
-                }
-            }
-        }
-
-        if (systemAliases.isEmpty() == false) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "open_system_alias_access",
-                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct "
-                    + "access to system indices and their aliases will not be allowed",
-                systemAliases
-            );
-        }
-        if (netNewSystemAliases.isEmpty() == false) {
-            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemAliases);
-        }
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotReque
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -154,6 +155,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
+    public static final String SNAPSHOT_ALREADY_IN_PROGRESS_EXCEPTION_DESC = "snapshot with the same name is already in-progress";
+    public static final String SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC = "snapshot with the same name already exists";
 
     private final ClusterService clusterService;
 
@@ -615,7 +618,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static void ensureSnapshotNameNotRunning(SnapshotsInProgress runningSnapshots, String repositoryName, String snapshotName) {
         if (runningSnapshots.forRepo(repositoryName).stream().anyMatch(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "snapshot with the same name is already in-progress");
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, SNAPSHOT_ALREADY_IN_PROGRESS_EXCEPTION_DESC);
         }
     }
 
@@ -741,11 +744,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static void ensureSnapshotNameAvailableInRepo(RepositoryData repositoryData, String snapshotName, Repository repository) {
         // check if the snapshot name already exists in the repository
         if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(
-                repository.getMetadata().name(),
-                snapshotName,
-                "snapshot with the same name already exists"
-            );
+            throw new InvalidSnapshotNameException(repository.getMetadata().name(), snapshotName, SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC);
         }
     }
 
@@ -1069,7 +1068,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         throw new InvalidSnapshotNameException(
                             repository.getMetadata().name(),
                             snapshotName,
-                            "snapshot with the same name already exists"
+                            SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC
                         );
                     }
                     if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION) == false) {
@@ -3271,6 +3270,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final String localNodeId = currentState.nodes().getLocalNodeId();
             final String repoName = deleteEntry.repository();
             InFlightShardSnapshotStates inFlightShardStates = null;
+            // Keep track of IndexId values that may have gone unreferenced due to the delete entry just executed.
+            // See org.elasticsearch.cluster.SnapshotsInProgress.Entry#withUpdatedIndexIds for details.
+            final Set<IndexId> newIndexIdsToRefresh = new HashSet<>();
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repoName)) {
                 if (entry.state().completed() == false) {
                     // TODO: dry up redundant computation and code between clone and non-clone case, in particular reuse
@@ -3318,9 +3320,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // Collect waiting shards that in entry that we can assign now that we are done with the deletion
                         final List<RepositoryShardId> canBeUpdated = new ArrayList<>();
                         for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> value : entry.shardsByRepoShardId()) {
+                            final RepositoryShardId repositoryShardId = value.key;
                             if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)
-                                && reassignedShardIds.contains(value.key) == false) {
-                                canBeUpdated.add(value.key);
+                                && reassignedShardIds.contains(repositoryShardId) == false) {
+                                canBeUpdated.add(repositoryShardId);
+                                if (repositoryData.hasIndex(repositoryShardId.indexName()) == false) {
+                                    newIndexIdsToRefresh.add(repositoryShardId.index());
+                                }
                             }
                         }
                         if (canBeUpdated.isEmpty()) {
@@ -3366,6 +3372,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // this CS update finishes
                     newFinalizations.add(entry);
                     snapshotEntries.add(entry);
+                }
+            }
+            if (changed && newIndexIdsToRefresh.isEmpty() == false) {
+                final Map<IndexId, IndexId> updatedIndexIds = new HashMap<>(newIndexIdsToRefresh.size());
+                for (IndexId indexIdToRefresh : newIndexIdsToRefresh) {
+                    updatedIndexIds.put(indexIdToRefresh, new IndexId(indexIdToRefresh.getName(), UUIDs.randomBase64UUID()));
+                }
+                for (int i = 0; i < snapshotEntries.size(); i++) {
+                    snapshotEntries.set(i, snapshotEntries.get(i).withUpdatedIndexIds(updatedIndexIds));
                 }
             }
             return changed ? snapshotsInProgress.withUpdatedEntriesForRepo(repoName, snapshotEntries) : null;
@@ -3584,7 +3599,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener listener
      */
     private void addListener(Snapshot snapshot, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
-        snapshotCompletionListeners.computeIfAbsent(snapshot, k -> new CopyOnWriteArrayList<>()).add(listener);
+        snapshotCompletionListeners.computeIfAbsent(snapshot, k -> new CopyOnWriteArrayList<>())
+            .add(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
     }
 
     @Override

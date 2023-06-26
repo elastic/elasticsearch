@@ -19,7 +19,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /conflicts may only be .* but was \[cat\]/
@@ -35,7 +35,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -55,7 +55,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -75,7 +75,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
@@ -96,7 +96,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] should be >= \[slices\]/
@@ -113,7 +113,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /Failed to parse int parameter \[scroll_size\] with value \[asdf\]/

@@ -24,20 +24,20 @@
       bulk:
         refresh: true
         body:
-          - index:
+          - create:
               _index: test_index
               _id: id_1
               dynamic_templates:
                 location: location
-          - { "location": [ -71.34, 41.12 ]}
+          - { "location": "41.12,-71.34"}
           - index:
               _index: test_index
               _id: id_2
               dynamic_templates:
                 location: location
-          - { "location": "41.12,-71.34"}
+          - { "location": [ -71.34, 41.12 ]}
   - match: { errors: false }
-  - match: { items.0.index.result: created }
+  - match: { items.0.create.result: created }
   - match: { items.1.index.result: created }
 
   - do:
@@ -65,7 +65,7 @@
               _index: test_index
               _id: id_3
           - { "my_location": "41.12,-71.34" } # matches the field name defined in the `my_location` template
-          - index:
+          - create:
               _index: test_index
               _id: id_4
               dynamic_templates:
@@ -169,3 +169,64 @@
   - match: { items.0.index.error.reason: "Field [foo] must be an object; but it's configured as [keyword] in dynamic template [string]"}
   - match: { items.1.index.status: 201 }
   - match: { items.1.index.result: created }
+
+---
+"Dynamic templates with op_type":
+  - skip:
+      version: " - 7.17.8"
+      reason: "bug fixed in 7.17.9"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - location:
+                  mapping:
+                    type: geo_point
+              - my_location:
+                  match: my*
+                  mapping:
+                    type: geo_point
+              - string:
+                  mapping:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_1
+              op_type: create
+              dynamic_templates:
+                location: location
+          - { "location": "41.12,-71.34"}
+          - index:
+              _index: test_index
+              _id: id_2
+              op_type: index
+              dynamic_templates:
+                location: location
+          - { "location": [ -71.34, 41.12 ]}
+  - match: { errors: false }
+  - match: { items.0.create.result: created }
+  - match: { items.1.index.result: created }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: id_1 }
+  - match: { hits.hits.1._id: id_2 }

@@ -73,9 +73,9 @@ public class Preallocate {
                 if (raf.length() != fileSize) {
                     logger.info("pre-allocating cache file [{}] ({}) using setLength method", cacheFile, new ByteSizeValue(fileSize));
                     raf.setLength(fileSize);
-                    success = true;
                     logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
                 }
+                success = raf.length() == fileSize;
             } catch (final Exception e) {
                 logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using setLength method", cacheFile), e);
                 throw e;

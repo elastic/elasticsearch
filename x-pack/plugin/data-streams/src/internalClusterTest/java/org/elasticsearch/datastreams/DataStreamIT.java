@@ -26,13 +26,17 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -43,19 +47,25 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -86,8 +96,10 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -688,6 +700,30 @@ public class DataStreamIT extends ESIntegTestCase {
                 )
         );
         assertTrue(maybeE.isPresent());
+
+        // Now replace it with a higher-priority template and delete the old one
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                Collections.singletonList("metrics-foobar*"), // Match the other data stream with a slightly different pattern
+                new Template(null, null, null),
+                null,
+                2L, // Higher priority than the other composable template
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            )
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        DeleteComposableIndexTemplateAction.Request deleteRequest = new DeleteComposableIndexTemplateAction.Request("id");
+        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteRequest).get();
+
+        GetComposableIndexTemplateAction.Request getReq = new GetComposableIndexTemplateAction.Request("id");
+        Exception e3 = expectThrows(Exception.class, () -> client().execute(GetComposableIndexTemplateAction.INSTANCE, getReq).get());
+        maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e3, err -> err.getMessage().contains("index template matching [id] not found"));
+        assertTrue(maybeE.isPresent());
     }
 
     public void testAliasActionsOnDataStreams() throws Exception {
@@ -778,6 +814,7 @@ public class DataStreamIT extends ESIntegTestCase {
         String alias = randomAlphaOfLength(4);
         String[] dataStreams = Arrays.stream(generateRandomStringArray(16, 4, false, false))
             .map(s -> "log-" + s.toLowerCase(Locale.ROOT))
+            .distinct()
             .toArray(String[]::new);
         for (String dataStream : dataStreams) {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
@@ -1068,6 +1105,7 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testUpdateIndexSettingsViaDataStream() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
 
         String backingIndex1 = DataStream.getDefaultBackingIndexName("logs-foobar", 1);
@@ -1686,6 +1724,73 @@ public class DataStreamIT extends ESIntegTestCase {
             Exception e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(addAliasRequest).actionGet());
             assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
         }
+    }
+
+    public void testRemoveGhostReference() throws Exception {
+        String dataStreamName = "logs-es";
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
+        ClusterState before = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        assertThat(before.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DataStream> brokenDataStreamHolder = new AtomicReference<>();
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
+                    DataStream broken = new DataStream(
+                        original.getName(),
+                        new TimestampField("@timestamp"),
+                        List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
+                        original.getGeneration(),
+                        original.getMetadata(),
+                        original.isHidden(),
+                        original.isReplicated(),
+                        original.isSystem()
+                    );
+                    brokenDataStreamHolder.set(broken);
+                    return ClusterState.builder(currentState)
+                        .metadata(Metadata.builder(currentState.getMetadata()).put(broken).build())
+                        .build();
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error("error while adding a broken data stream", e);
+                    latch.countDown();
+                }
+            });
+        latch.await();
+        Index ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
+
+        // Many APIs fail with NPE, because of broken data stream:
+        expectThrows(NullPointerException.class, () -> client().admin().indices().stats(new IndicesStatsRequest()).actionGet());
+        expectThrows(NullPointerException.class, () -> client().search(new SearchRequest()).actionGet());
+
+        assertAcked(
+            client().execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
+            ).actionGet()
+        );
+        ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        // Data stream resolves now to one backing index.
+        // Note, that old backing index still exists and has been unhidden.
+        // The modify data stream api only fixed the data stream by removing a broken reference to a backing index.
+        indicesStatsResponse = client().admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

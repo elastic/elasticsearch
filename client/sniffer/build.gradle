@@ -50,6 +50,7 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
@@ -67,13 +68,8 @@ tasks.named("dependencyLicenses").configure {
 // TODO: Not anymore. Now in :libs:elasticsearch-core
 tasks.named("jarHell").configure { enabled = false }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.client.RestClientTestCase'
-    }
-  }
+tasks.named("testTestingConventions").configure {
+  baseClass 'org.elasticsearch.client.RestClientTestCase'
 }
 
 tasks.named("thirdPartyAudit").configure {

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -20,11 +21,15 @@ import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.LongSupplier;
 
 public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask {
@@ -34,6 +39,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     private final PolicyStepsRegistry policyStepsRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private final LongSupplier nowSupplier;
+    private final Map<String, Step.StepKey> indexToStepKeysForAsyncActions;
     private Step.StepKey nextStepKey = null;
     private Exception failure = null;
 
@@ -51,6 +57,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         this.policyStepsRegistry = policyStepsRegistry;
         this.nowSupplier = nowSupplier;
         this.lifecycleRunner = lifecycleRunner;
+        this.indexToStepKeysForAsyncActions = new HashMap<>();
     }
 
     String getPolicy() {
@@ -101,7 +108,14 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                         currentStep.getKey()
                     );
                     try {
-                        state = ((ClusterStateActionStep) currentStep).performAction(index, state);
+                        ClusterStateActionStep actionStep = (ClusterStateActionStep) currentStep;
+                        state = actionStep.performAction(index, state);
+                        // If this step (usually a CopyExecutionStateStep step) has brought the
+                        // index to where it needs to have async actions invoked, then add that
+                        // index to the list so that when the new cluster state has been
+                        // processed, the new indices will have their async actions invoked.
+                        Optional.ofNullable(actionStep.indexForAsyncInvocation())
+                            .ifPresent(tuple -> indexToStepKeysForAsyncActions.put(tuple.v1(), tuple.v2()));
                     } catch (Exception exception) {
                         return moveToErrorStep(state, currentStep.getKey(), exception);
                     }
@@ -207,7 +221,8 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
     @Override
     public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        IndexMetadata indexMetadata = newState.metadata().index(index);
+        final Metadata metadata = newState.metadata();
+        final IndexMetadata indexMetadata = metadata.index(index);
         if (indexMetadata != null) {
 
             LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
@@ -228,6 +243,25 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                 // to a new step, we need to conditionally execute the step iff
                 // it is an `AsyncAction` so that it is executed exactly once.
                 lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
+            }
+        }
+        assert indexToStepKeysForAsyncActions.size() <= 1 : "we expect a maximum of one single spawned index currently";
+        for (Map.Entry<String, Step.StepKey> indexAndStepKey : indexToStepKeysForAsyncActions.entrySet()) {
+            final String indexName = indexAndStepKey.getKey();
+            final Step.StepKey nextStep = indexAndStepKey.getValue();
+            final IndexMetadata indexMeta = metadata.index(indexName);
+            if (indexMeta != null) {
+                final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMeta.getSettings());
+                if (Strings.hasText(policyName) && nextStep != null && nextStep != TerminalPolicyStep.KEY) {
+                    logger.trace(
+                        "[{}] index has been spawed from a different index's ({}) "
+                            + "ILM execution, running next step {} if it is an async action",
+                        indexName,
+                        index,
+                        nextStep
+                    );
+                    lifecycleRunner.maybeRunAsyncAction(newState, indexMeta, policyName, nextStep);
+                }
             }
         }
     }

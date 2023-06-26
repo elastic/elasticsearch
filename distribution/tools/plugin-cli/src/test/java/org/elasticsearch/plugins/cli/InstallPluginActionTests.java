@@ -47,7 +47,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
@@ -142,7 +142,7 @@ public class InstallPluginActionTests extends ESTestCase {
         env = createEnv(temp);
         skipJarHellAction = new InstallPluginAction(terminal, null, false) {
             @Override
-            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
+            void jarHellCheck(PluginDescriptor candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
                 // no jarhell check
             }
         };
@@ -232,7 +232,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     /** creates a plugin .zip and returns the url for testing */
-    static PluginDescriptor createPluginZip(String name, Path structure, String... additionalProps) throws IOException {
+    static InstallablePlugin createPluginZip(String name, Path structure, String... additionalProps) throws IOException {
         return createPlugin(name, structure, additionalProps);
     }
 
@@ -270,29 +270,29 @@ public class InstallPluginActionTests extends ESTestCase {
         Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    static PluginDescriptor createPlugin(String name, Path structure, String... additionalProps) throws IOException {
+    static InstallablePlugin createPlugin(String name, Path structure, String... additionalProps) throws IOException {
         writePlugin(name, structure, additionalProps);
-        return new PluginDescriptor(name, writeZip(structure, null).toUri().toURL().toString());
+        return new InstallablePlugin(name, writeZip(structure, null).toUri().toURL().toString());
     }
 
     void installPlugin(String id) throws Exception {
-        PluginDescriptor plugin = id == null ? null : new PluginDescriptor(id, id);
+        InstallablePlugin plugin = id == null ? null : new InstallablePlugin(id, id);
         installPlugin(plugin, env.v1(), skipJarHellAction);
     }
 
-    void installPlugin(PluginDescriptor plugin) throws Exception {
+    void installPlugin(InstallablePlugin plugin) throws Exception {
         installPlugin(plugin, env.v1(), skipJarHellAction);
     }
 
-    void installPlugins(final List<PluginDescriptor> plugins, final Path home) throws Exception {
+    void installPlugins(final List<InstallablePlugin> plugins, final Path home) throws Exception {
         installPlugins(plugins, home, skipJarHellAction);
     }
 
-    void installPlugin(PluginDescriptor plugin, Path home, InstallPluginAction action) throws Exception {
+    void installPlugin(InstallablePlugin plugin, Path home, InstallPluginAction action) throws Exception {
         installPlugins(plugin == null ? Collections.emptyList() : Collections.singletonList(plugin), home, action);
     }
 
-    void installPlugins(final List<PluginDescriptor> plugins, final Path home, final InstallPluginAction action) throws Exception {
+    void installPlugins(final List<InstallablePlugin> plugins, final Path home, final InstallPluginAction action) throws Exception {
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         action.setEnvironment(environment);
         action.execute(plugins);
@@ -401,28 +401,28 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testSomethingWorks() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake", pluginDir, env.v2());
     }
 
     public void testMultipleWorks() throws Exception {
-        PluginDescriptor fake1PluginZip = createPluginZip("fake1", pluginDir);
-        PluginDescriptor fake2PluginZip = createPluginZip("fake2", pluginDir);
+        InstallablePlugin fake1PluginZip = createPluginZip("fake1", pluginDir);
+        InstallablePlugin fake2PluginZip = createPluginZip("fake2", pluginDir);
         installPlugins(Arrays.asList(fake1PluginZip, fake2PluginZip), env.v1());
         assertPlugin("fake1", pluginDir, env.v2());
         assertPlugin("fake2", pluginDir, env.v2());
     }
 
     public void testDuplicateInstall() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         final UserException e = expectThrows(UserException.class, () -> installPlugins(Arrays.asList(pluginZip, pluginZip), env.v1()));
         assertThat(e.getMessage(), equalTo("duplicate plugin id [" + pluginZip.getId() + "]"));
     }
 
     public void testTransaction() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
-        PluginDescriptor nonexistentPluginZip = new PluginDescriptor(
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin nonexistentPluginZip = new InstallablePlugin(
             pluginZip.getId() + "-does-not-exist",
             pluginZip.getLocation() + "-does-not-exist"
         );
@@ -438,7 +438,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testInstallFailsIfPreviouslyRemovedPluginFailed() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         final Path removing = env.v2().pluginsFile().resolve(".removing-failed");
         Files.createDirectory(removing);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip));
@@ -451,19 +451,19 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testSpaceInUrl() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         Path pluginZipWithSpaces = createTempFile("foo bar", ".zip");
         try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip.getLocation()))) {
             Files.copy(in, pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
         }
-        PluginDescriptor modifiedPlugin = new PluginDescriptor("fake", pluginZipWithSpaces.toUri().toURL().toString());
+        InstallablePlugin modifiedPlugin = new InstallablePlugin("fake", pluginZipWithSpaces.toUri().toURL().toString());
         installPlugin(modifiedPlugin);
         assertPlugin("fake", pluginDir, env.v2());
     }
 
     public void testMalformedUrlNotMaven() {
         // has two colons, so it appears similar to maven coordinates
-        PluginDescriptor plugin = new PluginDescriptor("fake", "://host:1234");
+        InstallablePlugin plugin = new InstallablePlugin("fake", "://host:1234");
         MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin(plugin));
         assertThat(e.getMessage(), containsString("no protocol"));
     }
@@ -488,7 +488,7 @@ public class InstallPluginActionTests extends ESTestCase {
         assumeTrue("posix and filesystem", isPosix && isReal);
         try (PosixPermissionsResetter pluginsAttrs = new PosixPermissionsResetter(env.v2().pluginsFile())) {
             pluginsAttrs.setPermissions(new HashSet<>());
-            PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+            InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
             IOException e = expectThrows(IOException.class, () -> installPlugin(pluginZip));
             assertThat(e.getMessage(), containsString(env.v2().pluginsFile().toString()));
         }
@@ -496,14 +496,14 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testBuiltinModule() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("lang-painless", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("lang-painless", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("is a system module"));
         assertInstallCleaned(env.v2());
     }
 
     public void testBuiltinXpackModule() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("x-pack", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("x-pack", pluginDir);
         // There is separate handling for installing "x-pack", versus installing a plugin
         // whose descriptor contains the name "x-pack".
         pluginZip.setId("not-x-pack");
@@ -517,7 +517,7 @@ public class InstallPluginActionTests extends ESTestCase {
         assumeTrue("real filesystem", isReal);
         Path pluginDirectory = createPluginDir(temp);
         writeJar(pluginDirectory.resolve("other.jar"), "FakePlugin");
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDirectory); // adds plugin.jar with FakePlugin
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDirectory); // adds plugin.jar with FakePlugin
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1(), defaultAction));
         assertThat(e.getMessage(), containsString("jar hell"));
         assertInstallCleaned(env.v2());
@@ -526,17 +526,17 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testIsolatedPlugins() throws Exception {
         // these both share the same FakePlugin class
         Path pluginDir1 = createPluginDir(temp);
-        PluginDescriptor pluginZip1 = createPluginZip("fake1", pluginDir1);
+        InstallablePlugin pluginZip1 = createPluginZip("fake1", pluginDir1);
         installPlugin(pluginZip1);
         Path pluginDir2 = createPluginDir(temp);
-        PluginDescriptor pluginZip2 = createPluginZip("fake2", pluginDir2);
+        InstallablePlugin pluginZip2 = createPluginZip("fake2", pluginDir2);
         installPlugin(pluginZip2);
         assertPlugin("fake1", pluginDir1, env.v2());
         assertPlugin("fake2", pluginDir2, env.v2());
     }
 
     public void testExistingPlugin() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("already exists"));
@@ -547,7 +547,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake", pluginDir, env.v2());
     }
@@ -555,7 +555,7 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testBinNotDir() throws Exception {
         Path binDir = pluginDir.resolve("bin");
         Files.createFile(binDir);
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("not a directory"));
         assertInstallCleaned(env.v2());
@@ -565,7 +565,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path dirInBinDir = pluginDir.resolve("bin").resolve("foo");
         Files.createDirectories(dirInBinDir);
         Files.createFile(dirInBinDir.resolve("somescript"));
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("Directories not allowed in bin dir for plugin"));
         assertInstallCleaned(env.v2());
@@ -575,7 +575,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        PluginDescriptor pluginZip = createPluginZip("elasticsearch", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("elasticsearch", pluginDir);
         FileAlreadyExistsException e = expectThrows(FileAlreadyExistsException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString(env.v2().binFile().resolve("elasticsearch").toString()));
         assertInstallCleaned(env.v2());
@@ -586,7 +586,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(env.v2().binFile())) {
             Set<PosixFilePermission> perms = binAttrs.getCopyPermissions();
             // make sure at least one execute perm is missing, so we know we forced it during installation
@@ -612,7 +612,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Files.createDirectory(resourcesDir);
         Files.createFile(resourcesDir.resolve("resource"));
 
-        final PluginDescriptor pluginZip = createPluginZip("fake", tempPluginDir);
+        final InstallablePlugin pluginZip = createPluginZip("fake", tempPluginDir);
 
         installPlugin(pluginZip);
         assertPlugin("fake", tempPluginDir, env.v2());
@@ -661,7 +661,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path configDir = pluginDir.resolve("config");
         Files.createDirectory(configDir);
         Files.createFile(configDir.resolve("custom.yml"));
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake", pluginDir, env.v2());
     }
@@ -674,7 +674,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Files.createDirectory(configDir);
         Files.write(configDir.resolve("custom.yml"), "new config".getBytes(StandardCharsets.UTF_8));
         Files.createFile(configDir.resolve("other.yml"));
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake", pluginDir, env.v2());
         List<String> configLines = Files.readAllLines(envConfigDir.resolve("custom.yml"), StandardCharsets.UTF_8);
@@ -687,7 +687,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Files.createDirectories(pluginDir);
         Path configDir = pluginDir.resolve("config");
         Files.createFile(configDir);
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("not a directory"));
         assertInstallCleaned(env.v2());
@@ -697,7 +697,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path dirInConfigDir = pluginDir.resolve("config").resolve("foo");
         Files.createDirectories(dirInConfigDir);
         Files.createFile(dirInConfigDir.resolve("myconfig.yml"));
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("Directories not allowed in config dir for plugin"));
         assertInstallCleaned(env.v2());
@@ -712,7 +712,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testContainsIntermediateDirectory() throws Exception {
-        Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        Files.createFile(pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES));
         String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
@@ -775,7 +775,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 return flavor;
             }
         };
-        final T exception = expectThrows(clazz, () -> flavorAction.execute(Collections.singletonList(new PluginDescriptor("x-pack"))));
+        final T exception = expectThrows(clazz, () -> flavorAction.execute(Collections.singletonList(new InstallablePlugin("x-pack"))));
         assertThat(exception.getMessage(), containsString(expectedMessage));
     }
 
@@ -811,7 +811,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testPluginAlreadyInstalled() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         final UserException e = expectThrows(
             UserException.class,
@@ -833,8 +833,8 @@ public class InstallPluginActionTests extends ESTestCase {
      * the ID actually is from the plugin's properties, then the installation fails.
      */
     public void testPluginHasDifferentNameThatDescriptor() throws Exception {
-        PluginDescriptor descriptor = createPluginZip("fake", pluginDir);
-        PluginDescriptor modifiedDescriptor = new PluginDescriptor("other-fake", descriptor.getLocation());
+        InstallablePlugin descriptor = createPluginZip("fake", pluginDir);
+        InstallablePlugin modifiedDescriptor = new InstallablePlugin("other-fake", descriptor.getLocation());
 
         final UserException e = expectThrows(UserException.class, () -> installPlugin(modifiedDescriptor));
         assertThat(e.getMessage(), equalTo("Expected downloaded plugin to have ID [other-fake] but found [fake]"));
@@ -845,7 +845,7 @@ public class InstallPluginActionTests extends ESTestCase {
         if (isBatch) {
             writePluginSecurityPolicy(pluginDir, "setFactory");
         }
-        PluginDescriptor pluginZip = createPlugin("fake", pluginDir, additionalProperties);
+        InstallablePlugin pluginZip = createPlugin("fake", pluginDir, additionalProperties);
         skipJarHellAction.setEnvironment(env.v2());
         skipJarHellAction.setBatch(isBatch);
         skipJarHellAction.execute(Collections.singletonList(pluginZip));
@@ -889,7 +889,7 @@ public class InstallPluginActionTests extends ESTestCase {
         final PGPSecretKey secretKey,
         final BiFunction<byte[], PGPSecretKey, String> signature
     ) throws Exception {
-        PluginDescriptor pluginZip = createPlugin(pluginId, pluginDir);
+        InstallablePlugin pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Paths.get(URI.create(pluginZip.getLocation()));
         InstallPluginAction action = new InstallPluginAction(terminal, env.v2(), false) {
             @Override
@@ -967,11 +967,11 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
+            void jarHellCheck(PluginDescriptor candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
                 // no jarhell check
             }
         };
-        installPlugin(new PluginDescriptor(pluginId, pluginUrl), env.v1(), action);
+        installPlugin(new InstallablePlugin(pluginId, pluginUrl), env.v1(), action);
         assertPlugin(pluginId, pluginDir, env.v2());
     }
 
@@ -1362,7 +1362,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     // checks the plugin requires a policy confirmation, and does not install when that is rejected by the user
     // the plugin is installed after this method completes
-    private void assertPolicyConfirmation(Tuple<Path, Environment> pathEnvironmentTuple, PluginDescriptor pluginZip, String... warnings)
+    private void assertPolicyConfirmation(Tuple<Path, Environment> pathEnvironmentTuple, InstallablePlugin pluginZip, String... warnings)
         throws Exception {
         for (int i = 0; i < warnings.length; ++i) {
             String warning = warnings[i];
@@ -1406,14 +1406,14 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testPolicyConfirmation() throws Exception {
         writePluginSecurityPolicy(pluginDir, "createClassLoader", "setFactory");
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
 
         assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");
         assertPlugin("fake", pluginDir, env.v2());
     }
 
     public void testPluginWithNativeController() throws Exception {
-        PluginDescriptor pluginZip = createPluginZip("fake", pluginDir, "has.native.controller", "true");
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir, "has.native.controller", "true");
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("plugins can not have native controllers"));
@@ -1422,7 +1422,7 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testMultipleJars() throws Exception {
         writeJar(pluginDir.resolve("dep1.jar"), "Dep1");
         writeJar(pluginDir.resolve("dep2.jar"), "Dep2");
-        PluginDescriptor pluginZip = createPluginZip("fake-with-deps", pluginDir);
+        InstallablePlugin pluginZip = createPluginZip("fake-with-deps", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake-with-deps", pluginDir, env.v2());
     }

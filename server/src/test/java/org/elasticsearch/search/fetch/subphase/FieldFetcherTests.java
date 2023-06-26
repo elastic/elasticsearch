@@ -272,6 +272,30 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.size(), equalTo(2));
     }
 
+    public void testEmptyFetch() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(BytesReference.bytes(source));
+        {
+            // make sure that an empty fetch don't deserialize the document
+            FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), Collections.emptyList());
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fields.size(), equalTo(0));
+            assertThat(sourceLookup.hasSourceAsMap(), equalTo(false));
+        }
+        {
+            // but a non-empty fetch deserialize the document
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                newSearchExecutionContext(mapperService),
+                fieldAndFormatList("field", null, false)
+            );
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fields.size(), equalTo(1));
+            assertThat(sourceLookup.hasSourceAsMap(), equalTo(true));
+        }
+    }
+
     public void testNestedArrays() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder()
@@ -1002,6 +1026,32 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().size(), equalTo(2));
         assertThat(fields.get("date_field").getValues().get(0), equalTo("11"));
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
+    }
+
+    public void testNestedPrefix() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("nested_field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("foo_bar")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperService mapperService = createMapperService(mapping);
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo_bar", 3.1).endObject();
+        // the field should be returned
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo_bar");
+        assertThat(fields.get("foo_bar").getValues().size(), equalTo(1));
     }
 
     /**

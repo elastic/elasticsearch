@@ -174,7 +174,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
-            throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
+            context.onFailure(
+                new IllegalStateException(
+                    context.indexCommit()
+                        + " is not a regular index, but ["
+                        + unwrap.toString()
+                        + "]  and cannot be snapshotted into a source-only repository"
+                )
+            );
+            return;
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?

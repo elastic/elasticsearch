@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,19 +28,32 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MoveToNextStepUpdateTaskTests extends ESTestCase {
+
+    private static final NamedXContentRegistry REGISTRY;
 
     String policy;
     ClusterState clusterState;
     Index index;
     LifecyclePolicy lifecyclePolicy;
+
+    static {
+        try (IndexLifecycle indexLifecycle = new IndexLifecycle(Settings.EMPTY)) {
+            List<NamedXContentRegistry.Entry> entries = new ArrayList<>(indexLifecycle.getNamedXContent());
+            REGISTRY = new NamedXContentRegistry(entries);
+        }
+    }
 
     @Before
     public void setupClusterState() {
@@ -75,13 +89,22 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey, now);
 
         AtomicBoolean changed = new AtomicBoolean(false);
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        AlwaysExistingStepRegistry stepRegistry = new AlwaysExistingStepRegistry(client);
+        stepRegistry.update(
+            new IndexLifecycleMetadata(
+                org.elasticsearch.core.Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
+                OperationMode.RUNNING
+            )
+        );
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(
             index,
             policy,
             currentStepKey,
             nextStepKey,
             () -> now,
-            new AlwaysExistingStepRegistry(),
+            stepRegistry,
             state -> changed.set(true)
         );
         ClusterState newState = task.execute(clusterState);
@@ -140,13 +163,22 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey, now);
 
         SetOnce<Boolean> changed = new SetOnce<>();
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        AlwaysExistingStepRegistry stepRegistry = new AlwaysExistingStepRegistry(client);
+        stepRegistry.update(
+            new IndexLifecycleMetadata(
+                org.elasticsearch.core.Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
+                OperationMode.RUNNING
+            )
+        );
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(
             index,
             policy,
             currentStepKey,
             invalidNextStep,
             () -> now,
-            new AlwaysExistingStepRegistry(),
+            stepRegistry,
             s -> changed.set(true)
         );
         ClusterState newState = task.execute(clusterState);
@@ -186,7 +218,11 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
     private static class AlwaysExistingStepRegistry extends PolicyStepsRegistry {
 
         AlwaysExistingStepRegistry() {
-            super(new NamedXContentRegistry(Collections.emptyList()), null, null);
+            this(null);
+        }
+
+        AlwaysExistingStepRegistry(Client client) {
+            super(REGISTRY, client, null);
         }
 
         @Override
@@ -215,7 +251,25 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         lifecycleState.setActionTime(now);
         lifecycleState.setStep(stepKey.getName());
         lifecycleState.setStepTime(now);
-        lifecycleState.setPhaseDefinition("{\"actions\":{\"TEST_ACTION\":{}}}");
+
+        lifecycleState.setPhaseDefinition(
+            String.format(
+                Locale.ROOT,
+                ""
+                    + " {\n"
+                    + "              \"policy\" : \"%s\",\n"
+                    + "              \"phase_definition\" : {\n"
+                    + "                \"min_age\" : \"20m\",\n"
+                    + "                \"actions\" : {\n"
+                    + "                }\n"
+                    + "              },\n"
+                    + "              \"version\" : 1,\n"
+                    + "              \"modified_date_in_millis\" : 1578521007076\n"
+                    + "            }"
+                    + "",
+                policy
+            )
+        );
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.getMetadata())

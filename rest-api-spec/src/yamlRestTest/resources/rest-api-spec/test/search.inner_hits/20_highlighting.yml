@@ -28,7 +28,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         refresh: true
         body:
           nested:
@@ -108,7 +108,7 @@ setup:
   - do:
       index:
         index: disabled_source
-        id:    1
+        id:    "1"
         refresh: true
         body:
           nested:

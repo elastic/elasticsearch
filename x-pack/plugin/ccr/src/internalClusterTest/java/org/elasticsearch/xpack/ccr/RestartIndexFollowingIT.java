@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -58,6 +60,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
         setupRemoteCluster();
+        assertRemoteClusterConnected();
 
         final PutFollowAction.Request followRequest = putFollow("index1", "index2");
         if (randomBoolean()) {
@@ -80,6 +83,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         ensureFollowerGreen("index2");
 
         final long secondBatchNumDocs = randomIntBetween(10, 200);
+        logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
         for (int i = 0; i < secondBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
         }
@@ -87,20 +91,23 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         cleanRemoteCluster();
         getLeaderCluster().fullRestart();
         ensureLeaderGreen("index1");
-        // Remote connection needs to be re-configured, because all the nodes in leader cluster have been restarted:
-        setupRemoteCluster();
 
         final long thirdBatchNumDocs = randomIntBetween(10, 200);
+        logger.info("Indexing [{}] docs as third batch", thirdBatchNumDocs);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(
-                followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)
-            )
-        );
+        final long totalDocs = firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs;
+        final AtomicBoolean resumeAfterDisconnectionOnce = new AtomicBoolean(false);
+        assertBusy(() -> {
+            if (resumeAfterDisconnectionOnce.compareAndSet(false, true)) {
+                // Remote connection needs to be re-configured, because all the nodes in leader cluster have been restarted:
+                setupRemoteCluster();
+            }
+            assertRemoteClusterConnected();
+            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs));
+        }, 30L, TimeUnit.SECONDS);
 
         cleanRemoteCluster();
         assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
@@ -117,9 +124,12 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
     private void setupRemoteCluster() throws Exception {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
-        String address = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+        String address = getLeaderCluster().getAnyMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    private void assertRemoteClusterConnected() throws Exception {
         List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
         assertThat(infos.size(), equalTo(1));
         assertTrue(infos.get(0).isConnected());

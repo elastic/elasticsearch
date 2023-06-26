@@ -86,7 +86,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             GetSnapshotsRequest::new,
             indexNameExpressionResolver,
             GetSnapshotsResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT // Execute this on the management pool because creating the response can become fairly expensive
+                                        // for large repositories in the verbose=false case when there are a lot of indices per snapshot.
+                                        // This is intentionally not using the snapshot_meta pool because that pool is sized rather large
+                                        // to accommodate concurrent IO and could consume excessive CPU resources through concurrent
+                                        // verbose=false requests that are CPU bound only.
         );
         this.repositoriesService = repositoriesService;
     }
@@ -114,12 +118,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         getMultipleReposSnapshotInfo(
             request.isSingleRepositoryRequest() == false,
             state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
-            maybeFilterRepositories(
-                TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
-                request.sort(),
-                request.order(),
-                request.fromSortValue()
-            ),
+            TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
             request.snapshots(),
             request.ignoreUnavailable(),
             request.verbose(),
@@ -129,6 +128,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.offset(),
             request.size(),
             request.order(),
+            request.fromSortValue(),
             SnapshotPredicates.fromRequest(request),
             listener
         );
@@ -157,7 +157,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private void getMultipleReposSnapshotInfo(
         boolean isMultiRepoRequest,
         SnapshotsInProgress snapshotsInProgress,
-        List<RepositoryMetadata> repos,
+        TransportGetRepositoriesAction.RepositoriesResult repositoriesResult,
         String[] snapshots,
         boolean ignoreUnavailable,
         boolean verbose,
@@ -167,26 +167,32 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int offset,
         int size,
         SortOrder order,
+        String fromSortValue,
         SnapshotPredicates predicates,
         ActionListener<GetSnapshotsResponse> listener
     ) {
+        // Process the missing repositories
+        final Map<String, ElasticsearchException> failures = new HashMap<>();
+        for (String missingRepo : repositoriesResult.getMissing()) {
+            failures.put(missingRepo, new RepositoryMissingException(missingRepo));
+        }
+
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
-        if (repos.isEmpty()) {
-            listener.onResponse(new GetSnapshotsResponse(Collections.emptyList(), Collections.emptyMap(), null, 0, 0));
+        if (repositoriesResult.getMetadata().isEmpty()) {
+            listener.onResponse(new GetSnapshotsResponse(Collections.emptyList(), failures, null, 0, 0));
             return;
         }
+        List<RepositoryMetadata> repositories = maybeFilterRepositories(repositoriesResult.getMetadata(), sortBy, order, fromSortValue);
         final GroupedActionListener<Tuple<Tuple<String, ElasticsearchException>, SnapshotsInRepo>> groupedActionListener =
             new GroupedActionListener<>(listener.map(responses -> {
-                assert repos.size() == responses.size();
+                assert repositories.size() == responses.size();
                 final List<SnapshotInfo> allSnapshots = responses.stream()
                     .map(Tuple::v2)
                     .filter(Objects::nonNull)
                     .flatMap(snapshotsInRepo -> snapshotsInRepo.snapshotInfos.stream())
                     .collect(Collectors.toList());
-                final Map<String, ElasticsearchException> failures = responses.stream()
-                    .map(Tuple::v1)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+
+                responses.stream().map(Tuple::v1).filter(Objects::nonNull).forEach(tuple -> failures.put(tuple.v1(), tuple.v2()));
                 final SnapshotsInRepo snInfos = sortSnapshots(allSnapshots, sortBy, after, offset, size, order);
                 final List<SnapshotInfo> snapshotInfos = snInfos.snapshotInfos;
                 final int remaining = snInfos.remaining + responses.stream()
@@ -203,10 +209,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     responses.stream().map(Tuple::v2).filter(Objects::nonNull).mapToInt(s -> s.totalCount).sum(),
                     remaining
                 );
-            }), repos.size());
+            }), repositories.size());
 
-        for (final RepositoryMetadata repo : repos) {
-            final String repoName = repo.name();
+        for (final RepositoryMetadata repository : repositories) {
+            final String repoName = repository.name();
             getSingleRepoSnapshotInfo(
                 snapshotsInProgress,
                 repoName,

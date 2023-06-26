@@ -113,10 +113,10 @@ include::restore-snapshot-api.asciidoc[tag=cluster-state-contents]
 `indices`::
 (Optional, string or array of strings)
 Comma-separated list of data streams and indices to include in the snapshot.
-Supports <<multi-index,multi-index syntax>>. Defaults to an empty array (`[]`),
+Supports <<multi-index,multi-target syntax>>. Defaults to an empty array (`[]`),
 which includes all data streams and indices, including system indices.
 +
-To exclude all data streams and indices, use `-*` or `none`.
+To exclude all data streams and indices, use `-*`.
 
 [id="{page-id}-feature-states"]
 `feature_states`::
@@ -129,8 +129,9 @@ If `include_global_state` is `true`, the snapshot includes all feature states by
 default. If `include_global_state` is `false`, the snapshot includes no feature
 states by default.
 +
-To exclude all feature states, regardless of the `include_global_state` value,
-specify an empty array (`[]`) or `none`.
+Note that specifying an empty array will result in the default behavior. To
+exclude all feature states, regardless of the `include_global_state` value,
+specify an array with only the value `none` (`["none"]`).
 
 `metadata`::
 (Optional, object)

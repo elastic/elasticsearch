@@ -4,6 +4,13 @@
 <titleabbrev>cat nodes</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-nodes-info,nodes info API>>.
+====
+
 Returns information about a cluster's nodes.
 
 [[cat-nodes-api-request]]

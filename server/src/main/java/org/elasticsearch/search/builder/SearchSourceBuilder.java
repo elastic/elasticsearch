@@ -1512,7 +1512,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
         if (pointInTimeBuilder != null) {
+            builder.startObject(POINT_IN_TIME.getPreferredName());
             pointInTimeBuilder.toXContent(builder, params);
+            builder.endObject();
         }
         if (false == runtimeMappings.isEmpty()) {
             builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);

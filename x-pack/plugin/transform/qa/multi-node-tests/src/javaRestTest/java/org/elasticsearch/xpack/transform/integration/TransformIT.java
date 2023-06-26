@@ -284,6 +284,12 @@ public class TransformIT extends TransformIntegTestCase {
 
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
+        // wait until transform has been triggered and indexed at least 1 document
+        assertBusy(() -> {
+            TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
+            assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), greaterThan(1L));
+        });
+
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
         assertTrue(stopTransform(transformId, false, null, true).isAcknowledged());
 

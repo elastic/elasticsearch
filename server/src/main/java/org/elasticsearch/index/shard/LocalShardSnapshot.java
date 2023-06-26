@@ -23,27 +23,16 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;
     private final Engine.IndexCommitRef indexCommit;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     LocalShardSnapshot(IndexShard shard) {
         this.shard = shard;
-        store = shard.store();
-        store.incRef();
-        boolean success = false;
-        try {
-            indexCommit = shard.acquireLastIndexCommit(true);
-            success = true;
-        } finally {
-            if (success == false) {
-                store.decRef();
-            }
-        }
+        this.store = shard.store();
+        this.indexCommit = shard.acquireLastIndexCommit(true);
     }
 
     Index getIndex() {
@@ -117,13 +106,7 @@ final class LocalShardSnapshot implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            try {
-                indexCommit.close();
-            } finally {
-                store.decRef();
-            }
-        }
+        indexCommit.close();
     }
 
     IndexMetadata getIndexMetadata() {

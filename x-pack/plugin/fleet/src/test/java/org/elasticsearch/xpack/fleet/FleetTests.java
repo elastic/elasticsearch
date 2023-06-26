@@ -53,7 +53,7 @@ public class FleetTests extends ESTestCase {
     public void testFleetFeature() {
         Fleet module = new Fleet();
         Feature fleet = Feature.fromSystemIndexPlugin(module, Settings.EMPTY);
-        SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(module.getFeatureName(), fleet));
+        SystemIndices systemIndices = new SystemIndices(Collections.singletonList(fleet));
         assertNotNull(systemIndices);
     }
 }

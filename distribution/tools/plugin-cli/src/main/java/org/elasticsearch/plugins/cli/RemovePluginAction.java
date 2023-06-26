@@ -70,29 +70,29 @@ public class RemovePluginAction {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    public void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
+    public void execute(List<InstallablePlugin> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
         }
 
         ensurePluginsNotUsedByOtherPlugins(plugins);
 
-        for (PluginDescriptor plugin : plugins) {
+        for (InstallablePlugin plugin : plugins) {
             checkCanRemove(plugin);
         }
 
-        for (PluginDescriptor plugin : plugins) {
+        for (InstallablePlugin plugin : plugins) {
             removePlugin(plugin);
         }
     }
 
-    private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
+    private void ensurePluginsNotUsedByOtherPlugins(List<InstallablePlugin> plugins) throws IOException, UserException {
         // First make sure nothing extends this plugin
         final Map<String, List<String>> usedBy = new HashMap<>();
         Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
         for (PluginsService.Bundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (PluginDescriptor plugin : plugins) {
+                for (InstallablePlugin plugin : plugins) {
                     String pluginId = plugin.getId();
                     if (extendedPlugin.equals(pluginId)) {
                         usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
@@ -114,7 +114,7 @@ public class RemovePluginAction {
         throw new UserException(PLUGIN_STILL_USED, message.toString());
     }
 
-    private void checkCanRemove(PluginDescriptor plugin) throws UserException {
+    private void checkCanRemove(InstallablePlugin plugin) throws UserException {
         String pluginId = plugin.getId();
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
         final Path pluginConfigDir = env.configFile().resolve(pluginId);
@@ -143,7 +143,7 @@ public class RemovePluginAction {
         }
     }
 
-    private void removePlugin(PluginDescriptor plugin) throws IOException {
+    private void removePlugin(InstallablePlugin plugin) throws IOException {
         final String pluginId = plugin.getId();
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
         final Path pluginConfigDir = env.configFile().resolve(pluginId);

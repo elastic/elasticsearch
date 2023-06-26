@@ -416,7 +416,7 @@ public class ConvertProcessorTests extends ESTestCase {
         for (int j = 0; j < numItems; j++) {
             Object randomValue;
             String randomValueString;
-            switch (randomIntBetween(0, 2)) {
+            switch (randomIntBetween(0, 4)) {
                 case 0:
                     float randomFloat = randomFloat();
                     randomValue = randomFloat;

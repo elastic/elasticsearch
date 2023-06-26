@@ -11,9 +11,13 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -21,6 +25,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -28,11 +34,16 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -41,6 +52,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -48,6 +60,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class PointInTimeIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -275,6 +292,15 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    public void testAllowNoIndex() {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
+        String pit = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet().getPointInTimeId();
+        ClosePointInTimeResponse closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit))
+            .actionGet();
+        assertThat(closeResp.status(), equalTo(RestStatus.OK));
+    }
+
     public void testCanMatch() throws Exception {
         final Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(5, 10))
@@ -411,6 +437,61 @@ public class PointInTimeIT extends ESIntegTestCase {
             }
         } finally {
             closePointInTime(pit);
+        }
+    }
+
+    public void testCloseInvalidPointInTime() {
+        expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
+        List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        assertThat(tasks, empty());
+    }
+
+    public void testOpenPITConcurrentShardRequests() throws Exception {
+        DiscoveryNode dataNode = randomFrom(clusterService().state().nodes().getDataNodes().values());
+        int numShards = randomIntBetween(5, 10);
+        int maxConcurrentRequests = randomIntBetween(2, 5);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                        .put("index.routing.allocation.require._id", dataNode.getId())
+                        .build()
+                )
+        );
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            dataNode.getName()
+        );
+        try {
+            CountDownLatch sentLatch = new CountDownLatch(maxConcurrentRequests);
+            CountDownLatch readyLatch = new CountDownLatch(1);
+            transportService.addRequestHandlingBehavior(
+                TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+                (handler, request, channel, task) -> {
+                    sentLatch.countDown();
+                    Thread thread = new Thread(() -> {
+                        try {
+                            assertTrue(readyLatch.await(1, TimeUnit.MINUTES));
+                            handler.messageReceived(request, channel, task);
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                    thread.start();
+                }
+            );
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(1));
+            request.maxConcurrentShardRequests(maxConcurrentRequests);
+            PlainActionFuture<OpenPointInTimeResponse> future = new PlainActionFuture<>();
+            client().execute(OpenPointInTimeAction.INSTANCE, request, future);
+            assertTrue(sentLatch.await(1, TimeUnit.MINUTES));
+            readyLatch.countDown();
+            closePointInTime(future.actionGet().getPointInTimeId());
+        } finally {
+            transportService.clearAllRules();
         }
     }
 

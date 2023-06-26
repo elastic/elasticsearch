@@ -20,13 +20,13 @@
       index:
         index:  test_1
         type:   test
-        id:     1
+        id:     "1"
         body:   { "foo": "bar", "count": 1 }
   - do:
       get:
         index:  test_1
         type:   test
-        id:     1
+        id:     "1"
         stored_fields: foo
 
   - match:   { _index:   test_1  }
@@ -39,7 +39,7 @@
       get:
         index:  test_1
         type:   test
-        id:     1
+        id:     "1"
         stored_fields: [foo, count]
 
   - match:   { fields.foo:  [bar] }
@@ -50,7 +50,7 @@
       get:
         index:  test_1
         type:   test
-        id:     1
+        id:     "1"
         stored_fields: [foo, count, _source]
 
   - match: { fields.foo:  [bar] }

@@ -10,6 +10,8 @@ package org.elasticsearch.gradle.internal.doc
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask
+import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
@@ -23,14 +25,12 @@ class DocsTestPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        project.pluginManager.apply('elasticsearch.internal-testclusters')
-        project.pluginManager.apply('elasticsearch.standalone-rest-test')
-        project.pluginManager.apply('elasticsearch.rest-test')
+        project.pluginManager.apply('elasticsearch.legacy-yaml-rest-test')
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
-        project.testClusters.matching { it.name.equals("integTest") }.configureEach { testDistribution = distribution.toUpperCase() }
-        project.testClusters.matching { it.name.equals("integTest") }.configureEach { nameCustomization = { it.replace("integTest", "node") } }
+        project.testClusters.matching { it.name.equals("yamlRestTest") }.configureEach { testDistribution = distribution.toUpperCase() }
+        project.testClusters.matching { it.name.equals("yamlRestTest") }.configureEach { nameCustomization = { it.replace("yamlRestTest", "node") } }
         // Docs are published separately so no need to assemble
         project.tasks.named("assemble").configure {enabled = false }
         Map<String, String> commonDefaultSubstitutions = [
@@ -72,6 +72,6 @@ class DocsTestPlugin implements Plugin<Project> {
         }
 
         // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm
-        project.sourceSets.test.output.dir(restRootDir, builtBy: buildRestTests)
+        project.sourceSets.yamlRestTest.output.dir(restRootDir, builtBy: buildRestTests)
     }
 }

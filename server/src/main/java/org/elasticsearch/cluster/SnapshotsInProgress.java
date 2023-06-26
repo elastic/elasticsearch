@@ -1008,6 +1008,56 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             );
         }
 
+        /**
+         * Reassigns all {@link IndexId} in a snapshot that can be found as keys in the given {@code updates} to the {@link IndexId} value
+         * that they map to.
+         * This method is used in an edge case of removing a {@link SnapshotDeletionsInProgress.Entry} from the cluster state at the
+         * end of a delete. If the delete removed the last use of a certain {@link IndexId} from the repository then we do not want to
+         * reuse that {@link IndexId} because the implementation of {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository}
+         * assumes that a given {@link IndexId} will never be reused if it went from referenced to unreferenced in the
+         * {@link org.elasticsearch.repositories.RepositoryData} in a delete.
+         *
+         * @param updates map of existing {@link IndexId} to updated {@link IndexId}
+         * @return a new instance with updated index ids or this instance if unchanged
+         */
+        public Entry withUpdatedIndexIds(Map<IndexId, IndexId> updates) {
+            if (isClone()) {
+                assert indices.values().stream().noneMatch(updates::containsKey)
+                    : "clone index ids can not be updated but saw tried to update " + updates + " on " + this;
+                return this;
+            }
+            Map<String, IndexId> updatedIndices = null;
+            for (IndexId existingIndexId : indices.values()) {
+                final IndexId updatedIndexId = updates.get(existingIndexId);
+                if (updatedIndexId != null) {
+                    if (updatedIndices == null) {
+                        updatedIndices = new HashMap<>(indices);
+                    }
+                    updatedIndices.put(updatedIndexId.getName(), updatedIndexId);
+                }
+            }
+            if (updatedIndices != null) {
+                return new Entry(
+                    snapshot,
+                    includeGlobalState,
+                    partial,
+                    state,
+                    updatedIndices,
+                    dataStreams,
+                    featureStates,
+                    startTime,
+                    repositoryStateId,
+                    shards,
+                    failure,
+                    userMetadata,
+                    version,
+                    source,
+                    ImmutableOpenMap.of()
+                );
+            }
+            return this;
+        }
+
         public Entry withClones(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> updatedClones) {
             if (updatedClones.equals(shardStatusByRepoShardId)) {
                 return this;

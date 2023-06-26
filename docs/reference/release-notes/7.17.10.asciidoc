@@ -1,0 +1,61 @@
+[[release-notes-7.17.10]]
+== {es} version 7.17.10
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[bug-7.17.10]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Skip `DiskThresholdMonitor` when cluster state is not recovered {es-pull}93699[#93699]
+
+CCR::
+* Deduplicate Heavy CCR Repository CS Requests {es-pull}91398[#91398]
+
+ILM+SLM::
+* Allow ILM step transition to the phase terminal step {es-pull}91754[#91754]
+* Allow ILM to transition to implicit cached steps {es-pull}91779[#91779] (issue: {es-issue}91749[#91749])
+* Avoiding `BulkProcessor` deadlock in ILMHistoryStore {es-pull}91238[#91238] (issues: {es-issue}68468[#68468], {es-issue}50440[#50440])
+* Retry clean and create snapshot if it already exists #83694 {es-pull}84829[#84829] (issue: {es-issue}83694[#83694])
+
+Infra/Core::
+* Add checks for exception loops through suppressed exceptions only {es-pull}93944[#93944] (issue: {es-issue}93943[#93943])
+* Check no unassigned shards even if the node already left {es-pull}94722[#94722]
+
+Infra/REST API::
+* Fixes CORS headers needed by Elastic clients {es-pull}85791[#85791]
+
+Ingest Node::
+* Fix async enrich execution prematurely releases enrich policy lock {es-pull}94702[#94702] (issue: {es-issue}94690[#94690])
+
+Search::
+* Fix _id field fetch issue. {es-pull}94528[#94528] (issue: {es-issue}94515[#94515])
+* Return 200 when closing empty PIT or scroll {es-pull}94708[#94708]
+
+Stats::
+* Fix _cluster/stats `.nodes.fs` deduplication {es-pull}94798[#94798] (issue: {es-issue}24472[#24472])
+* Fix `FsInfo` device deduplication {es-pull}94744[#94744]
+
+Transform::
+* Catch deprecations as `Exception` rather than `IOException` {es-pull}94553[#94553]
+
+[[enhancement-7.17.10]]
+[float]
+=== Enhancements
+
+Authorization::
+* Reuse `FieldPermissionsCache` in Role parsing {es-pull}94931[#94931]
+
+Ingest Node::
+* Refactor enrich maintenance coordination logic {es-pull}90931[#90931]
+
+[[upgrade-7.17.10]]
+[float]
+=== Upgrades
+
+Packaging::
+* Upgrade bundled JDK to Java 20 {es-pull}94600[#94600]
+* Bump bundled JDK to Java 20.0.1 {es-pull}95371[#95371]
+
+

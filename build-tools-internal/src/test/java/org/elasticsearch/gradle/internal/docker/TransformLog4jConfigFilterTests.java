@@ -8,20 +8,22 @@
 
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
+public class TransformLog4jConfigFilterTests {
 
     /**
      * Check that the transformer doesn't explode when given an empty file.
      */
+    @Test
     public void testTransformEmptyConfig() {
         runTest(emptyList(), emptyList());
     }
@@ -29,6 +31,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that the transformer leaves non-appender lines alone.
      */
+    @Test
     public void testTransformEchoesNonAppenderLines() {
         List<String> input = Arrays.asList(
             "status = error",
@@ -45,6 +48,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that the root logger appenders are filtered to just the "rolling" appender
      */
+    @Test
     public void testTransformFiltersRootLogger() {
         List<String> input = Arrays.asList(
             "rootLogger.appenderRef.console.ref = console",
@@ -59,6 +63,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that any explicit 'console' or 'rolling_old' appenders are removed.
      */
+    @Test
     public void testTransformRemoveExplicitConsoleAndRollingOldAppenders() {
         List<String> input = Arrays.asList(
             "appender.console.type = Console",
@@ -77,6 +82,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that rolling file appenders are converted to console appenders.
      */
+    @Test
     public void testTransformConvertsRollingToConsole() {
         List<String> input = Arrays.asList("appender.rolling.type = RollingFile", "appender.rolling.name = rolling");
 
@@ -88,6 +94,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that rolling file appenders have redundant properties removed.
      */
+    @Test
     public void testTransformRemovedRedundantProperties() {
         List<String> input = Arrays.asList(
             "appender.rolling.fileName = ${sys:es.logs.base_path}/${sys:es.logs.cluster_name}_server.json",
@@ -106,6 +113,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that rolling file appenders have redundant properties removed.
      */
+    @Test
     public void testTransformSkipsPropertiesWithLineBreaks() {
         List<String> input = Arrays.asList(
             "appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}\\",
@@ -121,6 +129,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that as well as skipping old appenders, logger references to them are also skipped.
      */
+    @Test
     public void testTransformSkipsOldAppenderRefs() {
         List<String> input = singletonList(
             "logger.index_indexing_slowlog.appenderRef.index_indexing_slowlog_rolling_old.ref = index_indexing_slowlog_rolling_old"
@@ -132,6 +141,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that multiple blank lines are reduced to a single line.
      */
+    @Test
     public void testMultipleBlanksReducedToOne() {
         List<String> input = Arrays.asList("status = error", "", "", "rootLogger.level = info");
 

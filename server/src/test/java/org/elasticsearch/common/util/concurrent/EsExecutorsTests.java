@@ -168,6 +168,7 @@ public class EsExecutorsTests extends ESTestCase {
             max,
             between(1, 100),
             randomTimeUnit(),
+            randomBoolean(),
             EsExecutors.daemonThreadFactory("test"),
             threadContext
         );
@@ -209,6 +210,7 @@ public class EsExecutorsTests extends ESTestCase {
             max,
             between(1, 100),
             TimeUnit.MILLISECONDS,
+            randomBoolean(),
             EsExecutors.daemonThreadFactory("test"),
             threadContext
         );

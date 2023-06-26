@@ -8,7 +8,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -35,13 +35,7 @@ dependencies {
   api 'javax.inject:javax.inject:1'
   api "com.sun.jersey:jersey-client:${versions.jersey}"
   api "com.sun.jersey:jersey-core:${versions.jersey}"
-  api "com.sun.jersey:jersey-json:${versions.jersey}"
-  api 'org.codehaus.jettison:jettison:1.1'
   api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
-  api 'org.codehaus.jackson:jackson-core-asl:1.9.2'
-  api 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
-  api 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
-  api 'org.codehaus.jackson:jackson-xc:1.9.2'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
@@ -108,22 +102,6 @@ tasks.named("thirdPartyAudit").configure {
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
-  'org.eclipse.persistence.descriptors.ClassDescriptor',
-  'org.eclipse.persistence.internal.oxm.MappingNodeValue',
-  'org.eclipse.persistence.internal.oxm.TreeObjectBuilder',
-  'org.eclipse.persistence.internal.oxm.XPathFragment',
-  'org.eclipse.persistence.internal.oxm.XPathNode',
-  'org.eclipse.persistence.internal.queries.ContainerPolicy',
-  'org.eclipse.persistence.jaxb.JAXBContext',
-  'org.eclipse.persistence.jaxb.JAXBHelper',
-  'org.eclipse.persistence.mappings.DatabaseMapping',
-  'org.eclipse.persistence.mappings.converters.TypeConversionConverter',
-  'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping',
-  'org.eclipse.persistence.oxm.XMLContext',
-  'org.eclipse.persistence.oxm.XMLDescriptor',
-  'org.eclipse.persistence.oxm.XMLField',
-  'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping',
-  'org.eclipse.persistence.sessions.DatabaseSession',
   'org.jvnet.fastinfoset.VocabularyApplicationData',
   'org.jvnet.staxex.Base64Data',
   'org.jvnet.staxex.XMLStreamReaderEx',
@@ -134,7 +112,9 @@ tasks.named("thirdPartyAudit").configure {
   'org.osgi.framework.BundleEvent',
   'org.osgi.framework.SynchronousBundleListener',
   'com.sun.xml.fastinfoset.stax.StAXDocumentParser',
-  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer'
+  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer',
+  'org.codehaus.jackson.JsonNode',
+  'org.codehaus.jackson.map.ObjectMapper',
 )
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)

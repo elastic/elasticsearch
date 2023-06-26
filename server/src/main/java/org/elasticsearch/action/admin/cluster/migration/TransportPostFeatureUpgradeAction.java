@@ -27,7 +27,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus;
@@ -73,11 +75,14 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<PostFeatureUpgradeResponse> listener
     ) throws Exception {
+        final Set<GetFeatureUpgradeStatusResponse.UpgradeStatus> upgradableStatuses = EnumSet.of(
+            GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED,
+            GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR
+        );
         List<PostFeatureUpgradeResponse.Feature> featuresToMigrate = systemIndices.getFeatures()
-            .values()
             .stream()
             .map(feature -> getFeatureUpgradeStatus(state, feature))
-            .filter(status -> status.getUpgradeStatus().equals(GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED))
+            .filter(status -> upgradableStatuses.contains(status.getUpgradeStatus()))
             .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getFeatureName)
             .map(PostFeatureUpgradeResponse.Feature::new)
             .sorted(Comparator.comparing(PostFeatureUpgradeResponse.Feature::getFeatureName)) // consistent ordering to simplify testing

@@ -325,6 +325,12 @@ a secure proxy. You can then specify the proxy endpoint URL in the
 <<ingest-geoip-downloader-endpoint,`ingest.geoip.downloader.endpoint`>> setting
 of each node’s `elasticsearch.yml` file.
 
+In a strict setup the following domains may need to be added to the allowed
+domains list:
+
+* `geoip.elastic.co`
+* `storage.googleapis.com`
+
 [[use-custom-geoip-endpoint]]
 **Use a custom endpoint**
 

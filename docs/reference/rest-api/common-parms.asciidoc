@@ -150,11 +150,16 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination
+The _destination index_ for the {transform}.
+
+In the case of a `pivot` transform, the mappings of the destination
 index are deduced based on the source fields when possible. If alternate
-mappings are required, use the
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
+mappings are required, use the <<indices-create-index,Create index API>>
 prior to starting the {transform}.
+
+In the case of a `latest` transform, the mappings are never deduced. If dynamic
+mappings for the destination index are undesirable, use the
+<<indices-create-index,Create index API>> prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
@@ -405,8 +410,8 @@ end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
-(Optional, Boolean) If `true`, missing or closed indices are not included in the
-response. Defaults to `false`.
+(Optional, Boolean) If `false`, the request returns an error if it targets a
+missing or closed index. Defaults to `false`.
 end::index-ignore-unavailable[]
 
 tag::include-defaults[]
@@ -528,9 +533,6 @@ of each Lucene index file.
 
 `store`::
 Size of the index in <<byte-units, byte units>>.
-
-`suggest`::
-<<search-suggesters,Suggester>> statistics.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
@@ -738,6 +740,9 @@ The following groupings are currently supported:
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
+The grouping properties can optionally have a `missing_bucket` property. If 
+it's `true`, documents without a value in the respective `group_by` field are 
+included. Defaults to `false`.
 --
 end::pivot-group-by[]
 
@@ -929,9 +934,11 @@ pattern (for example, `"my-index-*"`), an array of indices (for example,
 `["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
 example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
 `"remote_name:index_name"`.
-
++
+--
 NOTE: If any indices are in remote clusters then the master node and at least
 one transform node must have the `remote_cluster_client` node role.
+--
 end::source-index-transforms[]
 
 tag::source-query-transforms[]

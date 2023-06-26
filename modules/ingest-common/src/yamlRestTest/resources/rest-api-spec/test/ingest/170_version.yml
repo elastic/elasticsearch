@@ -61,14 +61,14 @@ teardown:
       catch: conflict
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline1"
         body: {}
 
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline2"
         body: {}
   - match: { _version: 1 }

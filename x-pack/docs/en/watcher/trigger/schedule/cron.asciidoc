@@ -5,7 +5,7 @@
 ++++
 
 Defines a <<trigger-schedule, `schedule`>> using a <<cron-expressions, cron expression>> 
-that specifiues when to execute a watch.
+that specifies when to execute a watch.
 
 TIP:  While cron expressions are powerful, a regularly occurring schedule 
 is easier to configure with the other schedule types. 

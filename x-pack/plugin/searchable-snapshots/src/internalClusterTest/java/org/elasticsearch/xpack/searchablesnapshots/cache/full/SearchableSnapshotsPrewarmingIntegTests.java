@@ -12,9 +12,11 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,11 +28,16 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -57,24 +64,33 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Collections.emptySet;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -189,10 +205,14 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
         final Map<String, List<String>> exclusionsPerIndex = new HashMap<>();
         for (int index = 0; index < nbIndices; index++) {
-            exclusionsPerIndex.put("index-" + index, randomSubsetOf(Arrays.asList("fdt", "fdx", "nvd", "dvd", "tip", "cfs", "dim")));
+            exclusionsPerIndex.put(
+                "index-" + index,
+                randomSubsetOf(Stream.of(LuceneFilesExtensions.values()).map(LuceneFilesExtensions::getExtension).collect(toList()))
+            );
         }
 
         logger.debug("--> mounting indices");
+        final List<String> mountedIndices = new ArrayList<>(nbIndices);
         final Thread[] threads = new Thread[nbIndices];
         final AtomicArray<Throwable> throwables = new AtomicArray<>(nbIndices);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -200,6 +220,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         for (int i = 0; i < threads.length; i++) {
             int threadId = i;
             final String indexName = "index-" + threadId;
+            mountedIndices.add(indexName);
             final Thread thread = new Thread(() -> {
                 try {
                     latch.await();
@@ -245,6 +266,31 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             thread.start();
         }
 
+        // some indices are randomly removed before prewarming completes
+        final Set<String> deletedIndicesDuringPrewarming = randomBoolean() ? new HashSet<>(randomSubsetOf(mountedIndices)) : emptySet();
+
+        final CountDownLatch startPrewarmingLatch = new CountDownLatch(1);
+        final ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
+        final int maxUploadTasks = threadPool.info(CACHE_PREWARMING_THREAD_POOL_NAME).getMax();
+        for (int i = 0; i < maxUploadTasks; i++) {
+            threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+
+                @Override
+                protected void doRun() throws Exception {
+                    startPrewarmingLatch.await();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
+
+        ExecutorService prewarmingExecutor = threadPool.executor(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+        assertThat(prewarmingExecutor, instanceOf(ThreadPoolExecutor.class));
+        assertThat(((ThreadPoolExecutor) prewarmingExecutor).getActiveCount(), equalTo(maxUploadTasks));
+
         latch.countDown();
         for (Thread thread : threads) {
             thread.join();
@@ -252,11 +298,41 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
         assertThat("Failed to mount snapshot as indices", throwables.asList(), emptyCollectionOf(Throwable.class));
 
-        logger.debug("--> waiting for background cache prewarming to");
+        logger.debug("--> waiting for background cache to complete");
         assertBusy(() -> {
-            final ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
-            assertThat(threadPool.info(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getQueueSize(), nullValue());
-            assertThat(threadPool.info(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME).getQueueSize(), nullValue());
+            ExecutorService executor = threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+            if (executor instanceof ThreadPoolExecutor) {
+                assertThat(((ThreadPoolExecutor) executor).getQueue().size(), equalTo(0));
+                assertThat(((ThreadPoolExecutor) executor).getActiveCount(), equalTo(0));
+            }
+        });
+
+        if (deletedIndicesDuringPrewarming.isEmpty() == false) {
+            Set<Index> deletedIndices = deletedIndicesDuringPrewarming.stream().map(this::resolveIndex).collect(Collectors.toSet());
+            logger.debug("--> deleting indices [{}] before prewarming", deletedIndices);
+            assertAcked(client().admin().indices().prepareDelete(deletedIndicesDuringPrewarming.toArray(new String[] {})));
+
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+            assertBusy(() -> deletedIndices.forEach(deletedIndex -> assertThat(indicesService.hasIndex(deletedIndex), is(false))));
+        }
+
+        startPrewarmingLatch.countDown();
+
+        // wait for recovery to be DONE
+        assertBusy(() -> {
+            RecoveryResponse recoveryResponse = client().admin()
+                .indices()
+                .prepareRecoveries(mountedIndices.toArray(new String[] {}))
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .get();
+            assertThat(
+                recoveryResponse.shardRecoveryStates()
+                    .values()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .allMatch(recoveryState -> recoveryState.getStage().equals(RecoveryState.Stage.DONE)),
+                is(true)
+            );
         });
 
         logger.debug("--> loading snapshot metadata");
@@ -287,14 +363,55 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     .stream()
                     .filter(file -> file.metadata().hashEqualsContents() == false)
                     .filter(file -> exclusionsPerIndex.get(indexName).contains(IndexFileNames.getExtension(file.physicalName())) == false)
-                    .collect(Collectors.toList());
+                    .collect(toList());
 
-                for (BlobStoreIndexShardSnapshot.FileInfo expectedPrewarmedBlob : expectedPrewarmedBlobs) {
-                    for (int part = 0; part < expectedPrewarmedBlob.numberOfParts(); part++) {
-                        final String blobName = expectedPrewarmedBlob.partName(part);
-                        long actualBytesRead = tracker.totalBytesRead(blobName);
-                        long expectedBytesRead = expectedPrewarmedBlob.partBytes(part);
-                        assertThat("Blob [" + blobName + "] not fully warmed", actualBytesRead, greaterThanOrEqualTo(expectedBytesRead));
+                if (deletedIndicesDuringPrewarming.contains(indexName) == false) {
+                    for (BlobStoreIndexShardSnapshot.FileInfo blob : expectedPrewarmedBlobs) {
+                        for (int part = 0; part < blob.numberOfParts(); part++) {
+                            final String blobName = blob.partName(part);
+                            try {
+                                assertThat(
+                                    "Blob [" + blobName + "][" + blob.physicalName() + "] not prewarmed",
+                                    tracker.totalBytesRead(blobName),
+                                    equalTo(blob.partBytes(part))
+                                );
+                            } catch (AssertionError ae) {
+                                assertThat(
+                                    "Only blobs from physical file with specific extensions are expected to be prewarmed over their sizes ["
+                                        + blobName
+                                        + "]["
+                                        + blob.physicalName()
+                                        + "] but got :"
+                                        + ae,
+                                    blob.physicalName(),
+                                    anyOf(endsWith(".cfe"), endsWith(".cfs"))
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    for (BlobStoreIndexShardSnapshot.FileInfo blob : expectedPrewarmedBlobs) {
+                        for (int part = 0; part < blob.numberOfParts(); part++) {
+                            final String blobName = blob.partName(part);
+                            try {
+                                assertThat(
+                                    "Blob [" + blobName + "][" + blob.physicalName() + "] should not have been fully prewarmed",
+                                    tracker.totalBytesRead(blobName),
+                                    nullValue()
+                                );
+                            } catch (AssertionError ae) {
+                                assertThat(
+                                    "Only blobs from physical file with specific extensions are expected to be prewarmed over their sizes ["
+                                        + blobName
+                                        + "]["
+                                        + blob.physicalName()
+                                        + "] but got :"
+                                        + ae,
+                                    blob.physicalName(),
+                                    anyOf(endsWith(".cfe"), endsWith(".cfs"))
+                                );
+                            }
+                        }
                     }
                 }
             }

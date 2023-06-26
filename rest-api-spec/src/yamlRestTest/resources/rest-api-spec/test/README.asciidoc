@@ -308,8 +308,15 @@ be caught and tested. For instance:
         catch:        missing
         get:
             index:    test
-            type:    test
+            type:     test
             id:        1
+
+# And, optionally, you can assert on the contents of the precise contents of the error message:
+
+    - match: { error.type: "illegal_argument_exception" }
+    - match: { error.reason: "The request contained an illegal argument" }
+    - match: { error.caused_by.reason: "The argument was illegal because ..." }
+    - match: { error.root_cause.0.type: "illegal_argument_exception" }
 ....
 
 The argument to `catch` can be any of:

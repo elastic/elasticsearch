@@ -14,6 +14,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   implementation project(path: 'preallocate')
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(project(path: xpackModule('shutdown')))
   internalClusterTestImplementation(project(path: ':modules:reindex'))
 }
 

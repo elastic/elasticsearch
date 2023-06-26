@@ -16,6 +16,8 @@ with a `NOT IN` operator.
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 [[breaking-7.8.1]]
 [discrete]
 === Breaking changes
@@ -172,6 +174,8 @@ with a `NOT IN` operator.
 +
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[breaking-7.8.0]]
 [discrete]

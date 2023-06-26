@@ -33,6 +33,8 @@ import java.util.Objects;
 public class DataStreamMetadata implements Metadata.Custom {
 
     public static final String TYPE = "data_stream";
+
+    public static final DataStreamMetadata EMPTY = new DataStreamMetadata(org.elasticsearch.core.Map.of(), org.elasticsearch.core.Map.of());
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField DATA_STREAM_ALIASES = new ParseField("data_stream_aliases");
     @SuppressWarnings("unchecked")

@@ -31,8 +31,9 @@ node:
 
 When you start a master-eligible node, you can provide this setting on the
 command line or in the `elasticsearch.yml` file. After the cluster has formed,
-this setting is no longer required. It should not be set for master-ineligible
-nodes, master-eligible nodes joining an existing cluster, or cluster restarts.
+remove this setting from each node's configuration. It should not be set for
+master-ineligible nodes, master-eligible nodes joining an existing cluster, or
+when restarting one or more nodes.
 
 It is technically sufficient to set `cluster.initial_master_nodes` on a single
 master-eligible node in the cluster, and only to mention that single node in the
@@ -75,7 +76,7 @@ configuration. If each node name is a fully-qualified domain name such as
 `master-a.example.com` then you must use fully-qualified domain names in the
 `cluster.initial_master_nodes` list too; conversely if your node names are bare
 hostnames (without the `.example.com` suffix) then you must use bare hostnames
-in the `cluster.initial_master_nodes` list. If you use a mix of fully-qualifed
+in the `cluster.initial_master_nodes` list. If you use a mix of fully-qualified
 and bare hostnames, or there is some other mismatch between `node.name` and
 `cluster.initial_master_nodes`, then the cluster will not form successfully and
 you will see log messages like the following.

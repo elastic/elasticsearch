@@ -110,7 +110,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             )
         ) {
             cacheService.start();
-            directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
+            directory.loadSnapshot(createRecoveryState(true), () -> false, ActionListener.wrap(() -> {}));
 
             // TODO does not test using the recovery range size
             final IndexInput indexInput = directory.openInput(fileName, randomIOContext());

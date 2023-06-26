@@ -4,6 +4,9 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
+  testImplementation(xpackProject('plugin:sql:qa:jdbc'))
+  // We use the shadowjar for testing since that's the actual artifact we deliver to users
+  testCompileOnly project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
 }
 
 Project mainProject = project
@@ -13,8 +16,9 @@ subprojects {
   configurations.create('testArtifacts').transitive(false)
 
   dependencies {
-    testImplementation project(":x-pack:plugin:core")
+    javaRestTestImplementation project(":x-pack:plugin:core")
     testArtifacts testArtifact(project(mainProject.path))
+
   }
 
   testClusters.configureEach {
@@ -40,13 +44,11 @@ subprojects {
 
   tasks.withType(RestIntegTestTask).configureEach {
     dependsOn copyTestClasses
-    testClassesDirs += project.files(testArtifactsDir)
-    classpath += configurations.testArtifacts
+    classpath = configurations.testArtifacts
+    testClassesDirs = project.files(testArtifactsDir)
     nonInputProperties.systemProperty 'tests.audit.logfile',
-      "${-> testClusters.integTest.singleNode().getAuditLog()}"
+      "${-> testClusters.javaRestTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-      "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+      "${-> testClusters.javaRestTest.singleNode().getAuditLog().getParentFile()}/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}.json"
   }
-
-  tasks.named("testingConventions").configure { enabled = false }
 }

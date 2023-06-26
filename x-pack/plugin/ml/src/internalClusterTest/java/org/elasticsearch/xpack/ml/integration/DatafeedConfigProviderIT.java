@@ -25,9 +25,11 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.hamcrest.core.IsInstanceOf;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -432,6 +434,31 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(datafeedIdsHolder.get(), contains("bar-1", "foo-1"));
     }
 
+    public void testFindDatafeedIdsForJobIds_ManyJobs() throws Exception {
+        List<String> jobIds = new ArrayList<>();
+        Set<String> dfIds = new HashSet<>();
+        for (int i = 0; i < 13; i++) {
+            String id = Integer.toString(i);
+            String dfId = "df-" + id;
+            String jobId = "j-" + id;
+            putDatafeedConfig(createDatafeedConfig(dfId, jobId), Collections.emptyMap());
+            dfIds.add(dfId);
+            jobIds.add(jobId);
+        }
+
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
+
+        AtomicReference<Set<String>> datafeedIdsHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(
+            actionListener -> datafeedConfigProvider.findDatafeedIdsForJobIds(jobIds, actionListener),
+            datafeedIdsHolder,
+            exceptionHolder
+        );
+        assertEquals(dfIds, datafeedIdsHolder.get());
+    }
+
     public void testFindDatafeedsForJobIds() throws Exception {
         putDatafeedConfig(createDatafeedConfig("foo-1", "j1"), Collections.emptyMap());
         putDatafeedConfig(createDatafeedConfig("foo-2", "j2"), Collections.emptyMap());
@@ -465,6 +492,29 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(datafeedMapHolder.get(), allOf(hasKey("j3"), hasKey("j1")));
         assertThat(datafeedMapHolder.get().get("j3").getId(), equalTo("bar-1"));
         assertThat(datafeedMapHolder.get().get("j1").getId(), equalTo("foo-1"));
+    }
+
+    public void testFindDatafeedsForJobIds_ManyJobs() throws Exception {
+        List<String> jobIds = new ArrayList<String>();
+        for (int i = 0; i < 13; i++) {
+            String id = Integer.toString(i);
+            String dfId = "df-" + id;
+            String jobId = "j-" + id;
+            putDatafeedConfig(createDatafeedConfig(dfId, jobId), Collections.emptyMap());
+            jobIds.add(jobId);
+        }
+
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
+
+        AtomicReference<Map<String, DatafeedConfig.Builder>> datafeedMapHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(
+            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(jobIds, actionListener),
+            datafeedMapHolder,
+            exceptionHolder
+        );
+        assertThat(datafeedMapHolder.get().entrySet(), hasSize(jobIds.size()));
     }
 
     public void testHeadersAreOverwritten() throws Exception {

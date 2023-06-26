@@ -15,8 +15,7 @@ apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
+  include '**/*.asciidoc'
   // That is where the snippets go, not where they come from!
   exclude 'build/**'
   // Just syntax examples
@@ -57,7 +56,7 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "integTest"}.configureEach {
+testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
@@ -65,6 +64,13 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
+
+  // debug ccr test failures:
+  // https://github.com/elastic/elasticsearch/issues/95678
+  // https://github.com/elastic/elasticsearch/issues/94359
+  // https://github.com/elastic/elasticsearch/issues/96561
+  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
+  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
@@ -104,9 +110,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   }
 }
 
-
-
-tasks.named("integTest").configure {
+tasks.named("yamlRestTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
   }
@@ -1625,7 +1629,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
   }
 
   /* Load the actual events only if we're going to use them. */
-  File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File)
 
   doFirst {

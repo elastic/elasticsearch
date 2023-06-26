@@ -7,22 +7,3 @@
  */
 
 apply plugin:"elasticsearch.internal-distribution-bwc-setup"
-
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
-
-
-BuildParams.getBwcVersions().forPreviousUnreleased { unreleasedVersion ->
-    project(unreleasedVersion.gradleProjectPath) {
-        Version currentVersion = Version.fromString(version)
-        TaskProvider<Task> resolveAllBwcDepsTaskProvider = bwcSetup.bwcTask("resolveAllBwcDependencies") {
-            t -> t.args("resolveAllDependencies")
-        }
-        if (currentVersion.getMinor() == 0 && currentVersion.getRevision() == 0) {
-            // We only want to resolve dependencies for live versions of master, without cascading this to older versions
-            tasks.named("resolveAllDependencies").configure {
-                dependsOn(resolveAllBwcDepsTaskProvider)
-            }
-        }
-    }
-}

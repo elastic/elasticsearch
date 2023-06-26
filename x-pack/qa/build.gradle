@@ -1,8 +1,7 @@
 // this file must exist so that qa projects are found
 // by the elasticsearch x-plugins include mechanism
 
-apply plugin: 'elasticsearch.build'
-tasks.named("test").configure { enabled = false }
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(':test:framework')

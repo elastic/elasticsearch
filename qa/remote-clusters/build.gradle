@@ -65,7 +65,7 @@ tasks.named("preProcessFixture").configure {
 
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
-  if ('default'.equalsIgnoreCase(providers.systemProperty('tests.distribution').forUseAtConfigurationTime().getOrElse('default'))) {
+  if ('default'.equalsIgnoreCase(providers.systemProperty('tests.distribution').getOrElse('default'))) {
     useComposeFiles = ['docker-compose.yml']
   } else {
     useComposeFiles = ['docker-compose-oss.yml']

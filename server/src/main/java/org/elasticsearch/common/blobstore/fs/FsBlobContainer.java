@@ -8,6 +8,10 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -28,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
@@ -54,6 +59,8 @@ import static java.util.Collections.unmodifiableMap;
  * does not permit read and/or write access to the underlying files.
  */
 public class FsBlobContainer extends AbstractBlobContainer {
+
+    private static final Logger logger = LogManager.getLogger(FsBlobContainer.class);
 
     private static final String TEMP_FILE_PREFIX = "pending-";
 
@@ -96,7 +103,15 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 try {
                     attrs = Files.readAttributes(file, BasicFileAttributes.class);
                 } catch (FileNotFoundException | NoSuchFileException e) {
-                    // The file was concurrently deleted between listing files and trying to get its attributes so we skip it here
+                    // The file was concurrently deleted trying to get its attributes so we skip it here
+                    continue;
+                } catch (AccessDeniedException e) {
+                    // The file became inaccessible for some reason, possibly an artefact of concurrent deletion (Windows?): warn and skip
+                    logger.warn(
+                        new ParameterizedMessage("file [{}] became inaccessible while listing [{}/{}]", file, path, blobNamePrefix),
+                        e
+                    );
+                    assert Constants.WINDOWS : e;
                     continue;
                 }
                 if (attrs.isRegularFile()) {

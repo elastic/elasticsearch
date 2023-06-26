@@ -31,10 +31,10 @@ public class PrecommitTaskPlugin implements Plugin<Project> {
                         "lifecycle-base",
                         p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
                 );
-        project.getPluginManager().withPlugin("java", p -> {
+        project.getPluginManager().withPlugin("java-base", p -> {
             // run compilation as part of precommit
             project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(sourceSet ->
-                    precommit.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
+                    precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()))
             );
             // make sure tests run after all precommit tasks
             project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));

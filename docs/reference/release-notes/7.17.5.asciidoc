@@ -1,0 +1,110 @@
+[[release-notes-7.17.5]]
+== {es} version 7.17.5
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.5]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[bug-7.17.5]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Allow `serial_diff` under `min_doc_count` aggs {es-pull}86401[#86401]
+* Fix a bug with flattened fields in terms aggregations {es-pull}87392[#87392]
+
+Audit::
+* Fix audit logging to consistently include port number in `origin.address` {es-pull}86732[#86732]
+* Support removing ignore filters for audit logging {es-pull}87675[#87675] (issue: {es-issue}68588[#68588])
+
+CCR::
+* Prevent invalid datastream metadata when CCR follows a datastream with closed indices on the follower {es-pull}87076[#87076] (issue: {es-issue}87048[#87048])
+* Remove some blocking in CcrRepository {es-pull}87235[#87235]
+
+Cluster Coordination::
+* Small fixes to clear voting config excls API {es-pull}87828[#87828]
+
+Engine::
+* Fork to WRITE thread before failing shard in `updateCheckPoints` {es-pull}87458[#87458] (issue: {es-issue}87094[#87094])
+
+Geo::
+* Guard for adding null value tags to vector tiles {es-pull}87051[#87051]
+
+Highlighting::
+* `FastVectorHighlighter` should use `ValueFetchers` to load source data {es-pull}85815[#85815] (issues: {es-issue}75011[#75011], {es-issue}84690[#84690], {es-issue}82458[#82458], {es-issue}80895[#80895])
+* `FastVectorHighlighter` should use `ValueFetchers` to load source data {es-pull}87445[#87445] (issues: {es-issue}75011[#75011], {es-issue}84690[#84690], {es-issue}82458[#82458], {es-issue}80895[#80895])
+
+ILM+SLM::
+* Fix `max_primary_shard_size` resize factor math {es-pull}86897[#86897]
+
+Indices APIs::
+* Make `GetIndexAction` cancellable {es-pull}87681[#87681]
+
+Infra/Circuit Breakers::
+* Make CBE message creation more robust {es-pull}87881[#87881]
+
+Infra/Core::
+* Adjust osprobe assertion for burst cpu {es-pull}86990[#86990]
+* Clean up `DeflateCompressor` after exception {es-pull}87163[#87163] (issue: {es-issue}87160[#87160])
+* Prevent migration of indices that match templates {es-pull}87933[#87933] (issues: {es-issue}86801[#86801], {es-issue}87827[#87827])
+
+Infra/Scripting::
+* Script: Load Whitelists as Resource {es-pull}87539[#87539]
+
+Ingest::
+* Don't download geoip databases if geoip system index is blocked {es-pull}86842[#86842]
+
+Java Low Level REST Client::
+* Do not retry client requests when failing with `ContentTooLargeException` {es-pull}87248[#87248] (issue: {es-issue}86041[#86041])
+
+Machine Learning::
+* Adjacency weighting fixes in categorization {ml-pull}2277[#2277]
+* Fix a source of "Discarding sample = nan, weights = ..." log errors for time series
+  anomaly detection {ml-pull}2286[#2286]
+* Fix ML task auditor exception early in cluster lifecycle {es-pull}87023[#87023] (issue: {es-issue}87002[#87002])
+
+Recovery::
+* Do not leak recover from snapshot file permits when recover from snapshot is disabled {es-pull}87633[#87633] (issue: {es-issue}86705[#86705])
+* Fail shard if STARTED after master failover {es-pull}87451[#87451] (issue: {es-issue}87367[#87367])
+
+Search::
+* Handle empty point values in `DiskUsage` API {es-pull}87826[#87826] (issue: {es-issue}87761[#87761])
+* Make sure to rewrite explain query on coordinator {es-pull}87013[#87013] (issue: {es-issue}64281[#64281])
+
+Security::
+* Security plugin close releasable realms {es-pull}87429[#87429] (issue: {es-issue}86286[#86286])
+
+Snapshot/Restore::
+* Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87254[#87254] (issue: {es-issue}87237[#87237])
+* Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87264[#87264] (issue: {es-issue}87237[#87237])
+* Throw exception on illegal `RepositoryData` updates {es-pull}87654[#87654]
+
+Stats::
+* Run `TransportClusterInfoActions` on MANAGEMENT pool {es-pull}87679[#87679]
+
+[[enhancement-7.17.5]]
+[float]
+=== Enhancements
+
+Discovery-Plugins::
+* Remove redundant jackson dependencies from discovery-azure {es-pull}87898[#87898]
+
+Infra/Core::
+* Force property expansion for security policy {es-pull}87396[#87396]
+
+Machine Learning::
+* Make ML native processes work with glibc 2.35 (required for Ubuntu 22.04) {ml-pull}2272[#2272]
+* Improve normalization of anomaly detection results for short bucket lengths. This
+corrects bias which could cause our scoring to be too low for these jobs
+{ml-pull}2285[#2285] (issue: {ml-issue}2276[#2276])
+
+Packaging::
+* Remove vim-tiny from Docker build {es-pull}87812[#87812] (issue: {es-issue}85634[#85634])
+
+Performance::
+* Warn about impact of large readahead on search {es-pull}88007[#88007]
+
+

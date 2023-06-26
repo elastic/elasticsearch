@@ -131,14 +131,24 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCookies(httpResponse);
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
-            httpChannel.sendResponse(httpResponse, listener);
+            if (tracerLog != null) {
+                final String finalContentLength = contentLength;
+                final String finalOpaque = opaque;
+                listener = ActionListener.runAfter(
+                    listener,
+                    () -> tracerLog.traceResponse(restResponse, httpChannel, finalContentLength, finalOpaque, request.getRequestId(), true)
+                );
+            }
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                httpChannel.sendResponse(httpResponse, listener);
+            }
             success = true;
         } finally {
             if (success == false) {
                 Releasables.close(toClose);
-            }
-            if (tracerLog != null) {
-                tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+                if (tracerLog != null) {
+                    tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), false);
+                }
             }
         }
     }

@@ -38,8 +38,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        // common repositories setup
         project.getPluginManager().apply(JavaBasePlugin.class);
+        // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);

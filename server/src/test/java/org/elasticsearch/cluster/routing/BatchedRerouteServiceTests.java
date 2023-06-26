@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -34,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class BatchedRerouteServiceTests extends ESTestCase {
@@ -99,16 +101,24 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             return s;
         });
 
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String contextHeader = "test-context-header";
+
         final int iterations = scaledRandomIntBetween(1, 100);
         final CountDownLatch tasksSubmittedCountDown = new CountDownLatch(iterations);
         final CountDownLatch tasksCompletedCountDown = new CountDownLatch(iterations);
         final List<Runnable> actions = new ArrayList<>(iterations);
         final Function<Priority, Runnable> rerouteFromPriority = priority -> () -> {
             final AtomicBoolean alreadyRun = new AtomicBoolean();
-            batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.wrap(() -> {
-                assertTrue(alreadyRun.compareAndSet(false, true));
-                tasksCompletedCountDown.countDown();
-            }));
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                final String contextValue = randomAlphaOfLength(10);
+                threadContext.putHeader(contextHeader, contextValue);
+                batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.wrap(() -> {
+                    assertTrue(alreadyRun.compareAndSet(false, true));
+                    assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
+                    tasksCompletedCountDown.countDown();
+                }));
+            }
             tasksSubmittedCountDown.countDown();
         };
         actions.add(rerouteFromPriority.apply(Priority.URGENT)); // ensure at least one URGENT priority reroute

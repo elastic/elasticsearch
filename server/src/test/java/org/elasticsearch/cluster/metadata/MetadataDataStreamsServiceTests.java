@@ -11,8 +11,10 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -30,6 +32,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMa
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
@@ -399,6 +402,53 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
 
         assertThat(e.getMessage(), equalTo("index [" + missingIndex + "] not found"));
+    }
+
+    public void testRemoveBrokenBackingIndexReference() {
+        String dataStreamName = "my-logs";
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            org.elasticsearch.core.List.of(new Tuple<>(dataStreamName, 2)),
+            org.elasticsearch.core.List.of()
+        );
+        DataStream original = state.getMetadata().dataStreams().get(dataStreamName);
+        DataStream broken = new DataStream(
+            original.getName(),
+            new TimestampField("@timestamp"),
+            org.elasticsearch.core.List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
+            original.getGeneration(),
+            original.getMetadata(),
+            original.isHidden(),
+            original.isReplicated(),
+            original.isSystem()
+        );
+        ClusterState brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
+
+        ClusterState result = MetadataDataStreamsService.modifyDataStream(
+            brokenState,
+            org.elasticsearch.core.List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
+            this::getMapperService
+        );
+        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices().get(0), equalTo(original.getIndices().get(1)));
+    }
+
+    public void testRemoveBackingIndexThatDoesntExist() {
+        String dataStreamName = "my-logs";
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            org.elasticsearch.core.List.of(new Tuple<>(dataStreamName, 2)),
+            org.elasticsearch.core.List.of()
+        );
+
+        String indexToRemove = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                state,
+                org.elasticsearch.core.List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove)),
+                this::getMapperService
+            )
+        );
+        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
     }
 
     private MapperService getMapperService(IndexMetadata im) {

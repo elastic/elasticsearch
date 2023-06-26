@@ -61,8 +61,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "max_retries",
         (key) -> Setting.intSetting(key, DEFAULT_MAX_RETRIES, Setting.Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
     /**
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
@@ -71,16 +70,14 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "endpoint_suffix",
         key -> Setting.simpleString(key, Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
@@ -88,8 +85,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "proxy.type",
         (key) -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     /** The host name of a proxy to connect to azure through. */
@@ -97,7 +93,6 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "proxy.host",
         (key) -> Setting.simpleString(key, Property.NodeScope),
-        () -> KEY_SETTING,
         () -> ACCOUNT_SETTING,
         () -> PROXY_TYPE_SETTING
     );
@@ -108,12 +103,15 @@ final class AzureStorageSettings {
         "proxy.port",
         (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope),
         () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING,
         () -> PROXY_TYPE_SETTING,
         () -> PROXY_HOST_SETTING
     );
 
     private final String account;
+
+    @Nullable
+    private final String sasToken;
+
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;
@@ -132,6 +130,7 @@ final class AzureStorageSettings {
         Integer proxyPort
     ) {
         this.account = account;
+        this.sasToken = sasToken;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
@@ -154,6 +153,10 @@ final class AzureStorageSettings {
                 throw new SettingsException("Azure proxy host is unknown.", e);
             }
         }
+    }
+
+    public String getSasToken() {
+        return sasToken;
     }
 
     public String getEndpointSuffix() {

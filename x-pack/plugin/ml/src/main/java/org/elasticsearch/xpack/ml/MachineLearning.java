@@ -393,7 +393,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
-import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.Factory.countNumberInferenceProcessors;
+import static org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
 
 public class MachineLearning extends Plugin
     implements
@@ -415,9 +415,6 @@ public class MachineLearning extends Plugin
 
     private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
-    // This is for performance testing. It's not exposed to the end user.
-    // Recompile if you want to compare performance with C++ tokenization.
-    public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
     private static final Setting<Boolean> ML_ENABLED = Setting.boolSetting(
         "node.ml",
@@ -1291,6 +1288,7 @@ public class MachineLearning extends Plugin
             4,
             MAX_MAX_OPEN_JOBS_PER_NODE * 4,
             TimeValue.timeValueMinutes(1),
+            false,
             "xpack.ml.job_comms_thread_pool"
         );
 
@@ -1301,6 +1299,7 @@ public class MachineLearning extends Plugin
             1,
             MAX_MAX_OPEN_JOBS_PER_NODE * 4,
             TimeValue.timeValueMinutes(10),
+            false,
             "xpack.ml.utility_thread_pool"
         );
 
@@ -1309,6 +1308,7 @@ public class MachineLearning extends Plugin
             1,
             MAX_MAX_OPEN_JOBS_PER_NODE,
             TimeValue.timeValueMinutes(1),
+            false,
             "xpack.ml.datafeed_thread_pool"
         );
 
@@ -1697,7 +1697,7 @@ public class MachineLearning extends Plugin
 
         // validate no pipelines are using machine learning models
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(acknowledgedResponse -> {
-            int numberInferenceProcessors = countNumberInferenceProcessors(clusterService.state());
+            int numberInferenceProcessors = countInferenceProcessors(clusterService.state());
             if (numberInferenceProcessors > 0) {
                 unsetResetModeListener.onFailure(
                     new RuntimeException(

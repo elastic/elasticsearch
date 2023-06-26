@@ -60,7 +60,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         final int tasksPerFrame,
         TimeValue targetedResponseTime,
         ThreadFactory threadFactory,
-        XRejectedExecutionHandler handler,
+        EsRejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);

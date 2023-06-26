@@ -22,7 +22,7 @@
   - do:
       index:
         index:   simple-data-stream1
-        id:      1
+        id:      "1"
         op_type: create
         body:    { "number": 4, '@timestamp': '2020-12-12' }
 
@@ -39,7 +39,7 @@
   - do:
       index:
         index:   simple-data-stream1
-        id:      2
+        id:      "2"
         op_type: create
         body:    { "number": 1, '@timestamp': '2020-12-12' }
 
@@ -56,7 +56,7 @@
   - do:
       index:
         index:   simple-data-stream1
-        id:      3
+        id:      "3"
         op_type: create
         body:    { "number": 5, '@timestamp': '2020-12-12' }
 
@@ -75,7 +75,7 @@
           query:
             range:
               number:
-                - gte: 4
+                gte: 4
 
   - match: {updated: 2}
   - match: {version_conflicts: 0}

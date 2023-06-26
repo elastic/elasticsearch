@@ -81,7 +81,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponseTests.randomIndexResponse;
+import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomIndexResponse;
 import static org.elasticsearch.action.fieldcaps.RequestDispatcher.GROUP_REQUESTS_VERSION;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;

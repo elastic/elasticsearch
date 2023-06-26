@@ -66,8 +66,8 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -374,8 +374,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     ) throws IOException {
         // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         return newShard(
             routing,
             shardPath,
@@ -735,7 +735,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         int fileChunkSizeInBytes = Math.toIntExact(
             randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024)
         );
-        final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
+        final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),

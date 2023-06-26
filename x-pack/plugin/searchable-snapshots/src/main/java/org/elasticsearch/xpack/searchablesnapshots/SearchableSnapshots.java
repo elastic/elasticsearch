@@ -575,12 +575,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     public static ScalingExecutorBuilder[] executorBuilders(Settings settings) {
         final int processors = EsExecutors.allocatedProcessors(settings);
+        // searchable snapshots cache thread pools should always reject tasks once they are shutting down, otherwise some threads might be
+        // waiting for some cache file regions to be populated but this will never happen once the thread pool is shutting down. In order to
+        // prevent these threads to be blocked the cache thread pools will reject after shutdown.
+        final boolean rejectAfterShutdown = true;
         return new ScalingExecutorBuilder[] {
             new ScalingExecutorBuilder(
                 CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
                 0,
                 Math.min(processors * 3, 50),
                 TimeValue.timeValueSeconds(30L),
+                rejectAfterShutdown,
                 CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
@@ -588,6 +593,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 0,
                 16,
                 TimeValue.timeValueSeconds(30L),
+                rejectAfterShutdown,
                 CACHE_PREWARMING_THREAD_POOL_SETTING
             ) };
     }

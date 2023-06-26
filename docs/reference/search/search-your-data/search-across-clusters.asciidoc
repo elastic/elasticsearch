@@ -292,16 +292,29 @@ means the document came from the local cluster.
 
 [discrete]
 [[skip-unavailable-clusters]]
-=== Skip unavailable clusters
+=== Optional remote clusters
 
-By default, a {ccs} returns an error if *any* cluster in the request is
-unavailable.
+By default, a {ccs} fails if a remote cluster in the request returns an
+error or is unavailable. Use the `skip_unavailable` cluster
+setting to mark a specific remote cluster as optional for {ccs}.
 
-To skip an unavailable cluster during a {ccs}, set the
-<<skip-unavailable,`skip_unavailable`>> cluster setting to `true`.
+If `skip_unavailable` is `true`, a {ccs}:
 
-The following <<cluster-update-settings,cluster update settings>> API request
-changes `cluster_two`'s `skip_unavailable` setting to `true`.
+* Skips the remote cluster if its nodes are unavailable during the search. The
+response's `_cluster.skipped` value contains a count of any skipped clusters.
+
+* Ignores errors returned by the remote cluster, such as errors related to
+unavailable shards or indices. This can include errors related to search
+parameters such as <<multi-index,`allow_no_indices`>> and
+<<multi-index,`ignore_unavailable`>>.
+
+* Ignores the <<search-partial-responses,`allow_partial_search_results`>>
+parameter and the related `search.default_allow_partial_results` cluster setting
+when searching the remote cluster. This means searches on the remote cluster may
+return partial results.
+
+The following <<cluster-update-settings,cluster update settings>>
+API request changes `cluster_two`'s `skip_unavailable` setting to `true`.
 
 [source,console]
 --------------------------------
@@ -426,6 +439,8 @@ in the following matrix.
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
+Local clusters version 7.17.7 or later also support cross-cluster search to
+<<remote-clusters,remote clusters>> version 7.15.0 or later.
 
 [%collapsible%open]
 .Version compatibility matrix

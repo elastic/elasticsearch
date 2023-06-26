@@ -6,7 +6,7 @@
  * This test is also intended to work correctly on FIPS mode because we also want to know if a realm breaks on FIPS.
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
@@ -76,6 +76,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.oidc.openid7.op.authorization_endpoint', 'https://op.example.com/auth'
   setting 'xpack.security.authc.realms.oidc.openid7.op.jwkset_path', 'oidc-jwkset.json'
   setting 'xpack.security.authc.realms.oidc.openid7.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.oidc.openid7.http.connection_pool_ttl', '1m'
   keystore 'xpack.security.authc.realms.oidc.openid7.rp.client_secret', 'this-is-my-secret'
 
   extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')

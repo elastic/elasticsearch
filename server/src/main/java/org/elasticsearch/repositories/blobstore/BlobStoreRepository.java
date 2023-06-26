@@ -26,7 +26,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -406,6 +406,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
+        this.repoDataLoadDeduplicator = new SingleResultDeduplicator<>(
+            threadPool.getThreadContext(),
+            listener -> threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+                .execute(ActionRunnable.wrap(listener, this::doGetRepositoryData))
+        );
     }
 
     @Override
@@ -1722,7 +1727,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
         if (bestEffortConsistency == false && cached.getGenId() == latestKnownRepoGen.get()) {
-            repoDataDeduplicator.executeOnce(metadata, listener, (metadata, l) -> l.onResponse(cached));
+            listener.onResponse(cached);
             return;
         }
         if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN
@@ -1740,19 +1745,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 metadata.name(),
                 latestKnownRepoGen
             );
-            // Don't deduplicate repo data loading if we don't have strong consistency guarantees between the repo and the cluster state
-            // Also, if we are not caching repository data (for tests) we assume that the contents of the repository data at a given
-            // generation may change
-            final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
-            if (bestEffortConsistency || cacheRepositoryData == false) {
-                executor.execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
-            } else {
-                repoDataDeduplicator.executeOnce(
-                    metadata,
-                    listener,
-                    (metadata, l) -> executor.execute(ActionRunnable.wrap(l, this::doGetRepositoryData))
-                );
-            }
+            repoDataLoadDeduplicator.execute(listener);
         }
     }
 
@@ -1799,78 +1792,70 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     existingListener.onFailure(e);
                 };
-                threadPool.generic()
-                    .execute(
-                        ActionRunnable.wrap(
-                            ActionListener.wrap(
-                                repoData -> clusterService.submitStateUpdateTask(
-                                    "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
-                                    new ClusterStateUpdateTask() {
-                                        @Override
-                                        public ClusterState execute(ClusterState currentState) {
-                                            RepositoryMetadata metadata = getRepoMetadata(currentState);
-                                            // No update to the repository generation should have occurred concurrently in general except
-                                            // for
-                                            // extreme corner cases like failing over to an older version master node and back to the
-                                            // current
-                                            // node concurrently
-                                            if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
-                                                throw new RepositoryException(
-                                                    metadata.name(),
-                                                    "Found unexpected initialized repo metadata [" + metadata + "]"
-                                                );
-                                            }
-                                            return ClusterState.builder(currentState)
-                                                .metadata(
-                                                    Metadata.builder(currentState.getMetadata())
-                                                        .putCustom(
-                                                            RepositoriesMetadata.TYPE,
-                                                            currentState.metadata()
-                                                                .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-                                                                .withUpdatedGeneration(
-                                                                    metadata.name(),
-                                                                    repoData.getGenId(),
-                                                                    repoData.getGenId()
-                                                                )
-                                                        )
-                                                )
-                                                .build();
-                                        }
-
-                                        @Override
-                                        public void onFailure(String source, Exception e) {
-                                            onFailure.accept(e);
-                                        }
-
-                                        @Override
-                                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                                            logger.trace(
-                                                "[{}] initialized repository generation in cluster state to [{}]",
-                                                metadata.name(),
-                                                repoData.getGenId()
-                                            );
-                                            // Resolve listeners on generic pool since some callbacks for repository data do additional IO
-                                            threadPool.generic().execute(() -> {
-                                                final ActionListener<RepositoryData> existingListener;
-                                                synchronized (BlobStoreRepository.this) {
-                                                    existingListener = repoDataInitialized;
-                                                    repoDataInitialized = null;
-                                                }
-                                                existingListener.onResponse(repoData);
-                                                logger.trace(
-                                                    "[{}] called listeners after initializing repository to generation [{}]",
-                                                    metadata.name(),
-                                                    repoData.getGenId()
-                                                );
-                                            });
-                                        }
+                repoDataLoadDeduplicator.execute(
+                    ActionListener.wrap(
+                        repoData -> clusterService.submitStateUpdateTask(
+                            "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
+                            new ClusterStateUpdateTask() {
+                                @Override
+                                public ClusterState execute(ClusterState currentState) {
+                                    RepositoryMetadata metadata = getRepoMetadata(currentState);
+                                    // No update to the repository generation should have occurred concurrently in general except
+                                    // for
+                                    // extreme corner cases like failing over to an older version master node and back to the
+                                    // current
+                                    // node concurrently
+                                    if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
+                                        throw new RepositoryException(
+                                            metadata.name(),
+                                            "Found unexpected initialized repo metadata [" + metadata + "]"
+                                        );
                                     }
-                                ),
-                                onFailure
-                            ),
-                            this::doGetRepositoryData
-                        )
-                    );
+                                    return ClusterState.builder(currentState)
+                                        .metadata(
+                                            Metadata.builder(currentState.getMetadata())
+                                                .putCustom(
+                                                    RepositoriesMetadata.TYPE,
+                                                    currentState.metadata()
+                                                        .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+                                                        .withUpdatedGeneration(metadata.name(), repoData.getGenId(), repoData.getGenId())
+                                                )
+                                        )
+                                        .build();
+                                }
+
+                                @Override
+                                public void onFailure(String source, Exception e) {
+                                    onFailure.accept(e);
+                                }
+
+                                @Override
+                                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                    logger.trace(
+                                        "[{}] initialized repository generation in cluster state to [{}]",
+                                        metadata.name(),
+                                        repoData.getGenId()
+                                    );
+                                    // Resolve listeners on generic pool since some callbacks for repository data do additional IO
+                                    threadPool.generic().execute(() -> {
+                                        final ActionListener<RepositoryData> existingListener;
+                                        synchronized (BlobStoreRepository.this) {
+                                            existingListener = repoDataInitialized;
+                                            repoDataInitialized = null;
+                                        }
+                                        existingListener.onResponse(repoData);
+                                        logger.trace(
+                                            "[{}] called listeners after initializing repository to generation [{}]",
+                                            metadata.name(),
+                                            repoData.getGenId()
+                                        );
+                                    });
+                                }
+                            }
+                        ),
+                        onFailure
+                    )
+                );
             } else {
                 logger.trace(
                     "[{}] waiting for existing initialization of repository metadata generation in cluster state",
@@ -1882,11 +1867,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * {@link RepositoryData} loading deduplicator. This may only be used with consistent generation repositories, meaning
-     * {@link #bestEffortConsistency} must be {@code false}, in which case we can assume that the {@link RepositoryData} loaded is
-     * unique for a given value of {@link #metadata} at any point in time.
+     * Deduplicator that deduplicates the physical loading of {@link RepositoryData} from the repositories' underlying storage.
      */
-    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator = new ResultDeduplicator<>();
+    private final SingleResultDeduplicator<RepositoryData> repoDataLoadDeduplicator;
 
     private void doGetRepositoryData(ActionListener<RepositoryData> listener) {
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
@@ -1908,7 +1891,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     );
                     return;
                 }
-                genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
+                genToLoad = latestKnownRepoGen.accumulateAndGet(generation, Math::max);
                 if (genToLoad > generation) {
                     logger.info(
                         "Determined repository generation [{}] from repository contents but correct generation must be at " + "least [{}]",
@@ -2055,6 +2038,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void markRepoCorrupted(long corruptedGeneration, Exception originalException, ActionListener<Void> listener) {
         assert corruptedGeneration != RepositoryData.UNKNOWN_REPO_GEN;
         assert bestEffortConsistency == false;
+        logger.warn(() -> "Marking repository [" + metadata.name() + "] as corrupted", originalException);
         clusterService.submitStateUpdateTask(
             "mark repository corrupted [" + metadata.name() + "][" + corruptedGeneration + "]",
             new ClusterStateUpdateTask() {

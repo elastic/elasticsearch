@@ -18,10 +18,24 @@ PUT /_snapshot/my_repository
 }
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+{
+  "indices":"-*"
+}
 
 PUT /_snapshot/my_repository/snapshot_1?wait_for_completion=true
+{
+  "indices":"-*"
+}
+
 PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+{
+  "indices":"-*"
+}
+
 PUT /_snapshot/my_repository/snapshot_3?wait_for_completion=true
+{
+  "indices":"-*"
+}
 ----
 // TESTSETUP
 ////
@@ -91,6 +105,11 @@ If `true`, returns additional information about each index in the snapshot
 comprising the number of shards in the index, the total size of the index in
 bytes, and the maximum number of segments per shard in the index. Defaults to
 `false`, meaning that this information is omitted.
+
+`include_repository`::
+(Optional, Boolean)
+If `true`, returns the repository name for each snapshot in the response.
+Defaults to `true`.
 
 `sort`::
 (Optional, string)

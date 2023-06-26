@@ -3,16 +3,12 @@
 
 :plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
 
-The Elasticsearch repository contains examples of:
+The Elasticsearch repository contains https://github.com/elastic/elasticsearch/tree/master/plugins/examples[examples of plugins]. Some of these include:
 
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/custom-settings[Java plugin]
-  which contains a plugin with custom settings.
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rest-handler[Java plugin]
-  which contains a plugin that registers a Rest handler.
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rescore[Java plugin]
-  which contains a rescore plugin.
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/script-expert-scoring[Java plugin]
-  which contains a script plugin.
+* a plugin with https://github.com/elastic/elasticsearch/tree/master/plugins/examples/custom-settings[custom settings]
+* adding https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rest-handler[custom rest endpoints]
+* adding a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rescore[custom rescorer]
+* a script https://github.com/elastic/elasticsearch/tree/master/plugins/examples/script-expert-scoring[implemented in Java]
 
 These examples provide the bare bones needed to get started. For more
 information about how to write a plugin, we recommend looking at the plugins

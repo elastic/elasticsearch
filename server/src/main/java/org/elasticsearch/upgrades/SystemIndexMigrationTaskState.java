@@ -33,13 +33,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class SystemIndexMigrationTaskState implements PersistentTaskState {
     private static final ParseField CURRENT_INDEX_FIELD = new ParseField("current_index");
     private static final ParseField CURRENT_FEATURE_FIELD = new ParseField("current_feature");
-    private static final ParseField FEATURE_METADATA_MAP_FIELD = new ParseField("feature_metadata");
+    // scope for testing
+    static final ParseField FEATURE_METADATA_MAP_FIELD = new ParseField("feature_metadata");
 
     @SuppressWarnings(value = "unchecked")
-    private static final ConstructingObjectParser<SystemIndexMigrationTaskState, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<SystemIndexMigrationTaskState, Void> PARSER = new ConstructingObjectParser<>(
         SYSTEM_INDEX_UPGRADE_TASK_NAME,
         true,
-        args -> new SystemIndexMigrationTaskState((String) args[0], (String) args[1], (Map<String, Object>) args[3])
+        args -> new SystemIndexMigrationTaskState((String) args[0], (String) args[1], (Map<String, Object>) args[2])
     );
 
     static {
@@ -129,5 +130,19 @@ public class SystemIndexMigrationTaskState implements PersistentTaskState {
     @Override
     public int hashCode() {
         return Objects.hash(currentIndex, currentFeature, featureCallbackMetadata);
+    }
+
+    @Override
+    public String toString() {
+        return "SystemIndexMigrationTaskState{"
+            + "currentIndex='"
+            + currentIndex
+            + '\''
+            + ", currentFeature='"
+            + currentFeature
+            + '\''
+            + ", featureCallbackMetadata="
+            + featureCallbackMetadata
+            + '}';
     }
 }

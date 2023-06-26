@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
@@ -18,7 +17,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.TreeSet;
 
-public class AbstractDistributionDownloadPluginTests extends GradleUnitTestCase {
+public class AbstractDistributionDownloadPluginTests {
     protected static Project rootProject;
     protected static Project archivesProject;
     protected static Project packagesProject;

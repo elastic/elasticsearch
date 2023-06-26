@@ -8,7 +8,7 @@
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -138,8 +138,8 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
       mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> generateContextApiSpecCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
-      systemProperty "jdksrc", providers.systemProperty("jdksrc").forUseAtConfigurationTime().getOrNull()
-      systemProperty "packageSources", providers.systemProperty("packageSources").forUseAtConfigurationTime().getOrNull()
+      systemProperty "jdksrc", providers.systemProperty("jdksrc").getOrNull()
+      systemProperty "packageSources", providers.systemProperty("packageSources").getOrNull()
     }.assertNormalExitValue()
   }
 }

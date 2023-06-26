@@ -52,6 +52,10 @@ gradlePlugin {
       id = 'elasticsearch.docs-test'
       implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
     }
+    draArtifacts {
+      id = 'elasticsearch.dra-artifacts'
+      implementationClass = 'org.elasticsearch.gradle.internal.dra.DraResolvePlugin'
+    }
     globalBuildInfo {
       id = 'elasticsearch.global-build-info'
       implementationClass = 'org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin'
@@ -84,6 +88,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-es-plugin'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalPluginBuildPlugin'
     }
+    internalBasePlugin {
+      id = 'elasticsearch.base-internal-es-plugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin'
+    }
     internalTestArtifact {
       id = 'elasticsearch.internal-test-artifact'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalTestArtifactPlugin'
@@ -100,9 +108,17 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
     }
+    javaDoc {
+      id = 'elasticsearch.java-doc'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
+    }
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
+    }
+    legacyInternalJavaRestTest {
+      id = 'elasticsearch.legacy-java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin'
     }
     internalJavaRestTest {
       id = 'elasticsearch.internal-java-rest-test'
@@ -119,10 +135,6 @@ gradlePlugin {
     restResources {
       id = 'elasticsearch.rest-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'
-    }
-    restTest {
-      id = 'elasticsearch.rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.RestTestPlugin'
     }
     rewrite {
       id = 'elasticsearch.rewrite'
@@ -155,6 +167,10 @@ gradlePlugin {
     validateRestSpec {
       id = 'elasticsearch.validate-rest-spec'
       implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
+    }
+    legacyYamlRestTest {
+      id = 'elasticsearch.legacy-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
@@ -204,79 +220,93 @@ configurations {
 }
 
 dependencies {
-
+  constraints {
+    api("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}") {
+      version {
+        strictly "${versions.getProperty('jackson')}"
+      }
+      because 'We want to use the exact same jackson version we use in production'
+    }
+    // ensuring brought asm version brought in by spock is up-to-date
+    testImplementation buildLibs.asm
+    integTestImplementation buildLibs.asm
+    implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
+  }
   api localGroovy()
   api gradleApi()
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
   api "org.openrewrite:rewrite-java:7.10.0"
   api 'org.openrewrite:plugin:5.6.0'
-  api 'commons-codec:commons-codec:1.12'
-  api 'org.apache.commons:commons-compress:1.19'
-  api 'org.apache.ant:ant:1.10.8'
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
-  api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
-  api 'org.apache.rat:apache-rat:0.11'
-  api "net.java.dev.jna:jna:${versions.getProperty('jna')}"
-  api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+  api buildLibs.commons.codec
+  api buildLibs.apache.compress
+  api buildLibs.ant
+  api 'com.netflix.nebula:gradle-extra-configurations-plugin:7.0.0'
+  api buildLibs.nebula.info
+  api buildLibs.apache.rat
+  api buildLibs.jna
+  api buildLibs.shadow.plugin
   // for our ide tweaking
-  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
+  api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
-  api 'de.thetaphi:forbiddenapis:3.1'
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
-  api 'org.apache.maven:maven-model:3.6.2'
-  api 'com.networknt:json-schema-validator:1.0.36'
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}"
-  api 'org.ow2.asm:asm:9.0'
-  api 'org.ow2.asm:asm-tree:9.0'
+  api buildLibs.httpclient
+  api buildLibs.httpcore
+  api buildLibs.forbiddenApis
+  api buildLibs.docker.compose
+  api buildLibs.maven.model
+  api buildLibs.json.schema.validator
+  api buildLibs.jackson.dataformat.yaml
+  api buildLibs.asm
+  api buildLibs.asm.tree
 
-  compileOnly "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
+  compileOnly buildLibs.checkstyle
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
-  testImplementation "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
-//  testImplementation "junit:junit:${versions.getProperty('junit')}"
-  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-  testImplementation 'org.mockito:mockito-core:1.9.5'
-  testImplementation "org.hamcrest:hamcrest:${versions.getProperty('hamcrest')}"
-
+  testImplementation buildLibs.checkstyle
+  testImplementation buildLibs.wiremock
+  testImplementation buildLibs.mockito.core
+  testImplementation buildLibs.hamcrest
   testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
-  testImplementation(platform("org.junit:junit-bom:${versions.getProperty('junit5')}"))
-  testImplementation("org.junit.jupiter:junit-jupiter") {
+  testImplementation(platform(buildLibs.junit5.platform))
+  testImplementation(buildLibs.junit5.jupiter) {
     because 'allows to write and run Jupiter tests'
   }
-  integTestImplementation(platform("org.junit:junit-bom:${versions.getProperty('junit5')}"))
-  integTestImplementation("org.junit.jupiter:junit-jupiter") {
+  integTestImplementation(platform(buildLibs.junit5.platform))
+  integTestImplementation(buildLibs.junit5.jupiter) {
     because 'allows to write and run Jupiter tests'
   }
-  integTestImplementation("net.bytebuddy:byte-buddy:1.11.0") {
+  integTestImplementation(buildLibs.bytebuddy) {
     because 'Generating dynamic mocks of internal libraries like JdkJarHell'
   }
-  testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+  testRuntimeOnly(buildLibs.junit5.vintage) {
     because 'allows JUnit 3 and JUnit 4 tests to run'
   }
-  testRuntimeOnly("org.junit.platform:junit-platform-launcher") {
+  testRuntimeOnly(buildLibs.junit5.platform.launcher) {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 
-  testImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
-  testImplementation("org.spockframework:spock-core") {
+  testImplementation platform(buildLibs.spock.platform)
+  testImplementation(buildLibs.spock.core) {
     exclude module: "groovy"
   }
-  integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
-  integTestImplementation("org.spockframework:spock-core") {
+  integTestImplementation platform(buildLibs.spock.platform)
+  integTestImplementation(buildLibs.spock.core) {
     exclude module: "groovy"
   }
   // required as we rely on junit4 rules
-  integTestImplementation "org.spockframework:spock-junit4"
-  testImplementation "org.spockframework:spock-junit4"
-  integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
+  integTestImplementation(buildLibs.spock.junit4) {
+    exclude module: "groovy"
+  }
+  testImplementation buildLibs.spock.junit4
+  testImplementation buildLibs.json.assert
+  integTestImplementation buildLibs.xmlunit.core
+
 }
 
 tasks.named('test').configure {
   useJUnitPlatform()
 }
 tasks.register("integTest", Test) {
-  inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
   systemProperty 'test.version_under_test', version
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath

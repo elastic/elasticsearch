@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -2379,8 +2378,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             )
             .build();
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "ml",
+            org.elasticsearch.core.List.of(
                 new Feature(
                     "ml",
                     "ml indices",
@@ -2389,13 +2387,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                         new SystemIndexDescriptor(".ml-stuff*", "other ml")
                     )
                 ),
-                "watcher",
                 new Feature(
                     "watcher",
                     "watcher indices",
                     org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches*", "watches index"))
                 ),
-                "stack-component",
                 new Feature(
                     "stack-component",
                     "stack component",
@@ -2971,8 +2967,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "ml",
+            org.elasticsearch.core.List.of(
                 new Feature(
                     "ml",
                     "ml indices",
@@ -2981,7 +2976,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                         new SystemIndexDescriptor(".ml-stuff*", "other ml")
                     )
                 ),
-                "watcher",
                 new Feature(
                     "watcher",
                     "watcher indices",

@@ -96,8 +96,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             true
         );
         createNativeProcess(job, params, processPipes, filesToDelete);
-        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-            && job.getAnalysisConfig().getCategorizationFieldName() != null;
+        boolean includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 

@@ -379,12 +379,15 @@ snapshot doesn't delete files used by other snapshots.
 === Back up configuration files
 
 If you run {es} on your own hardware, we recommend that, in addition to backups,
-you take regular backups of the files in each node's `$ES_PATH_CONF` directory
-using the file backup software of your choice. Snapshots don't back up these
-files.
+you take regular backups of the files in each node's
+<<config-files-location,`$ES_PATH_CONF` directory>> using the file backup software
+of your choice. Snapshots don't back up these files. Also note that these files will
+differ on each node, so each node's files should be backed up individually.
 
-Depending on your setup, some of these configuration files may contain sensitive
-data, such as passwords or keys. If so, consider encrypting your file backups.
+IMPORTANT: The `elasticsearch.keystore`, TLS keys, and <<ref-saml-settings, SAML>>,
+<<ref-oidc-settings, OIDC>>, and <<ref-kerberos-settings, Kerberos>>
+realms private key files contain sensitive information. Consider encrypting
+your backups of these files.
 
 [discrete]
 [[back-up-specific-feature-state]]
@@ -469,7 +472,11 @@ API>>'s response under both `indices` and `feature_states`.
 
 Some feature states contain sensitive data. For example, the `security` feature
 state includes system indices that may contain user names and encrypted password
-hashes.
+hashes. Because passwords are stored using <<hashing-settings, cryptographic hashes>>,
+the disclosure of a snapshot would not automatically enable a third party to
+authenticate as one of your users or use API keys. However, it would disclose
+confidential information, and if a third party can modify snapshots, they could
+install a back door.
 
 To better protect this data, consider creating a dedicated repository and
 {slm-init} policy for snapshots of the cluster state. This lets you strictly

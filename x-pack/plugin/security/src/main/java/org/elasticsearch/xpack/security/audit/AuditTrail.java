@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 
 public interface AuditTrail {
 
@@ -66,14 +66,14 @@ public interface AuditTrail {
     void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest);
 
     /**
-     * The {@link #connectionGranted(InetAddress, String, SecurityIpFilterRule)} and
-     * {@link #connectionDenied(InetAddress, String, SecurityIpFilterRule)} methods do not have a requestId because they related to a
+     * The {@link #connectionGranted(InetSocketAddress, String, SecurityIpFilterRule)} and
+     * {@link #connectionDenied(InetSocketAddress, String, SecurityIpFilterRule)} methods do not have a requestId because they related to a
      * potentially long-lived TCP connection, not a single request. For both Transport and Rest connections, a single connection
      * granted/denied event is generated even if that connection is used for multiple Elasticsearch actions (potentially as different users)
      */
-    void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
+    void connectionGranted(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
-    void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
+    void connectionDenied(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
     void runAsGranted(
         String requestId,

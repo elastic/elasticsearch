@@ -1773,7 +1773,10 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_field_caps");
 
         assertEquals(endpoint.toString(), request.getEndpoint());
-        int expectedSize = FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS.equals(fieldCapabilitiesRequest.indicesOptions()) ? 1 : 5;
+        int expectedSize = expectedParameterCount(
+            FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS,
+            fieldCapabilitiesRequest.indicesOptions()
+        );
         assertEquals(expectedSize, request.getParameters().size());
 
         // Note that we don't check the field param value explicitly, as field names are
@@ -1814,7 +1817,10 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_field_caps");
 
         assertEquals(endpoint.toString(), request.getEndpoint());
-        int expectedSize = FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS.equals(fieldCapabilitiesRequest.indicesOptions()) ? 1 : 5;
+        int expectedSize = expectedParameterCount(
+            FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS,
+            fieldCapabilitiesRequest.indicesOptions()
+        );
         assertEquals(expectedSize, request.getParameters().size());
 
         // Note that we don't check the field param value explicitly, as field names are
@@ -1855,7 +1861,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         endpoint.add(RestRankEvalAction.ENDPOINT);
         assertEquals(endpoint.toString(), request.getEndpoint());
-        int expectedSize = SearchRequest.DEFAULT_INDICES_OPTIONS.equals(rankEvalRequest.indicesOptions()) ? 1 : 5;
+        int expectedSize = expectedParameterCount(SearchRequest.DEFAULT_INDICES_OPTIONS, rankEvalRequest.indicesOptions());
         assertEquals(expectedSize, request.getParameters().size());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
@@ -2241,7 +2247,9 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
-        expectedParams.put("ignore_throttled", Boolean.toString(getter.get().ignoreThrottled()));
+        if (getter.get().ignoreThrottled() == false) {
+            expectedParams.put("ignore_throttled", Boolean.toString(getter.get().ignoreThrottled()));
+        }
     }
 
     static IndicesOptions setRandomIndicesOptions(IndicesOptions indicesOptions, Map<String, String> expectedParams) {
@@ -2268,8 +2276,14 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
-        expectedParams.put("ignore_throttled", Boolean.toString(indicesOptions.ignoreThrottled()));
+        if (indicesOptions.ignoreThrottled() == false) {
+            expectedParams.put("ignore_throttled", Boolean.toString(indicesOptions.ignoreThrottled()));
+        }
         return indicesOptions;
+    }
+
+    static int expectedParameterCount(IndicesOptions defaultOptions, IndicesOptions indicesOptions) {
+        return defaultOptions.equals(indicesOptions) ? 1 : indicesOptions.ignoreThrottled() ? 4 : 5;
     }
 
     static void setRandomIncludeDefaults(Consumer<Boolean> setter, Map<String, String> expectedParams) {

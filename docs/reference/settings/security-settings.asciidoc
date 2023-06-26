@@ -140,14 +140,16 @@ from being configured. Defaults to `true`.
 The time-to-live for cached `BitSet` entries for document level security.
 Document level security queries may depend on Lucene BitSet objects, and these are
 automatically cached to improve performance. Defaults to expire entries that are
-unused for `168h` (7 days).
+unused for `2h` (2 hours).
 
 `xpack.security.dls.bitset.cache.size`::
 (<<static-cluster-setting,Static>>)
 The maximum memory usage of cached `BitSet` entries for document level security.
 Document level security queries may depend on Lucene BitSet objects, and these are
-automatically cached to improve performance. Defaults to `50mb`, after which
-least-recently-used entries will be evicted.
+automatically cached to improve performance. Can be configured as a raw number
+of bytes (such as `200mb` or `1g`) or a percentage of the node's JVM heap
+memory (such as `5%`). When the default value is exceeded, the least recently
+used entries are evicted. Defaults to `10%` of the heap assigned to the node.
 
 [discrete]
 [[token-service-settings]]
@@ -1632,12 +1634,12 @@ or `client_secret_jwt`. Defaults to `client_secret_basic`.
 // end::rp-client-auth-method-tag[]
 
 // tag::rp-client-auth-jwt-signature-algorithm[]
-`rp.client_auth_signature_algorithm` {ess-icon}::
+`rp.client_auth_jwt_signature_algorithm` {ess-icon}::
 (<<static-cluster-setting, Static>>)
 The signature algorithm that {es} uses to sign the JWT with which it authenticates
 as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for
-`rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to 
-`HS384`. 
+`rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to
+`HS384`.
 // end::rp-client-auth-jwt-signature-algorithm[]
 
 // tag::rp-redirect-uri-tag[]
@@ -1661,7 +1663,10 @@ or one of `id_token`, `id_token token` for the implicit flow.
 (<<static-cluster-setting,Static>>)
 The signature algorithm that will be used by {es} in order to verify the
 signature of the id tokens it will receive from the OpenID Connect Provider.
-Defaults to `RSA256`.
+Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
+`RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
+Defaults to `RS256`.
+
 // end::rp-signature-algorithm-tag[]
 
 // tag::rp-requested-scopes-tag[]
@@ -1820,6 +1825,27 @@ Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
 // end::oidc-http-max-endpoint-connections-tag[]
+
+// tag::oidc-http-connection-pool-ttl-tag[]
+`http.connection_pool_ttl` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+
+beta::[]
+
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the time-to-live of connections
+in the connection pool. A connection is closed if it is idle for more than the
+specified timeout. The default value is `-1` meaning the time-to-live is infinite
+and connections never expire.
+
+If this setting is configured to have a non-negative value, the effective
+time-to-live value is the smaller value between this setting and the `Keep-Alive`
+response header set by the server.
+
+WARNING: This setting is available in {es} 7.17.6 and 8.3.3 onwards but is not supported
+in {es} 8.0.0 to 8.3.2. As such this setting should be removed before upgrading to 8.3.2
+or lower. It is possible to configure the setting in 7.17.6 and then upgrade to 8.3.3 directly.
+// end::oidc-http-connection-pool-ttl-tag[]
 
 [discrete]
 [[ref-oidc-ssl-settings]]

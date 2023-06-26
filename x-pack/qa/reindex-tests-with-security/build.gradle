@@ -1,15 +1,18 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('security'))))
-  testImplementation(project(':modules:reindex'))
-  testImplementation(project(":client:rest-high-level"))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  yamlRestTestImplementation(project(':modules:reindex'))
+  yamlRestTestImplementation(project(":client:rest-high-level"))
+}
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -19,13 +22,13 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.jks'
 }
 
-File caFile = project.file('src/test/resources/ssl/ca.crt')
+File caFile = project.file('src/yamlRestTest/resources/ssl/ca.crt')
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   // Whitelist reindexing from the local node so we can test it.
-  extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')
-  extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
+  extraConfigFile 'http.key', file('src/yamlRestTest/resources/ssl/http.key')
+  extraConfigFile 'http.crt', file('src/yamlRestTest/resources/ssl/http.crt')
   extraConfigFile 'ca.crt', caFile
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   setting 'xpack.security.enabled', 'true'
@@ -51,4 +54,9 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   user username: "dest_only_user", password: 'x-pack-test-password', role: "dest_only"
   user username: "can_not_see_hidden_docs_user", password: 'x-pack-test-password', role: "can_not_see_hidden_docs"
   user username: "can_not_see_hidden_fields_user", password: 'x-pack-test-password', role: "can_not_see_hidden_fields"
+}
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.xpack.security.ReindexWithSecurityClientYamlTestSuiteIT'
+  baseClass 'org.elasticsearch.test.SecurityIntegTestCase'
 }

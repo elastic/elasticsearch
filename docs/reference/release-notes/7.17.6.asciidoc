@@ -1,0 +1,89 @@
+[[release-notes-7.17.6]]
+== {es} version 7.17.6
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.6]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[bug-7.17.6]]
+[float]
+=== Bug fixes
+
+Cluster Coordination::
+* Improve rejection of ambiguous voting config name {es-pull}89239[#89239]
+
+Geo::
+* Fix potential circuit breaker leak on `InternalGeoGrid` {es-pull}88273[#88273] (issue: {es-issue}88261[#88261])
+* Geo_line aggregation returns a geojson point when the resulting line has only one point {es-pull}89199[#89199] (issue: {es-issue}85748[#85748])
+* Port fixed version of Lucene Tessellator into ES 7.17 {es-pull}88213[#88213] (issue: {es-issue}88014[#88014])
+* Sort ranges in `geo_distance` aggregation {es-pull}89154[#89154] (issue: {es-issue}89147[#89147])
+
+Infra/Node Lifecycle::
+* Fix message for stalled shutdown {es-pull}89254[#89254]
+
+Infra/Scripting::
+* Adjust date conversion for execution context in watcher compare condition {es-pull}88467[#88467] (issue: {es-issue}88408[#88408])
+
+Ingest::
+* Don't ignore pipeline for upserts in bulk api {es-pull}87719[#87719] (issue: {es-issue}87131[#87131])
+
+Java High Level REST Client::
+* [7.17] Fix mount snapshot api ignoring unknown request parameter {es-pull}89061[#89061] (issue: {es-issue}75982[#75982])
+
+Machine Learning::
+* Improve trained model stats API performance {es-pull}87978[#87978]
+* Fix potential cause of classification and regression job failures {ml-pull}2385[#2385]
+
+Search::
+* Fix validation of `close_pit` request {es-pull}88702[#88702]
+* Override bulk visit methods of exitable point visitor {es-pull}82120[#82120]
+* Reduce memory usage in field-caps responses {es-pull}88042[#88042]
+
+Snapshot/Restore::
+* Avoid capturing `SnapshotsInProgress$Entry` in queue {es-pull}88707[#88707]
+* Move Get Snapshots Serialization to Management Pool {es-pull}83215[#83215]
+* Report better error for GCS credentials load failure {es-pull}89336[#89336]
+
+Stats::
+* Discard intermediate results upon cancellation for stats endpoints {es-pull}82685[#82685] (issue: {es-issue}82337[#82337])
+
+Transform::
+* Execute `_refresh` separately from DBQ, with system permissions {es-pull}88005[#88005] (issue: {es-issue}88001[#88001])
+
+[[deprecation-7.17.6]]
+[float]
+=== Deprecations
+
+Infra/Core::
+* Set monitoring auth.password cluster settings deprecation level as critical {es-pull}88351[#88351] (issue: {es-issue}86022[#86022])
+
+[[enhancement-7.17.6]]
+[float]
+=== Enhancements
+
+Authorization::
+* Avoid loading authorized indices when requested indices are all concrete names {es-pull}81237[#81237]
+
+Machine Learning::
+* Improve accuracy of anomaly detection median estimation {ml-pull}2367[#2367] (issue: {ml-issue}2364[#2364])
+
+Packaging::
+* Change UBI docker user to `elasticsearch` {es-pull}88262[#88262] (issue: {es-issue}88218[#88218])
+
+Performance::
+* Warn about impact of large readahead on search {es-pull}88007[#88007]
+
+Security::
+* New setting to close idle connections in OIDC back-channel {es-pull}87773[#87773]
+
+[[upgrade-7.17.6]]
+[float]
+=== Upgrades
+
+Packaging::
+* Upgrade to OpenJDK 18.0.2+9. The JDK update pertains to a potential security vulnerability. Please see our link:https://discuss.elastic.co/c/announcements/security-announcements/31[security statement for more details].  {es-pull}88675[#88675] (issue: {es-issue}88673[#88673])
+
+

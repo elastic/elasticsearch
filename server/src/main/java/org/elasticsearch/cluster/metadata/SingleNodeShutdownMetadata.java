@@ -271,6 +271,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         if (allocationDelay != null) {
             stringBuilder.append(", allocationDelay=[").append(allocationDelay).append("]");
         }
+        if (targetNodeName != null) {
+            stringBuilder.append(", targetNodeName=[").append(targetNodeName).append("]");
+        }
         stringBuilder.append("}");
         return stringBuilder.toString();
     }

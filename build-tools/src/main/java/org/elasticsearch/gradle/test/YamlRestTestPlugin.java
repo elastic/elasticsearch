@@ -24,7 +24,6 @@ import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
@@ -53,16 +52,16 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.JAR_TYPE);
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.JAR_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
                 .attribute(restAttribute, true);
             transformSpec.getTo()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(restAttribute, true);
         });
 
         ConfigurationContainer configurations = project.getConfigurations();
         Configuration restTestSpecs = configurations.create(REST_TEST_SPECS_CONFIGURATION_NAME);
-        restTestSpecs.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        restTestSpecs.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         restTestSpecs.getAttributes().attribute(restAttribute, true);
 
         TaskProvider<Copy> copyRestTestSpecs = project.getTasks().register("copyRestTestSpecs", Copy.class, t -> {

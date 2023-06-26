@@ -17,8 +17,12 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
@@ -27,6 +31,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -871,6 +876,62 @@ public class SSLServiceTests extends ESTestCase {
         final X509ExtendedTrustManager wrappedTrustManager = sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration);
         assertThat(wrappedTrustManager, instanceOf(DiagnosticTrustManager.class));
         assertThat(sslService.wrapWithDiagnostics(wrappedTrustManager, sslConfiguration), sameInstance(wrappedTrustManager));
+    }
+
+    public void testDeprecationOfTruststoreWithNoTrustedEntries() throws IllegalAccessException {
+        assumeFalse("Cannot use PKCS#12/JKS Keystores in FIPS", inFipsJvm());
+        final String keystoreName;
+        final String password;
+        if (randomBoolean()) {
+            // This keystore is completely empty
+            keystoreName = "empty.p12";
+            password = "_empty";
+        } else {
+            // This keystore contains a PrivateKeyEntry but not trust anchors
+            keystoreName = "testnode_updated" + randomFrom(".p12", ".jks");
+            password = "testnode";
+        }
+        final Path pathToKeystore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/" + keystoreName);
+
+        final Settings.Builder builder = Settings.builder();
+        builder.put("keystore.path", pathToKeystore);
+        builder.put("truststore.path", pathToKeystore);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", password);
+        secureSettings.setString("truststore.secure_password", password);
+        builder.setSecureSettings(secureSettings);
+
+        final SSLConfiguration configuration = new SSLConfiguration(builder.build());
+        final SSLService sslService = new SSLService(Settings.EMPTY, env);
+
+        final String warningMessage = "invalid configuration for [xpack.security.transport.ssl] - the truststore ["
+            + pathToKeystore
+            + "] does not contain any trusted certificate entries";
+
+        final Logger deprecationLogger = LogManager.getLogger(
+            SSLService.class.getName().replace("org.elasticsearch", "org.elasticsearch.deprecation")
+        );
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(deprecationLogger, mockAppender);
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "no trust entries deprecation",
+                    deprecationLogger.getName(),
+                    DeprecationLogger.CRITICAL,
+                    warningMessage
+                )
+            );
+            sslService.validateTruststoresContainTrustEntries("xpack.security.transport.ssl", configuration);
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(deprecationLogger, mockAppender);
+            mockAppender.stop();
+        }
+
+        assertWarnings(warningMessage);
     }
 
     class AssertionCallback implements FutureCallback<HttpResponse> {

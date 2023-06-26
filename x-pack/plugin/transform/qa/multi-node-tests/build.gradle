@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -11,7 +11,7 @@ File keystoreDir = new File(project.buildDir, 'keystore')
 File nodeKey = file("$keystoreDir/testnode.pem")
 File nodeCert = file("$keystoreDir/testnode.crt")
 // Add key and certs to test classpath: it expects it there
-tasks.register("copyKeyCerts", Copy) {
+def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }

@@ -80,7 +80,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
                 logger.info("Waiting for reaper to exit normally");
                 if (reaperProcess.waitFor() != 0) {
                     Path inputDir = getParameters().getInputDir().get().getAsFile().toPath();
-                    throw new GradleException("Reaper process failed. Check log at " + inputDir.resolve("error.log") + " for details");
+                    throw new GradleException("Reaper process failed. Check log at " + inputDir.resolve("reaper.log") + " for details");
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -111,7 +111,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
                 builder.redirectInput(ProcessBuilder.Redirect.PIPE);
                 File logFile = logFilePath().toFile();
                 builder.redirectOutput(logFile);
-                builder.redirectError(logFile);
+                builder.redirectErrorStream();
                 reaperProcess = builder.start();
             } catch (Exception e) {
                 throw new RuntimeException(e);

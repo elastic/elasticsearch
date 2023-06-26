@@ -1,0 +1,42 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+dra-staging-update
+    display-name: "elastic / elasticsearch # %BRANCH% - DRA staging update"
+    description: "Scheduled job to check for staging dependency updates"
+    node: master
+    scm: []
+    properties: []
+    parameters: []
+    publishers: []
+    triggers:
+      - timed: "*/30 * * * *"
+    builders:
+      - conditional-step:
+          condition-kind: shell
+          condition-command: |
+            #!/usr/bin/env bash
+            set -e
+            # Don't publish main branch to staging
+            if [ "%BRANCH%" == "main" ]; then
+              exit 1
+            fi
+
+            RM_BRANCH="%BRANCH%" && [[ "%BRANCH%" == "main" ]] && RM_BRANCH=master
+            ML_MANIFEST=$(curl -sS https://artifacts-staging.elastic.co/ml-cpp/latest/${RM_BRANCH}.json | jq -r '.manifest_url')
+            ES_MANIFEST=$(curl -sS https://artifacts-staging.elastic.co/elasticsearch/latest/${RM_BRANCH}.json | jq -r '.manifest_url')
+            ES_ML_DEPENDENCY=$(curl -sS $ES_MANIFEST | jq -r '.projects.elasticsearch.dependencies[] | select(.prefix == "ml-cpp") | .build_uri')
+
+            if [ "$ML_MANIFEST" = "$ES_ML_DEPENDENCY" ]; then
+              echo "ES has the latest ml-cpp"
+            else
+              echo "Need to trigger a build, $ML_MANIFEST available but ES has $ES_ML_DEPENDENCY"
+              exit 0
+            fi
+
+            # A non-zero exit value means the trigger step will be skipped
+            exit 1
+          steps:
+            - trigger-builds:
+                - project: "elastic+elasticsearch+%BRANCH%+triggers/elastic+elasticsearch+%BRANCH%+dra-staging-trigger"
+                  current-parameters: false
+                  git-revision: false

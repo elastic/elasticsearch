@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 
 import java.time.Instant;
@@ -69,6 +70,9 @@ public class LenientCompare {
                 }
             } else if (v1 instanceof Number) {
                 v1 = Instant.ofEpochMilli(((Number) v1).longValue()).atZone(ZoneOffset.UTC);
+            } else if (v1 instanceof JodaCompatibleZonedDateTime) {
+                // this can only occur in versions prior to #78417
+                v1 = ((JodaCompatibleZonedDateTime) v1).getZonedDateTime();
             } else {
                 // cannot convert to date...
                 return null;

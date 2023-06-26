@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.snapshots.InvalidSnapshotNameException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -48,18 +50,22 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
     @Override
     public CreateSnapshotStep mutateInstance(CreateSnapshotStep instance) {
         StepKey key = instance.getKey();
+        StepKey nextKeyOnCompleteResponse = instance.getNextKeyOnComplete();
         StepKey nextKeyOnIncompleteResponse = instance.getNextKeyOnIncomplete();
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 1:
+                nextKeyOnCompleteResponse = randomStepKey();
+                break;
+            case 2:
                 nextKeyOnIncompleteResponse = randomStepKey();
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new CreateSnapshotStep(key, randomStepKey(), nextKeyOnIncompleteResponse, instance.getClient());
+        return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClient());
     }
 
     public void testPerformActionFailure() {
@@ -216,6 +222,42 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                     }
                 });
                 assertThat(incompleteStep.getNextStepKey(), is(nextKeyOnIncomplete));
+            }
+        }
+
+        {
+            try (NoOpClient client = new NoOpClient(getTestName())) {
+                StepKey nextKeyOnComplete = randomStepKey();
+                StepKey nextKeyOnIncomplete = randomStepKey();
+                CreateSnapshotStep doubleInvocationStep = new CreateSnapshotStep(
+                    randomStepKey(),
+                    nextKeyOnComplete,
+                    nextKeyOnIncomplete,
+                    client
+                ) {
+                    @Override
+                    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+                        listener.onFailure(
+                            new InvalidSnapshotNameException(
+                                repository,
+                                snapshotName,
+                                SnapshotsService.SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC
+                            )
+                        );
+                    }
+                };
+                doubleInvocationStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void unused) {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+
+                    }
+                });
+                assertThat(doubleInvocationStep.getNextStepKey(), is(nextKeyOnIncomplete));
             }
         }
     }

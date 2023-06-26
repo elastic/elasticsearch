@@ -123,17 +123,10 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.st'
 }
 
-tasks.named("testingConventions").configure {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass "org.apache.lucene.util.LuceneTestCase"
-        }
-        IT {
-            baseClass "org.elasticsearch.test.ESIntegTestCase"
-            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
-        }
-    }
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
 }
 
 def generateModulesList = tasks.register("generateModulesList") {
@@ -173,7 +166,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
-            'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
             'com.conversantmedia.util.concurrent.SpinPolicy',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',
@@ -196,8 +188,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
-            'com.lmax.disruptor.BlockingWaitStrategy',
-            'com.lmax.disruptor.BusySpinWaitStrategy',
             'com.lmax.disruptor.EventFactory',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
@@ -207,10 +197,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
             'com.lmax.disruptor.SequenceReportingEventHandler',
-            'com.lmax.disruptor.SleepingWaitStrategy',
-            'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
             'com.lmax.disruptor.WaitStrategy',
-            'com.lmax.disruptor.YieldingWaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
             'javax.jms.Connection',
@@ -229,23 +216,17 @@ tasks.named("thirdPartyAudit").configure {
             'javax.mail.Transport',
             'javax.mail.internet.InternetAddress',
             'javax.mail.internet.InternetHeaders',
-            'javax.mail.internet.MimeBodyPart',
             'javax.mail.internet.MimeMessage',
             'javax.mail.internet.MimeMultipart',
             'javax.mail.internet.MimeUtility',
-            'javax.mail.util.ByteArrayDataSource',
             'org.apache.commons.compress.compressors.CompressorStreamFactory',
             'org.apache.commons.compress.utils.IOUtils',
             'org.apache.commons.csv.CSVFormat',
             'org.apache.commons.csv.QuoteMode',
-            'org.apache.kafka.clients.producer.KafkaProducer',
             'org.apache.kafka.clients.producer.Producer',
-            'org.apache.kafka.clients.producer.ProducerRecord',
             'org.apache.kafka.clients.producer.RecordMetadata',
             'org.codehaus.stax2.XMLStreamWriter2',
             'org.jctools.queues.MpscArrayQueue',
-            'org.osgi.framework.AdaptPermission',
-            'org.osgi.framework.AdminPermission',
             'org.osgi.framework.Bundle',
             'org.osgi.framework.BundleActivator',
             'org.osgi.framework.BundleContext',
@@ -326,6 +307,12 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.EnvironmentAwareCommand',
     'org.elasticsearch.cli.KeyStoreAwareCommand',
     'org.elasticsearch.cli.LoggingAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareMultiCommand'
+    'org.elasticsearch.cli.LoggingAwareMultiCommand',
+
+    // We temporarily need to have modified versions of the lucene Tessellator and LatLonShape classes while we wait for a bugfix
+    'org.apache.lucene.document.XLatLonShape',
+    'org.apache.lucene.geo.XTessellator'
 
 }
+
+tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }

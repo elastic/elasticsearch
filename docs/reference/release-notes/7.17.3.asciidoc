@@ -1,0 +1,44 @@
+[[release-notes-7.17.3]]
+== {es} version 7.17.3
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.3]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[bug-7.17.3]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Grant `kibana_system` role read access to APM data streams {es-pull}85744[#85744]
+
+Geo::
+* Fix fields wildcard support to vector tile search API {es-pull}85595[#85595] (issue: {es-issue}85592[#85592])
+
+Highlighting::
+* Fix wildcard highlighting on `match_only_text` {es-pull}85500[#85500] (issue: {es-issue}85493[#85493])
+
+Infra/Core::
+* Prevent `ThreadContext` header leak when sending response {es-pull}68649[#68649] (issue: {es-issue}68278[#68278])
+
+Machine Learning::
+* Allow retrieving `boolean` fields from `_source` in data frame analytics jobs {es-pull}85672[#85672]
+* Avoid multiple queued quantiles documents in renormalizer {es-pull}85555[#85555] (issue: {es-issue}85539[#85539])
+
+Search::
+* Fix skip caching factor with `indices.queries.cache.all_segments` {es-pull}85510[#85510]
+
+[[upgrade-7.17.3]]
+[float]
+=== Upgrades
+
+Ingest::
+* Bump commons-compress to 1.21 {es-pull}85581[#85581]
+
+Packaging::
+* Upgrade to JDK 18.0.0+36 {es-pull}85376[#85376] (issue: {es-issue}85357[#85357])
+
+

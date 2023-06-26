@@ -63,6 +63,12 @@ the shards are relocating, in which case they will not be merged.
 The `searchable_snapshot` action will continue executing even if not all shards
 are force merged.
 
+This force merging occurs in the phase that the index is in *prior* to the `searchable_snapshot`
+action. For example, if using a `searchable_snapshot` action in the `hot` phase, the force merge
+will be performed on the hot nodes. If using a `searchable_snapshot` action in the `cold` phase, the
+force merge will be performed on whatever tier the index is *prior* to the `cold` phase (either
+`hot` or `warm`).
+
 [[ilm-searchable-snapshot-ex]]
 ==== Examples
 [source,console]

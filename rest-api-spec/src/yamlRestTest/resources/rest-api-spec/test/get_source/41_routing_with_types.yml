@@ -20,7 +20,7 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           body:    { foo: bar }
 
@@ -28,7 +28,7 @@
       get_source:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
 
  - match:   { '': {foo: bar}}
@@ -38,5 +38,5 @@
       get_source:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
 

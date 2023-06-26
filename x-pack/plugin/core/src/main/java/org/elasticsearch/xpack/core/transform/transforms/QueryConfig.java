@@ -147,7 +147,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
 
         try {
             queryFromXContent(source, namedXContentRegistry, deprecationLogger);
-        } catch (IOException e) {
+        } catch (Exception e) {
             onDeprecation.accept(
                 new DeprecationIssue(
                     Level.CRITICAL,

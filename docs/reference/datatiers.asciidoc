@@ -10,8 +10,17 @@ typically share the same hardware profile:
 and hold your most recent, most-frequently-accessed data.
 * <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
-* <<cold-tier, Cold tier>> nodes hold time series data that is accessed infrequently and not normally updated.
-* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed rarely and never updated, kept in searchable snapshots.
+* <<cold-tier,Cold tier>> nodes hold time series data that is accessed
+infrequently and not normally updated. To save space, you can keep
+<<fully-mounted,fully mounted indices>> of
+<<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. These fully mounted
+indices eliminate the need for replicas, reducing required disk space by
+approximately 50% compared to the regular indices.
+* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed 
+rarely and never updated. The frozen tier stores <<partially-mounted,partially
+mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
+This extends the storage capacity even further — by up to 20 times compared to
+the warm tier. 
 
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 
@@ -32,6 +41,7 @@ node.roles: ["data_hot", "data_content"]
 [[content-tier]]
 === Content tier
 
+// tag::content-tier[]
 Data stored in the content tier is generally a collection of items such as a product catalog or article archive.
 Unlike time series data, the value of the content remains relatively constant over time,
 so it doesn't make sense to move it to a tier with different performance characteristics as it ages.
@@ -46,11 +56,13 @@ tier should be configured to use one or more replicas.
 
 The content tier is required. System indices and other indices that aren't part
 of a data stream are automatically allocated to the content tier.
+// end::content-tier[]
 
 [discrete]
 [[hot-tier]]
 === Hot tier
 
+// tag::hot-tier[]
 The hot tier is the {es} entry point for time series data and holds your most-recent,
 most-frequently-searched time series data.
 Nodes in the hot tier need to be fast for both reads and writes,
@@ -59,37 +71,52 @@ For resiliency, indices in the hot tier should be configured to use one or more 
 
 The hot tier is required. New indices that are part of a <<data-streams,
 data stream>> are automatically allocated to the hot tier.
+// end::hot-tier[]
 
 [discrete]
 [[warm-tier]]
 === Warm tier
 
+// tag::warm-tier[]
 Time series data can move to the warm tier once it is being queried less frequently
 than the recently-indexed data in the hot tier.
 The warm tier typically holds data from recent weeks.
 Updates are still allowed, but likely infrequent.
 Nodes in the warm tier generally don't need to be as fast as those in the hot tier.
 For resiliency, indices in the warm tier should be configured to use one or more replicas.
+// end::warm-tier[]
 
 [discrete]
 [[cold-tier]]
 === Cold tier
 
-When data is no longer being updated, it can move from the warm tier to the cold
-tier where it stays while being queried infrequently. As data transitions into
-the cold tier, it can be compressed and shrunken. Instead of using replicas, the
-cold tier can use <<fully-mounted,fully mounted indices>> of
-<<ilm-searchable-snapshot,{search-snaps}>> for resiliency, eliminating the need
-for replicas. The cold tier is still a responsive query tier, but data becomes
-read-only.
+// tag::cold-tier[]
+When you no longer need to search time series data regularly, it can move from
+the warm tier to the cold tier. While still searchable, this tier is typically
+optimized for lower storage costs rather than search speed.
+
+For better storage savings, you can keep <<fully-mounted,fully mounted indices>>
+of <<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. Unlike regular
+indices, these fully mounted indices don't require replicas for reliability. In
+the event of a failure, they can recover data from the underlying snapshot
+instead. This potentially halves the local storage needed for the data. A
+snapshot repository is required to use fully mounted indices in the cold tier.
+Fully mounted indices are read-only.
+
+Alternatively, you can use the cold tier to store regular indices with replicas instead
+of using {search-snaps}. This lets you store older data on less expensive hardware
+but doesn't reduce required disk space compared to the warm tier.
+// end::cold-tier[]
 
 [discrete]
 [[frozen-tier]]
 === Frozen tier
 
+// tag::frozen-tier[]
 Once data is no longer being queried, or being queried rarely, it may move from
 the cold tier to the frozen tier where it stays for the rest of its life.
 
+The frozen tier requires a snapshot repository.
 The frozen tier uses <<partially-mounted,partially mounted indices>> to store
 and load data from a snapshot repository. This reduces local storage and
 operating costs while still letting you search frozen data. Because {es} must
@@ -98,6 +125,7 @@ tier are typically slower than on the cold tier.
 
 NOTE: We recommend you use <<data-frozen-node,dedicated nodes>> in the frozen
 tier.
+// end::frozen-tier[]
 
 [discrete]
 [[data-tier-allocation]]

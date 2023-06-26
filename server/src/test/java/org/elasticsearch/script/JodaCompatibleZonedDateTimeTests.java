@@ -234,7 +234,7 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
         assertMethodDeprecation(
             () -> assertThat(javaTime.getWeekOfWeekyear(), equalTo(jodaTime.getWeekOfWeekyear())),
             "getWeekOfWeekyear()",
-            "get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())"
+            "get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)"
         );
     }
 
@@ -242,7 +242,7 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
         assertMethodDeprecation(
             () -> assertThat(javaTime.getWeekyear(), equalTo(jodaTime.getWeekyear())),
             "getWeekyear()",
-            "get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())"
+            "get(IsoFields.WEEK_BASED_YEAR)"
         );
     }
 

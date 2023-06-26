@@ -576,8 +576,8 @@ public final class Script implements ToXContentObject, Writeable {
         out.writeString(idOrCode);
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) (Map) this.options;
-        out.writeMap(options);
-        out.writeMap(params);
+        out.writeMapWithConsistentOrder(options);
+        out.writeMapWithConsistentOrder(params);
     }
 
     /**

@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -191,9 +193,16 @@ public final class DatabaseNodeService implements Closeable {
             return;
         }
 
-        IndexRoutingTable databasesIndexRT = state.getRoutingTable().index(GeoIpDownloader.DATABASES_INDEX);
-        if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
+        IndexAbstraction databasesAbstraction = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        if (databasesAbstraction == null) {
             return;
+        } else {
+            // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+            Index databasesIndex = databasesAbstraction.getWriteIndex();
+            IndexRoutingTable databasesIndexRT = state.getRoutingTable().index(databasesIndex);
+            if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
+                return;
+            }
         }
 
         PersistentTasksCustomMetadata.PersistentTask<?> task = PersistentTasksCustomMetadata.getTaskWithId(
@@ -249,7 +258,7 @@ public final class DatabaseNodeService implements Closeable {
 
         // 2 types of threads:
         // 1) The thread that checks whether database should be retrieved / updated and creates (^) tmp file (cluster state applied thread)
-        // 2) the thread that downloads the db file, updates the databases map and then removes the tmp file
+        // 2) the thread that downloads the db file from the .geoip_databases index, updates the databases map and then removes the tmp file
         // Thread 2 may have updated the databases map after thread 1 detects that there is no entry (or md5 mismatch) for a database.
         // If thread 2 then also removes the tmp file before thread 1 attempts to create it then we're about to retrieve the same database
         // twice. This check is here to avoid this:
@@ -261,7 +270,7 @@ public final class DatabaseNodeService implements Closeable {
         }
 
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
-        LOGGER.info("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
+        LOGGER.info("retrieve geoip database [{}] from [{}] to [{}]", databaseName, GeoIpDownloader.DATABASES_INDEX, databaseTmpGzFile);
         retrieveDatabase(
             databaseName,
             recordedMd5,
@@ -300,7 +309,7 @@ public final class DatabaseNodeService implements Closeable {
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to download database [{}]", databaseName), failure);
+                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve database [{}]", databaseName), failure);
                 try {
                     Files.deleteIfExists(databaseTmpFile);
                     Files.deleteIfExists(databaseTmpGzFile);

@@ -64,6 +64,68 @@ disk space management if needed.
 
 This change has no impact on users outside of orchestrated environments.
 ====
+
+
+[discrete]
+[[breaking_716_hlrc_changes]]
+==== High Level REST Client changes
+
+[[breaking_716_xcontent_migration]]
+.The `XContent` API is renamed and breaks imports when upgrading.
+[%collapsible]
+====
+*Details* +
+The `XContent` library exported package is renamed from
+`org.elasticsearch.common.xcontent` to `org.elasticsearch.xcontent`. This change
+breaks imports when migrating to {es} 7.16.
+
+*Impact* +
+If you're maintaining a Java client application that uses the Java High Level
+Rest Client (HLRC), update any `import` statements in your Java source code that
+match:
+
+[source,java]
+----
+import org.elasticsearch.common.xcontent.<class>
+----
+
+to instead use:
+
+[source,java]
+----
+import org.elasticsearch.xcontent.<class> 
+----
+
+This is the minimum required change. You must then recompile your source code to
+work with {es} 7.17.
+
+A more permanent solution is to 
+{java-api-client}/migrate-hlrc.html[migrate from the (HLRC)] entirely.
+====
+
+[[breaking_716_indices_options]]
+.The `ignore_throttled` parameter is deprecated and changes indices options sent to Elasticsearch
+[%collapsible]
+====
+*Details* +
+In https://github.com/elastic/elasticsearch/pull/77864[#77864] the High Level Rest Client was changed to only send indices options if the request differed from the default request options. However, in some cases the default options for the HLRC request object inadvertently differ from the effective options of the {es} APIs, meaning that it is possible for the API response to differ.
+
+*Impact* +
+If you use the HLRC and have a differing response due to indices options, you can update the options using the `indicesOptions(...)` method, as shown below:
+
+[source,java]
+----
+// Previously:
+highLevelClient.indices().exists(request, RequestOptions.DEFAULT);
+
+// With indices options (change boolean options as needed):
+final var requestWithOptions = request.indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
+highLevelClient.indices().exists(requestWithOptions, RequestOptions.DEFAULT);
+----
+
+A more permanent solution is to
+{java-api-client}/migrate-hlrc.html[migrate from the (HLRC)] entirely.
+====
 // end::notable-breaking-changes[]
 
 [discrete]

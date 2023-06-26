@@ -16,6 +16,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 public class RestUtils {
@@ -241,6 +242,18 @@ public class RestUtils {
         if (Strings.isNullOrEmpty(corsSetting)) {
             return new String[0];
         }
-        return Arrays.asList(corsSetting.split(",")).stream().map(String::trim).toArray(size -> new String[size]);
+        return Arrays.stream(corsSetting.split(",")).map(String::trim).toArray(String[]::new);
     }
+
+    /**
+     * Extract the trace id from the specified traceparent string.
+     * @see <a href="https://www.w3.org/TR/trace-context/#traceparent-header">W3 traceparent spec</a>
+     *
+     * @param traceparent   The value from the {@code traceparent} HTTP header
+     * @return  The trace id from the traceparent string, or {@code Optional.empty()} if it is not present.
+     */
+    public static Optional<String> extractTraceId(String traceparent) {
+        return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
+    }
+
 }

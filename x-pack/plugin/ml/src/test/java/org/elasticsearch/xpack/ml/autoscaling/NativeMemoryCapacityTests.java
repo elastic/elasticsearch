@@ -30,12 +30,12 @@ public class NativeMemoryCapacityTests extends ESTestCase {
             ByteSizeValue.ofMb(200).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
-        capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(100).getBytes()));
+        capacity = capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(100).getBytes()));
         assertThat(capacity.getTierMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 2L));
         assertThat(capacity.getNodeMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofMb(200).getBytes()));
         assertThat(capacity.getJvmSize(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
 
-        capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(300).getBytes()));
+        capacity = capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(300).getBytes()));
 
         assertThat(capacity.getTierMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 3L));
         assertThat(capacity.getNodeMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofMb(300).getBytes()));

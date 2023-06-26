@@ -4,17 +4,17 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "test": "value beck", "num1": 1.0, "bool": true }
     - do:
         index:
             index: test
-            id: 2
+            id: "2"
             body: { "test": "value beck", "num1": 2.0, "bool": false }
     - do:
         index:
             index: test
-            id: 3
+            id: "3"
             body: { "test": "value beck", "num1": 3.0, "bool": true }
     - do:
         indices.refresh: {}
@@ -115,12 +115,12 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "test": "value beck", "num1": 1.0 }
     - do:
         index:
             index: test
-            id: 2
+            id: "2"
             body: { "test": "value beck", "num1": 2.0 }
     - do:
         indices.refresh: {}
@@ -272,7 +272,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "dummy_field": 1 }
     - do:
         indices.refresh: {}
@@ -322,7 +322,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "dummy_field": 1 }
     - do:
         indices.refresh: {}
@@ -361,7 +361,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "f": 42 }
     - do:
         indices.refresh: {}
@@ -388,7 +388,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "dummy_field": 1 }
     - do:
         indices.refresh: {}
@@ -424,7 +424,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "genre": 1 }
 
     - do:
@@ -459,7 +459,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "test": "value beck", "num1": 1.0 }
     - do:
         indices.refresh: {}

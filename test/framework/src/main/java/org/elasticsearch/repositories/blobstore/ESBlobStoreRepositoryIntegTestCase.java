@@ -269,7 +269,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected BlobStore newBlobStore(String repository) {
-        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getMasterNodeInstance(
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getAnyMasterNodeInstance(
             RepositoriesService.class
         ).repository(repository);
         return PlainActionFuture.get(

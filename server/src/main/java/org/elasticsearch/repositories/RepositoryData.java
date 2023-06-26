@@ -680,18 +680,32 @@ public final class RepositoryData {
 
         if (shouldWriteUUIDS) {
             if (uuid.equals(MISSING_UUID)) {
-                assert permitMissingUuid : "missing uuid";
+                if (permitMissingUuid == false) {
+                    assert false : "missing uuid";
+                    throw new IllegalStateException("missing uuid");
+                }
             } else {
                 builder.field(UUID, uuid);
             }
             if (clusterUUID.equals(MISSING_UUID)) {
-                assert permitMissingUuid : "missing clusterUUID";
+                if (permitMissingUuid == false) {
+                    assert false : "missing clusterUUID";
+                    throw new IllegalStateException("missing clusterUUID");
+                }
             } else {
                 builder.field(CLUSTER_UUID, clusterUUID);
             }
         } else {
-            assert uuid.equals(MISSING_UUID) : "lost uuid " + uuid;
-            assert clusterUUID.equals(MISSING_UUID) : "lost clusterUUID " + clusterUUID;
+            if (uuid.equals(MISSING_UUID) == false) {
+                final IllegalStateException e = new IllegalStateException("lost uuid + [" + uuid + "]");
+                assert false : e;
+                throw e;
+            }
+            if (clusterUUID.equals(MISSING_UUID) == false) {
+                final IllegalStateException e = new IllegalStateException("lost clusterUUID + [" + uuid + "]");
+                assert false : e;
+                throw e;
+            }
         }
 
         // write the snapshots list

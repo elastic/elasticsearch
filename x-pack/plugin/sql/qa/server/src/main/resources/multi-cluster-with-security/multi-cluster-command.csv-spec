@@ -12,7 +12,7 @@ SHOW CATALOGS;
 
      name         |     type
 ------------------+---------------
-integTest         |local
+javaRestTest         |local
 my_remote_cluster |remote
 
 // end::showCatalogs

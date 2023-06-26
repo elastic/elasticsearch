@@ -20,5 +20,4 @@ esplugin {
 tasks.named("assemble").configure { enabled = false }
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure { enabled = false }
-// no unit tests
-tasks.named("test").configure { enabled = false }
+tasks.named("uploadSnykDependencyGraph").configure { enabled = false }

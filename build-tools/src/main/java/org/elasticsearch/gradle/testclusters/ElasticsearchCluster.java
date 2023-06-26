@@ -332,6 +332,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
         ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
+                node.defaultConfig.put("xpack.security.enabled", "false");
+            }
             if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
                 if (node.getVersion().onOrAfter("7.16.0")) {
                     node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");

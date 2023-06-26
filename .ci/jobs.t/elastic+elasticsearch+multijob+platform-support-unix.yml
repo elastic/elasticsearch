@@ -13,36 +13,37 @@
           type: label-expression
           name: os
           values:
-            - amazon
-            - "centos-6&&immutable"
             - "centos-7&&immutable"
-            - "centos-8&&immutable"
-            - "amazon&&immutable"
-            - "debian-8&&immutable"
+            - "amazon-2&&immutable"
+            - "amazon-2022&&immutable"
             - "debian-9&&immutable"
             - "debian-10&&immutable"
             - "debian-11&&immutable"
             - "opensuse-15-1&&immutable"
-            - "oraclelinux-6&&immutable"
             - "oraclelinux-7&&immutable"
             - "oraclelinux-8&&immutable"
             - "sles-12&&immutable"
             - "sles-15&&immutable"
-            - "ubuntu-16.04&&immutable"
             - "ubuntu-18.04&&immutable"
             - "ubuntu-20.04&&immutable"
+            - "ubuntu-22.04&&immutable"
             - "rocky-linux-8&&immutable"
             - "rhel-7&&immutable"
             - "rhel-8&&immutable"
+            - "rhel-9&&immutable"
             - "almalinux-8&&immutable"
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA11_HOME=$HOME/.java/java11
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+          if [ "$os" == "amazon-2022&&immutable" ]; then
+            # Skip BWC testing on Amazon 2022 as there's an incompatibility with older ES versions on this system
+            $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true checkPart1 checkPart2
+          else
+            $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+          fi

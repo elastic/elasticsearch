@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -37,7 +38,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
-        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new);
+        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
     }
 

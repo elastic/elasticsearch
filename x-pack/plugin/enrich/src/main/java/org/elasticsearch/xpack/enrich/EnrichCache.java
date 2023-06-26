@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -24,11 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.function.BiConsumer;
-
-import static org.elasticsearch.action.ActionListener.wrap;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -48,24 +42,32 @@ import static org.elasticsearch.action.ActionListener.wrap;
  * current enrich index the enrich alias of an policy refers to. It would require checking
  * all cached entries on each cluster state update)
  */
-public class EnrichCache {
+public final class EnrichCache {
 
-    protected final Cache<CacheKey, CompletableFuture<List<Map<?, ?>>>> cache;
+    private final Cache<CacheKey, List<Map<?, ?>>> cache;
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
-        this.cache = CacheBuilder.<CacheKey, CompletableFuture<List<Map<?, ?>>>>builder().setMaximumWeight(maxSize).build();
+        this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
     }
 
-    /**
-     * Get the value from the cache if present. Returns immediately.
-     * See {@link #resolveOrDispatchSearch(SearchRequest, BiConsumer, BiConsumer)} to implement a read-through, possibly async interaction.
-     * @param searchRequest the key
-     * @return the cached value or null
-     */
-    CompletableFuture<List<Map<?, ?>>> get(SearchRequest searchRequest) {
-        CacheKey cacheKey = toKey(searchRequest);
-        return cache.get(cacheKey);
+    List<Map<?, ?>> get(SearchRequest searchRequest) {
+        String enrichIndex = getEnrichIndexKey(searchRequest);
+        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
+
+        List<Map<?, ?>> response = cache.get(cacheKey);
+        if (response != null) {
+            return deepCopy(response, false);
+        } else {
+            return null;
+        }
+    }
+
+    void put(SearchRequest searchRequest, List<Map<?, ?>> response) {
+        String enrichIndex = getEnrichIndexKey(searchRequest);
+        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
+
+        cache.put(cacheKey, response);
     }
 
     void setMetadata(Metadata metadata) {
@@ -83,61 +85,13 @@ public class EnrichCache {
         );
     }
 
-    /**
-     * resolves the entry from the cache and provides reports the result to the `callBack` This method does not dispatch any logic
-     * to another thread. Under contention the searchDispatcher is only called once when the value is not in the cache. The
-     * searchDispatcher should schedule the search / callback _asynchronously_ because if the searchDispatcher blocks, then this
-     * method will block. The callback is call on the thread calling this method or under cache miss and contention, the thread running
-     * the part of the searchDispatcher that calls the callback.
-     * @param searchRequest the cache key and input for the search dispatcher
-     * @param searchDispatcher the logical block to be called on cache miss
-     * @param callBack the callback which gets the value asynchronously, which could be a searchResponse or exception (negative lookup)
-     */
-    public void resolveOrDispatchSearch(
-        SearchRequest searchRequest,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchDispatcher,
-        BiConsumer<List<Map<?, ?>>, Exception> callBack
-    ) {
-        CacheKey cacheKey = toKey(searchRequest);
-        try {
-            CompletableFuture<List<Map<?, ?>>> cacheEntry = cache.computeIfAbsent(cacheKey, request -> {
-                CompletableFuture<List<Map<?, ?>>> completableFuture = new CompletableFuture<>();
-                searchDispatcher.accept(
-                    searchRequest,
-                    wrap(response -> completableFuture.complete(toCacheValue(response)), completableFuture::completeExceptionally)
-                );
-                return completableFuture;
-            });
-            cacheEntry.whenComplete((response, throwable) -> {
-                if (throwable != null) {
-                    // Don't cache failures
-                    cache.invalidate(cacheKey, cacheEntry);
-                    if (throwable instanceof Exception) {
-                        callBack.accept(null, (Exception) throwable);
-                        return;
-                    }
-                    // Let ElasticsearchUncaughtExceptionHandler handle this, which should halt Elasticsearch
-                    throw (Error) throwable;
-                }
-                callBack.accept(deepCopy(response, false), null);
-            });
-        } catch (ExecutionException e) {
-            callBack.accept(null, e);
-        }
-    }
-
-    protected CacheKey toKey(SearchRequest searchRequest) {
-        String enrichIndex = getEnrichIndexKey(searchRequest);
-        return new CacheKey(enrichIndex, searchRequest);
-    }
-
     private String getEnrichIndexKey(SearchRequest searchRequest) {
         String alias = searchRequest.indices()[0];
         IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
         return ia.getIndices().get(0).getName();
     }
 
-    private List<Map<?, ?>> toCacheValue(SearchResponse response) {
+    List<Map<?, ?>> toCacheValue(SearchResponse response) {
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
         for (SearchHit hit : response.getHits()) {
             result.add(deepCopy(hit.getSourceAsMap(), true));

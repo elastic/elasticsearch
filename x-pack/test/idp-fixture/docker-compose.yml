@@ -137,25 +137,25 @@ services:
       - ./openldap/certs:/container/service/slapd/assets/certs
 
   shibboleth-idp:
-    image: "unicon/shibboleth-idp:3.4.2"
+    build:
+      context: .
+      dockerfile: ./idp/Dockerfile
     depends_on:
       - openldap
     environment:
       - JETTY_MAX_HEAP=64m
-      - JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=secret
-      - JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret
     ports:
-      - "4443"
+      - 4443
+    expose:
+      - 4443
     links:
       - openldap:openldap
-    volumes:
-      - ./idp/shibboleth-idp/conf:/opt/shibboleth-idp/conf
-      - ./idp/shibboleth-idp/credentials:/opt/shibboleth-idp/credentials
-      - ./idp/shibboleth-idp/metadata:/opt/shibboleth-idp/metadata
-      - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
+    restart: always #ensure ephemeral port mappings are properly updated
 
   oidc-provider:
-    image: "c2id/c2id-server:9.5"
+    build:
+      context: .
+      dockerfile: ./oidc/Dockerfile
     depends_on:
       - http-proxy
     ports:

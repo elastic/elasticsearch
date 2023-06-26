@@ -8,12 +8,17 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.ingest.geoip.AbstractGeoIpIT'
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 dependencies {
@@ -34,7 +39,6 @@ restResources {
 }
 
 def useFixture = providers.environmentVariable("geoip_use_service")
-  .forUseAtConfigurationTime()
   .map { s -> Boolean.parseBoolean(s) == false }
   .getOrElse(true)
 
@@ -73,10 +77,8 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
     'org.apache.http.HttpEntity',
-    'org.apache.http.HttpHost',
     'org.apache.http.HttpResponse',
     'org.apache.http.StatusLine',
-    'org.apache.http.auth.UsernamePasswordCredentials',
     'org.apache.http.client.config.RequestConfig$Builder',
     'org.apache.http.client.config.RequestConfig',
     'org.apache.http.client.methods.CloseableHttpResponse',

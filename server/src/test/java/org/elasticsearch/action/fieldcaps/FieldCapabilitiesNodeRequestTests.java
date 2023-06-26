@@ -21,9 +21,12 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesNodeRequest> {
 
@@ -147,5 +150,27 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             default:
                 throw new IllegalStateException("The test should only allow 5 parameters mutated");
         }
+    }
+
+    public void testDescription() {
+        FieldCapabilitiesNodeRequest r1 = new FieldCapabilitiesNodeRequest(
+            Arrays.asList(new ShardId("index-1", "n/a", 0), new ShardId("index-2", "n/a", 3)),
+            new String[] { "field-1", "field-2" },
+            randomOriginalIndices(1),
+            null,
+            randomNonNegativeLong(),
+            Collections.emptyMap()
+        );
+        assertThat(r1.getDescription(), equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2]"));
+
+        FieldCapabilitiesNodeRequest r2 = new FieldCapabilitiesNodeRequest(
+            Arrays.asList(new ShardId("index-1", "n/a", 0)),
+            new String[] { "*" },
+            randomOriginalIndices(1),
+            null,
+            randomNonNegativeLong(),
+            Collections.emptyMap()
+        );
+        assertThat(r2.getDescription(), equalTo("shards[[index-1][0]], fields[*]"));
     }
 }

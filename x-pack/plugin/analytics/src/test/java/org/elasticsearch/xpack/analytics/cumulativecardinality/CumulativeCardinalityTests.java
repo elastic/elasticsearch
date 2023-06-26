@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,8 +22,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<CumulativeCardinalityPipelineAggregationBuilder> {
     @Override
@@ -64,8 +63,7 @@ public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<
         assertThat(validate(new AutoDateHistogramAggregationBuilder("name"), builder), nullValue());
 
         // Mocked "test" agg, should fail validation
-        AggregationBuilder stubParent = mock(AggregationBuilder.class);
-        when(stubParent.getName()).thenReturn("name");
+        AggregationBuilder stubParent = new TermsAggregationBuilder("name");
         assertThat(
             validate(stubParent, builder),
             equalTo(

@@ -20,13 +20,13 @@
       index:
           index:  index
           type:   not_doc
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - do:
       update:
           index:  index
-          id:     1
+          id:     "1"
           body:
             doc:
                 foo:    baz
@@ -35,7 +35,7 @@
       get:
           index:  index
           type:   not_doc
-          id:     1
+          id:     "1"
 
  - match: { _source.foo:        baz }
 
@@ -61,13 +61,13 @@
       index:
         index:  index
         type:   not_doc
-        id:     1
+        id:     "1"
         body:   { foo: bar }
 
   - do:
       update:
         index:  index
-        id:     1
+        id:     "1"
         body:
           doc:
             foo:          baz
@@ -76,7 +76,7 @@
       get: # using typeful API on purpose
         index:  index
         type:   not_doc
-        id:     1
+        id:     "1"
 
   - match:   { _index:   "index" }
   - match:   { _type:    "not_doc" }

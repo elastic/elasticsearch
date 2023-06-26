@@ -22,6 +22,8 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -489,6 +491,11 @@ public class GeometryIndexerTests extends ESTestCase {
             expected("POLYGON ((180 29, 180 38, 180 56, 180 53, 178 47, 177 23, 180 29))"),
             actual("POLYGON ((180 38,  180.0 56, 180.0 53, 178 47, 177 23, 180 29, 180 36, 180 37, 180 38))", randomBoolean())
         );
+
+        assertEquals(
+            expected("POLYGON ((-135 85, 135 85, 45 85, -45 85, -135 85))"),
+            actual("POLYGON ((-45 85, -135 85, 135 85, 45 85, -45 85))", randomBoolean())
+        );
     }
 
     public void testInvalidSelfCrossingPolygon() {
@@ -507,6 +514,74 @@ public class GeometryIndexerTests extends ESTestCase {
         polygon = new Polygon(new LinearRing(new double[] { 180, -170, -170, 170, 180 }, new double[] { -10, -5, 15, -15, -10 }));
         geometry = indexer.prepareForIndexing(polygon);
         assertTrue(geometry instanceof MultiPolygon);
+    }
+
+    public void testPolygonAllCollinearPoints() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, -1, 0 }, new double[] { 0, 1, -1, 0 }));
+        Geometry prepared = indexer.prepareForIndexing(polygon);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexer.indexShape(prepared));
+        assertEquals(
+            "Unable to Tessellate shape [[1.0, 1.0] [-1.0, -1.0] [0.0, 0.0] [1.0, 1.0] ]. Possible malformed shape detected.",
+            e.getMessage()
+        );
+    }
+
+    public void testIssue82840() {
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] { -143.10690080319134, -143.10690080319134, 62.41055750853541, -143.10690080319134 },
+                new double[] { -90.0, -30.033129816260214, -30.033129816260214, -90.0 }
+            )
+        );
+        MultiPolygon indexedCCW = new MultiPolygon(
+            Arrays.asList(
+                new Polygon(
+                    new LinearRing(
+                        new double[] { 180.0, 180.0, 62.41055750853541, 180.0 },
+                        new double[] { -75.67887564489237, -30.033129816260214, -30.033129816260214, -75.67887564489237 }
+                    )
+                ),
+                new Polygon(
+                    new LinearRing(
+                        new double[] { -180.0, -180.0, -143.10690080319134, -143.10690080319134, -180.0 },
+                        new double[] { -30.033129816260214, -75.67887564489237, -90.0, -30.033129816260214, -30.033129816260214 }
+                    )
+                )
+            )
+        );
+        GeoShapeIndexer indexerCCW = new GeoShapeIndexer(true, "test");
+        assertEquals(indexedCCW, indexerCCW.prepareForIndexing(polygon));
+        Polygon indexedCW = new Polygon(
+            new LinearRing(
+                new double[] { -143.10690080319134, 62.41055750853541, -143.10690080319134, -143.10690080319134 },
+                new double[] { -30.033129816260214, -30.033129816260214, -90.0, -30.033129816260214 }
+            )
+        );
+        GeoShapeIndexer indexerCW = new GeoShapeIndexer(false, "test");
+        assertEquals(indexedCW, indexerCW.prepareForIndexing(polygon));
+    }
+
+    public void testPolygonLuceneTessellationBug() throws IOException, ParseException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+        String wkt = "POLYGON((-88.3245325358123 41.9306419084828,-88.3243288475156 41.9308130944597,-88.3244513948451 41.930891654082,"
+            + "-88.3246174067624 41.930998076295,-88.3245448815692 41.9310557712027,-88.3239353718069 41.9313272600886,"
+            + "-88.3237355617867 41.9313362704162,-88.3237347670323 41.9311150951881,-88.3237340649402 41.931103661118,"
+            + "-88.3235660813522 41.9311112432041,-88.3234509652339 41.9311164377155,-88.3232353124097 41.9311261692953,"
+            + "-88.3232343331295 41.9313588701899,-88.323028772523 41.9313681383084,-88.3229999744274 41.930651995613,"
+            + "-88.3236147717043 41.9303655647412,-88.323780013667 41.929458561339,-88.3240657895016 41.9293998882959,"
+            + "-88.3243948640426 41.9293028003164,-88.324740490767 41.9301340399879,-88.3251305560187 41.9302766363048,"
+            + "-88.3248260581475 41.9308286995884,-88.3246595186817 41.9307227160738,-88.3245325358123 41.9306419084828),"
+            + "(-88.3245658060855 41.930351580587,-88.3246004191532 41.9302095159456,-88.3246375011905 41.9300573183932,"
+            + "-88.3243392233337 41.9300159738164,-88.3243011787553 41.9301696594472,-88.3242661951392 41.9303109843373,"
+            + "-88.3245658060855 41.930351580587),(-88.3245325358123 41.9306419084828,-88.3245478066552 41.9305086556331,"
+            + "-88.3245658060855 41.930351580587,-88.3242368660096 41.9303327977821,-88.3242200926128 41.9304905242189,"
+            + "-88.324206161464 41.9306215207536,-88.3245325358123 41.9306419084828),(-88.3236767661893 41.9307089429871,"
+            + "-88.3237008716322 41.930748885445,-88.323876104365 41.9306891087739,-88.324063438129 41.9306252050871,"
+            + "-88.3239244290607 41.930399373909,-88.3237349076233 41.9304653056436,-88.3235653339759 41.9305242981369,"
+            + "-88.3236767661893 41.9307089429871))";
+        Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), false, wkt);
+        List<IndexableField> fields = indexer.indexShape(geometry);
+        assertEquals(42, fields.size());
     }
 
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {

@@ -261,20 +261,10 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public DirectBlobContainerIndexInput clone() {
-        final DirectBlobContainerIndexInput clone = new DirectBlobContainerIndexInput(
-            "clone(" + this + ")",
-            directory,
-            fileInfo,
-            context,
-            stats,
-            position,
-            offset,
-            length,
-            // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
-            // solution: do not optimize sequential reads on clones.
-            NO_SEQUENTIAL_READ_OPTIMIZATION,
-            getBufferSize()
-        );
+        final DirectBlobContainerIndexInput clone = (DirectBlobContainerIndexInput) super.clone();
+        // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
+        // solution: do not optimize sequential reads on clones.
+        clone.sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
         clone.isClone = true;
         return clone;
     }

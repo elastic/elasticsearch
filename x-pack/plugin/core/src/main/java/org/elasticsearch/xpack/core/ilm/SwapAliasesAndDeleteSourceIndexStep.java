@@ -98,6 +98,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
                     .searchRouting(aliasMetaDataToAdd.searchRouting())
                     .filter(aliasMetaDataToAdd.filter() == null ? null : aliasMetaDataToAdd.filter().string())
                     .writeIndex(null)
+                    .isHidden(aliasMetaDataToAdd.isHidden())
             );
         });
 

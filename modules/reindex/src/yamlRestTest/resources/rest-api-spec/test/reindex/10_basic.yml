@@ -3,7 +3,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -37,12 +37,12 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   dest
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -76,7 +76,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -132,12 +132,12 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   dest
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -177,12 +177,12 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   dest
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -216,7 +216,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    {}
   - do:
       indices.refresh: {}
@@ -233,7 +233,7 @@
   - do:
       get:
         index:   dest
-        id:      1
+        id:      "1"
   - match: { _source: {} }
 
   # Make sure reindex closed all the scroll contexts
@@ -248,7 +248,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test", "filtered": "removed" }
         refresh: true
 
@@ -276,7 +276,7 @@
   - do:
       get:
         index: dest
-        id: 1
+        id: "1"
   - match: { _source.text: "test" }
   - is_false: _source.filtered
 

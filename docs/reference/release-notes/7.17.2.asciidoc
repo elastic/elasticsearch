@@ -1,0 +1,88 @@
+[[release-notes-7.17.2]]
+== {es} version 7.17.2
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.2]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[bug-7.17.2]]
+[float]
+=== Bug fixes
+
+Client::
+* Fix for self-suppression in REST client {es-pull}83568[#83568] (issue: {es-issue}42223[#42223])
+
+EQL::
+* Clean any used memory by the sequence matcher and circuit breaker used bytes in case of exception {es-pull}84451[#84451]
+
+Engine::
+* Fork to `WRITE` thread when failing shard {es-pull}84606[#84606] (issue: {es-issue}84602[#84602])
+* Increase store ref before snapshotting index commit {es-pull}84776[#84776]
+
+ILM+SLM::
+* Fix `PolicyStepsRegistry's` `cachedSteps` null handling {es-pull}84588[#84588]
+* Invoke initial `AsyncActionStep` for newly created indices {es-pull}84541[#84541] (issue: {es-issue}77269[#77269])
+
+Indices APIs::
+* Allow removing unreferenced composable data stream templates {es-pull}84376[#84376] (issues: {es-issue}84171[#84171], {es-issue}84188[#84188])
+* Remove existing indices/datastreams/aliases before simulating index template {es-pull}84675[#84675] (issue: {es-issue}84256[#84256])
+
+Infra/Core::
+* Return empty version instead of blowing up if we cannot find it {es-pull}85244[#85244]
+* Validate index format agreement for system index descriptors {es-pull}85173[#85173]
+* Wrap thread creation in `doPrivileged` call {es-pull}85180[#85180]
+
+Infra/Settings::
+* Change `deprecationIssue` level to critical for slow log level {es-pull}85062[#85062]
+
+Ingest::
+* Backport mark `GeoIpDownloaderTask` as completed after cancellation #84028 {es-pull}85014[#85014] (issues: {es-issue}84028[#84028], {es-issue}84652[#84652])
+* `CompoundProcessor` should also catch exceptions when executing a processor {es-pull}84838[#84838] (issue: {es-issue}84781[#84781])
+
+Java High Level REST Client::
+* Do not send default `ignore_throttled` parameter since it is deprecated {es-pull}84827[#84827]
+
+Machine Learning::
+* Allow autoscaling to work when vertical scaling is possible {es-pull}84242[#84242] (issue: {es-issue}84198[#84198])
+* Do not fetch source when finding index of last state docs {es-pull}85334[#85334]
+* Fix Kibana date format and similar overrides in text structure endpoint {es-pull}84967[#84967]
+* Fixes for multi-line start patterns in text structure endpoint {es-pull}85066[#85066]
+* Record node shutdown start time for each node {es-pull}84355[#84355]
+* Return all Datafeeds with GET Anomaly Detector {es-pull}84759[#84759]
+
+Packaging::
+* Restart ES after keystore upgrade in `postinst` {es-pull}84224[#84224] (issue: {es-issue}82433[#82433])
+
+Search::
+* Fix point visitor in `DiskUsage` API {es-pull}84909[#84909]
+* Increase store ref before analyzing disk usage {es-pull}84774[#84774]
+* Limit concurrent shard requests in disk usage API {es-pull}84900[#84900] (issue: {es-issue}84779[#84779])
+* Rewrite match and `match_phrase` queries to term queries on keyword fields {es-pull}85165[#85165] (issue: {es-issue}82515[#82515])
+* `TransportBroadcastAction` should always set response for each shard {es-pull}84926[#84926]
+
+Snapshot/Restore::
+* Fix `DirectBlobContainerIndexInput` cloning method {es-pull}84341[#84341] (issue: {es-issue}84238[#84238])
+* Fix atomic writes in HDFS {es-pull}85210[#85210]
+* Fix leaking listeners bug on frozen tier {es-pull}85239[#85239]
+
+Transform::
+* Revert surfacing script deprecations warnings in deprecation info API {es-pull}85317[#85317]
+
+[[deprecation-7.17.2]]
+[float]
+=== Deprecations
+
+TLS::
+* Deprecation for truststores with no trust entries {es-pull}84476[#84476]
+
+[[enhancement-7.17.2]]
+[float]
+=== Enhancements
+
+Watcher::
+* Add list of allowed domains for Watcher email action {es-pull}84894[#84894] (issue: {es-issue}84739[#84739])
+
+

@@ -25,6 +25,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -48,6 +49,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
@@ -184,6 +186,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static RestClient adminClient;
     private static Boolean hasXPack;
+    private static Boolean hasShutdown;
     private static TreeSet<Version> nodeVersions;
 
     @Before
@@ -192,6 +195,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert adminClient == null;
             assert clusterHosts == null;
             assert hasXPack == null;
+            assert hasShutdown == null;
             assert nodeVersions == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
@@ -211,6 +215,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             hasXPack = false;
+            hasShutdown = false;
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
@@ -219,8 +224,12 @@ public abstract class ESRestTestCase extends ESTestCase {
                 nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
+                    String moduleName = moduleInfo.get("name").toString();
+                    if (moduleName.startsWith("x-pack-")) {
                         hasXPack = true;
+                    }
+                    if (moduleName.equals("x-pack-shutdown")) {
+                        hasShutdown = true;
                     }
                 }
             }
@@ -229,6 +238,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert adminClient != null;
         assert clusterHosts != null;
         assert hasXPack != null;
+        assert hasShutdown != null;
         assert nodeVersions != null;
     }
 
@@ -395,6 +405,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = null;
             adminClient = null;
             hasXPack = null;
+            hasShutdown = null;
             nodeVersions = null;
         }
     }
@@ -895,7 +906,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (hasXPack() == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+        if (hasShutdown == false || minimumNodeVersion().before(Version.V_7_15_0)) {
             // Node shutdown APIs are only present in xpack
             return;
         }
@@ -1553,8 +1564,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
+        return getIndexSettings(index, false);
+    }
+
+    protected static Map<String, Object> getIndexSettings(String index, boolean includeDefaults) throws IOException {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
+        if (includeDefaults) {
+            request.addParameter("include_defaults", "true");
+        }
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
@@ -1975,5 +1993,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             return response.getStatusLine().getStatusCode() == 404;
         }
         return false;
+    }
+
+    protected FieldCapabilitiesResponse fieldCaps(List<String> indices, List<String> fields, QueryBuilder indexFilter) throws IOException {
+        Request request = new Request("POST", "/_field_caps");
+        request.addParameter("index", String.join(",", indices));
+        request.addParameter("fields", String.join(",", fields));
+        if (indexFilter != null) {
+            XContentBuilder body = JsonXContent.contentBuilder();
+            body.startObject();
+            body.field("index_filter", indexFilter);
+            body.endObject();
+            request.setJsonEntity(Strings.toString(body));
+        }
+        Response response = client().performRequest(request);
+        assertOK(response);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
+            return FieldCapabilitiesResponse.fromXContent(parser);
+        }
     }
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -276,6 +275,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testAddIndexBlock() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
+        ensureGreen(indexName);
 
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(
@@ -289,7 +289,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         final APIBlock block = randomAddableBlock();
         try {
-            assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+            AddIndexBlockResponse response = client().admin().indices().prepareAddBlock(block, indexName).get();
+            assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);
@@ -394,13 +395,10 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging(
-        reason = "https://github.com/elastic/elasticsearch/issues/74345",
-        value = "org.elasticsearch.action.admin.indices.readonly:DEBUG,org.elasticsearch.cluster.metadata:DEBUG"
-    )
     public void testAddBlockWhileIndexingDocuments() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
+        ensureGreen(indexName);
 
         final APIBlock block = randomAddableBlock();
         int nbDocs = 0;
@@ -416,7 +414,10 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
                 waitForDocs(randomIntBetween(10, 50), indexer);
                 final AddIndexBlockResponse response = client().admin().indices().prepareAddBlock(block, indexName).get();
-                assertTrue("Add Index Block request was not acknowledged: " + response, response.isAcknowledged());
+                assertTrue(
+                    "Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response,
+                    response.isAcknowledged()
+                );
                 indexer.stopAndAwaitStopped();
                 nbDocs += indexer.totalIndexedDocs();
             }

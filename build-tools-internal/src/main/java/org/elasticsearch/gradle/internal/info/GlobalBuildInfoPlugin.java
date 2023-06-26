@@ -8,7 +8,6 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
@@ -30,10 +29,8 @@ import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
@@ -41,10 +38,8 @@ import java.nio.file.Files;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,7 +49,6 @@ import javax.inject.Inject;
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
-    private static Integer _defaultParallel = null;
     private static Boolean _isBundledJdkSupported = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
@@ -260,7 +254,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private String findJavaHome(String version) {
-        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv").forUseAtConfigurationTime();
+        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv");
         String javaHomeEnvVar = getJavaHomeEnvVarName(version);
 
         // Provide a useful error if we're looking for a Java home version that we haven't told Gradle about yet
@@ -294,56 +288,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static String getJavaHomeEnvVarName(String version) {
         return "JAVA" + version + "_HOME";
-    }
-
-    private static int findDefaultParallel(Project project) {
-        // Since it costs IO to compute this, and is done at configuration time we want to cache this if possible
-        // It's safe to store this in a static variable since it's just a primitive so leaking memory isn't an issue
-        if (_defaultParallel == null) {
-            File cpuInfoFile = new File("/proc/cpuinfo");
-            if (cpuInfoFile.exists()) {
-                // Count physical cores on any Linux distro ( don't count hyper-threading )
-                Map<String, Integer> socketToCore = new HashMap<>();
-                String currentID = "";
-
-                try (BufferedReader reader = new BufferedReader(new FileReader(cpuInfoFile))) {
-                    for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                        if (line.contains(":")) {
-                            List<String> parts = Arrays.stream(line.split(":", 2)).map(String::trim).collect(Collectors.toList());
-                            String name = parts.get(0);
-                            String value = parts.get(1);
-                            // the ID of the CPU socket
-                            if (name.equals("physical id")) {
-                                currentID = value;
-                            }
-                            // Number of cores not including hyper-threading
-                            if (name.equals("cpu cores")) {
-                                assert currentID.isEmpty() == false;
-                                socketToCore.put("currentID", Integer.valueOf(value));
-                                currentID = "";
-                            }
-                        }
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                _defaultParallel = socketToCore.values().stream().mapToInt(i -> i).sum();
-            } else if (OS.current() == OS.MAC) {
-                // Ask macOS to count physical CPUs for us
-                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-                project.exec(spec -> {
-                    spec.setExecutable("sysctl");
-                    spec.args("-n", "hw.physicalcpu");
-                    spec.setStandardOutput(stdout);
-                });
-
-                _defaultParallel = Integer.parseInt(stdout.toString().trim());
-            }
-
-            _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
-        }
-
-        return _defaultParallel;
     }
 
     public static String getResourceContents(String resourcePath) {

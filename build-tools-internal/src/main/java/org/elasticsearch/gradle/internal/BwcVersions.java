@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
@@ -18,6 +19,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -82,6 +84,8 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
+    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
+    private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final Version currentVersion;
     private final Map<Integer, List<Version>> groupByMajor;
@@ -336,25 +340,31 @@ public class BwcVersions {
     }
 
     public List<Version> getIndexCompatible() {
-        return unmodifiableList(
-            filterSupportedVersions(
-                Stream.concat(
-                    groupByMajor.get(currentVersion.getMajor() - 1).stream(),
-                    groupByMajor.get(currentVersion.getMajor()).stream()
-                ).filter(version -> version.equals(currentVersion) == false).collect(Collectors.toList())
-            )
-        );
+        return filterSupportedVersions(getAllIndexCompatible());
     }
 
-    public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
+    /**
+     * Return all versions of Elasticsearch which are index compatible with the current version.
+     */
+    public List<Version> getAllIndexCompatible() {
+        return Stream.concat(groupByMajor.get(currentVersion.getMajor() - 1).stream(), groupByMajor.get(currentVersion.getMajor()).stream())
+            .filter(version -> version.equals(currentVersion) == false)
+            .collect(Collectors.toList());
+    }
+
+    public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
         getIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
-    public void withIndexCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+    public void withIndexCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
         getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public List<Version> getWireCompatible() {
+        return unmodifiableList(filterSupportedVersions(getAllWireCompatible()));
+    }
+
+    public List<Version> getAllWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
         List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
         int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
@@ -365,7 +375,7 @@ public class BwcVersions {
         wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
 
-        return unmodifiableList(filterSupportedVersions(wireCompat));
+        return unmodifiableList(wireCompat);
     }
 
     public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
@@ -377,21 +387,50 @@ public class BwcVersions {
     }
 
     private List<Version> filterSupportedVersions(List<Version> wireCompat) {
-        return Architecture.current() == Architecture.AARCH64
-            ? wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList())
-            : wireCompat;
+        Predicate<Version> supported = v -> true;
+        if (Architecture.current() == Architecture.AARCH64) {
+            final String version;
+            if (ElasticsearchDistribution.CURRENT_PLATFORM.equals(ElasticsearchDistribution.Platform.DARWIN)) {
+                version = "7.16.0";
+            } else {
+                version = "7.12.0"; // linux shipped earlier for aarch64
+            }
+            supported = v -> v.onOrAfter(version);
+        }
+        return wireCompat.stream().filter(supported).collect(Collectors.toList());
     }
 
     public List<Version> getUnreleasedIndexCompatible() {
-        List<Version> unreleasedIndexCompatible = new ArrayList<>(getIndexCompatible());
+        List<Version> unreleasedIndexCompatible = new ArrayList<>(getAllIndexCompatible());
         unreleasedIndexCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedIndexCompatible);
     }
 
     public List<Version> getUnreleasedWireCompatible() {
-        List<Version> unreleasedWireCompatible = new ArrayList<>(getWireCompatible());
+        List<Version> unreleasedWireCompatible = new ArrayList<>(getAllWireCompatible());
         unreleasedWireCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedWireCompatible);
     }
 
+    /**
+     * Determine whether the given version of Elasticsearch is compatible with ML features on the host system.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/86877">https://github.com/elastic/elasticsearch/issues/86877</a>
+     */
+    public static boolean isMlCompatible(Version version) {
+        Version glibcVersion = Optional.ofNullable(System.getenv(GLIBC_VERSION_ENV_VAR))
+            .map(v -> Version.fromString(v, Version.Mode.RELAXED))
+            .orElse(null);
+
+        // glibc version 2.34 introduced incompatibilities in ML syscall filters that were fixed in 7.17.5+ and 8.2.2+
+        if (glibcVersion != null && glibcVersion.onOrAfter(Version.fromString("2.34", Version.Mode.RELAXED))) {
+            if (version.before(Version.fromString("7.17.5"))) {
+                return false;
+            } else if (version.getMajor() > 7 && version.before(Version.fromString("8.2.2"))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

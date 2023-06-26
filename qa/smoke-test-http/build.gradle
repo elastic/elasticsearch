@@ -6,17 +6,14 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-  testImplementation project(path: ':modules:transport-netty4') // for http
-  testImplementation project(path: ':plugins:transport-nio') // for http
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:2.10.4"
-  testImplementation project(':modules:transport-netty4') // for http
-  testImplementation project(':plugins:transport-nio') // for http
+  javaRestTestImplementation project(':modules:transport-netty4') // for http
+  javaRestTestImplementation project(':plugins:transport-nio') // for http
+  javaRestTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  javaRestTestImplementation project(':plugins:transport-nio') // for http
 }
 
 testClusters.configureEach {

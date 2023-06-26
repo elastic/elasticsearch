@@ -16,6 +16,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -30,7 +31,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -43,6 +46,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
@@ -92,7 +96,15 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         final MockSecureSettings secureSettings = new MockSecureSettings();
         String accountName = DEFAULT_ACCOUNT_NAME;
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), accountName);
-        secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
+        if (randomBoolean()) {
+            secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
+        } else {
+            // The SDK expects a valid SAS TOKEN
+            secureSettings.setString(
+                AzureStorageSettings.SAS_TOKEN_SETTING.getConcreteSettingForNamespace("test").getKey(),
+                "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random"
+            );
+        }
 
         // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
@@ -257,6 +269,26 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
             NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob("blob"));
             assertThat(exception.getMessage(), containsString("nested/dir/blob] not found"));
+        }
+    }
+
+    public void testReadByteByByte() throws Exception {
+        try (BlobStore store = newBlobStore()) {
+            BlobContainer container = store.blobContainer(BlobPath.EMPTY.add(UUIDs.randomBase64UUID()));
+            byte[] data = randomBytes(randomIntBetween(128, 512));
+            String blobName = randomName();
+            container.writeBlob(blobName, new ByteArrayInputStream(data), data.length, true);
+
+            InputStream originalDataInputStream = new ByteArrayInputStream(data);
+            try (InputStream azureInputStream = container.readBlob(blobName)) {
+                for (int i = 0; i < data.length; i++) {
+                    assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
+                }
+
+                assertThat(azureInputStream.read(), is(equalTo(-1)));
+                assertThat(originalDataInputStream.read(), is(equalTo(-1)));
+            }
+            container.delete();
         }
     }
 }

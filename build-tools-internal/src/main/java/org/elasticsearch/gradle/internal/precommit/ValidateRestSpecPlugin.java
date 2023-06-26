@@ -8,14 +8,14 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 
 import java.io.File;
 
-public class ValidateRestSpecPlugin implements InternalPlugin {
+public class ValidateRestSpecPlugin implements Plugin<Project> {
     private static final String DOUBLE_STAR = "**"; // checkstyle thinks these are javadocs :(
 
     @Override

@@ -4,19 +4,21 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
+import org.elasticsearch.gradle.internal.docker.DockerSupportService
 import org.elasticsearch.gradle.internal.docker.ShellRetry
 import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
 
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
-apply plugin: 'elasticsearch.rest-resources'
 
-String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
+String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
 repositories {
@@ -181,7 +183,7 @@ tasks.named("preProcessFixture").configure {
   }
 }
 
-tasks.named("processTestResources").configure {
+tasks.named("processYamlRestTestResources").configure {
   from project(':x-pack:plugin:core')
     .files(
       'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
@@ -189,14 +191,14 @@ tasks.named("processTestResources").configure {
     )
 }
 
-tasks.register("integTest", Test) {
+tasks.named("yamlRestTest").configure {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
 }
 
 tasks.named("check").configure {
-  dependsOn "integTest"
+  dependsOn "yamlRestTest"
 }
 
 // We build the images used in compose locally, but the pull command insists on using a repository
@@ -228,7 +230,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         }
       }
 
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
     }
 
   if (base == DockerBase.IRON_BANK) {
@@ -273,22 +275,24 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
       inputs.property(k, { v.toString() })
     }
 
-    onlyIf { Architecture.current() == architecture }
+    onlyIf { isArchitectureSupported(architecture) }
   }
 }
 
 
-private static List<String> generateTags(DockerBase base) {
+private static List<String> generateTags(DockerBase base, Architecture architecture) {
   final String version = VersionProperties.elasticsearch
 
   String image = "elasticsearch${base.suffix}"
   String namespace = 'elasticsearch'
 
-  return [
-    "${image}:test",
-    "${image}:${version}",
-    "docker.elastic.co/${namespace}/${image}:${version}"
-  ]
+  def tags = ["${image}:${architecture.classifier}"]
+
+  if (architecture == Architecture.current()) {
+    tags.addAll(["${image}:test", "${image}:${version}", "docker.elastic.co/${namespace}/${image}:${version}"])
+  }
+
+  return tags
 }
 
 void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
@@ -301,7 +305,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       noCache = BuildParams.isCi
-      tags = generateTags(base)
+      tags = generateTags(base, architecture)
+      platform = architecture.dockerPlatform
 
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
@@ -322,7 +327,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
         baseImages = [base.image]
       }
 
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
     }
 
   if (base != DockerBase.IRON_BANK) {
@@ -334,11 +339,22 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
+    // We don't build an ARM version of the Iron Bank image
+    if (architecture == Architecture.AARCH64 && base == DockerBase.IRON_BANK) continue
+
     addBuildDockerContextTask(architecture, base)
     addTransformDockerContextTask(architecture, base)
     addBuildDockerImageTask(architecture, base)
   }
 }
+
+boolean isArchitectureSupported(Architecture architecture) {
+  Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
+  return serviceProvider.get().dockerAvailability.supportedArchitectures.contains(architecture)
+}
+
+def exportDockerImages = tasks.register("exportDockerImages")
+def exportCompressedDockerImages = tasks.register("exportCompressedDockerImages")
 
 /*
  * The export subprojects write out the generated Docker images to disk, so
@@ -366,17 +382,35 @@ subprojects { Project subProject ->
     final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
-    tasks.register(exportTaskName, LoggedExec) {
+    def exportTask = tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable 'docker'
       outputs.file(tarFile)
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${base.suffix}:test"
-
+        "elasticsearch${base.suffix}:${architecture.classifier}"
       dependsOn(parent.path + ":" + buildTaskName)
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
+    }
+
+    exportDockerImages.configure {
+      dependsOn exportTask
+    }
+
+    def compressExportTask = tasks.register(taskName("compress", architecture, base, 'DockerImageExport'), Tar) {
+      it.from(project.tarTree(tarFile))
+      archiveExtension = 'tar.gz'
+      it.setCompression(Compression.GZIP)
+      it.getArchiveBaseName().set("elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-image")
+      it.getArchiveVersion().set("")
+      it.getArchiveClassifier().set(architecture == Architecture.AARCH64 ? 'aarch64' : '')
+      it.getDestinationDirectory().set(new File(project.parent.buildDir, 'distributions'))
+      it.dependsOn(exportTask)
+    }
+
+    exportCompressedDockerImages.configure {
+      dependsOn compressExportTask
     }
 
     artifacts.add('default', file(tarFile)) {
@@ -385,4 +419,10 @@ subprojects { Project subProject ->
       builtBy exportTaskName
     }
   }
+}
+
+tasks.named('resolveAllDependencies') {
+  // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
+  // Also skip building Elasticsearch distributions
+  configs = configurations.matching { it.name.contains('beat') == false && it.name.toLowerCase().contains('dockersource') == false }
 }

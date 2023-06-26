@@ -1,13 +1,12 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
-  testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackModule('security'))
-  testImplementation project(path: xpackProject('transport-client').path)
+  javaRestTestImplementation project(xpackModule('core'))
+  javaRestTestImplementation project(path: xpackModule('security'))
+  javaRestTestImplementation project(path: xpackProject('transport-client').path)
 }
 
-testClusters.matching { it.name == "integTest"}.configureEach {
+testClusters.matching { it.name == "javaRestTest"}.configureEach {
   testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -22,16 +21,10 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   }
 }
 
-
-tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
-  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+tasks.matching { it.name.equals('javaRestTest')}.configureEach {integTestTask ->
+  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.javaRestTest.singleNode().getConfigDir()}"
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    IT {
-      baseClass 'org.elasticsearch.xpack.security.MigrateToolTestCase'
-    }
-  }
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.xpack.security.MigrateToolTestCase'
 }

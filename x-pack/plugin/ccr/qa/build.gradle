@@ -1,17 +1,15 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.build'
-tasks.named("test").configure { enabled = false }
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(':test:framework')
 }
-gradle.projectsEvaluated {
-  subprojects {
-    tasks.withType(Test).configureEach {
-      // These fail in CI but only when run as part of checkPart2 and not individually.
-      // Tracked in : https://github.com/elastic/elasticsearch/issues/66661
-      onlyIf { BuildParams.inFipsJvm == false}
-    }
+
+subprojects {
+  tasks.withType(Test).configureEach {
+    // These fail in CI but only when run as part of checkPart2 and not individually.
+    // Tracked in : https://github.com/elastic/elasticsearch/issues/66661
+    onlyIf { BuildParams.inFipsJvm == false }
   }
 }

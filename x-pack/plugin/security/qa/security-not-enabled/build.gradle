@@ -6,7 +6,7 @@
  *              defined, it should be not fail
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))

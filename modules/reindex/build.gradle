@@ -16,8 +16,8 @@ import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -93,6 +93,11 @@ jdks {
   }
 }
 
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   tasks.named("javaRestTest").configure {
@@ -111,8 +116,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
    * To avoid testing against too many old versions, always pick first and last version per major
    */
   project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
-    transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
   });
 
   def versions = ['2', '1', '090']
@@ -123,7 +128,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   }
   versions.each { version ->
     def oldEsDependency = configurations['es' + version]
-    oldEsDependency.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
       executable = "${BuildParams.runtimeJavaHome}/bin/java"

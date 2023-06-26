@@ -1,0 +1,104 @@
+[[release-notes-7.17.1]]
+== {es} version 7.17.1
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.1]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[deprecation-7.17.1]]
+[float]
+=== Deprecations
+
+Infra/Core::
+* Deprecation info API for camel case date formats {es-pull}83839[#83839]
+
+
+[[enhancement-7.17.1]]
+[float]
+=== Enhancements
+
+Authorization::
+* Use same system index pattern in restricted names {es-pull}84180[#84180]
+
+Infra/REST API::
+* Update YAML REST tests to check for product header on all responses {es-pull}83290[#83290]
+
+Recovery::
+* Adjust `indices.recovery.max_bytes_per_sec` according to external settings {es-pull}82819[#82819]
+
+Transform::
+* Surface script deprecation warnings in deprecation info API {es-pull}84040[#84040] (issue: {es-issue}82936[#82936])
+
+
+[[bug-7.17.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Backward compatibility with version 7.17.0 {es-pull}83715[#83715] (issues: {es-issue}83339[#83339], {es-issue}83533[#83533])
+
+Autoscaling::
+* Fix autoscaling of follower data streams {es-pull}83302[#83302] (issue: {es-issue}82857[#82857])
+
+Discovery-Plugins::
+* Correcly handle large GCE zones with 500 or more instances {es-pull}83785[#83785] (issue: {es-issue}83783[#83783])
+
+Geo::
+* `GeometryNormalizer` should not fail if it cannot compute signed area {es-pull}84051[#84051] (issue: {es-issue}83946[#83946])
+
+ILM+SLM::
+* Do not allow negative age in ILM explain {es-pull}84043[#84043]
+
+Infra/Core::
+* Always re-run Feature migrations which have encountered errors {es-pull}83918[#83918] (issue: {es-issue}83917[#83917])
+* Copy `trace.id` in threadcontext stash {es-pull}83218[#83218] (issue: {es-issue}81381[#81381])
+* Correctly migrate system indices that are still using named types {es-pull}83817[#83817] (issue: {es-issue}83779[#83779])
+* Register Feature migration persistent task state named XContent {es-pull}84192[#84192] (issue: {es-issue}84115[#84115])
+* Update system index metadata if `_meta` is null {es-pull}83896[#83896] (issue: {es-issue}83890[#83890])
+
+Infra/Scripting::
+* Fix deprecated suggestions for `JodaCompatibleZonedDateTime` {es-pull}83276[#83276]
+
+Ingest::
+* Fix `GeoIpDownloader` startup during rolling upgrade {es-pull}84000[#84000]
+* Short circuit date patterns after first match {es-pull}83764[#83764] (issue: {es-issue}73918[#73918])
+
+Machine Learning::
+* Fix bug where initial scale from 0->1 could scale too high {es-pull}84244[#84244]
+* Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
+* Address cause of "[CStatisticalTests.cc@102] Test statistic is nan" log errors {ml-pull}2196[#2196]
+* Address possible causes of "x = NaN, distribution = N5boost4math23students_t_distribution" log errors {ml-pull}2197[#2197]
+* Fix bug restoring data gatherer state for time of day and week anomaly detection functions  {ml-pull}2213[#2213]
+
+Recovery::
+* Add missing `indices.recovery.internal_action_retry_timeout` to list of settings {es-pull}83354[#83354] (issue: {es-issue}55353[#55353])
+
+SQL::
+* Fix txt format for empty result sets {es-pull}83376[#83376] (issue: {es-issue}83371[#83371])
+
+Search::
+* Avoid eagerly loading `StoredFieldsReader` in fetch phase {es-pull}83693[#83693] (issue: {es-issue}82777[#82777])
+* Do not deserialise the document when not needed in the fields fetch phase {es-pull}84184[#84184]
+* Returns valid PIT when no index matched {es-pull}83424[#83424]
+
+Transform::
+* Prevent stopping of transforms due to threadpool limitation {es-pull}81912[#81912] (issue: {es-issue}81796[#81796])
+
+
+[[upgrade-7.17.1]]
+[float]
+=== Upgrades
+
+Geo::
+* Update vector tiles google protobuf to 3.16.1 {es-pull}83402[#83402]
+
+Packaging::
+* Bump bundled JDK to 17.0.2+8 {es-pull}83243[#83243] (issue: {es-issue}83242[#83242])
+
+Transform::
+* Forward deprecations from search response to transform `_preview` API response {es-pull}83257[#83257] (issue: {es-issue}82935[#82935])
+
+

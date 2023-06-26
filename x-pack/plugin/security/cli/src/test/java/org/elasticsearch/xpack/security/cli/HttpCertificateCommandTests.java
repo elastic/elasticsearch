@@ -118,14 +118,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
     }
 
-    @BeforeClass
-    public static void muteOnBrokenJdk() {
-        assumeFalse(
-            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-            "1.8.0_292".equals(System.getProperty("java.version"))
-        );
-    }
-
     public void testGenerateSingleCertificateSigningRequest() throws Exception {
         final Path outFile = testRoot.resolve("csr.zip").toAbsolutePath();
 

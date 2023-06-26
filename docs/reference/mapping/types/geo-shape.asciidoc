@@ -5,7 +5,7 @@
 ++++
 
 The `geo_shape` data type facilitates the indexing of and searching
-with arbitrary geo shapes such as rectangles and polygons. It should be
+with arbitrary geoshapes such as rectangles and polygons. It should be
 used when either the data being indexed or the queries being executed
 contain shapes other than just points.
 
@@ -98,7 +98,7 @@ greater false positives. Note: This parameter is only relevant for `term` and
 
 |`orientation`
 a|Optional. Default <<polygon-orientation,orientation>> for the field's
-polygons.
+WKT polygons.
 
 This parameter sets and returns only a `RIGHT` (counterclockwise) or `LEFT`
 (clockwise) value. However, you can specify either value in multiple ways.
@@ -147,7 +147,7 @@ and reject the whole document.
 [[geoshape-indexing-approach]]
 [discrete]
 ==== Indexing approach
-GeoShape types are indexed by decomposing the shape into a triangular mesh and
+Geoshape types are indexed by decomposing the shape into a triangular mesh and
 indexing each triangle as a 7 dimension point in a BKD tree. This provides
 near perfect spatial resolution (down to 1e-7 decimal degree precision) since all
 spatial relations are computed using an encoded vector representation of the
@@ -332,7 +332,7 @@ API. The following is an example of a point in GeoJSON.
 POST /example/_doc
 {
   "location" : {
-    "type" : "point",
+    "type" : "Point",
     "coordinates" : [-77.03653, 38.897676]
   }
 }
@@ -352,23 +352,23 @@ POST /example/_doc
 [[geo-linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
-A `linestring` defined by an array of two or more positions. By
-specifying only two points, the `linestring` will represent a straight
+A linestring defined by an array of two or more positions. By
+specifying only two points, the linestring will represent a straight
 line. Specifying more than two points creates an arbitrary path. The
-following is an example of a LineString in GeoJSON.
+following is an example of a linestring in GeoJSON.
 
 [source,console]
 --------------------------------------------------
 POST /example/_doc
 {
   "location" : {
-    "type" : "linestring",
+    "type" : "LineString",
     "coordinates" : [[-77.03653, 38.897676], [-77.009051, 38.889939]]
   }
 }
 --------------------------------------------------
 
-The following is an example of a LineString in WKT:
+The following is an example of a linestring in WKT:
 
 [source,console]
 --------------------------------------------------
@@ -378,7 +378,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-The above `linestring` would draw a straight line starting at the White
+The above linestring would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [discrete]
@@ -387,14 +387,14 @@ House to the US Capitol Building.
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
-closed). The following is an example of a Polygon in GeoJSON.
+closed). The following is an example of a polygon in GeoJSON.
 
 [source,console]
 --------------------------------------------------
 POST /example/_doc
 {
   "location" : {
-    "type" : "polygon",
+    "type" : "Polygon",
     "coordinates" : [
       [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ]
     ]
@@ -402,7 +402,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-The following is an example of a Polygon in WKT:
+The following is an example of a polygon in WKT:
 
 [source,console]
 --------------------------------------------------
@@ -421,7 +421,7 @@ of a polygon with a hole:
 POST /example/_doc
 {
   "location" : {
-    "type" : "polygon",
+    "type" : "Polygon",
     "coordinates" : [
       [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ],
       [ [100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2] ]
@@ -430,7 +430,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-The following is an example of a Polygon with a hole in WKT:
+The following is an example of a polygon with a hole in WKT:
 
 [source,console]
 --------------------------------------------------
@@ -445,22 +445,29 @@ POST /example/_doc
 ===== Polygon orientation
 
 A polygon's orientation indicates the order of its vertices: `RIGHT`
-(counterclockwise) or `LEFT` (clockwise).
+(counterclockwise) or `LEFT` (clockwise). {es} uses a polygon’s orientation to
+determine if it crosses the international dateline (+/-180° longitude). 
 
-You can set a default orientation for a `geo_shape` field using the
-<<geo-shape-mapping-options,`orientation` mapping parameter>>. You can override
-this default for specific polygons using the document-level `orientation`
-parameter.
+You can set a default orientation for WKT polygons using the
+<<geo-shape-mapping-options,`orientation` mapping parameter>>. This is because
+the WKT specification doesn't specify or enforce a default orientation.
 
-For example, the following indexing request specifies a document-level
-`orientation` of `LEFT`.
+GeoJSON polygons use a default orientation of `RIGHT`, regardless of
+`orientation` mapping parameter's value. This is because the
+https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON specification]
+mandates that an outer polygon use a counterclockwise orientation and interior
+shapes use a clockwise orientation.
+
+You can override the default orientation for GeoJSON polygons using the
+document-level `orientation` parameter. For example, the following indexing
+request specifies a document-level `orientation` of `LEFT`.
 
 [source,console]
 ----
 POST /example/_doc
 {
   "location" : {
-    "type" : "polygon",
+    "type" : "Polygon",
     "orientation" : "LEFT",
     "coordinates" : [
       [ [-177.0, 10.0], [176.0, 15.0], [172.0, 0.0], [176.0, -15.0], [-177.0, -10.0], [-177.0, 10.0] ]
@@ -470,15 +477,15 @@ POST /example/_doc
 ----
 
 {es} only uses a polygon’s orientation to determine if it crosses the
-international dateline (+/-180° longitude). If the difference between a
-polygon’s minimum longitude and the maximum longitude is less than 180°, the
-polygon doesn't cross the dateline and its orientation has no effect.
+international dateline. If the difference between a polygon’s minimum longitude
+and the maximum longitude is less than 180°, the polygon doesn't cross the
+dateline and its orientation has no effect.
 
 If the difference between a polygon’s minimum longitude and the maximum
 longitude is 180° or greater, {es} checks whether the polygon's document-level
-`orientation` differs from the default in the `orientation` mapping parameter.
-If the orientation differs, {es} considers the polygon to cross the
-international dateline and splits the polygon at the dateline.
+`orientation` differs from the default orientation. If the orientation differs,
+{es} considers the polygon to cross the international dateline and splits the
+polygon at the dateline.
 
 [discrete]
 [[geo-multipoint]]
@@ -491,7 +498,7 @@ The following is an example of a list of GeoJSON points:
 POST /example/_doc
 {
   "location" : {
-    "type" : "multipoint",
+    "type" : "MultiPoint",
     "coordinates" : [
       [102.0, 2.0], [103.0, 2.0]
     ]
@@ -520,7 +527,7 @@ The following is an example of a list of GeoJSON linestrings:
 POST /example/_doc
 {
   "location" : {
-    "type" : "multilinestring",
+    "type" : "MultiLineString",
     "coordinates" : [
       [ [102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0] ],
       [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0] ],
@@ -551,7 +558,7 @@ The following is an example of a list of GeoJSON polygons (second polygon contai
 POST /example/_doc
 {
   "location" : {
-    "type" : "multipolygon",
+    "type" : "MultiPolygon",
     "coordinates" : [
       [ [[102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0], [102.0, 2.0]] ],
       [ [[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]],
@@ -582,14 +589,14 @@ The following is an example of a collection of GeoJSON geometry objects:
 POST /example/_doc
 {
   "location" : {
-    "type": "geometrycollection",
+    "type": "GeometryCollection",
     "geometries": [
       {
-        "type": "point",
+        "type": "Point",
         "coordinates": [100.0, 0.0]
       },
       {
-        "type": "linestring",
+        "type": "LineString",
         "coordinates": [ [101.0, 0.0], [102.0, 1.0] ]
       }
     ]

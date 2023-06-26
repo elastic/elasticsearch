@@ -537,14 +537,23 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     public void testNoResultAggregationIfTaskCancelled() {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        action.new AsyncAction(cancelledTask(), request, listener).start();
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.AsyncAction asyncAction =
+            action.new AsyncAction(task, request, listener);
+        asyncAction.start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-
+        int cancelAt = randomIntBetween(0, Math.max(0, capturedRequests.size() - 2));
+        int i = 0;
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
+            if (cancelAt == i) {
+                TaskCancelHelper.cancel(task, "simulated");
+            }
             transport.handleRemoteError(entry.getValue().get(0).requestId, new ElasticsearchException("simulated"));
+            i++;
         }
 
         assertTrue(listener.isDone());
+        assertTrue(asyncAction.getNodeResponseTracker().responsesDiscarded());
         expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
     }
 

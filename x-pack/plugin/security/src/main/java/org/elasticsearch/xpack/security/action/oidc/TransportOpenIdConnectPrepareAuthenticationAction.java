@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
@@ -42,7 +41,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             OpenIdConnectPrepareAuthenticationAction.NAME,
             transportService,
             actionFilters,
-            (Writeable.Reader<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new
+            OpenIdConnectPrepareAuthenticationRequest::new
         );
         this.realms = realms;
     }
@@ -63,10 +62,12 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
                 listener.onFailure(
                     new ElasticsearchSecurityException("Cannot find OpenID Connect realm with issuer [{}]", request.getIssuer())
                 );
+                return;
             } else if (matchingRealms.size() > 1) {
                 listener.onFailure(
                     new ElasticsearchSecurityException("Found multiple OpenID Connect realm with issuer [{}]", request.getIssuer())
                 );
+                return;
             } else {
                 realm = matchingRealms.get(0);
             }

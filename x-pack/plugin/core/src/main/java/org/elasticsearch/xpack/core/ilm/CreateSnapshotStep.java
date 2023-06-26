@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -62,7 +64,31 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                if (e instanceof InvalidSnapshotNameException && e.getMessage() != null) {
+                    // this is not pretty, but we'd like for 7.17 to avoid introducing a custom exception to match the "snapshot already
+                    // exists" scenario (like we did for the 8.x line)
+                    // the InvalidSnapshotNameException message is in a custom format and the parts of the message are not exposed however,
+                    // we're matching on entire phrases so we will not inadvertently match different scenarios than the two we're
+                    // targeting here
+                    if (e.getMessage().endsWith(SnapshotsService.SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC)
+                        || e.getMessage().endsWith(SnapshotsService.SNAPSHOT_ALREADY_IN_PROGRESS_EXCEPTION_DESC)) {
+                        // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is
+                        // triggered by a master restart or a failover which can result in a double invocation of this step.
+                        logger.warn(
+                            "snapshot [{}] is already in-progress or in-use for index [{}], ILM will attempt to clean it up and "
+                                + "recreate it",
+                            ((InvalidSnapshotNameException) e).getSnapshotName(),
+                            indexMetadata.getIndex().getName()
+                        );
+                        // note we're going thorugh the success branch here (ie. this is not listener.onComplete)
+                        // to mark the step as onResponseResult=false (this way our next step key will be nextKeyOnIncomplete)
+                        onResponse(false);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                } else {
+                    listener.onFailure(e);
+                }
             }
         });
     }

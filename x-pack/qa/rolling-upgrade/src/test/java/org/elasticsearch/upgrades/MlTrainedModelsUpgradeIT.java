@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +39,11 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = org.elasticsearch.core.List.of(10, 20);
     static final List<String> KEYWORD_FIELD_VALUES = org.elasticsearch.core.List.of("cat", "dog");
     static final String INDEX_NAME = "created_index";
+
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
 
     @Override
     protected Collection<String> templatesToWaitFor() {

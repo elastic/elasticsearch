@@ -207,7 +207,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 +
-.Properties of `analysis_config`
+.Properties of `time`
 [%collapsible%open]
 =====
 
@@ -284,7 +284,8 @@ POST _transform/_preview
     "group_by": {
       "customer_id": {
         "terms": {
-          "field": "customer_id"
+          "field": "customer_id",
+          "missing_bucket": true
         }
       }
     },

@@ -1,0 +1,60 @@
+[[release-notes-7.17.4]]
+== {es} version 7.17.4
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.4]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[bug-7.17.4]]
+[float]
+=== Bug fixes
+
+Cluster Coordination::
+* Avoid breaking add/clear voting exclusions {es-pull}86657[#86657]
+
+Geo::
+* Fix mvt polygon orientation {es-pull}86555[#86555] (issue: {es-issue}86560[#86560])
+
+ILM+SLM::
+* Reroute after migrating to data tiers routing {es-pull}86574[#86574] (issue: {es-issue}86572[#86572])
+
+Infra/Core::
+* Fix `assertDefaultThreadContext` enumerating allowed headers {es-pull}86262[#86262]
+* Relax data path deprecations from critical to warn {es-pull}85952[#85952]
+* Set autoexpand replicas on fleet actions data stream {es-pull}85511[#85511]
+
+Infra/Settings::
+* Adjust MDP deprecation to warning instead of critical {es-pull}86102[#86102] (issue: {es-issue}85695[#85695])
+
+Machine Learning::
+* Fix `max_model_memory_limit` reported by `_ml/info` when autoscaling is enabled {es-pull}86660[#86660]
+* Improve reliability of job stats in larger clusters {es-pull}86305[#86305]
+* Make autoscaling and task assignment use same memory staleness definition {es-pull}86632[#86632] (issue: {es-issue}86616[#86616])
+* Fix edge case which could cause the model bounds to inflate after detecting seasonality {ml-pull}2261[#2261]
+* Fix cause of "Must provide points at which to evaluate function" log error training classification and regression models {ml-pull}2268[#2268]
+
+Packaging::
+* Fix edge case where user-defined heap settings are ignored {es-pull}86438[#86438] (issue: {es-issue}86431[#86431])
+
+Snapshot/Restore::
+* Better failure for source-only snapshots of partially/fully mounted indices {es-pull}86207[#86207]
+* Check if searchable snapshots cache pre-allocation is successful in Windows {es-pull}86192[#86192] (issue: {es-issue}85725[#85725])
+* Delay searchable snapshot allocation during shutdown {es-pull}86153[#86153] (issue: {es-issue}85052[#85052])
+
+Stats::
+* Correctly calculate disk usage for frozen data tier telemetry {es-pull}86580[#86580] (issue: {es-issue}86055[#86055])
+
+Task Management::
+* Use `TaskCancelledException` in TMNA {es-pull}86659[#86659]
+
+[[upgrade-7.17.4]]
+[float]
+=== Upgrades
+
+Packaging::
+* Switch to OpenJDK and upgrade to 18.0.1 {es-pull}86554[#86554]
+
+

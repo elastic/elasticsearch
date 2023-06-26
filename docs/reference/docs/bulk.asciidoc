@@ -49,6 +49,9 @@ privilege.
 ** To automatically create a data stream or index with a bulk API request, you
 must have the `auto_configure`, `create_index`, or `manage` index privilege.
 
+** To make the result of a bulk operation visible to search using the `refresh`
+parameter, you must have the `maintenance` or `manage` index privilege.
+
 * Automatic data stream creation requires a matching index template with data
 stream enabled. See <<set-up-a-data-stream>>.
 
@@ -109,11 +112,15 @@ Client libraries using this protocol should try and strive to do
 something similar on the client side, and reduce buffering as much as
 possible.
 
-There is no "correct" number of actions to perform in a single bulk request. 
-Experiment with different settings to find the optimal size for your particular workload.
-
-When using the HTTP API, make sure that the client does not send HTTP chunks, 
-as this will slow things down.
+There is no "correct" number of actions to perform in a single bulk request.
+Experiment with different settings to find the optimal size for your particular
+workload. Note that {es} limits the maximum size of a HTTP request to `100mb`
+by default so clients must ensure that no request exceeds this size. It is not
+possible to index a single document which exceeds the size limit, so you must
+pre-process any such documents into smaller pieces before sending them to {es}.
+For instance, split documents into pages or chapters before indexing them, or
+store raw binary data in a system outside {es} and replacing the raw data with
+a link to the external system in the documents that you send to {es}.
 
 [discrete]
 [[bulk-clients]]
@@ -140,7 +147,7 @@ JavaScript::
     See {jsclient-current}/client-helpers.html[client.helpers.*]
 
 .NET::
-    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
+    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/7.17/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
 
 PHP::
     See https://www.elastic.co/guide/en/elasticsearch/client/php-api/current/indexing_documents.html#_bulk_indexing[Bulk indexing]
@@ -349,14 +356,6 @@ Required for `create` and `index` operations.
 The bulk API's response contains the individual results of each operation in the
 request, returned in the order submitted. The success or failure of an
 individual operation does not affect other operations in the request.
-
-[[bulk-partial-responses]]
-.Partial responses
-****
-To ensure fast responses, the bulk API will respond with partial results if one
-or more shards fail. See <<shard-failures, Shard failures>> for more
-information.
-****
 
 `took`::
 (integer)

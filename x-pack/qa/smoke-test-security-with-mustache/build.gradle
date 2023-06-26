@@ -1,10 +1,7 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
 }
 
 restResources {

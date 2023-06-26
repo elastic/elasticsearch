@@ -41,6 +41,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     ) {
         super(
             DeleteShutdownNodeAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,

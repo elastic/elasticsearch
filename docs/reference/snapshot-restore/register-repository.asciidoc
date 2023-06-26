@@ -54,8 +54,11 @@ become visible straight away.
 // end::multi-cluster-repo[]
 --
 
-* Use a different snapshot repository for each major version of {es}. Mixing
-snapshots from different major versions can corrupt a repository’s contents.
+* When upgrading {es} to a newer version you can continue to use the same
+repository you were using before the upgrade. If the repository is accessed by
+multiple clusters, they should all have the same version. Once a repository has
+been modified by a particular version of {es}, it may not work correctly when
+accessed by older versions.
 
 [discrete]
 [[manage-snapshot-repos]]
@@ -103,7 +106,7 @@ clusters].
 [[self-managed-repo-types]]
 ==== Self-managed repository types
 
-If you run the {es} on your own hardware, you can use the following built-in
+If you run {es} on your own hardware, you can use the following built-in
 snapshot repository types:
 
 * <<snapshots-filesystem-repository,Shared file system>>

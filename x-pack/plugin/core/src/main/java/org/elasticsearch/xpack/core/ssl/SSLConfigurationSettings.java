@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.security.KeyStore;
@@ -41,6 +42,7 @@ public class SSLConfigurationSettings {
     public final Setting<String> truststoreAlgorithm;
     public final Setting<Optional<String>> truststoreType;
     public final Setting<Optional<String>> trustRestrictionsPath;
+    public final Setting<List<String>> trustRestrictionsX509Fields;
     public final Setting<List<String>> caPaths;
     public final Setting<Optional<SSLClientAuth>> clientAuth;
     public final Setting<Optional<VerificationMode>> verificationMode;
@@ -264,8 +266,29 @@ public class SSLConfigurationSettings {
         "xpack.security.ssl.trust_restrictions",
         TRUST_RESTRICTIONS_TEMPLATE
     );
+
     public static final Function<String, Setting.AffixSetting<Optional<String>>> TRUST_RESTRICTIONS_REALM = realmType -> Setting
         .affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.trust_restrictions", TRUST_RESTRICTIONS_TEMPLATE);
+
+    public static final Function<String, Setting<List<String>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
+        key,
+        org.elasticsearch.core.List.of(RestrictedTrustConfig.SAN_OTHER_COMMON),
+        s -> {
+            Optional<String> value = RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream().filter(v -> v.equalsIgnoreCase(s)).findAny();
+            if (value.isPresent() == false) {
+                throw new SslConfigException(
+                    s
+                        + " is not a supported x509 field for trust restrictions. "
+                        + "Recognised values are ["
+                        + String.join(",", RestrictedTrustConfig.SUPPORTED_X_509_FIELDS)
+                        + "]"
+                );
+            }
+            return s;
+        },
+        Property.NodeScope,
+        Property.Filtered
+    );
 
     public static final Setting<SecureString> LEGACY_KEY_PASSWORD_PROFILES = Setting.affixKeySetting(
         "transport.profiles.",
@@ -371,6 +394,7 @@ public class SSLConfigurationSettings {
         truststoreAlgorithm = TRUST_STORE_ALGORITHM_TEMPLATE.apply(prefix + "truststore.algorithm");
         truststoreType = TRUST_STORE_TYPE_TEMPLATE.apply(prefix + "truststore.type");
         trustRestrictionsPath = TRUST_RESTRICTIONS_TEMPLATE.apply(prefix + "trust_restrictions.path");
+        trustRestrictionsX509Fields = TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE.apply(prefix + "trust_restrictions.x509_fields");
         caPaths = CAPATH_SETTING_TEMPLATE.apply(prefix + "certificate_authorities");
         clientAuth = CLIENT_AUTH_SETTING_TEMPLATE.apply(prefix + "client_authentication");
         verificationMode = VERIFICATION_MODE_SETTING_TEMPLATE.apply(prefix + "verification_mode");
@@ -383,6 +407,7 @@ public class SSLConfigurationSettings {
             truststoreAlgorithm,
             truststoreType,
             trustRestrictionsPath,
+            trustRestrictionsX509Fields,
             caPaths,
             clientAuth,
             verificationMode,

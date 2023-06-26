@@ -16,10 +16,28 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 public class ReleaseHighlightsGeneratorTest {
+
+    /**
+     * Check that the release highlights can be correctly generated when there are no highlights.
+     */
+    @Test
+    public void generateFile_withNoHighlights_rendersCorrectMarkup() throws Exception {
+        // given:
+        final String template = getResource("/templates/release-highlights.asciidoc");
+        final String expectedOutput = getResource(
+            "/org/elasticsearch/gradle/internal/release/ReleaseHighlightsGeneratorTest.noHighlights.generateFile.asciidoc"
+        );
+
+        // when:
+        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("7.17.3-SNAPSHOT"), template, List.of());
+
+        // then:
+        assertThat(actualOutput, equalTo(expectedOutput));
+    }
 
     /**
      * Check that the release highlights can be correctly generated.
@@ -35,7 +53,7 @@ public class ReleaseHighlightsGeneratorTest {
         final List<ChangelogEntry> entries = getEntries();
 
         // when:
-        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
+        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("7.18.0-SNAPSHOT"), template, entries);
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

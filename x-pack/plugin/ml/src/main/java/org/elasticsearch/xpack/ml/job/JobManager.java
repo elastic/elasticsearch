@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -31,9 +32,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -72,6 +70,7 @@ import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -527,28 +526,28 @@ public class JobManager {
 
     private void postJobUpdate(UpdateJobAction.Request request, Job updatedJob, ActionListener<PutJobAction.Response> actionListener) {
         // Autodetect must be updated if the fields that the C++ uses are changed
-        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
-            JobUpdate jobUpdate = request.getJobUpdate();
+        JobUpdate jobUpdate = request.getJobUpdate();
+        if (jobUpdate.isAutodetectProcessUpdate()) {
             if (isJobOpen(clusterService.state(), request.getJobId())) {
                 updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(isUpdated -> {
                     if (isUpdated) {
                         auditJobUpdatedIfNotInternal(request);
+                    } else {
+                        logger.error("[{}] Updating autodetect failed for job update [{}]", jobUpdate.getJobId(), jobUpdate);
                     }
                 }, e -> {
-                    // No need to do anything
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] Updating autodetect failed with an exception, job update [{}] ",
+                            jobUpdate.getJobId(),
+                            jobUpdate
+                        ),
+                        e
+                    );
                 }));
             }
         } else {
-            logger.debug("[{}] No process update required for job update: {}", request::getJobId, () -> {
-                try {
-                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-                    request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-                    return Strings.toString(jsonBuilder);
-                } catch (IOException e) {
-                    return "(unprintable due to " + e.getMessage() + ")";
-                }
-            });
-
+            logger.debug("[{}] No process update required for job update: {}", jobUpdate::getJobId, jobUpdate::toString);
             auditJobUpdatedIfNotInternal(request);
         }
 
@@ -714,29 +713,38 @@ public class JobManager {
             return;
         }
 
+        boolean appliesToAllJobs = calendarJobIds.stream().anyMatch(Metadata.ALL::equals);
+        if (appliesToAllJobs) {
+            submitJobEventUpdate(openJobIds, updateListener);
+            return;
+        }
+
         // calendarJobIds may be a group or job
-        jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(expandedIds -> {
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                // Merge the expended group members with the request Ids.
+        jobConfigProvider.expandGroupIds(
+            calendarJobIds,
+            ActionListener.wrap(expandedIds -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                // Merge the expanded group members with the request Ids.
                 // Ids that aren't jobs will be filtered by isJobOpen()
                 expandedIds.addAll(calendarJobIds);
 
-                for (String jobId : expandedIds) {
-                    if (isJobOpen(clusterState, jobId)) {
-                        updateJobProcessNotifier.submitJobUpdate(
-                            UpdateParams.scheduledEventsUpdate(jobId),
-                            ActionListener.wrap(isUpdated -> {
-                                if (isUpdated) {
-                                    auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
-                                }
-                            }, e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e))
-                        );
-                    }
-                }
+                openJobIds.retainAll(expandedIds);
+                submitJobEventUpdate(openJobIds, updateListener);
+            }), updateListener::onFailure)
+        );
+    }
 
-                updateListener.onResponse(Boolean.TRUE);
-            });
-        }, updateListener::onFailure));
+    private void submitJobEventUpdate(Collection<String> jobIds, ActionListener<Boolean> updateListener) {
+        for (String jobId : jobIds) {
+            updateJobProcessNotifier.submitJobUpdate(
+                UpdateParams.scheduledEventsUpdate(jobId),
+                ActionListener.wrap(
+                    isUpdated -> { auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)); },
+                    e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
+                )
+            );
+        }
+
+        updateListener.onResponse(Boolean.TRUE);
     }
 
     public void revertSnapshot(

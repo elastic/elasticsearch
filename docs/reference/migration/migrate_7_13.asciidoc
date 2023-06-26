@@ -91,6 +91,26 @@ SSL/TLS versions on your JDK].
 [[breaking_713_settings_changes]]
 ==== Settings changes
 
+[[breaking_713_searchable_snapshot_cache_ess]]
+.`xpack.searchable.snapshot.shared_cache.size` is no longer a supported user setting for {ess}
+[%collapsible]
+====
+*Details* +
+You can no longer configure
+{ref}/searchable-snapshots.html#searchable-snapshots-shared-cache[`xpack.searchable.snapshot.shared_cache.size`]
+on {ess} deployments running {es} 7.13 or a later version. This setting reserves
+disk space for the shared cache of partially mounted indices. {es} now
+automatically configures the setting to 90% of total disk space for frozen data
+tier nodes and to `0b` for non-frozen data tier nodes.
+
+*Impact* +
+If you use {ess} and previously configured
+`xpack.searchable.snapshot.shared_cache.size`, remove it from your
+{cloud}/ec-add-user-settings.html[user settings] before upgrading to 7.13 or a
+later version. Otherwise, attempts to upgrade the deployment will fail and
+return an error.
+====
+
 [[breaking_713_frozen_multiple_data_paths_changes]]
 .Changes to the frozen tier and multiple data paths
 [%collapsible]
@@ -268,8 +288,10 @@ errors in 8.0.0.
 The `index.indexing.slowlog.level` and `index.search.slowlog.level` index
 settings are now deprecated. You use these setting to set the logging level for
 the search and indexing slow logs. To reproduce similar results, use the
-respective `index.*.slowlog.threshold.index.debug` and
-`index.*.slowlog.threshold.index.trace` index settings instead.
+respective `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` index settings instead.
+The same applies to `index.search.slowlog.level` which should be replaced with
+`index.search.slowlog.threshold.query.{level}`.
 
 For example, to reproduce a `index.indexing.slowlog.level` setting of `INFO`,
 set `index.indexing.slowlog.threshold.index.debug` and

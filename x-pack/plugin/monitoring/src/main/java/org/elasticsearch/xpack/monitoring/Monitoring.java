@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -13,6 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,11 +40,15 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringMigrateAlertsAction;
@@ -62,6 +70,7 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringMigrateAlertsAction;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,8 +82,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 
 /**
  * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client:
@@ -82,6 +94,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
  * - transport clients: only action/transport actions are bound
  */
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
+
+    private static final Logger logger = LogManager.getLogger(Monitoring.class);
 
     /**
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
@@ -263,6 +277,13 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
+            List<IndexTemplateMetadata> monitoringTemplates = createMonitoringTemplates(getMissingMonitoringTemplateIds(map));
+            for (IndexTemplateMetadata newTemplate : monitoringTemplates) {
+                map.put(newTemplate.getName(), newTemplate);
+            }
+
+            map.entrySet().removeIf(Monitoring::isTypedAPMTemplate);
+
             // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
             // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
             // however the bulk API is not typed (the type field is for the docs, a field inside the docs) so it's safe to remove this
@@ -270,6 +291,60 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             map.remove(".monitoring-alerts");
             return map;
         };
+    }
 
+    /**
+     * Returns a list of template IDs (as defined by {@link MonitoringTemplateUtils#TEMPLATE_IDS}) that are not present in the provided
+     * map or don't have at least {@link MonitoringTemplateUtils#LAST_UPDATED_VERSION} version
+     */
+    static List<String> getMissingMonitoringTemplateIds(Map<String, IndexTemplateMetadata> map) {
+        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).filter(id -> {
+            IndexTemplateMetadata templateMetadata = map.get(templateName(id));
+            return templateMetadata == null || (templateMetadata.version() != null && templateMetadata.version() < LAST_UPDATED_VERSION);
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Creates the monitoring templates with the provided IDs (must be some of {@link MonitoringTemplateUtils#TEMPLATE_IDS}).
+     * Other ids are ignored.
+     */
+    static List<IndexTemplateMetadata> createMonitoringTemplates(List<String> missingTemplateIds) {
+        List<IndexTemplateMetadata> createdTemplates = new ArrayList<>(missingTemplateIds.size());
+        for (String templateId : missingTemplateIds) {
+            try {
+                final String templateName = MonitoringTemplateUtils.templateName(templateId);
+                final String templateSource = MonitoringTemplateUtils.loadTemplate(templateId);
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)
+                ) {
+                    IndexTemplateMetadata updatedTemplate = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
+                    logger.info("creating template [{}] with version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
+                    createdTemplates.add(updatedTemplate);
+                } catch (IOException e) {
+                    logger.error("unable to create template [" + templateName + "]", e);
+                }
+                // Loading a template involves IO to some specific locations, looking for files with set names.
+                // We're catching Exception here as we don't want to let anything that might fail in that process bubble up from the
+                // upgrade template metadata infrastructure as that would prevent a node from starting
+            } catch (Exception e) {
+                logger.error("unable to create monitoring template", e);
+            }
+        }
+        return createdTemplates;
+    }
+
+    static boolean isTypedAPMTemplate(Map.Entry<String, IndexTemplateMetadata> templateEntry) {
+        String templateName = templateEntry.getKey();
+        if (templateName.startsWith("apm-6.")) {
+            ImmutableOpenMap<String, CompressedXContent> mappings = templateEntry.getValue().getMappings();
+            if (mappings != null && mappings.get("doc") != null) {
+                // this is an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
+                // would've installed an APM template (versioned) that doesn't contain any type
+                logger.info("removing typed legacy template [{}]", templateName);
+                return true;
+            }
+        }
+        return false;
     }
 }

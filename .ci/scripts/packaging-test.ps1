@@ -9,7 +9,6 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 
 $AppProps = ConvertFrom-StringData (Get-Content .ci/java-versions.properties -raw)
 $env:ES_BUILD_JAVA=$AppProps.ES_BUILD_JAVA
-$env:ES_RUNTIME_JAVA=$AppProps.ES_RUNTIME_JAVA
 $env:JAVA_TOOL_OPTIONS=''
 
 $ErrorActionPreference="Stop"
@@ -23,7 +22,7 @@ Copy-Item .ci/init.gradle -Destination $gradleInit
 [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
 $env:PATH="C:\Users\jenkins\.java\$env:ES_BUILD_JAVA\bin\;$env:PATH"
 $env:JAVA_HOME=$null
-$env:SYSTEM_JAVA_HOME="C:\Users\jenkins\.java\$env:ES_RUNTIME_JAVA"
+$env:SYSTEM_JAVA_HOME="C:\Users\jenkins\.java\java8"
 Remove-Item -Recurse -Force \tmp -ErrorAction Ignore
 New-Item -ItemType directory -Path \tmp
 

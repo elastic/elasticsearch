@@ -22,11 +22,6 @@ tasks.named("forbiddenApisTest").configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
-    }
-  }
+tasks.named('testTestingConventions').configure {
+  baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
 }

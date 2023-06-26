@@ -21,6 +21,7 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22132[CVE-2021-22132]
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 [[bug-7.10.2]]
 [float]
 === Bug fixes
@@ -98,6 +99,9 @@ Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
 ** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 
 [[bug-7.10.1]]
 [float]
@@ -196,6 +200,9 @@ see {es-issue}65488[#65488].
 ** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 
 [[breaking-7.10.0]]
 [float]

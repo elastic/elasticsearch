@@ -5,7 +5,7 @@
       index:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        5
@@ -17,7 +17,7 @@
       delete:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           version_type:   external
           version:        4
 
@@ -25,7 +25,7 @@
       delete:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           version_type:   external
           version:        6
 

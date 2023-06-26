@@ -461,6 +461,7 @@ public final class BlobStoreTestUtil {
     private static ClusterService mockClusterService(ClusterState initialState) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
+        when(threadPool.executor(ThreadPool.Names.SNAPSHOT_META)).thenReturn(new SameThreadExecutorService());
         when(threadPool.generic()).thenReturn(new SameThreadExecutorService());
         when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
             new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))

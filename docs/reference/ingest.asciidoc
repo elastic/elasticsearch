@@ -850,7 +850,7 @@ You can also specify a <<modules-scripting-stored-scripts,stored script>> as the
 
 [source,console]
 ----
-PUT _scripts/my-stored-script
+PUT _scripts/my-prod-tag-script
 {
   "script": {
     "lang": "painless",
@@ -874,12 +874,21 @@ PUT _ingest/pipeline/my-pipeline
     {
       "drop": {
         "description": "Drop documents that don't contain 'prod' tag",
-        "if": { "id": "my-stored-script" }
+        "if": { "id": "my-prod-tag-script" }
       }
     }
   ]
 }
 ----
+
+////
+[source,console]
+----
+DELETE _scripts/my-prod-tag-script
+DELETE _ingest/pipeline/my-pipeline
+----
+// TEST[continued]
+////
 
 Incoming documents often contain object fields. If a processor script attempts
 to access a field whose parent object does not exist, {es} returns a

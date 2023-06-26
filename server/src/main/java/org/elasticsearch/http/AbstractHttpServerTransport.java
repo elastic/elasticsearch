@@ -478,4 +478,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             return NO_OP;
         }
     }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
+    }
 }

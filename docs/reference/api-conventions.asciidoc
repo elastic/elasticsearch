@@ -2,12 +2,77 @@
 == API conventions
 
 The {es} REST APIs are exposed over HTTP.
+Except where noted, the following conventions apply across all APIs.
 
-A number of {es} GET APIs--most notably the search API--support a request body. 
-While the GET action makes sense in the context of retrieving information, 
+[discrete]
+=== Content-type requirements
+
+The type of the content sent in a request body must be specified using
+the `Content-Type` header. The value of this header must map to one of
+the supported formats that the API supports. Most APIs support JSON,
+YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
+JSON, and SMILE; other types will result in an error response.
+
+When using the `source` query string parameter, the content type must be
+specified using the `source_content_type` query string parameter.
+
+{es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
+sent with a request. Responses are also UTF-8 encoded.
+
+[discrete]
+[[x-opaque-id]]
+=== `X-Opaque-Id` HTTP header
+
+You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in
+{es} logs and tasks. If provided, {es} surfaces the `X-Opaque-Id` value in the:
+
+* Response of any request that includes the header
+* <<_identifying_running_tasks,Task management API>> response
+* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<deprecation-logging,Deprecation logs>>
+
+For the deprecation logs, {es} also uses the `X-Opaque-Id` value to throttle
+and deduplicate deprecation warnings. See <<_deprecation_logs_throttling>>.
+
+The `X-Opaque-Id` header accepts any arbitrary value. However, we recommend you
+limit these values to a finite set, such as an ID per client. Don't generate a
+unique `X-Opaque-Id` header for every request. Too many unique `X-Opaque-Id`
+values can prevent {es} from deduplicating warnings in the deprecation logs.
+
+[discrete]
+[[traceparent]]
+=== `traceparent` HTTP header
+
+{es} also supports a `traceparent` HTTP header using the
+https://www.w3.org/TR/trace-context/#traceparent-header[official W3C trace
+context spec]. You can use the `traceparent` header to trace requests across
+Elastic products and other services. Because it's only used for traces, you can
+safely generate a unique `traceparent` header for each request.
+
+If provided, {es} surfaces the header's `trace-id` value as `trace.id` in the:
+
+* <<logging,JSON {es} server logs>>
+* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<deprecation-logging,Deprecation logs>>
+
+For example, the following `traceparent` value would produce the following
+`trade.id` value in the above logs.
+
+[source,txt]
+----
+`traceparent`: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
+`trace.id`: 0af7651916cd43dd8448eb211c80319c
+----
+
+[discrete]
+[[get-requests]]
+=== GET and POST requests
+
+A number of {es} GET APIs--most notably the search API--support a request body.
+While the GET action makes sense in the context of retrieving information,
 GET requests with a body are not supported by all HTTP libraries.
 All {es} GET APIs that require a body can also be submitted as POST requests.
-Alternatively, you can pass the request body as the 
+Alternatively, you can pass the request body as the
 <<api-request-body-query-string, `source` query string parameter>>
 when using GET.
 
@@ -15,25 +80,25 @@ when using GET.
 [[api-compatibility]]
 === REST API version compatibility
 
-Major version upgrades often include a number of breaking changes 
-that impact how you interact with {es}. 
-While we recommend that you monitor the deprecation logs and 
+Major version upgrades often include a number of breaking changes
+that impact how you interact with {es}.
+While we recommend that you monitor the deprecation logs and
 update applications before upgrading {es},
-having to coordinate the necessary changes can be an impediment to upgrading. 
+having to coordinate the necessary changes can be an impediment to upgrading.
 
 You can enable an existing application to function without modification after
 an upgrade by including API compatibility headers, which tell {es} you are still
-using the previous version of the REST API. Using these headers allows the 
+using the previous version of the REST API. Using these headers allows the
 structure of requests and responses to remain the same; it does not guarantee
-the same behavior. 
+the same behavior.
 
 
-You set version compatibility on a per-request basis in the `Content-Type` and `Accept` headers. 
-Setting `compatible-with` to the same major version as 
-the version you're running has no impact, 
-but ensures that the request will still work after {es} is upgraded. 
+You set version compatibility on a per-request basis in the `Content-Type` and `Accept` headers.
+Setting `compatible-with` to the same major version as
+the version you're running has no impact,
+but ensures that the request will still work after {es} is upgraded.
 
-To tell {es} 8.0 you are using the 7.x request and response format, 
+To tell {es} 8.0 you are using the 7.x request and response format,
 set `compatible-with=7`:
 
 [source,sh]
@@ -93,6 +158,11 @@ For most APIs, wildcard expressions do not match hidden data streams and indices
 by default. To match hidden data streams and indices using a wildcard
 expression, you must specify the `expand_wildcards` query parameter.
 
+Alternatively, querying an index pattern starting with a dot, such as
+`.watcher_hist*`, will match hidden indices by default. This is intended to
+mirror Unix file-globbing behavior and provide a smoother transition path to
+hidden indices.
+
 You can create hidden data streams by setting `data_stream.hidden` to `true` in
 the stream's matching <<indices-put-template,index template>>. You can hide
 indices using the <<index-hidden,`index.hidden`>> index setting.
@@ -105,12 +175,12 @@ Global index templates that match all indices are not applied to hidden indices.
 [[system-indices]]
 ==== System indices
 
-{es} modules and plugins can store configuration and state information in internal _system indices_. 
-You should not directly access or modify system indices 
+{es} modules and plugins can store configuration and state information in internal _system indices_.
+You should not directly access or modify system indices
 as they contain data essential to the operation of the system.
 
-IMPORTANT: Direct access to system indices is deprecated and 
-will no longer be allowed in the next major version.
+IMPORTANT: Direct access to system indices is deprecated and
+will no longer be allowed in a future major version.
 
 [[date-math-index-names]]
 === Date math support in index and index alias names
@@ -330,8 +400,8 @@ Responds:
 --------------------------------------------------
 
 And the `**` wildcard can be used to include fields without knowing the
-exact path of the field. For example, we can return the Lucene version
-of every segment with this request:
+exact path of the field. For example, we can return state
+of every shard with this request:
 
 [source,console]
 --------------------------------------------------

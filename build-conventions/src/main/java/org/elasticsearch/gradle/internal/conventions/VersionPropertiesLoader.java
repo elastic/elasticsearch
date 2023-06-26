@@ -43,7 +43,6 @@ public class VersionPropertiesLoader {
             );
         }
         String qualifier = providers.systemProperty("build.version_qualifier")
-                .forUseAtConfigurationTime()
                 .getOrElse("");
         if (qualifier.isEmpty() == false) {
             if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
@@ -52,7 +51,6 @@ public class VersionPropertiesLoader {
             elasticsearch += "-" + qualifier;
         }
         final String buildSnapshotSystemProperty = providers.systemProperty("build.snapshot")
-                .forUseAtConfigurationTime()
                 .getOrElse("true");
         switch (buildSnapshotSystemProperty) {
             case "true":

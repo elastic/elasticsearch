@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.core.watcher.WatcherField;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
+import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.security.cert.Certificate;
@@ -553,6 +555,8 @@ public class SSLService {
             validateServerConfiguration(context);
         }
 
+        sslConfigurations.forEach(this::validateTruststoresContainTrustEntries);
+
         return Collections.unmodifiableMap(sslContextHolders);
     }
 
@@ -599,6 +603,38 @@ public class SSLService {
                         + "]"
                 );
             }
+        }
+    }
+
+    void validateTruststoresContainTrustEntries(String prefix, SSLConfiguration configuration) {
+        assert prefix.endsWith(".ssl");
+        if (configuration.trustConfig() instanceof StoreTrustConfig) {
+            final StoreTrustConfig storeConfig = (StoreTrustConfig) configuration.trustConfig();
+            final Path path = storeConfig.resolveTrustStorePath(env);
+            try {
+                final KeyStore store = storeConfig.getStore(path);
+
+                final Enumeration<String> aliases = store.aliases();
+                while (aliases.hasMoreElements()) {
+                    String alias = aliases.nextElement();
+                    if (store.isCertificateEntry(alias)) {
+                        return;
+                    }
+                }
+            } catch (GeneralSecurityException | IOException e) {
+                logger.warn("Failed to read truststore [" + path + "] for SSL configuration [" + prefix + "]", e);
+                return;
+            }
+
+            deprecationLogger.critical(
+                DeprecationCategory.SECURITY,
+                "invalid_ssl_configuration",
+                "invalid configuration for ["
+                    + prefix
+                    + "] - the truststore ["
+                    + path
+                    + "] does not contain any trusted certificate entries"
+            );
         }
     }
 

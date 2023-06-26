@@ -29,8 +29,8 @@
       mget:
         body:
           docs:
-            - { _index: test_1, _id: 1}
-            - { _index: test_two_and_three, _id: 2}
+            - { _index: test_1, _id: "1"}
+            - { _index: test_two_and_three, _id: "2"}
 
   - is_true: docs.0.found
   - match: { docs.0._index:     test_1      }

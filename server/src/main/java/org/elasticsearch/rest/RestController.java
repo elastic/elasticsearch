@@ -40,6 +40,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -61,6 +62,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    static final Set<String> RESERVED_PATHS = org.elasticsearch.core.Set.of(
+        "/__elb_health__",
+        "/__elb_health__/zk",
+        "/_health",
+        "/_health/zk"
+    );
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -205,6 +212,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
+        if (RESERVED_PATHS.contains(path)) {
+            throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
+        }
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path).addMethod(method, maybeWrappedHandler),
@@ -420,8 +430,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
-                    if (traceparent.length() >= 55) {
-                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
+                    if (traceId.isPresent()) {
+                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
                     }
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
@@ -573,6 +584,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public void releaseOutputBuffer() {
+            delegate.releaseOutputBuffer();
+        }
+
+        @Override
         public RestRequest request() {
             return delegate.request();
         }
@@ -584,8 +600,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            close();
-            delegate.sendResponse(response);
+            boolean success = false;
+            try {
+                close();
+                delegate.sendResponse(response);
+                success = true;
+            } finally {
+                if (success == false) {
+                    releaseOutputBuffer();
+                }
+            }
         }
 
         private void close() {

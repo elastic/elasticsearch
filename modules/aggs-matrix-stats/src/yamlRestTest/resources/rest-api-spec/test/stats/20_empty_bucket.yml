@@ -16,13 +16,13 @@
   - do:
       index:
         index:  empty_bucket_idx
-        id:     1
+        id:     "1"
         body:   { "value": 0, "val1": 3.1 }
 
   - do:
       index:
         index:  empty_bucket_idx
-        id:     2
+        id:     "2"
         body:   { "value": 2, "val1": -3.1 }
 
   - do:

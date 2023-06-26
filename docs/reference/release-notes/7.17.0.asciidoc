@@ -1,0 +1,158 @@
+[[release-notes-7.17.0]]
+== {es} version 7.17.0
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[discrete]
+=== Known issues
+
+* {es} fails to parse system index migration data from the cluster
+  state (issue: {es-issue}84115[#84115])
+* Feature migration refuses to run if all features requiring upgrade have
+  encountered errors (issue: {es-issue}83917[#83917])
+* Migrating system indices fails for tasks with `mapper_parsing_exception`
+  (issue: {es-issue}83779[#83779])
+
+These issues will impact any subsequent upgrade to 8.x, and are fixed in
+7.17.1. We strongly recommend that all users upgrade to a later patch
+release of 7.17 before upgrading to 8.x.
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[deprecation-7.17.0]]
+[float]
+=== Deprecations
+
+Mapping::
+* Remove `too_many_fields` upgrade check {es-pull}82809[#82809] (issues: {es-issue}81539[#81539], {es-issue}81850[#81850])
+
+Transform::
+* Improve transform deprecation messages {es-pull}81853[#81853] (issues: {es-issue}81521[#81521], {es-issue}81523[#81523])
+
+
+
+[[enhancement-7.17.0]]
+[float]
+=== Enhancements
+
+Audit::
+* Emit `trace.id` into audit logs {es-pull}82849[#82849] (issue: {es-issue}74210[#74210])
+
+Authorization::
+* Allow read template with cluster monitor privilege {es-pull}82046[#82046] (issue: {es-issue}78832[#78832])
+* Make authorization performance log message configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
+* Add {kib} system permissions for Endpoint action indices {es-pull}81953[#81953]
+
+ILM+SLM::
+* Add an index->step cache to the `PolicyStepsRegistry` {es-pull}82316[#82316] (issue: {es-issue}77466[#77466])
+* Migrate legacy/v2/component templates away from custom attributes routing {es-pull}82472[#82472] (issue: {es-issue}82170[#82170])
+* Migrate to data tiers API dry run on any ILM status {es-pull}82226[#82226] (issue: {es-issue}82169[#82169])
+
+Infra/Core::
+* Allow scaling executors to reject tasks after shutdown {es-pull}81856[#81856] (issues: {es-issue}77017[#77017], {es-issue}77178[#77178])
+* Prevent direct upgrade of indices from 6.8 to 8.0 {es-pull}82689[#82689] (issue: {es-issue}81326[#81326])
+
+Infra/Logging::
+* Adjust ILM policy for deprecation logs {es-pull}82833[#82833]
+* Do no use `x-opaque-id` for deduplicating Elastic originating requests {es-pull}82855[#82855] (issue: {es-issue}82810[#82810])
+
+Infra/Settings::
+* Implement setting deduplication via string interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
+
+Java Low Level REST Client::
+* Expose HTTP client and allow overriding meta header {es-pull}81955[#81955]
+
+License::
+* Add `DEBUG` log when document level security and field level security usage is detected {es-pull}82182[#82182] (issue: {es-issue}79152[#79152])
+
+Machine Learning::
+* Move datafeed stats action off of master node {es-pull}82271[#82271]
+
+Watcher::
+* Prevent watcher from starting if its templates are missing {es-pull}82395[#82395]
+
+
+
+[[bug-7.17.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix bucket keys format for range aggregations on float field {es-pull}81801[#81801] (issue: {es-issue}81749[#81749])
+* Fix cardinality aggregation in asynchronous search {es-pull}82108[#82108]
+* Fix missing fields in range aggregation response for date fields {es-pull}82732[#82732] (issue: {es-issue}82688[#82688])
+
+Allocation::
+* Correct context for batched reroute notifications {es-pull}83019[#83019]
+
+Authorization::
+* Fix field level security for frozen tier {es-pull}82521[#82521] (issues: {es-issue}78988[#78988], {es-issue}82044[#82044])
+
+CRUD::
+* Fix potential listener leak in `TransportBulkAction` {es-pull}81894[#81894]
+
+Geo::
+* Handle degenerated rectangles in vector tiles {es-pull}82404[#82404] (issue: {es-issue}81891[#81891])
+* `GeoPolygonDecomposer` might fail due to numerical errors when calculating intersection with the dateline {es-pull}82953[#82953] (issue: {es-issue}82840[#82840])
+
+ILM+SLM::
+* Migrate the coldest node attribute for data tier routing {es-pull}81940[#81940] (issue: {es-issue}81633[#81633])
+* Retry ILM step to safely refresh the cached phase {es-pull}82613[#82613] (issue: {es-issue}81921[#81921])
+* Fix ILM allocate action to allow only `total_shards_per_node` {es-pull}81944[#81944] (issue: {es-issue}81943[#81943])
+
+Indices APIs::
+* Make the rollover API respect the request's `master_timeout` {es-pull}82326[#82326] (issue: {es-issue}81762[#81762])
+
+Infra/Core::
+* Allow clearing blocks on managed system indices {es-pull}82507[#82507] (issue: {es-issue}80814[#80814])
+
+Infra/Logging::
+* Add `doPrivileged` section in deprecation logger {es-pull}81819[#81819] (issue: {es-issue}81708[#81708])
+* Always emit product origin to deprecation log if present {es-pull}83115[#83115]
+
+Ingest::
+* Filter enrich policy index deletes to just the policy's associated indices {es-pull}82568[#82568]
+* Fix enrich cache corruption bug {es-pull}82441[#82441] (issue: {es-issue}82340[#82340])
+
+Java Low Level REST Client::
+* Fix version resolution and encoding in LLRC {es-pull}81989[#81989]
+
+Machine Learning::
+* Fix annotations index maintenance after reindexing {es-pull}82304[#82304] (issue: {es-issue}82250[#82250])
+* Improve cleanup for model snapshot upgrades {es-pull}81831[#81831] (issue: {es-issue}81578[#81578])
+* Make delete intervening results more selective {es-pull}82437[#82437]
+* Skip time to next interval with data for datafeeds with aggs {es-pull}82488[#82488] (issue: {es-issue}82406[#82406])
+* Update running process when global calendar changes {es-pull}83044[#83044]
+* Avoid transient poor time series modeling after detecting new seasonal components. This can affect cases where there are fast and slow repeats in the data, for example 30 minutes and 1 day, and the job uses a short bucket length. {ml-pull}2167[#2167] (issue: {ml-issue}2166[#2166])
+
+Monitoring::
+* Always attempt upgrade monitoring templates {es-pull}82713[#82713] (issue: {es-issue}82453[#82453])
+
+Network::
+* Correct context for `ClusterConnManager` listener {es-pull}83035[#83035]
+
+Search::
+* Fix bug where field is not returned if it has the same prefix as a nested field {es-pull}82922[#82922] (issue: {es-issue}82905[#82905])
+
+Settings::
+* Change `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
+* Check both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
+* Ignore dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
+
+Snapshot/Restore::
+* Always fail snapshot deletion listeners on master failover {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
+* Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
+* Remove requirement for key setting on Azure client settings {es-pull}82030[#82030]
+* Support GKE workload identity for searchable snapshots {es-pull}82974[#82974] (issue: {es-issue}82702[#82702])
+
+Stats::
+* Correct context for `CancellableSOCache` listener {es-pull}83021[#83021]
+
+
+
+[[upgrade-7.17.0]]
+[float]
+=== Upgrades
+
+Search::
+* Upgrade to Lucene 8.11.1 {es-pull}81900[#81900]

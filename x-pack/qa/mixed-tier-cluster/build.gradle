@@ -1,14 +1,12 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-test'
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
-  testImplementation project(':x-pack:qa')
+  javaRestTestImplementation project(':x-pack:qa')
 }
 
 // Only run tests for 7.9+, since the node.roles setting was introduced in 7.9.0
@@ -52,7 +50,9 @@ BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.9.0") &&
   }
 }
 
-// Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  // Security is explicitly disabled, do not run tests in FIPS mode
   onlyIf { BuildParams.inFipsJvm == false}
 }

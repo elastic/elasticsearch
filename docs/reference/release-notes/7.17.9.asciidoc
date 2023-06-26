@@ -1,0 +1,67 @@
+[[release-notes-7.17.9]]
+== {es} version 7.17.9
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.9]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+
+[[bug-7.17.9]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Improve performance for role mapping with DNs {es-pull}92074[#92074]
+
+Cluster Coordination::
+* Unsafe bootstrap memory optimization {es-pull}92493[#92493]
+
+Distributed::
+* Fork `TransportClusterStateAction` to MANAGEMENT {es-pull}90996[#90996]
+
+Geo::
+* Port lucene fix github-11986 to Elasticsearch 7.17 {es-pull}92320[#92320]
+
+ILM+SLM::
+* Get repository metadata from the cluster state doesn't throw an exception if a repo is missing {es-pull}92914[#92914]
+
+Infra/Core::
+* Remove unnecessary `thirdPartyAudit` exclusions {es-pull}92352[#92352] (issue: {es-issue}92346[#92346])
+
+Machine Learning::
+* Improve performance of closing files before spawning {ml-pull}2424[#2424].
+
+Mapping::
+* Fix `_bulk` api `dynamic_templates` and explicit `op_type` {es-pull}92687[#92687]
+
+Network::
+* Reject connection attempts while closing {es-pull}92465[#92465]
+
+Search::
+* Avoid doing I/O when fetching min and max for keyword fields {es-pull}92026[#92026]
+
+Snapshot/Restore::
+* Fix quadratic complexity in `SnapshotStatus` serialization {es-pull}90795[#90795]
+* Simplify and optimize deduplication of `RepositoryData` for a non-caching repository instance {es-pull}91851[#91851] (issue: {es-issue}89952[#89952])
+
+Store::
+* Fix numOpenOutputs and modCount in ByteSizeCachingDirectory {es-pull}92440[#92440] (issue: {es-issue}92434[#92434])
+
+[[enhancement-7.17.9]]
+[float]
+=== Enhancements
+
+Search::
+* Make field-caps tasks cancellable {es-pull}92051[#92051]
+
+[[upgrade-7.17.9]]
+[float]
+=== Upgrades
+
+Snapshot/Restore::
+* Upgrade GCS SDK to 2.13.1 {es-pull}92327[#92327]
+
+

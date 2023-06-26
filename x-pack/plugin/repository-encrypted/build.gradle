@@ -27,5 +27,5 @@ dependencies {
         exclude group: 'javax.xml.bind', module: 'jaxb-api'
     }
     // for encrypted GCS repository integ tests
-    internalClusterTestRuntimeOnly 'com.google.guava:guava:30.1.1-jre'
+    internalClusterTestRuntimeOnly 'com.google.guava:guava:31.1-jre'
 }

@@ -369,7 +369,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 notificationMillis
             );
         } else {
-            assert false : exception;
+            assert publicationMayFail() : exception;
             clusterStateUpdateStatsTracker.onPublicationFailure(threadPool.rawRelativeTimeInMillis(), clusterStatePublicationEvent, 0L);
             handleException(
                 clusterStatePublicationEvent.getSummary(),
@@ -378,6 +378,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 exception
             );
         }
+    }
+
+    protected boolean publicationMayFail() {
+        return false;
     }
 
     private void handleException(String summary, long startTimeMillis, ClusterState newClusterState, Exception e) {

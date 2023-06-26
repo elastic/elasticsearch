@@ -42,7 +42,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -162,6 +165,17 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, "task_name", TestTaskParams::new)
             );
         }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return Collections.singletonList(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    TestTaskParams.TASK_NAME,
+                    (p, c) -> TestTaskParams.fromXContent(p)
+                )
+            );
+        }
     }
 
     public static class TaskExecutor extends PersistentTasksExecutor<TestTaskParams> implements ClusterStateListener {
@@ -218,13 +232,24 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             return builder;
         }
 
+        public static final ParseField TASK_NAME = new ParseField("task_name");
+        public static final ObjectParser<TestTaskParams, Void> PARSER = new ObjectParser<TestTaskParams, Void>(
+            TASK_NAME.getPreferredName(),
+            true,
+            () -> new TestTaskParams()
+        );
+
+        public static TestTaskParams fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
         public TestTaskParams() {}
 
         public TestTaskParams(StreamInput in) {}
 
         @Override
         public String getWriteableName() {
-            return "task_name";
+            return TASK_NAME.getPreferredName();
         }
 
         @Override

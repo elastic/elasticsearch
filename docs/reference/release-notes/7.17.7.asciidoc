@@ -1,0 +1,58 @@
+[[release-notes-7.17.7]]
+== {es} version 7.17.7
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.7]]
+[discrete]
+=== Known issues
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+[[bug-7.17.7]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Fix debug mode in `MaxRetryAllocationDecider` {es-pull}89973[#89973]
+
+Authentication::
+* Fix double sending of response in `TransportOpenIdConnectPrepareAuthenticationAction` {es-pull}89930[#89930]
+
+ILM+SLM::
+* Copy `isHidden` during ILM alias swap {es-pull}89650[#89650] (issue: {es-issue}89604[#89604])
+
+Infra/Core::
+* Extend the date rounding logic to be conditional {es-pull}89693[#89693] (issues: {es-issue}89096[#89096], {es-issue}58986[#58986])
+* Fix date rounding for date math parsing {es-pull}90458[#90458] (issue: {es-issue}90187[#90187])
+
+Ingest Node::
+* Fix pipeline id not being present in ingest metadata inside `on_failure` block {es-pull}89632[#89632]
+
+Machine Learning::
+* Do not retain categorization tokens when existing category matches {ml-pull}2398[#2398]
+
+Network::
+* Fix memory leak when double invoking `RestChannel.sendResponse` {es-pull}89873[#89873]
+
+Ranking::
+* Avoid negative scores with `cross_fields` type {es-pull}89016[#89016] (issue: {es-issue}44700[#44700])
+
+Rollup::
+* Fork `TransportRollupCapsAction` to management threadpool {es-pull}89803[#89803]
+
+Search::
+* Safeguard `RegExp` use against `StackOverflowError` {es-pull}84624[#84624] (issue: {es-issue}82923[#82923])
+
+Watcher::
+* Allow `xpack.notification.email.account.domain_allowlist` to be set dynamically {es-pull}90426[#90426] (issue: {es-issue}89913[#89913])
+* Handling timeout exceptions on watcher startup {es-pull}90421[#90421] (issue: {es-issue}44981[#44981])
+
+[[upgrade-7.17.7]]
+[float]
+=== Upgrades
+
+Packaging::
+* Update OpenJDK to 18.0.2.1 {es-pull}89535[#89535] (issue: {es-issue}89531[#89531])
+* Upgrade bundled JDK to Java 19 {es-pull}90571[#90571]
+
+

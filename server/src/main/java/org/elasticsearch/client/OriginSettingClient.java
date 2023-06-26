@@ -26,10 +26,16 @@ import java.util.function.Supplier;
 public final class OriginSettingClient extends FilterClient {
 
     private final String origin;
+    private final boolean preserveResponseHeaders;
 
     public OriginSettingClient(Client in, String origin) {
+        this(in, origin, false);
+    }
+
+    public OriginSettingClient(Client in, String origin, boolean preserveResponseHeaders) {
         super(in);
         this.origin = origin;
+        this.preserveResponseHeaders = preserveResponseHeaders;
     }
 
     @Override
@@ -38,7 +44,9 @@ public final class OriginSettingClient extends FilterClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
+        final Supplier<ThreadContext.StoredContext> supplier = in().threadPool()
+            .getThreadContext()
+            .newRestorableContext(preserveResponseHeaders);
         try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashWithOrigin(origin)) {
             super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
         }

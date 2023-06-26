@@ -26,9 +26,9 @@ public class NativeMemoryCapacity {
         return new NativeMemoryCapacity(capacity.tierMlNativeMemoryRequirement, capacity.nodeMlNativeMemoryRequirement, capacity.jvmSize);
     }
 
-    private long tierMlNativeMemoryRequirement;
-    private long nodeMlNativeMemoryRequirement;
-    private Long jvmSize;
+    private final long tierMlNativeMemoryRequirement;
+    private final long nodeMlNativeMemoryRequirement;
+    private final Long jvmSize;
 
     public NativeMemoryCapacity(long tierMlNativeMemoryRequirement, long nodeMlNativeMemoryRequirement, Long jvmSize) {
         this.tierMlNativeMemoryRequirement = tierMlNativeMemoryRequirement;
@@ -39,17 +39,22 @@ public class NativeMemoryCapacity {
     NativeMemoryCapacity(long tierMlNativeMemoryRequirement, long nodeMlNativeMemoryRequirement) {
         this.tierMlNativeMemoryRequirement = tierMlNativeMemoryRequirement;
         this.nodeMlNativeMemoryRequirement = nodeMlNativeMemoryRequirement;
+        this.jvmSize = null;
     }
 
-    NativeMemoryCapacity merge(NativeMemoryCapacity nativeMemoryCapacity) {
-        this.tierMlNativeMemoryRequirement += nativeMemoryCapacity.tierMlNativeMemoryRequirement;
-        if (nativeMemoryCapacity.nodeMlNativeMemoryRequirement > this.nodeMlNativeMemoryRequirement) {
-            this.nodeMlNativeMemoryRequirement = nativeMemoryCapacity.nodeMlNativeMemoryRequirement;
-            // If the new node size is bigger, we have no way of knowing if the JVM size would stay the same
-            // So null out
-            this.jvmSize = null;
-        }
-        return this;
+    /**
+     * Merges the passed capacity with the current one. A new instance is created and returned
+     * @param nativeMemoryCapacity the capacity to merge with
+     * @return a new instance with the merged capacity values
+     */
+    NativeMemoryCapacity merge(final NativeMemoryCapacity nativeMemoryCapacity) {
+        if (this == nativeMemoryCapacity) return this;
+        long tier = this.tierMlNativeMemoryRequirement + nativeMemoryCapacity.tierMlNativeMemoryRequirement;
+        long node = Math.max(nativeMemoryCapacity.nodeMlNativeMemoryRequirement, this.nodeMlNativeMemoryRequirement);
+        // If the new node size is bigger, we have no way of knowing if the JVM size would stay the same
+        // So null out
+        Long jvmSize = nativeMemoryCapacity.nodeMlNativeMemoryRequirement > this.nodeMlNativeMemoryRequirement ? null : this.jvmSize;
+        return new NativeMemoryCapacity(tier, node, jvmSize);
     }
 
     public AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent, boolean useAuto) {

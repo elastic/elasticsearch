@@ -10,38 +10,16 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,61 +38,6 @@ import static org.mockito.Mockito.when;
 
 public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
 
-    private static class NotInferenceProcessor implements Processor {
-
-        @Override
-        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-            return ingestDocument;
-        }
-
-        @Override
-        public String getType() {
-            return "not_inference";
-        }
-
-        @Override
-        public String getTag() {
-            return null;
-        }
-
-        @Override
-        public String getDescription() {
-            return null;
-        }
-
-        static class Factory implements Processor.Factory {
-
-            @Override
-            public Processor create(
-                Map<String, Processor.Factory> processorFactories,
-                String tag,
-                String description,
-                Map<String, Object> config
-            ) {
-                return new NotInferenceProcessor();
-            }
-        }
-    }
-
-    private static final IngestPlugin SKINNY_INGEST_PLUGIN = new IngestPlugin() {
-        @Override
-        public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            Map<String, Processor.Factory> factoryMap = new HashMap<>();
-            MockLicenseState licenseState = mock(MockLicenseState.class);
-            when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
-            factoryMap.put(
-                InferenceProcessor.TYPE,
-                new InferenceProcessor.Factory(parameters.client, parameters.ingestService.getClusterService(), Settings.EMPTY)
-            );
-
-            factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
-
-            return factoryMap;
-        }
-    };
-
-    private ClusterService clusterService;
-    private IngestService ingestService;
     private Client client;
 
     @Before
@@ -122,23 +45,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         ThreadPool tp = mock(ThreadPool.class);
         when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         client = mock(Client.class);
-        Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         when(client.settings()).thenReturn(Settings.EMPTY);
-        ClusterSettings clusterSettings = new ClusterSettings(
-            settings,
-            new HashSet<>(
-                Arrays.asList(
-                    InferenceProcessor.MAX_INFERENCE_PROCESSORS,
-                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                    ClusterService.USER_DEFINED_METADATA,
-                    AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
-                )
-            )
-        );
-        clusterService = new ClusterService(settings, clusterSettings, tp);
-        ingestService = new IngestService(clusterService, tp, null, null, null, Collections.singletonList(SKINNY_INGEST_PLUGIN), client);
     }
 
     public void testInferenceIngestStatsByModelId() {
@@ -245,91 +152,6 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
 
         assertThat(ingestStatsMap, hasEntry("trained_model_1", expectedStatsModel1));
         assertThat(ingestStatsMap, hasEntry("trained_model_2", expectedStatsModel2));
-    }
-
-    public void testPipelineIdsByModelIds() throws IOException {
-        String modelId1 = "trained_model_1";
-        String modelId2 = "trained_model_2";
-        String modelId3 = "trained_model_3";
-        Set<String> modelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
-
-        ClusterState clusterState = buildClusterStateWithModelReferences(modelId1, modelId2, modelId3);
-
-        Map<String, Set<String>> pipelineIdsByModelIds = TransportGetTrainedModelsStatsAction.pipelineIdsByModelIdsOrAliases(
-            clusterState,
-            ingestService,
-            modelIds
-        );
-
-        assertThat(pipelineIdsByModelIds.keySet(), equalTo(modelIds));
-        assertThat(
-            pipelineIdsByModelIds,
-            hasEntry(modelId1, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId1 + 0, "pipeline_with_model_" + modelId1 + 1)))
-        );
-        assertThat(
-            pipelineIdsByModelIds,
-            hasEntry(modelId2, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId2 + 0, "pipeline_with_model_" + modelId2 + 1)))
-        );
-        assertThat(
-            pipelineIdsByModelIds,
-            hasEntry(modelId3, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId3 + 0, "pipeline_with_model_" + modelId3 + 1)))
-        );
-
-    }
-
-    private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {
-        Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
-        for (String id : modelId) {
-            configurations.put("pipeline_with_model_" + id + 0, newConfigurationWithInferenceProcessor(id, 0));
-            configurations.put("pipeline_with_model_" + id + 1, newConfigurationWithInferenceProcessor(id, 1));
-        }
-        for (int i = 0; i < 3; i++) {
-            configurations.put("pipeline_without_model_" + i, newConfigurationWithOutInferenceProcessor(i));
-        }
-        IngestMetadata ingestMetadata = new IngestMetadata(configurations);
-
-        return ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
-            .build();
-    }
-
-    private static PipelineConfiguration newConfigurationWithInferenceProcessor(String modelId, int num) throws IOException {
-        try (
-            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-                .map(
-                    Collections.singletonMap(
-                        "processors",
-                        Collections.singletonList(Collections.singletonMap(InferenceProcessor.TYPE, new HashMap<String, Object>() {
-                            {
-                                put(InferenceResults.MODEL_ID_RESULTS_FIELD, modelId);
-                                put("inference_config", Collections.singletonMap("regression", Collections.emptyMap()));
-                                put("field_map", Collections.emptyMap());
-                                put("target_field", randomAlphaOfLength(10));
-                            }
-                        }))
-                    )
-                )
-        ) {
-            return new PipelineConfiguration(
-                "pipeline_with_model_" + modelId + num,
-                BytesReference.bytes(xContentBuilder),
-                XContentType.JSON
-            );
-        }
-    }
-
-    private static PipelineConfiguration newConfigurationWithOutInferenceProcessor(int i) throws IOException {
-        try (
-            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-                .map(
-                    Collections.singletonMap(
-                        "processors",
-                        Collections.singletonList(Collections.singletonMap("not_inference", Collections.emptyMap()))
-                    )
-                )
-        ) {
-            return new PipelineConfiguration("pipeline_without_model_" + i, BytesReference.bytes(xContentBuilder), XContentType.JSON);
-        }
     }
 
     private static NodeStats buildNodeStats(

@@ -18,7 +18,7 @@
   - do:
       index:
         index:  aggregate_metric_test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
@@ -75,7 +75,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
@@ -85,7 +85,7 @@
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           metric:
             min: 50
@@ -151,7 +151,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
@@ -161,7 +161,7 @@
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           metric:
             min: 50
@@ -228,7 +228,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
@@ -238,7 +238,7 @@
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           metric:
             min: 50
@@ -248,7 +248,7 @@
   - do:
       index:
         index:  test
-        id:     3
+        id:     "3"
         body:
           metric:
             min: 150

@@ -42,7 +42,14 @@
               kill-phase-on: NEVER
               current-parameters: true
               git-revision: true
-            - name: elastic+elasticsearch+%BRANCH%+intake+multijob+bwc
+            - name: elastic+elasticsearch+%BRANCH%+intake+multijob+bwc-snapshots
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+      - multijob:
+          name: Publish snapshot artifacts
+          projects:
+            - name: elastic+elasticsearch+%BRANCH%+dra-snapshot
               kill-phase-on: NEVER
               current-parameters: true
               git-revision: true

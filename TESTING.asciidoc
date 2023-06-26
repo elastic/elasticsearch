@@ -48,8 +48,7 @@ to suspend and initiate a debug connection on port incrementing from `5005`.
 As such the IDE needs to be instructed to listen for connections on this port.
 Since we might run multiple JVMs as part of configuring and starting the cluster it's
 recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
-is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting
-needs to be configured with a greater value (ie 10 or more).
+is called "Auto restart" and needs to be checked.
 
 NOTE: If you have imported the project into IntelliJ according to the instructions in
 link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
@@ -353,13 +352,15 @@ A specific test case can be run with the following command:
   -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
+You can run a group of YAML test by using wildcards:
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest \
+  --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
+---------------------------------------------------------------------------
+
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
 
-* `tests.rest.suite`: comma separated paths of the test suites to be run
-(by default loaded from /rest-api-spec/test). It is possible to run only a subset
-of the tests providing a sub-folder or even a single yaml file (the default
-/rest-api-spec/test prefix is optional when files are loaded from classpath)
-e.g. -Dtests.rest.suite=index,get,create/10_with_id
 * `tests.rest.blacklist`: comma separated globs that identify tests that are
 blacklisted and need to be skipped
 e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*
@@ -775,8 +776,7 @@ care.
 
 Generating test coverage reports for Elasticsearch is currently not possible through Gradle.
 However, it _is_ possible to gain insight in code coverage using IntelliJ's built-in coverage
-analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able
-to do the same using the EclEmma plugin.
+analysis tool that can measure coverage upon executing specific tests.
 
 Test coverage reporting used to be possible with JaCoCo when Elasticsearch was using Maven
 as its build system. Since the switch to Gradle though, this is no longer possible, seeing as

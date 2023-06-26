@@ -189,6 +189,11 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         return result;
     }
 
+    @Override
+    public String toString() {
+        return name;
+    }
+
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());

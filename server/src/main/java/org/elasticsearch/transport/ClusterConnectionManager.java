@@ -10,11 +10,13 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -44,18 +46,20 @@ public class ClusterConnectionManager implements ConnectionManager {
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
 
     private final Transport transport;
+    private final ThreadContext threadContext;
     private final ConnectionProfile defaultProfile;
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
-    public ClusterConnectionManager(Settings settings, Transport transport) {
-        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport);
+    public ClusterConnectionManager(Settings settings, Transport transport, ThreadContext threadContext) {
+        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport, threadContext);
     }
 
-    public ClusterConnectionManager(ConnectionProfile connectionProfile, Transport transport) {
+    public ClusterConnectionManager(ConnectionProfile connectionProfile, Transport transport, ThreadContext threadContext) {
         this.transport = transport;
         this.defaultProfile = connectionProfile;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -91,7 +95,13 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectionValidator connectionValidator,
         ActionListener<Releasable> listener
     ) throws ConnectTransportException {
-        connectToNodeOrRetry(node, connectionProfile, connectionValidator, 0, listener);
+        connectToNodeOrRetry(
+            node,
+            connectionProfile,
+            connectionValidator,
+            0,
+            ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
+        );
     }
 
     /**
@@ -113,8 +123,8 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        if (connectingRefCounter.tryIncRef() == false) {
-            listener.onFailure(new IllegalStateException("connection manager is closed"));
+        if (acquireConnectingRef() == false) {
+            listener.onFailure(new ConnectTransportException(node, "connection manager is closed"));
             return;
         }
 
@@ -366,6 +376,10 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public ConnectionProfile getConnectionProfile() {
         return defaultProfile;
+    }
+
+    private boolean acquireConnectingRef() {
+        return closing.get() == false && connectingRefCounter.tryIncRef();
     }
 
 }

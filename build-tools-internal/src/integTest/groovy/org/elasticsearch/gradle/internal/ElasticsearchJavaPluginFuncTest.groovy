@@ -8,24 +8,22 @@
 
 package org.elasticsearch.gradle.internal
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
+import org.gradle.api.Plugin
 
-class ElasticsearchJavaPluginFuncTest extends AbstractGradleFuncTest {
+class ElasticsearchJavaPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends Plugin> pluginClassUnderTest = ElasticsearchJavaPlugin.class
 
     def "compatibility options are resolved from from build params minimum runtime version"() {
         when:
-        buildFile.text = """
-        plugins {
-          id 'elasticsearch.global-build-info'
-        }
+        buildFile.text << """
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
         BuildParams.init { it.setMinimumRuntimeVersion(JavaVersion.VERSION_1_10) }
 
-        apply plugin:'elasticsearch.java'
-
-        assert compileJava.sourceCompatibility == JavaVersion.VERSION_1_10.toString()
-        assert compileJava.targetCompatibility == JavaVersion.VERSION_1_10.toString()
+        assert tasks.named('compileJava').get().sourceCompatibility == JavaVersion.VERSION_1_10.toString()
+        assert tasks.named('compileJava').get().targetCompatibility == JavaVersion.VERSION_1_10.toString()
         """
 
         then:
@@ -34,14 +32,10 @@ class ElasticsearchJavaPluginFuncTest extends AbstractGradleFuncTest {
 
     def "compile option --release is configured from targetCompatibility"() {
         when:
-        buildFile.text = """
-            plugins {
-             id 'elasticsearch.java'
-            }
-
-            compileJava.targetCompatibility = "1.10"
+        buildFile.text << """
+            tasks.named('compileJava').get().targetCompatibility = "1.10"
             afterEvaluate {
-                assert compileJava.options.release.get() == 10
+                assert tasks.named('compileJava').get().options.release.get() == 10
             }
         """
         then:

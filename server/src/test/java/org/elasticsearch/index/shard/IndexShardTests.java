@@ -1291,7 +1291,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
-        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+        final int operations = randomBoolean() ? scaledRandomIntBetween(0, 1024) : 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
@@ -1299,6 +1299,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
         final long maxSeqNoOfUpdatesOrDeletesBeforeRollback = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
         final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -1306,7 +1307,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard,
             indexShard.getPendingPrimaryTerm() + 1,
             globalCheckpoint,
-            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo),
+            maxSeqNoOfUpdatesOrDeletes,
             new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -1324,11 +1325,10 @@ public class IndexShardTests extends IndexShardTestCase {
 
         latch.await();
         long globalCheckpointOnPromotedReplica = Math.max(globalCheckpointOnReplica, globalCheckpoint);
-        if (globalCheckpointOnPromotedReplica < maxSeqNo) {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
-        } else {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
-        }
+        long expectedMaxSeqNoOfUpdatesOrDeletes = globalCheckpointOnPromotedReplica < maxSeqNo
+            ? maxSeqNo
+            : Math.max(maxSeqNoOfUpdatesOrDeletesBeforeRollback, maxSeqNoOfUpdatesOrDeletes);
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(expectedMaxSeqNoOfUpdatesOrDeletes));
         final ShardRouting newRouting = indexShard.routingEntry().moveActiveReplicaToPrimary();
         final CountDownLatch resyncLatch = new CountDownLatch(1);
         indexShard.updateShardState(
@@ -1343,11 +1343,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
-        if (globalCheckpointOnPromotedReplica < maxSeqNo) {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
-        } else {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
-        }
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(expectedMaxSeqNoOfUpdatesOrDeletes));
         closeShard(indexShard, false);
     }
 
@@ -1624,9 +1620,9 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
 
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -2058,6 +2054,18 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         blockingCallRelocated(shard, routing, (primaryContext, listener) -> listener.onResponse(null));
         expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, originalRouting));
+        closeShards(shard);
+    }
+
+    public void testRecoveringShardFailsIfStartedTooSoon() throws IOException {
+        final IndexShard shard = newShard(false);
+        final ShardRouting originalRouting = shard.routingEntry();
+        final ShardRouting startedRouting = ShardRoutingHelper.moveToStarted(originalRouting);
+        assertThat(
+            expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, startedRouting))
+                .getMessage(),
+            containsString("stale shard-started event")
+        );
         closeShards(shard);
     }
 
@@ -4143,8 +4151,8 @@ public class IndexShardTests extends IndexShardTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
         final ShardId shardId = shardRouting.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         AtomicBoolean markedInactive = new AtomicBoolean();
         AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
         IndexShard primary = newShard(

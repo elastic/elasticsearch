@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -34,7 +36,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -166,7 +167,7 @@ public class IndexDeprecationChecks {
         return issues;
     }
 
-    private static String formatDateField(String type, Map.Entry<?, ?> entry) {
+    private static String changeFormatToJavaTime(String type, Map.Entry<?, ?> entry) {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         return String.format(Locale.ROOT, "Convert [%s] format %s to java.time.", entry.getKey(), value.get("format"));
     }
@@ -193,39 +194,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue tooManyFieldsCheck(IndexMetadata indexMetadata) {
-        if (indexMetadata.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) == null) {
-            AtomicInteger fieldCount = new AtomicInteger(0);
-
-            fieldLevelMappingIssue(
-                indexMetadata,
-                ((mappingMetadata, sourceAsMap) -> { fieldCount.addAndGet(countFieldsRecursively(mappingMetadata.type(), sourceAsMap)); })
-            );
-
-            // We can't get to the setting `indices.query.bool.max_clause_count` from here, so just check the default of that setting.
-            // It's also much better practice to set `index.query.default_field` than `indices.query.bool.max_clause_count` - there's a
-            // reason we introduced the limit.
-            if (fieldCount.get() > 1024) {
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "Number of fields exceeds automatic field expansion limit",
-                    "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-                    "This index has "
-                        + fieldCount.get()
-                        + " fields, which exceeds the automatic field expansion limit (1024). Set "
-                        + IndexSettings.DEFAULT_FIELD_SETTING.getKey()
-                        + " to prevent queries that support automatic field expansion from "
-                        + "failing if no fields are specified. Otherwise, you must explicitly specify fields in all query_string, "
-                        + "simple_query_string, and multi_match queries.",
-                    false,
-                    null
-                );
-            }
-        }
-        return null;
-    }
-
-    static DeprecationIssue deprecatedDateTimeFormat(IndexMetadata indexMetadata) {
+    static DeprecationIssue deprecatedJodaDateTimeFormat(IndexMetadata indexMetadata) {
         Version createdWith = indexMetadata.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
             List<String> fields = new ArrayList<>();
@@ -236,8 +205,8 @@ public class IndexDeprecationChecks {
                     findInPropertiesRecursively(
                         mappingMetadata.type(),
                         sourceAsMap,
-                        IndexDeprecationChecks::isDateFieldWithDeprecatedPattern,
-                        IndexDeprecationChecks::formatDateField,
+                        IndexDeprecationChecks::isDateFieldWithJodaPattern,
+                        IndexDeprecationChecks::changeFormatToJavaTime,
                         "",
                         ""
                     )
@@ -259,10 +228,68 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    private static boolean isDateFieldWithDeprecatedPattern(Map<?, ?> property) {
+    private static boolean isDateFieldWithJodaPattern(Map<?, ?> property) {
         return "date".equals(property.get("type"))
             && property.containsKey("format")
             && JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
+    }
+
+    static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata) {
+        List<String> fields = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> fields.addAll(
+                findInPropertiesRecursively(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::isDateFieldWithCamelCasePattern,
+                    IndexDeprecationChecks::changeFormatToSnakeCase,
+                    "",
+                    ""
+                )
+            ))
+        );
+
+        if (fields.size() > 0) {
+            String detailsMessageBeginning = fields.stream().collect(Collectors.joining(" "));
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Date fields use deprecated camel case formats",
+                "https://ela.st/es-deprecation-7-camel-case-format",
+                detailsMessageBeginning,
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    private static boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {
+        if ("date".equals(property.get("type")) && property.containsKey("format")) {
+            List<String> patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
+            for (String pattern : patterns) {
+                FormatNames format = FormatNames.forName(pattern);
+                return format != null && format.isCamelCase(pattern);
+            }
+        }
+        return false;
+    }
+
+    private static String changeFormatToSnakeCase(String type, Map.Entry<?, ?> entry) {
+        Map<?, ?> value = (Map<?, ?>) entry.getValue();
+        final String formatFieldValue = (String) value.get("format");
+        List<String> patterns = DateFormatter.splitCombinedPatterns(formatFieldValue);
+        StringBuilder sb = new StringBuilder(
+            "Convert [" + entry.getKey() + "] format [" + formatFieldValue + "] " + "which contains deprecated camel case to snake case. "
+        );
+        for (String pattern : patterns) {
+            FormatNames format = FormatNames.forName(pattern);
+            if (format != null && format.isCamelCase(pattern)) {
+                sb.append("[" + pattern + "] to [" + format.getSnakeCaseName() + "]. ");
+            }
+        }
+        sb.deleteCharAt(sb.length() - 1);
+        return sb.toString();
     }
 
     static DeprecationIssue boostMappingCheck(IndexMetadata indexMetadata) {
@@ -513,6 +540,14 @@ public class IndexDeprecationChecks {
         if (softDeletesEnabled) {
             if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                List<String> removableSettings = new ArrayList<>();
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())) {
+                    removableSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey());
+                }
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                    removableSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey());
+                }
+                Map<String, Object> meta = DeprecationIssue.createMetaMapForRemovableSettings(removableSettings);
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "Translog retention settings are deprecated",
@@ -521,7 +556,7 @@ public class IndexDeprecationChecks {
                         + "translog has not been used in peer recoveries with soft-deletes enabled since 7.0 and these settings have no "
                         + "effect.",
                     false,
-                    null
+                    meta
                 );
             }
         }
@@ -564,7 +599,14 @@ public class IndexDeprecationChecks {
                 "Remove the [%s] setting. Use the [index.*.slowlog.threshold] settings to " + "set the log levels.",
                 setting.getKey()
             );
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                details,
+                false,
+                DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(setting.getKey()))
+            );
         }
         return null;
     }
@@ -610,7 +652,11 @@ public class IndexDeprecationChecks {
         final String value = removedSetting.get(settings).toString();
         final String message = String.format(Locale.ROOT, messagePattern, removedSettingKey);
         final String details = String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetail);
-        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
+        boolean canBeRemoved = removedSetting.isDynamic() && removedSetting.isPrivateIndex() == false;
+        Map<String, Object> meta = canBeRemoved
+            ? DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(removedSettingKey))
+            : null;
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }
 
     static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
@@ -727,10 +773,6 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkSettingNoReplacement(IndexMetadata indexMetadata, Setting<?> deprecatedSetting, String url) {
-        return NodeDeprecationChecks.checkSettingNoReplacement(indexMetadata.getSettings(), deprecatedSetting, url);
-    }
-
     static DeprecationIssue httpContentTypeRequiredSettingCheck(IndexMetadata indexMetadata) {
         Setting<Boolean> deprecatedSetting = Store.FORCE_RAM_TERM_DICT;
         String url = "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting";
@@ -745,7 +787,15 @@ public class IndexDeprecationChecks {
 
     static DeprecationIssue mapperDyamicSettingCheck(IndexMetadata indexMetadata) {
         Setting<Boolean> deprecatedSetting = MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
+        Settings indexSettings = indexMetadata.getSettings();
+        if (deprecatedSetting.exists(indexSettings) == false) {
+            return null;
+        }
+        String deprecatedSettingKey = deprecatedSetting.getKey();
         String url = "https://ela.st/es-deprecation-7-mapper-dynamic-setting";
-        return checkSettingNoReplacement(indexMetadata, deprecatedSetting, url);
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
+        final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSettingKey);
+        Map<String, Object> meta = DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(deprecatedSettingKey));
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, meta);
     }
 }

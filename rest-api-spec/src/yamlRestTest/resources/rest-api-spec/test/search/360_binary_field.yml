@@ -21,7 +21,7 @@
         index:
             index: test
             refresh: true
-            id: 1
+            id: "1"
             body:
                 binary: U29tZSBiaW5hcnkgYmxvYg==
 

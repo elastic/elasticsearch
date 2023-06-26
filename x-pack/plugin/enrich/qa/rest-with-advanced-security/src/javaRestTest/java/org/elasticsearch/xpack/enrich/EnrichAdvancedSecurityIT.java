@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +19,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86061")
 public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 
     @Override

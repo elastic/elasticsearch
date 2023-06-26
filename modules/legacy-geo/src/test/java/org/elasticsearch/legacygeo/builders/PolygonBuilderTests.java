@@ -167,7 +167,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
             new CoordinatesBuilder().coordinate(0.0, 0.0).coordinate(1.0, 1.0).coordinate(-1.0, -1.0).close()
         );
         InvalidShapeException e = expectThrows(InvalidShapeException.class, pb::buildS4J);
-        assertEquals("Cannot determine orientation: signed area equal to 0", e.getMessage());
+        assertEquals("Self-intersection at or near point (-1.0, -1.0, NaN)", e.getMessage());
     }
 
     public void testCrossingDateline() {

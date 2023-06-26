@@ -8,13 +8,10 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.metrics.CounterMetric;
-
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 
-public class EsAbortPolicy implements XRejectedExecutionHandler {
-    private final CounterMetric rejected = new CounterMetric();
+public class EsAbortPolicy extends EsRejectedExecutionHandler {
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
@@ -33,12 +30,7 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
                 return;
             }
         }
-        rejected.inc();
-        throw new EsRejectedExecutionException("rejected execution of " + r + " on " + executor, executor.isShutdown());
-    }
-
-    @Override
-    public long rejected() {
-        return rejected.count();
+        incrementRejections();
+        throw newRejectedException(r, executor, executor.isShutdown());
     }
 }

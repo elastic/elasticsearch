@@ -24,6 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -134,7 +135,17 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         } else {
             assert nodeNames.length >= 1;
             Map<String, DiscoveryNode> existingNodes = StreamSupport.stream(allNodes.spliterator(), false)
-                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
+                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity(), (n1, n2) -> {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "node name [%s] is ambiguous, matching [%s] and [%s]; specify node ID instead",
+                            n1.getName(),
+                            n1.descriptionWithoutAttributes(),
+                            n2.descriptionWithoutAttributes()
+                        )
+                    );
+                }));
 
             for (String nodeName : nodeNames) {
                 if (existingNodes.containsKey(nodeName)) {

@@ -25,7 +25,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 As of the `7.8.1` release
 
-.Displays Enterprise license as Platinum in /_xpack 
+.Displays Enterprise license as Platinum in /_xpack
 [%collapsible]
 ====
 *Details*
@@ -209,6 +209,27 @@ renamed to better reflect its intended use.
 *Impact* +
 Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
+====
+
+[discrete]
+[[breaking_78_cluster_coordination_changes]]
+=== Cluster coordination changes
+
+.The voting configuration exclusions API's `POST _cluster/voting_config_exclusions/<node_name>` request path is deprecated.
+[%collapsible]
+====
+*Details* +
+The voting configuration exclusions API's
+`POST _cluster/voting_config_exclusions/<node_name>` request path is now
+deprecated. To add a voting configuration exclusion, specify node names or node
+IDs using a query parameter instead:
+
+- `POST _cluster/voting_config_exclusions?node_names=<node_names>`
+- `POST _cluster/voting_config_exclusions?node_ids=<node_ids>`
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the
+`POST _cluster/voting_config_exclusions/<node_name>` request path.
 ====
 
 [discrete]

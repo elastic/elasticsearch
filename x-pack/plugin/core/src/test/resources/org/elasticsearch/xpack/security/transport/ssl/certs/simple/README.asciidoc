@@ -186,3 +186,6 @@ openssl req -x509 -extensions v3_req -key private_secp256r1.pem -out certificate
 openssl req -x509 -extensions v3_req -key private_secp384r1.pem -out certificate_secp384r1.pem -days 1460 -config openssl_config.cnf
 openssl req -x509 -extensions v3_req -key private_secp521r1.pem -out certificate_secp521r1.pem -days 1460 -config openssl_config.cnf
 -------
+
+
+The password for "empty.p12" is "_empty"

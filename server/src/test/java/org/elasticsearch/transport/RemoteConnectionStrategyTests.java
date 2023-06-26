@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -17,8 +18,14 @@ import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {
 
+    private static final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
-        ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
+        final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadContext
+        );
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
@@ -34,7 +41,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testSameStrategyChangeMeansThatStrategyDoesNotNeedToBeRebuilt() {
-        ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
+        final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadContext
+        );
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
@@ -50,7 +61,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testChangeInConnectionProfileMeansTheStrategyMustBeRebuilt() {
-        ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
+        final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+            TestProfiles.LIGHT_PROFILE,
+            mock(Transport.class),
+            threadContext
+        );
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
         assertEquals(Compression.Enabled.FALSE, connectionManager.getConnectionProfile().getCompressionEnabled());
         assertEquals(Compression.Scheme.DEFLATE, connectionManager.getConnectionProfile().getCompressionScheme());

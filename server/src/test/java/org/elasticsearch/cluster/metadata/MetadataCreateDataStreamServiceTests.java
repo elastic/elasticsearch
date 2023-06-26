@@ -356,17 +356,16 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     private static SystemIndices getSystemIndices() {
-        Map<String, Feature> map = Collections.singletonMap(
-            "system",
+        List<Feature> features = org.elasticsearch.core.List.of(
             new Feature(
                 "systemFeature",
                 "system feature description",
-                Collections.emptyList(),
-                Collections.singletonList(systemDataStreamDescriptor())
+                org.elasticsearch.core.List.of(),
+                org.elasticsearch.core.List.of(systemDataStreamDescriptor())
             )
         );
 
-        return new SystemIndices(map);
+        return new SystemIndices(features);
     }
 
     private static SystemDataStreamDescriptor systemDataStreamDescriptor() {

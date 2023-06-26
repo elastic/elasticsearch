@@ -1,5 +1,7 @@
 setup:
   - skip:
+      version: all
+      reason: 'AwaitsFix: https://github.com/elastic/elasticsearch/issues/82502'
       features: allowed_warnings
   - do:
       indices.put_template:
@@ -38,7 +40,6 @@ setup:
 
 ---
 "Search template with typed_keys parameter":
-
   - do:
       put_script:
         id: template_1

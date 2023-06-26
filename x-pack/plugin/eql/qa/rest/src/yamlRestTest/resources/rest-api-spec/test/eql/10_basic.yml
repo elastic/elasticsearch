@@ -20,7 +20,7 @@ setup:
         body:
           - index:
               _index: eql_test
-              _id:    1
+              _id:    "1"
           - event:
               - category: process
             "@timestamp": 2020-02-03T12:34:56Z
@@ -30,7 +30,7 @@ setup:
             some_keyword: longer than normal
           - index:
               _index: eql_test
-              _id:    2
+              _id:    "2"
           - event:
               - category: process
             "@timestamp": 2020-02-04T12:34:56Z
@@ -39,7 +39,7 @@ setup:
             valid: true
           - index:
               _index: eql_test
-              _id:    3
+              _id:    "3"
           - event:
               - category: process
             "@timestamp": 2020-02-05T12:34:56Z
@@ -48,7 +48,7 @@ setup:
             valid: true
           - index:
               _index: eql_test
-              _id:    4
+              _id:    "4"
           - event:
               - category: network
             "@timestamp": 2020-02-06T12:34:56Z
@@ -57,7 +57,7 @@ setup:
             valid: true
           - index:
               _index: eql_test
-              _id:    5
+              _id:    "5"
           - event:
               - category: network
             "@timestamp": 2020-02-07T12:34:56Z
@@ -66,7 +66,7 @@ setup:
             valid: true
           - index:
               _index: eql_test
-              _id:    6
+              _id:    "6"
           - event:
               - category: network
             "@timestamp": 2020-02-08T12:34:56Z
@@ -75,7 +75,7 @@ setup:
             valid: true
           - index:
               _index: eql_test
-              _id:    7
+              _id:    "7"
           - event:
               - category: network
             "@timestamp": 2020-02-09T12:34:56Z

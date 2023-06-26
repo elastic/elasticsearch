@@ -192,6 +192,29 @@ public class ShardLimitValidator {
             : checkShardLimit(newFrozenShards, state, shardLimitPerNodeFrozen.get(), frozenNodeCount, "frozen");
     }
 
+    /**
+     * This method decides whether there is enough room in the cluster to add the given number of shards with the given number of replicas
+     * without exceeding the "cluster.max_shards_per_node.frozen" setting if the shards are going on frozen nodes or the
+     * "cluster.max_shards_per_node" setting if the shards are going on normal nodes. This check does not guarantee that the number of
+     * shards can be added, just that there is theoretically room to add them without exceeding the shards per node configuration.
+     * @param numberOfNewShards The number of primary shards that we want to be able to add to the cluster
+     * @param replicas The number of replcas of the primary shards that we want to be able to add to the cluster
+     * @param state The cluster state, used to get cluster settings and to get the number of open shards already in the cluster
+     * @param frozenNodes If true, check whether there is room to put these shards onto frozen nodes. If false, check whether there is room
+     *                    to put these shards onto normal nodes.
+     * @return True if there is room to add the requested number of shards to the cluster, and false if there is not
+     */
+    public static boolean canAddShardsToCluster(int numberOfNewShards, int replicas, ClusterState state, boolean frozenNodes) {
+        Settings clusterSettings = state.getMetadata().settings();
+        int maxShardsPerNode = frozenNodes
+            ? SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(clusterSettings)
+            : SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(clusterSettings);
+        int nodeCount = nodeCount(state, frozenNodes ? ShardLimitValidator::hasFrozen : ShardLimitValidator::hasNonFrozen);
+        String nodeGroup = frozenNodes ? FROZEN_GROUP : "normal";
+        Optional<String> errorMessage = checkShardLimit(numberOfNewShards * (1 + replicas), state, maxShardsPerNode, nodeCount, nodeGroup);
+        return errorMessage.isPresent() == false;
+    }
+
     // package-private for testing
     static Optional<String> checkShardLimit(int newShards, ClusterState state, int maxShardsPerNode, int nodeCount, String group) {
         // Only enforce the shard limit if we have at least one data node, so that we don't block

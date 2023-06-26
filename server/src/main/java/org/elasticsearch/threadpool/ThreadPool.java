@@ -20,9 +20,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
@@ -194,7 +194,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
-        builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
+        builders.put(
+            Names.GENERIC,
+            new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
+        );
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
@@ -214,27 +217,33 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.MANAGEMENT,
-            new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5))
+            new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
         );
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
         builders.put(Names.LISTENER, new FixedExecutorBuilder(settings, Names.LISTENER, halfProcMaxAt10, -1, true));
-        builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
-        builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
-        builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
-        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
+        builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5), false));
+        builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
+        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
         builders.put(
             Names.SNAPSHOT_META,
-            new ScalingExecutorBuilder(Names.SNAPSHOT_META, 1, Math.min(allocatedProcessors * 3, 50), TimeValue.timeValueSeconds(30L))
+            new ScalingExecutorBuilder(
+                Names.SNAPSHOT_META,
+                1,
+                Math.min(allocatedProcessors * 3, 50),
+                TimeValue.timeValueSeconds(30L),
+                false
+            )
         );
         builders.put(
             Names.FETCH_SHARD_STARTED,
-            new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
+            new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
         builders.put(
             Names.FETCH_SHARD_STORE,
-            new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
+            new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
         builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
         builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
@@ -367,8 +376,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 largest = threadPoolExecutor.getLargestPoolSize();
                 completed = threadPoolExecutor.getCompletedTaskCount();
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
-                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
-                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler) {
+                    rejected = ((EsRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
             stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));

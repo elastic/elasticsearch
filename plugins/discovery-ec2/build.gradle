@@ -7,7 +7,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -110,17 +110,8 @@ tasks.named("check").configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
-          'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
           'com.amazonaws.jmespath.JmesPathExpression',
-          'com.amazonaws.jmespath.JmesPathField',
-          'com.amazonaws.jmespath.JmesPathFlatten',
-          'com.amazonaws.jmespath.JmesPathIdentity',
-          'com.amazonaws.jmespath.JmesPathLengthFunction',
-          'com.amazonaws.jmespath.JmesPathLiteral',
-          'com.amazonaws.jmespath.JmesPathProjection',
-          'com.amazonaws.jmespath.JmesPathSubExpression',
           'com.amazonaws.jmespath.ObjectMapperSingleton',
-          'com.amazonaws.jmespath.OpGreaterThan',
           'software.amazon.ion.IonReader',
           'software.amazon.ion.IonSystem',
           'software.amazon.ion.IonType',

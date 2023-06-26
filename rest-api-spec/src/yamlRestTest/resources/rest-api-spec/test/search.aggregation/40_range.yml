@@ -17,6 +17,18 @@ setup:
                   type: half_float
 
   - do:
+      indices.create:
+        index: date_range_test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date
+                format: strict_date_time||strict_date
+
+  - do:
       cluster.health:
         wait_for_status: yellow
 
@@ -35,6 +47,22 @@ setup:
          - {"index": {}}
          - {}
 
+  - do:
+      bulk:
+        index: date_range_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date": "2021-05-01T07:10:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-02T08:34:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-03T08:36:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-04T09:05:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-06T09:22:00Z" }
+
 ---
 "Float Endpoint Exclusive":
   - skip:
@@ -42,6 +70,7 @@ setup:
       reason:  Bug fixed in 7.16.0
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -70,6 +99,7 @@ setup:
       reason:  Bug fixed in 7.16.0
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -94,10 +124,11 @@ setup:
 ---
 "Float range":
   - skip:
-      version: " - 7.16.99"
-      reason: Bug fixed in 8.1.0 and backported to 7.17.0
+      version: " - 7.17.0"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.1
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -136,6 +167,7 @@ setup:
       reason: Bug fixed in 8.1.0 and backported to 7.17.0
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -172,6 +204,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test
         body:
           size: 0
           aggs:
@@ -207,6 +240,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test
         body:
           size: 0
           aggs:
@@ -243,6 +277,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test
         body:
           size: 0
           aggs:
@@ -280,6 +315,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test
         body:
           size: 0
           aggs:
@@ -315,6 +351,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test
         body:
           size: 0
           aggs:
@@ -345,3 +382,32 @@ setup:
   - match: { aggregations.double_range.buckets.last.from: 150.0 }
   - is_false:  aggregations.double_range.buckets.last.to
   - match: { aggregations.double_range.buckets.last.doc_count: 0 }
+
+---
+"Range aggregation on date field":
+  - skip:
+      version: " - 7.16.99"
+      reason: Fixed in 8.1.0 and backported to 7.17.0
+
+  - do:
+      search:
+        index: date_range_test
+        body:
+          size: 0
+          aggs:
+            date_range:
+              range:
+                field: date
+                ranges:
+                 -
+                   from: 2021-05-01T00:00:00Z
+                   to: 2021-05-05T00:00:00Z
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.date_range.buckets: 1 }
+  - match: { aggregations.date_range.buckets.0.doc_count: 4 }
+  - match: { aggregations.date_range.buckets.0.key: "2021-05-01T00:00:00.000Z-2021-05-05T00:00:00.000Z" }
+  - match: { aggregations.date_range.buckets.0.from: 1619827200000 }
+  - match: { aggregations.date_range.buckets.0.from_as_string: "2021-05-01T00:00:00.000Z" }
+  - match: { aggregations.date_range.buckets.0.to: 1620172800000 }
+  - match: { aggregations.date_range.buckets.0.to_as_string: "2021-05-05T00:00:00.000Z" }

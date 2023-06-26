@@ -200,6 +200,7 @@
       cat.shards:
         h: [index, docs]
         s: [docs]
+        index: "foo,bar"
 
 # don't use the store here it's cached and might be stale
   - match:

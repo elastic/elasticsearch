@@ -14,7 +14,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "foo": "bar" }
 
     - do:
@@ -23,7 +23,7 @@
     - do:
         get:
             index: test
-            id: 1
+            id: "1"
             stored_fields: "_size"
 
     - gt: { _size: 0 }

@@ -168,7 +168,13 @@ public final class SSLConfiguration {
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig) {
         final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig);
         return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
-            .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
+            .map(
+                path -> (TrustConfig) new RestrictedTrustConfig(
+                    path,
+                    org.elasticsearch.core.Set.copyOf(SETTINGS_PARSER.trustRestrictionsX509Fields.get(settings)),
+                    trustConfig
+                )
+            )
             .orElse(trustConfig);
     }
 

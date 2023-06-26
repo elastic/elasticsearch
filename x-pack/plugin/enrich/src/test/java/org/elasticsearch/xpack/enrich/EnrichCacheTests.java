@@ -22,12 +22,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.xpack.enrich.MatchProcessorTests.mapOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,11 +69,11 @@ public class EnrichCacheTests extends ESTestCase {
         // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
         List<Map<?, ?>> searchResponse = Collections.singletonList(mapOf("test", "entry"));
 
-        TestEnrichCache enrichCache = new TestEnrichCache(3);
+        EnrichCache enrichCache = new EnrichCache(3);
         enrichCache.setMetadata(metadata);
-        enrichCache.warmCache(searchRequest1, searchResponse);
-        enrichCache.warmCache(searchRequest2, searchResponse);
-        enrichCache.warmCache(searchRequest3, searchResponse);
+        enrichCache.put(searchRequest1, searchResponse);
+        enrichCache.put(searchRequest2, searchResponse);
+        enrichCache.put(searchRequest3, searchResponse);
         EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(0L));
@@ -96,7 +90,7 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.getMisses(), equalTo(1L));
         assertThat(cacheStats.getEvictions(), equalTo(0L));
 
-        enrichCache.warmCache(searchRequest4, searchResponse);
+        enrichCache.put(searchRequest4, searchResponse);
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(3L));
@@ -129,9 +123,9 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(enrichCache.get(searchRequest4), nullValue());
 
         // Add new entries using new enrich index name as key
-        enrichCache.warmCache(searchRequest1, searchResponse);
-        enrichCache.warmCache(searchRequest2, searchResponse);
-        enrichCache.warmCache(searchRequest3, searchResponse);
+        enrichCache.put(searchRequest1, searchResponse);
+        enrichCache.put(searchRequest2, searchResponse);
+        enrichCache.put(searchRequest3, searchResponse);
 
         // Entries can now be served:
         assertThat(enrichCache.get(searchRequest1), notNullValue());
@@ -143,41 +137,6 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.getHits(), equalTo(6L));
         assertThat(cacheStats.getMisses(), equalTo(6L));
         assertThat(cacheStats.getEvictions(), equalTo(4L));
-    }
-
-    public void testNonblocking() throws ExecutionException {
-        EnrichCache enrichCache = new EnrichCache(3);
-        Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
-            )
-            .build();
-        enrichCache.setMetadata(metadata);
-
-        SearchRequest key = new SearchRequest(EnrichPolicy.getBaseName("policy1")).source(
-            new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "1"))
-        );
-
-        CompletableFuture<Boolean> check = new CompletableFuture<>();
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.submit(() -> {
-            enrichCache.resolveOrDispatchSearch(key, (req, handler) -> {/* take forever to compute */}, (value, exception) -> {});
-            check.complete(true);
-        });
-
-        try {
-            check.get(1, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            fail("interrupted");
-        } catch (TimeoutException e) {
-            fail("method blocked for a second");
-        }
-
-        executor.shutdownNow();
     }
 
     public void testDeepCopy() {
@@ -227,14 +186,4 @@ public class EnrichCacheTests extends ESTestCase {
         assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
     }
 
-    static class TestEnrichCache extends EnrichCache {
-
-        TestEnrichCache(long maxSize) {
-            super(maxSize);
-        }
-
-        void warmCache(SearchRequest searchRequest, List<Map<?, ?>> entry) {
-            this.cache.put(toKey(searchRequest), CompletableFuture.completedFuture(entry));
-        }
-    }
 }

@@ -70,13 +70,16 @@ final class QueryPhaseCollector implements Collector {
         ScoreMode scoreMode;
         if (aggsCollector == null) {
             scoreMode = topDocsCollector.scoreMode();
-        } else if (topDocsCollector.scoreMode() == aggsCollector.scoreMode()) {
-            scoreMode = topDocsCollector.scoreMode();
-            // TODO should we also look at isExhaustive as well? MultiCollector does not.
-        } else if (topDocsCollector.scoreMode().needsScores() || aggsCollector.scoreMode().needsScores()) {
-            scoreMode = ScoreMode.COMPLETE;
         } else {
-            scoreMode = ScoreMode.COMPLETE_NO_SCORES;
+            assert aggsCollector.scoreMode() != ScoreMode.TOP_SCORES : "aggs never rely on setMinCompetitiveScore";
+            if (topDocsCollector.scoreMode() == aggsCollector.scoreMode()) {
+                scoreMode = topDocsCollector.scoreMode();
+            } else if (topDocsCollector.scoreMode().needsScores() || aggsCollector.scoreMode().needsScores()) {
+                scoreMode = ScoreMode.COMPLETE;
+            } else {
+                scoreMode = ScoreMode.COMPLETE_NO_SCORES;
+            }
+            //TODO for aggs that return TOP_DOCS, score mode becomes exhaustive unless top score doc agrees on the score mode
         }
         if (minScore != null) {
             scoreMode = scoreMode == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
@@ -159,6 +162,9 @@ final class QueryPhaseCollector implements Collector {
             }
             aggsLeafCollector = null;
         }
+        //say that the aggs collector early terminates while the top docs collector does not, we still want to wrap in the same way
+        //to enforce that setMinCompetitiveScore is a no-op. Otherwise we may allow the top docs collector to skip non competitive
+        //hits despite the score mode of the Collector did not allow it.
         return new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
     }
 
@@ -301,10 +307,10 @@ final class QueryPhaseCollector implements Collector {
         @Override
         public DocIdSetIterator competitiveIterator() throws IOException {
             if (topDocsLeafCollector == null) {
+                //we expose the aggs competitive iterator only when the top docs collector early terminated its collection
                 return aggsLeafCollector.competitiveIterator();
             }
-            // TODO MultiLeafCollector does not override this, should we return a disjunction of the two?
-            return LeafCollector.super.competitiveIterator();
+            return null;
         }
     }
 }

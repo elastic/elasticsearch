@@ -24,6 +24,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
@@ -271,7 +272,8 @@ public class PluginIntrospectorTests extends ESTestCase {
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<RepositoriesService> repositoriesServiceSupplier,
                 Tracer tracer,
-                AllocationService allocationService
+                AllocationService allocationService,
+                IndicesService indicesService
             ) {
                 return null;
             }

@@ -54,6 +54,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -204,7 +205,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -221,7 +223,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 expressionResolver,
                 repositoriesServiceSupplier,
                 tracer,
-                allocationService
+                allocationService,
+                indicesService
             )
         );
 
@@ -241,7 +244,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         expressionResolver,
                         repositoriesServiceSupplier,
                         tracer,
-                        allocationService
+                        allocationService,
+                        indicesService
                     )
                 )
             );

@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
@@ -456,6 +457,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             mockNodeVersion,
             Version.CURRENT,
             Version.CURRENT,
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersion.CURRENT,
             apmIndicesExist };
         final String expectedJson = Strings.format("""
             {
@@ -756,7 +759,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "roles": [
                       "master"
                     ],
-                    "version": "%s"
+                    "version": "%s",
+                    "minIndexVersion":"%s",
+                    "maxIndexVersion":"%s"
                   }
                 },
                 "transport_versions": []

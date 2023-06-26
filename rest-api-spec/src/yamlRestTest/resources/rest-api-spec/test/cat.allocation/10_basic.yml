@@ -212,6 +212,10 @@
 
 "Node roles":
 
+  - skip:
+      version: " - 8.9.99"
+      reason:  "node.role column added in 8.10.0"
+
   - do:
       cat.allocation:
         h: [node, node.role]

@@ -151,14 +151,10 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         }
 
         logger.debug("--> registering repository");
-        assertAcked(
-            client().admin().cluster().preparePutRepository("repository").setType(FsRepository.TYPE).setSettings(repositorySettings.build())
-        );
+        assertAcked(clusterAdmin().preparePutRepository("repository").setType(FsRepository.TYPE).setSettings(repositorySettings.build()));
 
         logger.debug("--> snapshotting indices");
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot("repository", "snapshot")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("repository", "snapshot")
             .setIncludeGlobalState(false)
             .setIndices("index-*")
             .setWaitForCompletion(true)
@@ -174,16 +170,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         logger.debug("--> deleting repository");
-        assertAcked(client().admin().cluster().prepareDeleteRepository("repository"));
+        assertAcked(clusterAdmin().prepareDeleteRepository("repository"));
 
         logger.debug("--> registering tracking repository");
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("repository")
-                .setType("tracking")
-                .setVerify(false)
-                .setSettings(repositorySettings.build())
+            clusterAdmin().preparePutRepository("repository").setType("tracking").setVerify(false).setSettings(repositorySettings.build())
         );
 
         TrackingRepositoryPlugin tracker = getTrackingRepositoryPlugin();

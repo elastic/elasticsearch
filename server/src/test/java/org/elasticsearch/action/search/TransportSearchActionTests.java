@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -583,7 +584,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionListener.wrap(response::set, e -> fail("no failures expected")),
+                    ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
@@ -721,7 +722,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionListener.wrap(response::set, e -> fail("no failures expected")),
+                    ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
@@ -774,7 +775,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionListener.wrap(response::set, e -> fail("no failures expected")),
+                    ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
@@ -847,7 +848,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     skippedClusters,
                     remoteIndicesByCluster,
                     service,
-                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());
@@ -951,7 +952,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     skippedClusters,
                     remoteIndicesByCluster,
                     service,
-                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -996,7 +997,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     skippedClusters,
                     remoteIndicesByCluster,
                     service,
-                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());

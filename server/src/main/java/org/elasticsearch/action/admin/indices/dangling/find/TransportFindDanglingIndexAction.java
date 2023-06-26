@@ -53,8 +53,7 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
             actionFilters,
             FindDanglingIndexRequest::new,
             NodeFindDanglingIndexRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeFindDanglingIndexResponse.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;

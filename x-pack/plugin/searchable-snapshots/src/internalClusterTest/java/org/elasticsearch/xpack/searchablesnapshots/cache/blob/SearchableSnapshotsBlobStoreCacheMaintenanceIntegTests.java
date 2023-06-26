@@ -240,7 +240,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
         assertAcked(systemClient().admin().indices().prepareDelete(SNAPSHOT_BLOB_CACHE_INDEX));
         assertAcked(indicesAdmin().prepareDelete(indicesToDelete.toArray(String[]::new)));
-        assertAcked(client().admin().cluster().prepareDeleteRepository("repo"));
+        assertAcked(clusterAdmin().prepareDeleteRepository("repo"));
         ensureClusterStateConsistency();
 
         assertThat(numberOfEntriesInCache(), equalTo(0L));
@@ -251,9 +251,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         );
         try {
             // restores the .snapshot-blob-cache index with - now obsolete - documents
-            final RestoreSnapshotResponse restoreResponse = client().admin()
-                .cluster()
-                .prepareRestoreSnapshot("backup", "backup")
+            final RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot("backup", "backup")
                 // We only want to restore the blob cache index. Since we can't do that by name, specify an index that doesn't exist and
                 // allow no indices - this way, only the indices resolved from the feature state will be resolved.
                 .setIndices("this-index-doesnt-exist-i-know-because-#-is-illegal-in-index-names")
@@ -395,7 +393,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
                 } else {
                     logger.info("--> mounted index [{}] did not generate any entry in cache", mountedIndex);
-                    assertAcked(client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot).get());
+                    assertAcked(clusterAdmin().prepareDeleteSnapshot(repositoryName, snapshot).get());
                     assertAcked(indicesAdmin().prepareDelete(mountedIndex));
                 }
             }

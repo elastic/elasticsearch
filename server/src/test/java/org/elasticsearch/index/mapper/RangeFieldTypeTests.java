@@ -88,6 +88,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     /**
      * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         SearchExecutionContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());

@@ -84,7 +84,11 @@ public class HealthMetadataService {
             this.clusterService.addListener(clusterStateListener);
         }
 
-        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        var clusterSettings = clusterService.getClusterSettings();
+
+        // The method `updateOnSettingsUpdated` depends on the `enabled` attribute, which can be updated by the next consumer, so, the next
+        // line **must** be the first listener to register.
+        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
         Stream.of(
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,

@@ -3539,6 +3539,44 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHitCount(search, 0);
     }
 
+    public void testConstantKeywordFieldHighlightingSimpleQueryString() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.simpleQueryStringQuery(constantValue));
+
+        assertNoFailures(search);
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
+    }
+
+    public void testConstantKeywordFieldNoHighlightingSimpleQueryString() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "test_constant_keyword_field";
+        String constantValue = "constant_value";
+        String queryString = "foobar";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.simpleQueryStringQuery(queryString));
+
+        assertNoFailures(search);
+        assertHitCount(search, 0);
+    }
+
     public void testConstantKeywordFieldHighlightingTerm() throws IOException {
         String index = "test";
         String constantKeywordFieldName = "test_constant_keyword_field";

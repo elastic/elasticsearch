@@ -122,12 +122,4 @@ public abstract class ConstantFieldType extends MappedFieldType {
             return new MatchNoDocsQuery();
         }
     }
-
-    public final String getConstantValue(FetchContext context) {
-        try {
-            return (String) valueFetcher(context.getSearchExecutionContext(), null).fetchValues(null, 0, List.of()).get(0);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

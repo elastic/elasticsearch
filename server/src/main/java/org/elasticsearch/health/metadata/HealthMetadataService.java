@@ -11,7 +11,6 @@ package org.elasticsearch.health.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -84,7 +82,10 @@ public class HealthMetadataService {
             this.clusterService.addListener(clusterStateListener);
         }
 
-        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        var clusterSettings = clusterService.getClusterSettings();
+
+        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
+
         Stream.of(
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
@@ -116,8 +117,6 @@ public class HealthMetadataService {
                     value -> updateOnSettingsUpdated(new UpdateShardLimitsMetadata(setting.getKey(), value))
                 )
             );
-
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
     }
 
     private void enable(boolean enabled) {
@@ -139,22 +138,16 @@ public class HealthMetadataService {
         } else if (isMaster == false) {
             readyToPublish = false;
         }
-        // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
-            if (readyToPublish) {
-                resetHealthMetadata("health-metadata-update-master-election");
-                readyToPublish = false;
-            }
+        if (readyToPublish) {
+            resetHealthMetadata("health-metadata-update-master-election");
+            readyToPublish = false;
         }
     }
 
     private void updateOnSettingsUpdated(UpsertHealthMetadataTask task) {
         // We do not use the cluster state to check if this is the master node because the cluster state might not have been initialized
         if (isMaster && enabled) {
-            ClusterState clusterState = clusterService.state();
-            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
-                taskQueue.submitTask("health-metadata-update", task, null);
-            }
+            taskQueue.submitTask("health-metadata-update", task, null);
         }
     }
 

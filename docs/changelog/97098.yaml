@@ -1,0 +1,6 @@
+pr: 97098
+summary: Highlighting for `constant_keyword` `fieldType`
+area: Highlighting
+type: bug
+issues:
+ - 85596

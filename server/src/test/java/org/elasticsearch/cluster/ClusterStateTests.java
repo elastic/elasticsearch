@@ -36,6 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -200,7 +201,9 @@ public class ClusterStateTests extends ESTestCase {
                                 "transform",
                                 "voting_only"
                               ],
-                              "version": "%s"
+                              "version": "%s",
+                              "minIndexVersion":"%s",
+                              "maxIndexVersion":"%s"
                             }
                           },
                           "transport_versions" : [
@@ -359,9 +362,11 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
+                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersion.current(),
                     TransportVersion.current(),
-                    Version.CURRENT.id,
-                    Version.CURRENT.id,
+                    IndexVersion.current(),
+                    IndexVersion.current(),
                     allocationId,
                     allocationId
                 )
@@ -451,7 +456,9 @@ public class ClusterStateTests extends ESTestCase {
                             "transform",
                             "voting_only"
                           ],
-                          "version" : "%s"
+                          "version" : "%s",
+                          "minIndexVersion" : "%s",
+                          "maxIndexVersion" : "%s"
                         }
                       },
                       "transport_versions" : [
@@ -606,9 +613,11 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
                 TransportVersion.current(),
-                Version.CURRENT.id,
-                Version.CURRENT.id,
+                IndexVersion.current(),
+                IndexVersion.current(),
                 allocationId,
                 allocationId
             ),
@@ -698,7 +707,9 @@ public class ClusterStateTests extends ESTestCase {
                             "transform",
                             "voting_only"
                           ],
-                          "version" : "%s"
+                          "version" : "%s",
+                          "minIndexVersion" : "%s",
+                          "maxIndexVersion" : "%s"
                         }
                       },
                       "transport_versions" : [
@@ -859,9 +870,11 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
                 TransportVersion.current(),
-                Version.CURRENT.id,
-                Version.CURRENT.id,
+                IndexVersion.current(),
+                IndexVersion.current(),
                 allocationId,
                 allocationId
             ),

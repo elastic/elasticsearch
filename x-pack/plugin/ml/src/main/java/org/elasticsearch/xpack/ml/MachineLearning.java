@@ -329,6 +329,8 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
+import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerBuilder;
+import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerFeature;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -844,6 +846,21 @@ public class MachineLearning extends Plugin
                 + attrName.replace("node.attr.", "xpack.")
                 + "] setting instead."
         );
+    }
+
+    @Override
+    public List<RescorerSpec<?>> getRescorers() {
+        if (enabled && InferenceRescorerFeature.isEnabled()) {
+            // Inference rescorer requires access to the model loading service
+            return List.of(
+                new RescorerSpec<>(
+                    InferenceRescorerBuilder.NAME,
+                    in -> new InferenceRescorerBuilder(in, modelLoadingService::get),
+                    parser -> InferenceRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                )
+            );
+        }
+        return List.of();
     }
 
     @Override

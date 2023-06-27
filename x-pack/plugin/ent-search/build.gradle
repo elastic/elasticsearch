@@ -35,7 +35,7 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
 
-//  module ':modules:search-business-rules'
+  module ':modules:search-business-rules'
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -167,7 +167,7 @@ public class IndexSettingsTests extends ESTestCase {
                     "index",
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
-                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.CURRENT.id())
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.current().id())
                         .put("index.test.setting.int", 42)
                         .build()
                 )

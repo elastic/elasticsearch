@@ -189,7 +189,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // same version.
         if (commitVersion == null) {
             assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
-            return IndexVersion.CURRENT.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
+            return IndexVersion.current().luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
         }
         return commitVersion.onOrBefore(Version.CURRENT);
     }

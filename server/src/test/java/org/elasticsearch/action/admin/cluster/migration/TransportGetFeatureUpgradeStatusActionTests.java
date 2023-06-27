@@ -30,9 +30,9 @@ import static org.hamcrest.Matchers.hasSize;
 public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     public static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
+    private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(6000099);
     private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final SystemIndices.Feature FEATURE = getFeature();
-    private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(6000099);
 
     public void testGetFeatureStatus() {
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status = TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(

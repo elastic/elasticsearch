@@ -593,6 +593,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             "action",
             TaskId.EMPTY_TASK_ID,
             rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
             shard.shardId()
@@ -662,6 +664,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             "action",
             TaskId.EMPTY_TASK_ID,
             rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
             shard.shardId()
@@ -709,6 +713,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 "action",
                 TaskId.EMPTY_TASK_ID,
                 rollupIndex,
+                indexService.getIndexSettings().getTimestampBounds().startTime(),
+                indexService.getIndexSettings().getTimestampBounds().endTime(),
                 config,
                 emptyMap(),
                 shard.shardId()
@@ -734,8 +740,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(task.getNumReceived(), task.getTotalShardDocCount());
             assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
             assertEquals(100.0F, task.getDocsProcessedPercentage(), 0.001);
-            assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTime());
-            assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTime());
+            assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTimeMillis());
+            assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTimeMillis());
             assertEquals(RollupShardIndexerStatus.COMPLETED, task.getRollupShardIndexerStatus());
             assertEquals(task.getNumSent(), task.getNumIndexed());
             assertEquals(task.getNumIndexed(), task.getLastBeforeBulkInfo().getNumberOfActions());

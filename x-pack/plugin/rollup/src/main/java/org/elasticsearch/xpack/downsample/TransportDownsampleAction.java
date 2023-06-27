@@ -73,6 +73,9 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -284,6 +287,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     // 3. Rollup index created. Run rollup indexer
                     DownsampleIndexerAction.Request rollupIndexerRequest = new DownsampleIndexerAction.Request(
                         request,
+                        LocalDateTime.parse(
+                            sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey()),
+                            DateTimeFormatter.ISO_DATE_TIME
+                        ).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                        LocalDateTime.parse(
+                            sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
+                            DateTimeFormatter.ISO_DATE_TIME
+                        ).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
                         dimensionFields.toArray(new String[0]),
                         metricFields.toArray(new String[0]),
                         labelFields.toArray(new String[0])

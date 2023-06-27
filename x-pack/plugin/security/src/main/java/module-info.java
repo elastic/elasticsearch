@@ -66,6 +66,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator;
 
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
+    exports co.elasticsearch.serverless to org.elasticsearch.server;
 
     provides org.elasticsearch.cli.CliToolProvider
         with
@@ -81,4 +82,6 @@ module org.elasticsearch.security {
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
             org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
+
+    provides org.elasticsearch.common.settings.PublicSettingsFactory with co.elasticsearch.serverless.ServerlessPublicSettingsFactory;
 }

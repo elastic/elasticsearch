@@ -1,7 +1,7 @@
 [[delete-desired-balance]]
-=== Delete/reset desired balance API
+=== Reset desired balance API
 ++++
-<titleabbrev>Delete/reset desired balance</titleabbrev>
+<titleabbrev>Reset desired balance</titleabbrev>
 ++++
 
 NOTE: {cloud-only}

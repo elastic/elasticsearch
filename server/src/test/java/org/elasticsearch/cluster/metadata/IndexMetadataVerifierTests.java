@@ -15,7 +15,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collections;
 
@@ -99,11 +99,11 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
     public void testIncompatibleVersion() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
-        Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
-        Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
+        IndexVersion minCompat = IndexVersion.MINIMUM_COMPATIBLE;
+        IndexVersion indexCreated = IndexVersion.fromId(randomIntBetween(1000099, minCompat.id() - 1));
         final IndexMetadata metadata = newIndexMeta(
             "foo",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated.id()).build()
         );
         String message = expectThrows(
             IllegalStateException.class,
@@ -121,15 +121,18 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                     + minCompat
                     + "]."
                     + " It should be re-indexed in Elasticsearch "
-                    + minCompat.major
+                    + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
-                    + Version.CURRENT.toString()
+                    + Version.CURRENT
                     + "."
             )
         );
 
-        indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
-        IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
+        indexCreated = IndexVersionUtils.randomVersionBetween(random(), minCompat, IndexVersion.CURRENT);
+        IndexMetadata goodMeta = newIndexMeta(
+            "foo",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated.id()).build()
+        );
         service.verifyIndexMetadata(goodMeta, IndexVersion.MINIMUM_COMPATIBLE);
     }
 

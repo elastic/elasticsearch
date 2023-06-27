@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -69,6 +70,8 @@ public abstract class SearchContext implements Releasable {
     private InnerHitsContext innerHitsContext;
 
     private Query rewriteQuery;
+
+    protected QueryBuilder originalQueryBuilder;
 
     protected SearchContext() {}
 
@@ -279,6 +282,10 @@ public abstract class SearchContext implements Releasable {
             }
         }
         return rewriteQuery;
+    }
+
+    public QueryBuilder originalQueryBuilder() {
+        return originalQueryBuilder;
     }
 
     public abstract int from();

@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
@@ -104,6 +105,13 @@ public class FetchContext {
      */
     public Query query() {
         return searchContext.query();
+    }
+
+    /**
+     * The original query, not rewritten.
+     */
+    public QueryBuilder originalQueryBuilder() {
+        return searchContext.originalQueryBuilder();
     }
 
     /**

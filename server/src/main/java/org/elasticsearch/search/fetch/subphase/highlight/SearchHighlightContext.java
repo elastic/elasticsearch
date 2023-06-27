@@ -10,7 +10,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 
 import java.util.Arrays;
@@ -22,23 +21,17 @@ import java.util.Set;
 
 public class SearchHighlightContext {
     private final Map<String, Field> fields;
-    private final QueryBuilder originalQuery;
 
-    public SearchHighlightContext(Collection<Field> fields, QueryBuilder originalQuery) {
+    public SearchHighlightContext(Collection<Field> fields) {
         assert fields != null;
         this.fields = Maps.newLinkedHashMapWithExpectedSize(fields.size());
         for (Field field : fields) {
             this.fields.put(field.field, field);
         }
-        this.originalQuery = originalQuery;
     }
 
     public Collection<Field> fields() {
         return fields.values();
-    }
-
-    public QueryBuilder originalQuery() {
-        return originalQuery;
     }
 
     public static class Field {

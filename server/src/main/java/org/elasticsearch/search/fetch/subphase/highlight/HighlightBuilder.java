@@ -303,7 +303,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 new SearchHighlightContext.Field(field.name(), fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build())
             );
         }
-        return new SearchHighlightContext(fieldOptions, originalQuery);
+        return new SearchHighlightContext(fieldOptions);
     }
 
     /**

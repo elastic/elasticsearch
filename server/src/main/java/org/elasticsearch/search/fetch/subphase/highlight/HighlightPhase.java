@@ -141,7 +141,7 @@ public class HighlightPhase implements FetchSubPhase {
                     sourceRequired = true;
                 }
 
-                Query highlightQuery = getHighlightQuery(highlightContext, field, fieldType);
+                Query highlightQuery = getHighlightQuery(context, field, fieldType);
 
                 builders.put(
                     fieldName,
@@ -162,12 +162,12 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     private Query getHighlightQuery(
-        SearchHighlightContext highlightContext,
+        FetchContext context,
         SearchHighlightContext.Field field,
         MappedFieldType fieldType
     ) {
         if (fieldType instanceof ConstantFieldType) {
-            QueryBuilder originalQuery = highlightContext.originalQuery();
+            QueryBuilder originalQuery = context.originalQueryBuilder();
             if (originalQuery != null) {
                 return originalQuery.toHighlightQuery(fieldType.name());
             }

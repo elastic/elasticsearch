@@ -12,14 +12,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RollupBulkStats {
     private final AtomicLong totalBulkCount = new AtomicLong(0);
     private final AtomicLong bulkDurationSumMillis = new AtomicLong(0);
-    private final AtomicLong maxBulkDurationMillis = new AtomicLong(0);
-    private final AtomicLong minBulkDurationMillis = new AtomicLong(0);
+    private final AtomicLong maxBulkDurationMillis = new AtomicLong(-1);
+    private final AtomicLong minBulkDurationMillis = new AtomicLong(-1);
     private final AtomicLong bulkIngestSumMillis = new AtomicLong(0);
-    private final AtomicLong maxBulkIngestMillis = new AtomicLong(0);
-    private final AtomicLong minBulkIngestMillis = new AtomicLong(0);
+    private final AtomicLong maxBulkIngestMillis = new AtomicLong(-1);
+    private final AtomicLong minBulkIngestMillis = new AtomicLong(-1);
     private final AtomicLong bulkTookSumMillis = new AtomicLong(0);
-    private final AtomicLong maxBulkTookMillis = new AtomicLong(0);
-    private final AtomicLong minBulkTookMillis = new AtomicLong(0);
+    private final AtomicLong maxBulkTookMillis = new AtomicLong(-1);
+    private final AtomicLong minBulkTookMillis = new AtomicLong(-1);
 
     public void update(long bulkDurationMillis, long bulkIngestMillis, long bulkTookMillis) {
         this.totalBulkCount.incrementAndGet();
@@ -37,12 +37,12 @@ public class RollupBulkStats {
         this.minBulkTookMillis.updateAndGet(existingValue -> min(bulkTookMillis, existingValue));
     }
 
-    private static long min(long bulkDurationMillis, long existingValue) {
-        return Math.min(bulkDurationMillis, existingValue);
+    private static long min(long newValue, long existingValue) {
+        return existingValue == -1 ? newValue : Math.min(newValue, existingValue);
     }
 
-    private static long max(long bulkDurationMillis, long existingValue) {
-        return Math.max(bulkDurationMillis, existingValue);
+    private static long max(long newValue, long existingValue) {
+        return existingValue == -1 ? newValue : Math.max(newValue, existingValue);
     }
 
     /**

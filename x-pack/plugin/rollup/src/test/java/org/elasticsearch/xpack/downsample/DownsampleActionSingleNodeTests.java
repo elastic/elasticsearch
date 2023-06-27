@@ -745,8 +745,14 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
             assertEquals(100.0F, task.getDocsProcessedPercentage(), 0.001);
             assertTrue(task.getRollupBulkInfo().getBulkDurationSumMillis() > 0);
+            assertEquals(task.getRollupBulkInfo().getBulkDurationSumMillis(), task.getRollupBulkInfo().getMaxBulkDurationMillis());
+            assertEquals(task.getRollupBulkInfo().getBulkDurationSumMillis(), task.getRollupBulkInfo().getMinBulkDurationMillis());
             assertTrue(task.getRollupBulkInfo().getBulkTookSumMillis() > 0);
-            assertTrue(task.getRollupBulkInfo().getBulkIngestSumMillis() >= 0);
+            assertEquals(task.getRollupBulkInfo().getBulkIngestSumMillis(), task.getRollupBulkInfo().getMaxBulkIngestMillis());
+            assertEquals(task.getRollupBulkInfo().getBulkIngestSumMillis(), task.getRollupBulkInfo().getMinBulkIngestMillis());
+            assertTrue(task.getRollupBulkInfo().getBulkTookSumMillis() >= 0);
+            assertEquals(task.getRollupBulkInfo().getBulkTookSumMillis(), task.getRollupBulkInfo().getMaxBulkTookMillis());
+            assertEquals(task.getRollupBulkInfo().getBulkTookSumMillis(), task.getRollupBulkInfo().getMinBulkTookMillis());
             assertEquals(1L, task.getRollupBulkInfo().getTotalBulkCount());
             assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTimeMillis());
             assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTimeMillis());

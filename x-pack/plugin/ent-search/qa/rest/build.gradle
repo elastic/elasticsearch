@@ -7,7 +7,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search_application', 'xpack'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'query_ruleset', 'search_application', 'xpack', 'security', 'search'
   }
 }
 

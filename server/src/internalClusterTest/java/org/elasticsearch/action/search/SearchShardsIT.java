@@ -43,19 +43,19 @@ public class SearchShardsIT extends ESIntegTestCase {
         for (int i = 0; i < indicesWithData; i++) {
             String index = "index-with-data-" + i;
             ElasticsearchAssertions.assertAcked(
-                admin().indices().prepareCreate(index).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+                indicesAdmin().prepareCreate(index).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
             );
             int numDocs = randomIntBetween(1, 10);
             for (int j = 0; j < numDocs; j++) {
                 client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
             }
-            client().admin().indices().prepareRefresh(index).get();
+            indicesAdmin().prepareRefresh(index).get();
         }
         int indicesWithoutData = between(1, 10);
         for (int i = 0; i < indicesWithoutData; i++) {
             String index = "index-without-data-" + i;
             ElasticsearchAssertions.assertAcked(
-                admin().indices().prepareCreate(index).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+                indicesAdmin().prepareCreate(index).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
             );
         }
         // Range query
@@ -110,15 +110,14 @@ public class SearchShardsIT extends ESIntegTestCase {
         for (int i = 0; i < numIndices; i++) {
             String index = "index-" + i;
             ElasticsearchAssertions.assertAcked(
-                admin().indices()
-                    .prepareCreate(index)
+                indicesAdmin().prepareCreate(index)
                     .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             );
             int numDocs = randomIntBetween(10, 1000);
             for (int j = 0; j < numDocs; j++) {
                 client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
             }
-            client().admin().indices().prepareRefresh(index).get();
+            indicesAdmin().prepareRefresh(index).get();
         }
         int iterations = iterations(2, 10);
         for (int i = 0; i < iterations; i++) {
@@ -164,8 +163,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 String index = "index-" + i;
                 int numShards = between(1, 5);
                 ElasticsearchAssertions.assertAcked(
-                    admin().indices()
-                        .prepareCreate(index)
+                    indicesAdmin().prepareCreate(index)
                         .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
                 );
                 totalShards += numShards;
@@ -173,7 +171,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 for (int j = 0; j < numDocs; j++) {
                     client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
                 }
-                client().admin().indices().prepareRefresh(index).get();
+                indicesAdmin().prepareRefresh(index).get();
             }
             SearchShardsRequest request = new SearchShardsRequest(
                 new String[] { "index-*" },

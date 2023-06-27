@@ -32,6 +32,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -580,7 +581,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                 );
             }
 
-            Version oldIndexVersion = Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+            Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+            IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersion.MINIMUM_COMPATIBLE.id() - 1));
             Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
 
@@ -594,21 +596,21 @@ public class NodeEnvironmentTests extends ESTestCase {
                 ex.getMessage(),
                 allOf(
                     containsString("Cannot start this node"),
-                    containsString("it holds metadata for indices created with version [" + oldIndexVersion + "]"),
+                    containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
                     containsString("Revert this node to version [" + previousNodeVersion + "]")
                 )
             );
 
             // This should work
-            overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), previousNodeVersion, env.nodeDataPaths());
+            overrideOldestIndexVersion(IndexVersion.MINIMUM_COMPATIBLE, previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Trying to boot with newer version should pass this check
-            overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), previousNodeVersion, env.nodeDataPaths());
+            overrideOldestIndexVersion(NodeMetadataTests.tooNewIndexVersion(), previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Simulate empty old index version, attempting to upgrade before 7.17
-            removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+            removeOldestIndexVersion(oldVersion, env.nodeDataPaths());
 
             ex = expectThrows(
                 IllegalStateException.class,
@@ -616,7 +618,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
+            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"));
             assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
         }
     }
@@ -714,7 +716,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
-    private static void overrideOldestIndexVersion(Version oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
+    private static void overrideOldestIndexVersion(IndexVersion oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
         throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
@@ -731,7 +733,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
                         commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id));
-                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
+                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
                     }

@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -47,6 +49,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -66,15 +69,34 @@ import java.util.stream.Collectors;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a DLM lifecycle configured.
- * It runs on the master node and it schedules a job according to the configured {@link DataLifecycleService#DLM_POLL_INTERVAL_SETTING}.
+ * It runs on the master node and it schedules a job according to the configured
+ * {@link DataLifecycleService#DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING}.
  */
 public class DataLifecycleService implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
 
-    public static final String DLM_POLL_INTERVAL = "indices.dlm.poll_interval";
-    public static final Setting<TimeValue> DLM_POLL_INTERVAL_SETTING = Setting.timeSetting(
-        DLM_POLL_INTERVAL,
+    public static final String DATA_STREAM_LIFECYCLE_POLL_INTERVAL = "data_streams.lifecycle.poll_interval";
+    public static final Setting<TimeValue> DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(
+        DATA_STREAM_LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10),
         TimeValue.timeValueSeconds(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    public static final ByteSizeValue ONE_HUNDRED_MB = ByteSizeValue.ofMb(100);
+
+    public static final int TARGET_MERGE_FACTOR_VALUE = 16;
+
+    public static final Setting<Integer> DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING = Setting.intSetting(
+        "data_streams.lifecycle.target.merge.policy.merge_factor",
+        TARGET_MERGE_FACTOR_VALUE,
+        2,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING = Setting.byteSizeSetting(
+        "data_streams.lifecycle.target.merge.policy.floor_segment",
+        ONE_HUNDRED_MB,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -83,13 +105,12 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     /**
      * Name constant for the job DLM schedules
      */
-    private static final String DATA_LIFECYCLE_JOB_NAME = "dlm";
+    private static final String LIFECYCLE_JOB_NAME = "data_stream_lifecycle";
     /*
      * This is the key for DLM-related custom index metadata.
      */
-    static final String DLM_CUSTOM_INDEX_METADATA_KEY = "dlm";
+    static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
-
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
@@ -104,6 +125,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
+    private volatile ByteSizeValue targetMergePolicyFloorSegment;
+    private volatile int targetMergePolicyFactor;
 
     private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
@@ -137,8 +160,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
         this.scheduledJob = null;
-        this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
-        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
+        this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
+        this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
+        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "dlm-forcemerge-state-update",
             Priority.LOW,
@@ -151,9 +176,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      */
     public void init() {
         clusterService.addListener(this);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
+            .addSettingsUpdateConsumer(DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING, this::updateMergePolicyFactor);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING, this::updateMergePolicyFloorSegment);
     }
 
     @Override
@@ -190,7 +220,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(DATA_LIFECYCLE_JOB_NAME)) {
+        if (event.getJobName().equals(LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
                 logger.trace("DLM job triggered: {}, {}, {}", event.getJobName(), event.getScheduledTime(), event.getTriggeredTime());
                 run(clusterService.state());
@@ -351,13 +381,35 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     logger.trace("Already force merged {}", indexName);
                     continue;
                 }
-                ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
-                // time to force merge the index
-                transportActionsDeduplicator.executeOnce(
-                    new ForceMergeRequestWrapper(forceMergeRequest),
-                    new ErrorRecordingActionListener(indexName, errorStore),
-                    (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
+
+                ByteSizeValue configuredFloorSegmentMerge = MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.get(
+                    backingIndex.getSettings()
                 );
+                Integer configuredMergeFactor = MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.get(backingIndex.getSettings());
+                if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
+                    || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
+                    UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
+                    updateMergePolicySettingsRequest.indices(indexName);
+                    updateMergePolicySettingsRequest.settings(
+                        Settings.builder()
+                            .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), targetMergePolicyFloorSegment)
+                            .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), targetMergePolicyFactor)
+                    );
+                    updateMergePolicySettingsRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
+                    transportActionsDeduplicator.executeOnce(
+                        updateMergePolicySettingsRequest,
+                        new ErrorRecordingActionListener(indexName, errorStore),
+                        (req, reqListener) -> updateIndexSetting(updateMergePolicySettingsRequest, reqListener)
+                    );
+                } else {
+                    ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
+                    // time to force merge the index
+                    transportActionsDeduplicator.executeOnce(
+                        new ForceMergeRequestWrapper(forceMergeRequest),
+                        new ErrorRecordingActionListener(indexName, errorStore),
+                        (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
+                    );
+                }
             }
         }
     }
@@ -403,6 +455,41 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     // error against the data stream's write index.
                     listener.onFailure(e);
                 }
+            }
+        });
+    }
+
+    private void updateIndexSetting(UpdateSettingsRequest updateSettingsRequest, ActionListener<Void> listener) {
+        assert updateSettingsRequest.indices() != null && updateSettingsRequest.indices().length == 1
+            : "Data stream lifecycle service updates the settings for one index at a time";
+        // "saving" the index name here so we don't capture the entire request
+        String targetIndex = updateSettingsRequest.indices()[0];
+        logger.trace(
+            "Data stream lifecycle service issues request to update settings [{}] for index [{}]",
+            updateSettingsRequest.settings().keySet(),
+            targetIndex
+        );
+        client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                logger.info(
+                    "Data stream lifecycle service successfully updated settings [{}] for index index [{}]",
+                    updateSettingsRequest.settings().keySet(),
+                    targetIndex
+                );
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    // index was already deleted, treat this as a success
+                    errorStore.clearRecordedError(targetIndex);
+                    listener.onResponse(null);
+                    return;
+                }
+
+                listener.onFailure(e);
             }
         });
     }
@@ -501,8 +588,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /*
-     * This method sets the value of the custom index metadata field "force_merge_completed_timestamp" within the field "dlm" to value. The
-     * method returns immediately, but the update happens asynchronously and listener is notified on success or failure.
+     * This method sets the value of the custom index metadata field "force_merge_completed_timestamp" within the field
+     * "data_stream_lifecycle" to value. The method returns immediately, but the update happens asynchronously and listener is notified on
+     * success or failure.
      */
     private void setForceMergeCompletedTimestamp(String targetIndex, ActionListener<Void> listener) {
         forceMergeClusterStateUpdateTaskQueue.submitTask(
@@ -513,10 +601,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /*
-     * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field "dlm".
+     * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field
+     * "data_stream_lifecycle".
      */
     private boolean isForceMergeComplete(IndexMetadata backingIndex) {
-        Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+        Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
     }
 
@@ -572,9 +661,17 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.rolloverConfiguration = newRolloverConfiguration;
     }
 
+    private void updateMergePolicyFloorSegment(ByteSizeValue newFloorSegment) {
+        this.targetMergePolicyFloorSegment = newFloorSegment;
+    }
+
+    private void updateMergePolicyFactor(int newFactor) {
+        this.targetMergePolicyFactor = newFactor;
+    }
+
     private void cancelJob() {
         if (scheduler.get() != null) {
-            scheduler.get().remove(DATA_LIFECYCLE_JOB_NAME);
+            scheduler.get().remove(LIFECYCLE_JOB_NAME);
             scheduledJob = null;
         }
     }
@@ -601,7 +698,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
 
         assert scheduler.get() != null : "scheduler should be available";
-        scheduledJob = new SchedulerEngine.Job(DATA_LIFECYCLE_JOB_NAME, new TimeValueSchedule(pollInterval));
+        scheduledJob = new SchedulerEngine.Job(LIFECYCLE_JOB_NAME, new TimeValueSchedule(pollInterval));
         scheduler.get().add(scheduledJob);
     }
 
@@ -628,14 +725,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         ClusterState execute(ClusterState currentState) throws Exception {
             logger.debug("Updating cluster state with force merge complete marker for {}", targetIndex);
             IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
-            Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             Map<String, String> newCustomMetadata = new HashMap<>();
             if (customMetadata != null) {
                 newCustomMetadata.putAll(customMetadata);
             }
             newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
             IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
-                DLM_CUSTOM_INDEX_METADATA_KEY,
+                LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                 newCustomMetadata
             ).build();
             Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();

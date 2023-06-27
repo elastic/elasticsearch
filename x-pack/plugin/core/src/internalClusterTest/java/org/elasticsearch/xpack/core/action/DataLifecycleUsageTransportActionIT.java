@@ -63,7 +63,7 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
             clusterStateBuilder.metadata(metadataBuilder);
             return clusterStateBuilder.build();
         });
-        updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), (String) null));
+        updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), (String) null));
     }
 
     @SuppressWarnings("unchecked")
@@ -75,7 +75,7 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
         AtomicLong maxRetention = new AtomicLong(Long.MIN_VALUE);
         boolean useDefaultRolloverConfig = randomBoolean();
         if (useDefaultRolloverConfig == false) {
-            updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=33"));
+            updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=33"));
         }
         /*
          * We now add a number of simulated data streams to the cluster state. Some have lifecycles, some don't. The ones with lifecycles

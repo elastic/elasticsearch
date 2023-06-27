@@ -116,7 +116,9 @@ import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesActio
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.TransportGetAliasesAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -250,10 +252,16 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.GetSynonymRuleAction;
 import org.elasticsearch.action.synonyms.GetSynonymsAction;
+import org.elasticsearch.action.synonyms.GetSynonymsSetsAction;
+import org.elasticsearch.action.synonyms.PutSynonymRuleAction;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.action.synonyms.TransportDeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportGetSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportGetSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportGetSynonymsSetsAction;
+import org.elasticsearch.action.synonyms.TransportPutSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportPutSynonymsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -386,6 +394,7 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
+import org.elasticsearch.rest.action.admin.indices.RestReloadAnalyzersAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
@@ -439,7 +448,10 @@ import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestGetSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
+import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.tasks.Task;
@@ -683,6 +695,7 @@ public class ActionModule extends AbstractModule {
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
+        actions.register(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class);
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
         actions.register(DeleteIndexTemplateAction.INSTANCE, TransportDeleteIndexTemplateAction.class);
@@ -787,6 +800,9 @@ public class ActionModule extends AbstractModule {
             actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
             actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
             actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
+            actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
+            actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
+            actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -871,6 +887,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetSettingsAction());
 
         registerHandler.accept(new RestAnalyzeAction());
+        registerHandler.accept(new RestReloadAnalyzersAction());
         registerHandler.accept(new RestGetIndexTemplateAction());
         registerHandler.accept(new RestPutIndexTemplateAction());
         registerHandler.accept(new RestDeleteIndexTemplateAction());
@@ -1002,6 +1019,9 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestPutSynonymsAction());
             registerHandler.accept(new RestGetSynonymsAction());
             registerHandler.accept(new RestDeleteSynonymsAction());
+            registerHandler.accept(new RestGetSynonymsSetsAction());
+            registerHandler.accept(new RestPutSynonymRuleAction());
+            registerHandler.accept(new RestGetSynonymRuleAction());
         }
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 
@@ -49,8 +50,8 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     @Override
     public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
         throws IOException {
-        Version versionCreated = indexSettings.getIndexVersionCreated();
-        if (Version.CURRENT.equals(versionCreated) == false) {
+        IndexVersion versionCreated = indexSettings.getIndexVersionCreated();
+        if (IndexVersion.current().equals(versionCreated) == false) {
             return super.get(indexSettings, environment, name, settings);
         } else {
             return current;

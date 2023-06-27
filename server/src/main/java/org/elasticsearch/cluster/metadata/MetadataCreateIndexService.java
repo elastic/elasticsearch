@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -1042,9 +1041,9 @@ public class MetadataCreateIndexService {
         }
 
         if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
-            final DiscoveryNodes nodes = currentState.nodes();
-            final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
-            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
+            DiscoveryNodes nodes = currentState.nodes();
+            IndexVersion createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion.toVersion());
         }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));

@@ -34,6 +34,7 @@ dependencies {
   api project(":libs:elasticsearch-plugin-api")
   api project(":libs:elasticsearch-plugin-analysis-api")
   api project(':libs:elasticsearch-grok')
+  api project(":libs:elasticsearch-tdigest")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
   // no compile dependency by server, but server defines security policy for this codebase so it i>
@@ -57,8 +58,6 @@ dependencies {
   api project(":libs:elasticsearch-cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
-  // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
@@ -249,6 +248,7 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /log4j-.*/, to: 'log4j'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
         it.group.startsWith('org.elasticsearch') == false ||
                 // keep the following org.elasticsearch jars in

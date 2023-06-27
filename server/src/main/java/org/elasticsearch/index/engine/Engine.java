@@ -756,6 +756,13 @@ public abstract class Engine implements Closeable {
     public abstract boolean isTranslogSyncNeeded();
 
     /**
+     * Whether search idleness may be allowed to be considered for skipping a scheduled refresh.
+     */
+    public boolean allowSearchIdleOptimization() {
+        return true;
+    }
+
+    /**
      * Ensures that the location has been written to the underlying storage.
      */
     public abstract void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener);
@@ -1914,12 +1921,12 @@ public abstract class Engine implements Closeable {
 
     /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
-     * This operation will close the engine if the recovery fails.
+     * This operation will close the engine if the recovery fails. Use EngineTestCase#recoverFromTranslog for test usages
      *
      * @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    // TODO move this blocking implementation into tests (adding a timeout) and make all the production usages fully async
+    // TODO make all the production usages fully async
     public final void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         final var future = new PlainActionFuture<Void>();
         recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future);

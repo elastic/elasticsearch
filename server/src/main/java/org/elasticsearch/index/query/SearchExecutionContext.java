@@ -19,17 +19,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -89,7 +90,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
-    private SearchLookup lookup = null;
+    private SearchLookup lookup;
+    private ClusterSettings clusterSettings;
 
     private final int shardId;
     private final int shardRequestIndex;
@@ -108,6 +110,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
+        ClusterSettings clusterSettings,
         BitsetFilterCache bitsetFilterCache,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
@@ -129,6 +132,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             shardId,
             shardRequestIndex,
             indexSettings,
+            clusterSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
             mapperService,
@@ -157,6 +161,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardId,
             source.shardRequestIndex,
             source.indexSettings,
+            source.clusterSettings,
             source.bitsetFilterCache,
             source.indexFieldDataLookup,
             source.mapperService,
@@ -181,6 +186,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
+        ClusterSettings clusterSettings,
         BitsetFilterCache bitsetFilterCache,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
@@ -222,6 +228,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
+        this.clusterSettings = clusterSettings;
     }
 
     private void reset() {
@@ -464,17 +471,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return nestedScope;
     }
 
-    public Version indexVersionCreated() {
+    public IndexVersion indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
-    }
-
-    /**
-     *  Given an index pattern, checks whether it matches against the current shard. The pattern
-     *  may represent a fully qualified index name if the search targets remote shards.
-     */
-    public boolean indexMatches(String pattern) {
-        assert indexNameMatcher != null;
-        return indexNameMatcher.test(pattern);
     }
 
     public boolean indexSortedOnField(String field) {
@@ -608,11 +606,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the index settings for this context. This might return null if the
-     * context has not index scope.
+     * Returns the cluster settings for this context. This might return null if the
+     * context has not cluster scope.
      */
-    public IndexSettings getIndexSettings() {
-        return indexSettings;
+    public ClusterSettings getClusterSettings() {
+        return clusterSettings;
     }
 
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,

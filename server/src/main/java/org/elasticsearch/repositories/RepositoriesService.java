@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -675,6 +676,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         List<RepositoryStatsSnapshot> repositoriesStats = new ArrayList<>(archivedRepoStats);
         repositoriesStats.addAll(activeRepoStats);
         return repositoriesStats;
+    }
+
+    public RepositoriesStats getRepositoriesThrottlingStats() {
+        return new RepositoriesStats(
+            repositories.values()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        r -> r.getMetadata().name(),
+                        r -> new RepositoriesStats.ThrottlingStats(r.getRestoreThrottleTimeInNanos(), r.getSnapshotThrottleTimeInNanos())
+                    )
+                )
+        );
     }
 
     private List<RepositoryStatsSnapshot> getRepositoryStatsForActiveRepositories() {

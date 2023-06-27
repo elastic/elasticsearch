@@ -189,9 +189,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             (_shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(
                 _shardId,
                 retentionLeases,
-                ActionListener.wrap(r -> {}, e -> {
-                    throw new AssertionError("failed to background sync retention lease", e);
-                })
+                ActionTestUtils.assertNoFailureListener(r -> {})
             )
         );
 
@@ -944,8 +942,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final Translog.Location location;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             location = TransportShardBulkAction.performOnReplica(request, replica);
+            TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
 
     /**

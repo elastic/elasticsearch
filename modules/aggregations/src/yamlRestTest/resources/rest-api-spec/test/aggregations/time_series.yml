@@ -149,6 +149,60 @@ setup:
   - match: { aggregations.ts.buckets.2.key: { "key": "foo" } }
 
 ---
+"Score test filter some":
+  - skip:
+      version: " - 8.8.99"
+      reason: Time series min score fixed in 8.9
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            function_score:
+              field_value_factor:
+                field: "val"
+                factor: 0.1
+                missing: 1
+          size: 0
+          min_score: 0.3
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+
+  - match: { hits.total.value: 6 }
+  - length: { aggregations: 1 }
+
+  - length: { aggregations.ts.buckets: 3 }
+
+---
+"Score test filter all":
+  - skip:
+      version: " - 8.8.99"
+      reason: Time series min score fixed in 8.9
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2021-01-01T00:10:00Z"
+          size: 0
+          min_score: 100
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+
+  - match: { hits.total.value: 0 }
+  - length: { aggregations: 1 }
+  - length: { aggregations.ts.buckets: 0 }
+
+
+---
 "Sampler aggregation with nested time series aggregation failure":
   - skip:
       version: " - 8.6.99"
@@ -236,3 +290,20 @@ setup:
                     sum:
                       sum:
                         field: val
+---
+"Configure with no synthetic source":
+  - skip:
+      version: " - 8.8.99"
+      reason: "Error message fix in 8.9"
+
+  - do:
+      catch: '/Time series indices only support synthetic source./'
+      indices.create:
+        index: tsdb_error
+        body:
+          settings:
+            mode: time_series
+            routing_path: [key]
+          mappings:
+            _source:
+              enabled: false

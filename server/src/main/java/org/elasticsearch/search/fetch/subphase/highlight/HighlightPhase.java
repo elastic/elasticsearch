@@ -161,11 +161,7 @@ public class HighlightPhase implements FetchSubPhase {
         return new FieldContext(storedFieldsSpec, builders);
     }
 
-    private Query getHighlightQuery(
-        FetchContext context,
-        SearchHighlightContext.Field field,
-        MappedFieldType fieldType
-    ) {
+    private Query getHighlightQuery(FetchContext context, SearchHighlightContext.Field field, MappedFieldType fieldType) {
         if (fieldType instanceof ConstantFieldType) {
             QueryBuilder originalQuery = context.originalQueryBuilder();
             if (originalQuery != null) {

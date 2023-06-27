@@ -32,6 +32,9 @@ import java.util.Objects;
  * - through an optional <code>post_filter</code> that is applied to the top hits collection
  * - through an optional <code>min_score</code> threshold, which is applied to both the top hits as well as aggs.
  * Supports also terminating the collection after a certain number of documents have been collected (<code>terminate_after</code>).
+ *
+ * When top docs as well as aggs are collected (because both collectors were provided), skipping low scoring hits via
+ * {@link Scorable#setMinCompetitiveScore(float)} is not supported for either of the collectors.
  */
 final class QueryPhaseCollector implements Collector {
     private final Collector aggsCollector;
@@ -79,9 +82,10 @@ final class QueryPhaseCollector implements Collector {
             } else {
                 scoreMode = ScoreMode.COMPLETE_NO_SCORES;
             }
-            // TODO for aggs that return TOP_DOCS, score mode becomes exhaustive unless top score doc agrees on the score mode
+            // TODO for aggs that return TOP_DOCS, score mode becomes exhaustive unless top docs collector agrees on the score mode
         }
         if (minScore != null) {
+            // TODO if we had TOP_DOCS, shouldn't we return TOP_DOCS_WITH_SCORES instead of COMPLETE?
             scoreMode = scoreMode == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
         }
         return scoreMode;
@@ -97,8 +101,8 @@ final class QueryPhaseCollector implements Collector {
     private boolean shouldCollectTopDocs(int doc, Scorable scorer, Bits postFilterBits) throws IOException {
         if (minScore == null || scorer.score() >= minScore) {
             if (postFilterBits == null || postFilterBits.get(doc)) {
-                // TODO terminate_after is purposely applied after post_filter, yet it is weird as it terminates aggs collection as well
-                // based on number of filtered top hits that have been collected. This may be something that we want to address.
+                // terminate_after is purposely applied after post_filter, and terminates aggs collection based on number of filtered
+                // top hits that have been collected. Strange feature, but that has been behaviour for a long time.
                 if (terminateAfter > 0 && ++numCollected > terminateAfter) {
                     terminatedAfter = true;
                     throw new CollectionTerminatedException();
@@ -215,13 +219,13 @@ final class QueryPhaseCollector implements Collector {
                     try {
                         topDocsLeafCollector.collect(doc);
                     } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                        topDocsLeafCollector = null;
                         // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
                         // collector).
                         // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
                         if (terminateAfter == 0) {
                             throw e;
                         }
-                        topDocsLeafCollector = null;
                     }
                 }
             }
@@ -246,7 +250,6 @@ final class QueryPhaseCollector implements Collector {
                 scorer = ScoreCachingWrappingScorer.wrap(scorer);
             }
             scorer = new FilterScorable(scorer) {
-                // TODO aggs can also skip non competitive hits
                 @Override
                 public void setMinCompetitiveScore(float minScore) {
                     // Ignore calls to setMinCompetitiveScore so that if the top docs collector
@@ -270,6 +273,7 @@ final class QueryPhaseCollector implements Collector {
                     try {
                         topDocsLeafCollector.collect(doc);
                     } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                        topDocsLeafCollector = null;
                         // top docs collector does not need this segment, but the aggs collector may.
                         if (aggsLeafCollector == null) {
                             // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
@@ -279,7 +283,6 @@ final class QueryPhaseCollector implements Collector {
                                 throw e;
                             }
                         }
-                        topDocsLeafCollector = null;
                     }
                 }
             }
@@ -289,6 +292,7 @@ final class QueryPhaseCollector implements Collector {
                     try {
                         aggsLeafCollector.collect(doc);
                     } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
+                        aggsLeafCollector = null;
                         // aggs collector does not need this segment, but the top docs collector may.
                         if (topDocsLeafCollector == null) {
                             // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
@@ -298,7 +302,6 @@ final class QueryPhaseCollector implements Collector {
                                 throw e;
                             }
                         }
-                        aggsLeafCollector = null;
                     }
                 }
             }
@@ -306,9 +309,12 @@ final class QueryPhaseCollector implements Collector {
 
         @Override
         public DocIdSetIterator competitiveIterator() throws IOException {
+            // we expose the competitive iterator only when one of the two sub-leaf collectors has early terminated
             if (topDocsLeafCollector == null) {
-                // we expose the aggs competitive iterator only when the top docs collector early terminated its collection
                 return aggsLeafCollector.competitiveIterator();
+            }
+            if (aggsLeafCollector == null) {
+                return topDocsLeafCollector.competitiveIterator();
             }
             return null;
         }

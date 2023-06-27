@@ -148,7 +148,6 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
         return new QueryProfileShardResult(
             profileResults,
             totalRewriteTime,
-            // TODO is this the right REASON for this type of collection? It refers to multi collector which is not used here?
             new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults)
         );
     }

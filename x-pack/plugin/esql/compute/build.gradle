@@ -48,7 +48,7 @@ tasks.named('stringTemplates').configure {
   var intProperties      = prop("Int", "int", "INT", "Integer.BYTES")
   var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
   var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "BytesRef.BYTES")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF")
   var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Boolean.BYTES")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
@@ -351,5 +351,26 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  arrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleArrayState.java"
+  }
+  File multivalueDedupeInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/X-MultivalueDedupe.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  multivalueDedupeInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  multivalueDedupeInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  multivalueDedupeInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeDouble.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  multivalueDedupeInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeBytesRef.java"
   }
 }

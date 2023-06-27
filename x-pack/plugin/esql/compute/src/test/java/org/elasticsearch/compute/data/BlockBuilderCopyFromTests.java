@@ -95,7 +95,8 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
 
     private Block randomBlock() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        return BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, minValuesPerPosition, maxValuesPerPosition).block();
+        return BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, minValuesPerPosition, maxValuesPerPosition, 0, 0)
+            .block();
     }
 
     private Block randomFilteredBlock() {

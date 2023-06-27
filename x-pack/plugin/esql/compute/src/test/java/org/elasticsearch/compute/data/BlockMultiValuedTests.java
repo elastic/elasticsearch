@@ -45,18 +45,12 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testMultiValued() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
+        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10, 0, 0);
 
         assertThat(b.block().getPositionCount(), equalTo(positionCount));
         assertThat(b.block().getTotalValueCount(), equalTo(b.valueCount()));
-        for (int r = 0; r < positionCount; r++) {
-            if (b.values().get(r) == null) {
-                assertThat(b.block().getValueCount(r), equalTo(0));
-                assertThat(b.block().isNull(r), equalTo(true));
-            } else {
-                assertThat(b.block().getValueCount(r), equalTo(b.values().get(r).size()));
-                assertThat(BasicBlockTests.valuesAtPositions(b.block(), r, r + 1).get(0), equalTo(b.values().get(r)));
-            }
+        for (int p = 0; p < positionCount; p++) {
+            BlockTestUtils.assertPositionValues(b.block(), p, equalTo(b.values().get(p)));
         }
 
         assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
@@ -64,7 +58,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testExpand() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
+        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 100, 0, 0);
         assertExpanded(b.block());
     }
 
@@ -102,7 +96,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     private void assertFiltered(boolean all, boolean shuffled) {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
+        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         int[] positions = randomFilterPositions(b.block(), all, shuffled);
         Block filtered = b.block().filter(positions);
 
@@ -163,7 +157,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     private void assertFilteredThenExpanded(boolean all, boolean shuffled) {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
+        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         int[] positions = randomFilterPositions(b.block(), all, shuffled);
         assertExpanded(b.block().filter(positions));
     }

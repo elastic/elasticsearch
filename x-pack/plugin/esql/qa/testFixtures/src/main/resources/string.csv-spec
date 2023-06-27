@@ -232,6 +232,19 @@ ROW a=["foo", "zoo", "bar"]
 // end::mv_count-result[]
 ;
 
+mvDedupe
+// tag::mv_dedupe[]
+ROW a=["foo", "foo", "bar", "foo"]
+| EVAL dedupe_a = MV_DEDUPE(a)
+// end::mv_dedupe[]
+;
+
+// tag::mv_dedupe-result[]
+                   a:keyword | dedupe_a:keyword
+["foo", "foo", "bar", "foo"] | ["foo", "bar"]
+// end::mv_dedupe-result[]
+;
+
 mvJoin
 // tag::mv_concat[]
 ROW a=["foo", "zoo", "bar"]

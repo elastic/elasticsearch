@@ -381,10 +381,10 @@ public class BlockHashTests extends ESTestCase {
             ordsAndKeys.ords,
             new long[] { 0 },
             new long[] { 0, 1 },
-            new long[] { 1, 0 },
+            new long[] { 0, 1 },  // Order is not preserved
             new long[] { 1 },
             null,
-            new long[] { 1, 0 }
+            new long[] { 0, 1 }
         );
         assertKeys(ordsAndKeys.keys, false, true);
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));

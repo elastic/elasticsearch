@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +22,7 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
 import java.io.IOException;
 
@@ -54,38 +54,8 @@ final class BytesRefBlockHash extends BlockHash {
         return new LongArrayVector(groups, vector.getPositionCount());
     }
 
-    private static final long[] EMPTY = new long[0];
-
     private LongBlock add(BytesRefBlock block) {
-        long[] seen = EMPTY;
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getTotalValueCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
-            }
-            int start = block.getFirstValueIndex(p);
-            int count = block.getValueCount(p);
-            if (count == 1) {
-                builder.appendLong(hashOrdToGroup(bytesRefHash.add(block.getBytesRef(start, bytes))));
-                continue;
-            }
-            if (seen.length < count) {
-                seen = new long[ArrayUtil.oversize(count, Long.BYTES)];
-            }
-            builder.beginPositionEntry();
-            // TODO if we know the elements were in sorted order we wouldn't need an array at all.
-            // TODO we could also have an assertion that there aren't any duplicates on the block.
-            // Lucene has them in ascending order without duplicates
-            int end = start + count;
-            int nextSeen = 0;
-            for (int offset = start; offset < end; offset++) {
-                long ord = bytesRefHash.add(block.getBytesRef(offset, bytes));
-                nextSeen = addOrd(builder, seen, nextSeen, ord);
-            }
-            builder.endPositionEntry();
-        }
-        return builder.build();
+        return new MultivalueDedupeBytesRef(block).hash(bytesRefHash);
     }
 
     protected static int addOrd(LongBlock.Builder builder, long[] seen, int nextSeen, long ord) {

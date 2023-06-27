@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
 /**
  * Assigns group {@code 0} to the first of {@code true} or{@code false}
@@ -21,9 +22,7 @@ import org.elasticsearch.compute.data.Page;
  */
 final class BooleanBlockHash extends BlockHash {
     private final int channel;
-
-    private boolean seenFalse;
-    private boolean seenTrue;
+    private final boolean[] everSeen = new boolean[2];
 
     BooleanBlockHash(int channel) {
         this.channel = channel;
@@ -42,72 +41,22 @@ final class BooleanBlockHash extends BlockHash {
     private LongVector add(BooleanVector vector) {
         long[] groups = new long[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = ord(vector.getBoolean(i));
+            groups[i] = MultivalueDedupeBoolean.hashOrd(everSeen, vector.getBoolean(i));
         }
         return new LongArrayVector(groups, groups.length);
     }
 
     private LongBlock add(BooleanBlock block) {
-        boolean seenTrueThisPosition = false;
-        boolean seenFalseThisPosition = false;
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getTotalValueCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
-            }
-            int start = block.getFirstValueIndex(p);
-            int count = block.getValueCount(p);
-            if (count == 1) {
-                builder.appendLong(ord(block.getBoolean(start)));
-                continue;
-            }
-            seenTrueThisPosition = false;
-            seenFalseThisPosition = false;
-            builder.beginPositionEntry();
-            int end = start + count;
-            for (int offset = start; offset < end; offset++) {
-                if (block.getBoolean(offset)) {
-                    if (false == seenTrueThisPosition) {
-                        builder.appendLong(1);
-                        seenTrueThisPosition = true;
-                        seenTrue = true;
-                        if (seenFalseThisPosition) {
-                            break;
-                        }
-                    }
-                } else {
-                    if (false == seenFalseThisPosition) {
-                        builder.appendLong(0);
-                        seenFalseThisPosition = true;
-                        seenFalse = true;
-                        if (seenTrueThisPosition) {
-                            break;
-                        }
-                    }
-                }
-            }
-            builder.endPositionEntry();
-        }
-        return builder.build();
-    }
-
-    private long ord(boolean b) {
-        if (b) {
-            seenTrue = true;
-            return 1;
-        }
-        seenFalse = true;
-        return 0;
+        return new MultivalueDedupeBoolean(block).hash(everSeen);
     }
 
     @Override
     public BooleanBlock[] getKeys() {
         BooleanVector.Builder builder = BooleanVector.newVectorBuilder(2);
-        if (seenFalse) {
+        if (everSeen[0]) {
             builder.appendBoolean(false);
         }
-        if (seenTrue) {
+        if (everSeen[1]) {
             builder.appendBoolean(true);
         }
         return new BooleanBlock[] { builder.build().asBlock() };
@@ -116,10 +65,10 @@ final class BooleanBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         IntVector.Builder builder = IntVector.newVectorBuilder(2);
-        if (seenFalse) {
+        if (everSeen[0]) {
             builder.appendInt(0);
         }
-        if (seenTrue) {
+        if (everSeen[1]) {
             builder.appendInt(1);
         }
         return builder.build();
@@ -132,6 +81,6 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return "BooleanBlockHash{channel=" + channel + ", seenFalse=" + seenFalse + ", seenTrue=" + seenTrue + '}';
+        return "BooleanBlockHash{channel=" + channel + ", seenFalse=" + everSeen[0] + ", seenTrue=" + everSeen[1] + '}';
     }
 }

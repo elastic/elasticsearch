@@ -264,3 +264,10 @@ emp_no:integer |salary_change.int:integer
 10030          | -0
 10030          | -0
 ;
+
+mvDedupe
+row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
+
+   a:integer | da:integer
+[1, 2, 2, 3] | [1, 2, 3]
+;

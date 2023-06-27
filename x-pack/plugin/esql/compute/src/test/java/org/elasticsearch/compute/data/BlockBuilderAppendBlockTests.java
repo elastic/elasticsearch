@@ -70,7 +70,15 @@ public class BlockBuilderAppendBlockTests extends ESTestCase {
 
     public void testRandom() {
         ElementType elementType = randomFrom(ElementType.INT, ElementType.BYTES_REF, ElementType.BOOLEAN);
-        Block block = BasicBlockTests.randomBlock(elementType, randomIntBetween(1, 1024), randomBoolean(), 0, between(1, 16)).block();
+        Block block = BasicBlockTests.randomBlock(
+            elementType,
+            randomIntBetween(1, 1024),
+            randomBoolean(),
+            0,
+            between(1, 16),
+            0,
+            between(0, 16)
+        ).block();
         randomlyDivideAndMerge(block);
     }
 

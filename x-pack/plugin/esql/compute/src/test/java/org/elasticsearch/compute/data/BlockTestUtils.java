@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,8 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 public class BlockTestUtils {
     /**
@@ -79,6 +82,19 @@ public class BlockTestUtils {
     public static void readInto(List<Object> values, Block block) {
         for (int p = 0; p < block.getPositionCount(); p++) {
             values.add(toJavaObject(block, p));
+        }
+    }
+
+    /**
+     * Assert that the values at a particular position match the provided {@link Matcher}.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> void assertPositionValues(Block b, int p, Matcher<T> valuesMatcher) {
+        List<Object> value = BasicBlockTests.valuesAtPositions(b, p, p + 1).get(0);
+        assertThat((T) value, valuesMatcher);
+        if (value == null) {
+            assertThat(b.getValueCount(p), equalTo(0));
+            assertThat(b.isNull(p), equalTo(true));
         }
     }
 }

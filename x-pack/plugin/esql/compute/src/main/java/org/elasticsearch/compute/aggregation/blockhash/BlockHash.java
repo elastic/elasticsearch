@@ -87,7 +87,7 @@ public abstract sealed class BlockHash implements Releasable //
         };
     }
 
-    protected static long hashOrdToGroup(long ord) {
+    public static long hashOrdToGroup(long ord) {
         if (ord < 0) { // already seen
             return -1 - ord;
         }

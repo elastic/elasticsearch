@@ -37,8 +37,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
             protected Page createPage(int positionOffset, int length) {
                 idx += length;
                 return new Page(
-                    randomBlock(ElementType.INT, length, true, 1, 10).block(),
-                    randomBlock(ElementType.INT, length, false, 1, 10).block()
+                    randomBlock(ElementType.INT, length, true, 1, 10, 0, 0).block(),
+                    randomBlock(ElementType.INT, length, false, 1, 10, 0, 0).block()
                 );
             }
         };

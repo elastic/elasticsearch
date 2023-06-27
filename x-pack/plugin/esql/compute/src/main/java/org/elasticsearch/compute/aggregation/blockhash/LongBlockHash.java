@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.IntVector;
@@ -15,6 +14,7 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.MultivalueDedupeLong;
 
 final class LongBlockHash extends BlockHash {
     private final int channel;
@@ -46,45 +46,7 @@ final class LongBlockHash extends BlockHash {
     private static final long[] EMPTY = new long[0];
 
     private LongBlock add(LongBlock block) {
-        long[] seen = EMPTY;
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getTotalValueCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
-            }
-            int start = block.getFirstValueIndex(p);
-            int count = block.getValueCount(p);
-            if (count == 1) {
-                builder.appendLong(hashOrdToGroup(longHash.add(block.getLong(start))));
-                continue;
-            }
-            if (seen.length < count) {
-                seen = new long[ArrayUtil.oversize(count, Long.BYTES)];
-            }
-            builder.beginPositionEntry();
-            // TODO if we know the elements were in sorted order we wouldn't need an array at all.
-            // TODO we could also have an assertion that there aren't any duplicates on the block.
-            // Lucene has them in ascending order without duplicates
-            int end = start + count;
-            int nextSeen = 0;
-            for (int offset = start; offset < end; offset++) {
-                nextSeen = add(builder, seen, nextSeen, block.getLong(offset));
-            }
-            builder.endPositionEntry();
-        }
-        return builder.build();
-    }
-
-    private int add(LongBlock.Builder builder, long[] seen, int nextSeen, long value) {
-        for (int j = 0; j < nextSeen; j++) {
-            if (seen[j] == value) {
-                return nextSeen;
-            }
-        }
-        seen[nextSeen] = value;
-        builder.appendLong(hashOrdToGroup(longHash.add(value)));
-        return nextSeen + 1;
+        return new MultivalueDedupeLong(block).hash(longHash);
     }
 
     @Override

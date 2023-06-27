@@ -1,0 +1,14 @@
+[[esql-mv_dedupe]]
+=== `MV_DEDUPE`
+Removes duplicates from a multivalued field. For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_dedupe]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_dedupe-result]
+|===
+
+NOTE: `MV_DEDUPE` may, but won't always, sort the values in the field.

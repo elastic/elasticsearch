@@ -745,18 +745,21 @@ public class BasicBlockTests extends ESTestCase {
         int positionCount,
         boolean nullAllowed,
         int minValuesPerPosition,
-        int maxValuesPerPosition
+        int maxValuesPerPosition,
+        int minDupsPerPosition,
+        int maxDupsPerPosition
     ) {
         List<List<Object>> values = new ArrayList<>();
         var builder = elementType.newBlockBuilder(positionCount);
         for (int p = 0; p < positionCount; p++) {
-            if (nullAllowed && randomBoolean()) {
+            int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
+            if (valueCount == 0 || nullAllowed && randomBoolean()) {
                 values.add(null);
                 builder.appendNull();
                 continue;
             }
-            int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
-            if (valueCount != 1) {
+            int dupCount = between(minDupsPerPosition, maxDupsPerPosition);
+            if (valueCount != 1 || dupCount != 0) {
                 builder.beginPositionEntry();
             }
             List<Object> valuesAtPosition = new ArrayList<>();
@@ -791,7 +794,10 @@ public class BasicBlockTests extends ESTestCase {
                     default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                 }
             }
-            if (valueCount != 1) {
+            for (int i = 0; i < dupCount; i++) {
+                BlockTestUtils.append(builder, randomFrom(valuesAtPosition));
+            }
+            if (valueCount != 1 || dupCount != 0) {
                 builder.endPositionEntry();
             }
         }

@@ -60,7 +60,7 @@ import java.util.stream.Stream;
 @State(Scope.Thread)
 @Fork(1)
 public class AggregatorBenchmark {
-    private static final int BLOCK_LENGTH = 8 * 1024;
+    static final int BLOCK_LENGTH = 8 * 1024;
     private static final int OP_COUNT = 1024;
     private static final int GROUPS = 5;
 

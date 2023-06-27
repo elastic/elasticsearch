@@ -193,3 +193,10 @@ emp_no:integer |salary_change:double
 10030          | -0.4
 10030          | -0.4
 ;
+
+mvDedupe
+row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
+
+       a:double | da:double
+[1.1, 2.1, 2.1] | [1.1, 2.1]
+;

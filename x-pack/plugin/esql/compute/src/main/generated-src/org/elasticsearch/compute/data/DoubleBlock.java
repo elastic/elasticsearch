@@ -184,6 +184,8 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
+        // TODO boolean containsMvDups();
+
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.

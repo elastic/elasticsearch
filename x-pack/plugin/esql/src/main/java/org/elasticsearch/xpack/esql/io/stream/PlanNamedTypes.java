@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.Abstra
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -305,7 +306,8 @@ public final class PlanNamedTypes {
             // Multivalue functions
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvJoin, PlanNamedTypes::readMvJoin),
+            of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvConcat, PlanNamedTypes::readMvConcat),
+            of(ScalarFunction.class, MvDedupe.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
@@ -1166,6 +1168,7 @@ public final class PlanNamedTypes {
     static final Map<String, BiFunction<Source, Expression, AbstractMultivalueFunction>> MV_CTRS = Map.ofEntries(
         entry(name(MvAvg.class), MvAvg::new),
         entry(name(MvCount.class), MvCount::new),
+        entry(name(MvDedupe.class), MvDedupe::new),
         entry(name(MvMax.class), MvMax::new),
         entry(name(MvMedian.class), MvMedian::new),
         entry(name(MvMin.class), MvMin::new),
@@ -1180,11 +1183,11 @@ public final class PlanNamedTypes {
         out.writeExpression(fn.field());
     }
 
-    static MvConcat readMvJoin(PlanStreamInput in) throws IOException {
+    static MvConcat readMvConcat(PlanStreamInput in) throws IOException {
         return new MvConcat(Source.EMPTY, in.readExpression(), in.readExpression());
     }
 
-    static void writeMvJoin(PlanStreamOutput out, MvConcat fn) throws IOException {
+    static void writeMvConcat(PlanStreamOutput out, MvConcat fn) throws IOException {
         out.writeExpression(fn.left());
         out.writeExpression(fn.right());
     }

@@ -27,7 +27,7 @@ public interface PublicSettingsFactory {
         } else if (factories.size() == 0) {
             return new DefaultPublicSettingsFactory();
         }
-        return factories.get(0);
+        return new DefaultPublicSettingsFactory();//factories.get(0); for the sake draft testing
     }
 
     class DefaultPublicSettingsFactory implements PublicSettingsFactory {

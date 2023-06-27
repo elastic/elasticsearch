@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -417,18 +416,20 @@ public class DiscoveryNodesTests extends ESTestCase {
         List<VersionInformation> observerVersions = List.of(
             new VersionInformation(Version.fromString("5.0.17"), IndexVersion.fromId(0), IndexVersion.fromId(5001799)),
             new VersionInformation(Version.fromString("2.0.1"), IndexVersion.fromId(1000099), IndexVersion.fromId(2000199)),
-            new VersionInformation(Version.fromString("1.6.0"), IndexVersion.fromId(0), IndexVersion.fromId(1060099)));
+            new VersionInformation(Version.fromString("1.6.0"), IndexVersion.fromId(0), IndexVersion.fromId(1060099))
+        );
 
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        for (int i=0; i<dataVersions.size(); i++) {
-            discoBuilder.add(DiscoveryNodeUtils.builder("data_" + i).version(dataVersions.get(i))
-                .roles(Set.of(randomBoolean() ? DiscoveryNodeRole.DATA_ROLE : DiscoveryNodeRole.MASTER_ROLE))
-                .build());
+        for (int i = 0; i < dataVersions.size(); i++) {
+            discoBuilder.add(
+                DiscoveryNodeUtils.builder("data_" + i)
+                    .version(dataVersions.get(i))
+                    .roles(Set.of(randomBoolean() ? DiscoveryNodeRole.DATA_ROLE : DiscoveryNodeRole.MASTER_ROLE))
+                    .build()
+            );
         }
-        for (int i=0; i<observerVersions.size(); i++) {
-            discoBuilder.add(DiscoveryNodeUtils.builder("observer_" + i).version(observerVersions.get(i))
-                .roles(Set.of())
-                .build());
+        for (int i = 0; i < observerVersions.size(); i++) {
+            discoBuilder.add(DiscoveryNodeUtils.builder("observer_" + i).version(observerVersions.get(i)).roles(Set.of()).build());
         }
         DiscoveryNodes build = discoBuilder.build();
 

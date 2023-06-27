@@ -80,6 +80,7 @@ public class HealthMetadataService {
         healthMetadataService.registerListeners();
         return healthMetadataService;
     }
+
     private void registerListeners() {
         if (this.enabled) {
             this.clusterService.addListener(clusterStateListener);

@@ -1662,10 +1662,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shard.ensureShardSearchActive(b -> l.onResponse(request));
             }
         });
-        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
-        // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
-        // adding a lot of overhead
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
+        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here.
+        // AliasFilters and other things may need to be rewritten on the data node, but not per individual shard.
+        // These are uncommon-cases but we are very efficient doing the rewrite here.
+        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getDataRewriteContext(request::nowInMillis), actionListener);
     }
 
     /**

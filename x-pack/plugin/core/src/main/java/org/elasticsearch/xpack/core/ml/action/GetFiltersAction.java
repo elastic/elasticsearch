@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -66,11 +65,6 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
         public QueryPage<MlFilter> getFilters() {
             return getResources();
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

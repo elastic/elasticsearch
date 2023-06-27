@@ -42,7 +42,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         SearchLookup searchLookup = mock(SearchLookup.class);
         when(searchExecutionContext.lookup()).thenReturn(searchLookup);
-        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.CURRENT);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         return searchExecutionContext;
     }
 

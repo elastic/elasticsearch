@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -178,39 +179,53 @@ public class DiscoveryNodeTests extends ESTestCase {
             transportAddress,
             Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
-            Version.CURRENT,
+            null,
             withExternalId ? "test-external-id" : null
         );
 
-        assertThat(Strings.toString(node, true, false), equalTo(Strings.format("""
-            {
-              "test-id" : {
-                "name" : "test-name",
-                "ephemeral_id" : "test-ephemeral-id",
-                "transport_address" : "%s",
-                "external_id" : "%s",
-                "attributes" : {
-                  "test-attr" : "val"
-                },
-                "roles" : [
-                  "data",
-                  "data_cold",
-                  "data_content",
-                  "data_frozen",
-                  "data_hot",
-                  "data_warm",
-                  "index",
-                  "ingest",
-                  "master",
-                  "ml",
-                  "remote_cluster_client",
-                  "search",
-                  "transform",
-                  "voting_only"
-                ],
-                "version" : "%s"
-              }
-            }""", transportAddress, withExternalId ? "test-external-id" : "test-name", Version.CURRENT)));
+        assertThat(
+            Strings.toString(node, true, false),
+            equalTo(
+                Strings.format(
+                    """
+                        {
+                          "test-id" : {
+                            "name" : "test-name",
+                            "ephemeral_id" : "test-ephemeral-id",
+                            "transport_address" : "%s",
+                            "external_id" : "%s",
+                            "attributes" : {
+                              "test-attr" : "val"
+                            },
+                            "roles" : [
+                              "data",
+                              "data_cold",
+                              "data_content",
+                              "data_frozen",
+                              "data_hot",
+                              "data_warm",
+                              "index",
+                              "ingest",
+                              "master",
+                              "ml",
+                              "remote_cluster_client",
+                              "search",
+                              "transform",
+                              "voting_only"
+                            ],
+                            "version" : "%s",
+                            "minIndexVersion" : "%s",
+                            "maxIndexVersion" : "%s"
+                          }
+                        }""",
+                    transportAddress,
+                    withExternalId ? "test-external-id" : "test-name",
+                    Version.CURRENT,
+                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersion.current()
+                )
+            )
+        );
     }
 
     public void testDiscoveryNodeToString() {

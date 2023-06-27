@@ -87,8 +87,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Default for using transpositions in fuzzy queries.*/
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
+    public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.MOST_FIELDS;
+
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
+
+    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersion.V_8_500_023;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -103,6 +107,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
     private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
     private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
 
     /** Query text to parse. */
     private final String queryText;
@@ -124,6 +129,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Further search settings needed by the ES specific query string parser only. */
     private Settings settings = new Settings();
+
+    private MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;
 
     /** Construct a new simple query with this query string. */
     public SimpleQueryStringBuilder(String queryText) {
@@ -160,6 +167,11 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
+        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+            this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
+        } else {
+            this.type = DEFAULT_TYPE;
+        }
     }
 
     @Override
@@ -182,6 +194,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
+        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+            type.writeTo(out);
+        }
     }
 
     /** Returns the text to parse the query from. */
@@ -379,6 +394,15 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return this;
     }
 
+    public SimpleQueryStringBuilder type(MultiMatchQueryBuilder.Type type) {
+        this.type = type == null ? DEFAULT_TYPE : type;
+        return this;
+    }
+
+    public MultiMatchQueryBuilder.Type type() {
+        return type;
+    }
+
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Settings newSettings = new Settings(settings);
@@ -411,6 +435,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             sqp = new SimpleQueryStringQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         }
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
+        sqp.setType(type);
         Query query = sqp.parse(queryText);
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
@@ -464,6 +489,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (settings.fuzzyTranspositions() != DEFAULT_FUZZY_TRANSPOSITIONS) {
             builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), settings.fuzzyTranspositions());
         }
+        if (this.type != DEFAULT_TYPE) {
+            builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -485,6 +513,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         int fuzzyPrefixLenght = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
         int fuzzyMaxExpansions = SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;
         boolean fuzzyTranspositions = SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS;
+        MultiMatchQueryBuilder.Type type = SimpleQueryStringBuilder.DEFAULT_TYPE;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -541,6 +570,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     fuzzyMaxExpansions = parser.intValue();
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
+                } else if (TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    type = MultiMatchQueryBuilder.Type.parse(parser.text(), parser.getDeprecationHandler());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -574,6 +605,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         qb.fuzzyPrefixLength(fuzzyPrefixLenght);
         qb.fuzzyMaxExpansions(fuzzyMaxExpansions);
         qb.fuzzyTranspositions(fuzzyTranspositions);
+        qb.type(type);
         return qb;
     }
 
@@ -584,7 +616,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags);
+        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags, type);
     }
 
     @Override
@@ -595,7 +627,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             && Objects.equals(queryText, other.queryText)
             && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
             && Objects.equals(settings, other.settings)
-            && (flags == other.flags);
+            && (flags == other.flags)
+            && Objects.equals(type, other.type);
     }
 
     @Override

@@ -15,7 +15,4 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(":test:framework")
-
-  // Required for RuleQueryBuilder
-  module ':modules:x-pack-ent-search'
 }

@@ -230,8 +230,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * <ol>
      *   <li> Stop listening for new HTTP connections, which means no new HttpChannel are added to the {@link #httpChannels} list.
      *   {@link #serverAcceptedChannel(HttpChannel)} will close any new channels to ensure this is true.
-     *   <li> Add the {@code Connection: close} response header to all new requests on existing httpChannels and close the HttpChannel
-     *    after the new request completes.
+     *   <li> Close the HttpChannel after a new request completes on all existing channels.
      *   <li> Close all idle channels.
      *   <li> If grace period is set, wait for all httpChannels to close via 2 for up to the configured grace period,
      *    {@link #shutdownGracePeriodMillis}.
@@ -404,12 +403,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         final RequestTrackingHttpChannel trackingChannel = httpChannels.get(httpChannel);
         final long startTime = threadPool.rawRelativeTimeInMillis();
         try {
-            if (trackingChannel != null) {
-                // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
-                // connection closed early
-                trackingChannel.incomingRequest();
+            // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
+            // connection closed early
+            if (trackingChannel == null) {
+                logger.debug("http channel [{}] missing tracking channel", httpChannel);
+                return;
             }
-            handleIncomingRequest(httpRequest, trackingChannel != null ? trackingChannel : httpChannel, httpRequest.getInboundException());
+            trackingChannel.incomingRequest();
+            handleIncomingRequest(httpRequest, trackingChannel, httpRequest.getInboundException());
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
             networkService.getHandlingTimeTracker().addHandlingTime(took);

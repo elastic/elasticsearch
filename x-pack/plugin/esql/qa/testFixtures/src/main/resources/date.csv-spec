@@ -281,6 +281,28 @@ hire_date:date           | hd:date
 1985-11-20T00:00:00.000Z | 1985-11-18T00:00:00.000Z
 ;
 
+now
+row a = now() | eval x = a == now(), y = substring(date_format(a, "yyyy"), 0, 2) | keep x, y;
+
+x:boolean  | y:keyword
+true       | 20
+; 
+
+born_before_today
+from employees | where birth_date < now() | sort emp_no asc | keep emp_no, birth_date| limit 1;
+
+emp_no:integer  | birth_date:date
+10001           | 1953-09-02T00:00:00Z
+;
+
+
+born_after_today
+from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth_date| limit 1;
+
+emp_no:integer  | birth_date:date
+;
+
+
 autoBucketMonthInAgg
 // tag::auto_bucket_in_agg[]
 FROM employees

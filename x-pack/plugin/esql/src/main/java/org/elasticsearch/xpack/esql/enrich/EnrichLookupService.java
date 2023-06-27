@@ -277,7 +277,7 @@ public class EnrichLookupService {
             this.matchType = in.readString();
             this.matchField = in.readString();
             this.inputPage = new Page(in);
-            PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry());
+            PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
 

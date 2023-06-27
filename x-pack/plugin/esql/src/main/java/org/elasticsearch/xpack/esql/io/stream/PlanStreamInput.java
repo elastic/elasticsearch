@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
@@ -43,19 +44,28 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
-    public PlanStreamInput(StreamInput streamInput, PlanNameRegistry registry, NamedWriteableRegistry namedWriteableRegistry) {
-        this(streamInput, registry, namedWriteableRegistry, DEFAULT_NAME_ID_FUNC);
+    private EsqlConfiguration configuration;
+
+    public PlanStreamInput(
+        StreamInput streamInput,
+        PlanNameRegistry registry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        EsqlConfiguration configuration
+    ) {
+        this(streamInput, registry, namedWriteableRegistry, configuration, DEFAULT_NAME_ID_FUNC);
     }
 
     public PlanStreamInput(
         StreamInput streamInput,
         PlanNameRegistry registry,
         NamedWriteableRegistry namedWriteableRegistry,
+        EsqlConfiguration configuration,
         LongFunction<NameId> nameIdFunction
     ) {
         super(streamInput, namedWriteableRegistry);
         this.registry = registry;
         this.nameIdFunction = nameIdFunction;
+        this.configuration = configuration;
     }
 
     NameId nameIdFromLongValue(long value) {
@@ -144,6 +154,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
             builder.add(reader.read(this));
         }
         return new AttributeSet(builder);
+    }
+
+    public EsqlConfiguration configuration() throws IOException {
+        return configuration;
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {

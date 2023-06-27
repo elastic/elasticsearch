@@ -59,7 +59,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         this.configuration = new EsqlConfiguration(in);
         this.shardIds = in.readList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry()).readPhysicalPlanNode();
+        this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
     }
 
     @Override

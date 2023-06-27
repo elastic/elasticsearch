@@ -30,6 +30,7 @@ these functions:
 * <<esql-mv_median>>
 * <<esql-mv_min>>
 * <<esql-mv_sum>>
+* <<esql-now>>
 * <<esql-pow>>
 * <<esql-round>>
 * <<esql-split>>
@@ -64,6 +65,7 @@ include::functions/mv_max.asciidoc[]
 include::functions/mv_median.asciidoc[]
 include::functions/mv_min.asciidoc[]
 include::functions/mv_sum.asciidoc[]
+include::functions/now.asciidoc[]
 include::functions/pow.asciidoc[]
 include::functions/round.asciidoc[]
 include::functions/split.asciidoc[]

@@ -80,7 +80,9 @@ public class EvaluatorImplementer {
 
         builder.addMethod(ctor());
         builder.addMethod(eval());
-        builder.addMethod(realEval(true));
+        if (processFunction.args.stream().anyMatch(x -> x instanceof FixedProcessFunctionArg == false)) {
+            builder.addMethod(realEval(true));
+        }
         builder.addMethod(realEval(false));
         builder.addMethod(toStringMethod());
         return builder.build();
@@ -108,10 +110,20 @@ public class EvaluatorImplementer {
     }
 
     private String invokeRealEval(boolean blockStyle) {
-        return "return eval(page.getPositionCount(), "
-            + processFunction.args.stream().map(a -> a.paramName(blockStyle)).filter(a -> a != null).collect(Collectors.joining(", "))
-            + ")"
-            + (processFunction.resultDataType(blockStyle).simpleName().endsWith("Vector") ? ".asBlock()" : "");
+        StringBuilder builder = new StringBuilder("return eval(page.getPositionCount()");
+        String params = processFunction.args.stream()
+            .map(a -> a.paramName(blockStyle))
+            .filter(a -> a != null)
+            .collect(Collectors.joining(", "));
+        if (params.length() > 0) {
+            builder.append(", ");
+            builder.append(params);
+        }
+        builder.append(")");
+        if (processFunction.resultDataType(blockStyle).simpleName().endsWith("Vector")) {
+            builder.append(".asBlock()");
+        }
+        return builder.toString();
     }
 
     private MethodSpec realEval(boolean blockStyle) {

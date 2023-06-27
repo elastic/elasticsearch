@@ -1,0 +1,8 @@
+[[esql-now]]
+=== `NOW`
+Returns current date and time.
+
+[source,esql]
+----
+ROW current_date = NOW()
+----

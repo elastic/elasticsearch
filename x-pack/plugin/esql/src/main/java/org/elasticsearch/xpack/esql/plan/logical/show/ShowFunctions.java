@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -53,12 +54,14 @@ public class ShowFunctions extends LeafPlan {
             if (constructors.length > 0) {
                 var params = constructors[0].getParameters(); // no multiple c'tors supported
                 for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
-                    if (i > 1) {
-                        sb.append(", ");
-                    }
-                    sb.append(params[i].getName());
-                    if (List.class.isAssignableFrom(params[i].getType())) {
-                        sb.append("...");
+                    if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                        if (i > 1) {
+                            sb.append(", ");
+                        }
+                        sb.append(params[i].getName());
+                        if (List.class.isAssignableFrom(params[i].getType())) {
+                            sb.append("...");
+                        }
                     }
                 }
             }

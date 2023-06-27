@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
@@ -154,7 +155,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         // read
         StreamInput in = ByteBufferStreamInput.wrap(BytesReference.toBytes(bso.bytes()));
         assertThat(in.readString(), equalTo("hello"));
-        var planStreamInput = new PlanStreamInput(in, planNameRegistry, SerializationTestUtils.writableRegistry());
+        var planStreamInput = new PlanStreamInput(in, planNameRegistry, SerializationTestUtils.writableRegistry(), EsqlTestUtils.TEST_CFG);
         var deser = (RowExec) planStreamInput.readPhysicalPlanNode();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deser);
         assertThat(in.readVInt(), equalTo(11_345));
@@ -558,6 +559,6 @@ public class PlanNamedTypesTests extends ESTestCase {
             ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
             SerializationTestUtils.writableRegistry()
         );
-        return new PlanStreamInput(in, planNameRegistry, SerializationTestUtils.writableRegistry());
+        return new PlanStreamInput(in, planNameRegistry, SerializationTestUtils.writableRegistry(), EsqlTestUtils.TEST_CFG);
     }
 }

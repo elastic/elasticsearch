@@ -55,7 +55,7 @@ public class SerializationTestUtils {
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, planNameRegistry, writableRegistry());
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, planNameRegistry, writableRegistry(), EsqlTestUtils.TEST_CFG);
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -274,7 +274,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     public void testInvalidCurrentVersion() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> super.createMapperService(IndexVersion.CURRENT, fieldMapping((b) -> {
+            () -> super.createMapperService(IndexVersion.current(), fieldMapping((b) -> {
                 b.field("type", getFieldName()).field("strategy", "recursive");
             }))
         );

@@ -90,7 +90,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     new VersionInformation(
                         Version.CURRENT.minimumCompatibilityVersion(),
                         IndexVersion.MINIMUM_COMPATIBLE,
-                        IndexVersion.CURRENT
+                        IndexVersion.current()
                     )
                 ),
                 handshakeConnectionProfile,

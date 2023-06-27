@@ -495,7 +495,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         var seedVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion(),
             IndexVersion.MINIMUM_COMPATIBLE,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));

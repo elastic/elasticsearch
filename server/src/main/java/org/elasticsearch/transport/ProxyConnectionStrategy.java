@@ -302,7 +302,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     new VersionInformation(
                         Version.CURRENT.minimumCompatibilityVersion(),
                         IndexVersion.MINIMUM_COMPATIBLE,
-                        IndexVersion.CURRENT
+                        IndexVersion.current()
                     )
                 );
 

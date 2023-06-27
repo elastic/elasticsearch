@@ -15,7 +15,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.LongAdder;
 
 import static java.util.Collections.emptyMap;
 
@@ -37,7 +36,6 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         timings = new HashMap<>(enumConstants.length, 1.0f);
         for (int i = 0; i < enumConstants.length; ++i) {
             Collection<Timer> listOfTimers = Collections.synchronizedCollection(new ArrayList<>());
-            listOfTimers.add(new Timer());
             timings.put(enumConstants[i], listOfTimers);
         }
     }
@@ -61,7 +59,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         Map<String, Long> map = Maps.newMapWithExpectedSize(timings.keySet().size() * 2);
         this.timings.forEach((timingType, timers) -> {
             map.put(timingType.toString(), timers.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum());
-            map.put(timingType.toString() + "_count", timers.stream().map(Timer::getCount).mapToLong(Long::valueOf).sum());
+            map.put(timingType + "_count", timers.stream().map(Timer::getCount).mapToLong(Long::valueOf).sum());
         });
         return Collections.unmodifiableMap(map);
     }
@@ -77,10 +75,10 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * @return the total sum of timers approximate times across all timing types
      */
     public final long toNodeTime() {
-        final LongAdder total = new LongAdder();
-        this.timings.forEach(
-            (timingType, timers) -> { total.add(timers.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum()); }
-        );
-        return total.longValue();
+        long total = 0;
+        for (Collection<Timer> timings : timings.values()) {
+            total += timings.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum();
+        }
+        return total;
     }
 }

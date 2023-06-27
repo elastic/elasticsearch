@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -68,12 +67,6 @@ public class DfsPhase {
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         Map<Term, TermStatistics> stats = new HashMap<>();
-        final Function<DfsTimingType, Timer> maybeStart = dtt -> {
-            if (profiler != null) {
-                return profiler.startTimer(dtt);
-            }
-            return null;
-        };
 
         IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
             @Override
@@ -81,7 +74,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                Timer timer = maybeStart.apply(DfsTimingType.TERM_STATISTICS);
+                Timer timer = maybeStartTimer(profiler, DfsTimingType.TERM_STATISTICS);
                 try {
                     TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
@@ -100,7 +93,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                Timer timer = maybeStart.apply(DfsTimingType.COLLECTION_STATISTICS);
+                Timer timer = maybeStartTimer(profiler, DfsTimingType.COLLECTION_STATISTICS);
                 try {
                     CollectionStatistics cs = super.collectionStatistics(field);
                     if (cs != null) {
@@ -120,7 +113,7 @@ public class DfsPhase {
         }
 
         try {
-            Timer timer = maybeStart.apply(DfsTimingType.CREATE_WEIGHT);
+            Timer timer = maybeStartTimer(profiler, DfsTimingType.CREATE_WEIGHT);
             try {
                 searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
             } finally {
@@ -131,7 +124,7 @@ public class DfsPhase {
             for (RescoreContext rescoreContext : context.rescore()) {
                 for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
                     final Query rewritten;
-                    timer = maybeStart.apply(DfsTimingType.REWRITE);
+                    timer = maybeStartTimer(profiler, DfsTimingType.REWRITE);
                     try {
                         rewritten = searcher.rewrite(parsedQuery.query());
                     } finally {
@@ -139,7 +132,7 @@ public class DfsPhase {
                             timer.stop();
                         }
                     }
-                    timer = maybeStart.apply(DfsTimingType.CREATE_WEIGHT);
+                    timer = maybeStartTimer(profiler, DfsTimingType.CREATE_WEIGHT);
                     try {
                         searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
                     } finally {
@@ -166,6 +159,17 @@ public class DfsPhase {
             .fieldStatistics(fieldStatistics)
             .maxDoc(context.searcher().getIndexReader().maxDoc());
     }
+
+    /**
+     * If profiler isn't null, this returns a started {@link Timer}.
+     * Otherwise, returns null.
+     */
+    private static Timer maybeStartTimer(DfsProfiler profiler, DfsTimingType dtt) {
+        if (profiler != null) {
+            return profiler.startTimer(dtt);
+        }
+        return null;
+    };
 
     private void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();

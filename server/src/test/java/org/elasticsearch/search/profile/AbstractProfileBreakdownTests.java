@@ -126,6 +126,7 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
             });
             threads[t].start();
         }
+        // starting all threads simultaneously increases the likelihood of failure in case we don't synchronize timer access properly
         latch.countDown();
         for (Thread t : threads) {
             t.join();
@@ -134,6 +135,7 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
         long totalCounter = breakdownMap.get(TestTimingTypes.ONE + "_count") + breakdownMap.get(TestTimingTypes.TWO + "_count")
             + breakdownMap.get(TestTimingTypes.THREE + "_count");
         assertEquals(threads.length * startsPerThread, totalCounter);
+
     }
 
     private void runTimerNTimes(Timer t, int n) {

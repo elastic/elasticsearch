@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -295,46 +296,59 @@ public class ModelLoadingService implements ClusterStateListener {
         TaskId parentTaskId,
         ActionListener<LocalModel> modelActionListener
     ) {
-        synchronized (loadingListeners) {
-            final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
-            ModelAndConsumer cachedModel = localModelCache.get(modelId);
-            if (cachedModel != null) {
-                cachedModel.consumers.add(consumer);
-                try {
-                    cachedModel.model.acquire();
-                } catch (CircuitBreakingException e) {
-                    modelActionListener.onFailure(e);
+        SetOnce<Exception> exceptionToNotifyListener = new SetOnce<>();
+        SetOnce<LocalModel> localModelToNotifyListener = new SetOnce<>();
+        try {
+            synchronized (loadingListeners) {
+                final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
+                ModelAndConsumer cachedModel = localModelCache.get(modelId);
+                if (cachedModel != null) {
+                    cachedModel.consumers.add(consumer);
+                    try {
+                        cachedModel.model.acquire();
+                    } catch (CircuitBreakingException e) {
+                        exceptionToNotifyListener.set(e);
+                        return true;
+                    }
+                    localModelToNotifyListener.set(cachedModel.model);
                     return true;
                 }
-                modelActionListener.onResponse(cachedModel.model);
-                return true;
-            }
 
-            // Add the listener to the queue if the model is loading
-            Queue<ActionListener<LocalModel>> listeners = loadingListeners.computeIfPresent(
-                modelId,
-                (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)
-            );
-
-            // The cachedModel entry is null, but there are listeners present, that means it is being loaded
-            if (listeners != null) {
-                return true;
-            }
-
-            if (Consumer.SEARCH != consumer && referencedModels.contains(modelId) == false) {
-                // The model is requested by a pipeline but not referenced by any ingest pipelines.
-                // This means it is a simulate call and the model should not be cached
-                logger.trace(
-                    () -> format("[%s] (model_alias [%s]) not actively loading, eager loading without cache", modelId, modelIdOrAlias)
+                // Add the listener to the queue if the model is loading
+                Queue<ActionListener<LocalModel>> listeners = loadingListeners.computeIfPresent(
+                    modelId,
+                    (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)
                 );
-                loadWithoutCaching(modelId, consumer, parentTaskId, modelActionListener);
-            } else {
-                logger.trace(() -> format("[%s] (model_alias [%s]) attempting to load and cache", modelId, modelIdOrAlias));
-                loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
-                loadModel(modelId, consumer);
+
+                // The cachedModel entry is null, but there are listeners present, that means it is being loaded
+                if (listeners != null) {
+                    return true;
+                }
+
+                if (Consumer.SEARCH != consumer && referencedModels.contains(modelId) == false) {
+                    // The model is requested by a pipeline but not referenced by any ingest pipelines.
+                    // This means it is a simulate call and the model should not be cached
+                    logger.trace(
+                        () -> format("[%s] (model_alias [%s]) not actively loading, eager loading without cache", modelId, modelIdOrAlias)
+                    );
+                    loadWithoutCaching(modelId, consumer, parentTaskId, modelActionListener);
+                } else {
+                    logger.trace(() -> format("[%s] (model_alias [%s]) attempting to load and cache", modelId, modelIdOrAlias));
+                    loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
+                    loadModel(modelId, consumer);
+                }
+                return false;
+            } // synchronized (loadingListeners)
+        } finally {
+            // Notify the passed listener if the model was already in cache or an exception was thrown
+            assert exceptionToNotifyListener.get() == null || localModelToNotifyListener.get() == null
+                : "both exception and local model set";
+            if (exceptionToNotifyListener.get() != null) {
+                modelActionListener.onFailure(exceptionToNotifyListener.get());
+            } else if (localModelToNotifyListener.get() != null) {
+                modelActionListener.onResponse(localModelToNotifyListener.get());
             }
-            return false;
-        } // synchronized (loadingListeners)
+        }
     }
 
     private void loadModel(String modelId, Consumer consumer) {

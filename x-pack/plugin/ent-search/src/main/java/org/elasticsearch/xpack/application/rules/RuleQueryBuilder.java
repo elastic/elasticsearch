@@ -5,13 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchbusinessrules;
+package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,16 +20,15 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
+import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +37,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+
 /**
  * A query that will promote selected documents (identified by ID) above matches produced by an "organic" query. In practice, some upstream
  * system will identify the promotions associated with a user's query string and use this object to ensure these are "pinned" to the top of
@@ -101,21 +100,26 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public RuleQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.organicQuery = in.readNamedWriteable(QueryBuilder.class);
-        this.rulesetIds = in.readStringList();
+        this.rulesetIds = in.readOptionalStringList();
         this.matchCriteria = in.readMap();
-        curatedIds = in.readImmutableList(StreamInput::readString);
+        curatedIds = in.readOptionalStringList();
         curatedIdSupplier = null;
-        curatedDocs = in.readImmutableList(Item::new);
+        curatedDocs = in.readBoolean() ? in.readList(Item::new) : null;
         curatedDocsSupplier = null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(organicQuery);
-        out.writeStringCollection(rulesetIds);
+        out.writeOptionalStringCollection(rulesetIds);
         out.writeGenericMap(matchCriteria);
-        out.writeStringCollection(curatedIds);
-        out.writeCollection(curatedDocs);
+        out.writeOptionalStringCollection(curatedIds);
+        if (curatedDocs == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeList(curatedDocs);
+        }
     }
 
     /**
@@ -174,9 +178,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return NAME;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        return this;
         if (curatedIds.isEmpty() == false || curatedDocs.isEmpty() == false) {
             return this;
         } else if (curatedIdSupplier != null) {
@@ -195,38 +199,34 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             }
         }
 
-        // TODO - Call the QueryRules API for query rules in the requested rulesets.
-        // Apply rules that match and if applicable re-write the query.
-        // Below is the search example from the POC for a loose reference, but this will be different.
-
-//        SearchRequest searchRequest = new SearchRequest("demo-curations");
-//        searchRequest.preference("_local");
-//        searchRequest.source().query(buildCurationQuery());
-//        searchRequest.source(new SearchSourceBuilder().query(buildCurationQuery()));
-//
+        // Identify matching rules and apply them if applicable
         SetOnce<List<String>> idSetOnce = new SetOnce<>();
         SetOnce<List<Item>> docsSetOnce = new SetOnce<>();
-//        queryRewriteContext.registerAsyncAction((client, listener) -> {
-//            client.search(searchRequest, ActionListener.wrap(response -> {
-//                List<String> ids = new ArrayList<>();
-//                for (SearchHit hit : response.getHits().getHits()) {
-//                    // No error case handling here for POC
-//                    Object actions = Objects.requireNonNull(hit.getSourceAsMap()).get("actions");
-//                    List<String> idsArray = ((List<?>) actions).stream()
-//                        .map(action -> (Map<?, ?>) action)
-//                        .map(actionMap -> actionMap.get("ids"))
-//                        .flatMap(_ids -> ((List<?>) _ids).stream())
-//                        .map(id -> (String) id)
-//                        .toList();
-//                    ids.addAll(idsArray);
-//                }
-//                idSetOnce.set(ids.stream().distinct().toList());
-//                listener.onResponse(null);
-//            }, listener::onFailure));
-//        });
+        List<String> pinnedIds = new ArrayList<>();
+        List<Item> pinnedDocs = new ArrayList<>();
+        for (String rulesetId : rulesetIds) {
+            GetQueryRulesetAction.Request getQueryRulesetRequest = new GetQueryRulesetAction.Request(rulesetId);
+            queryRewriteContext.registerAsyncAction((client, listener) -> {
+                client.execute(GetQueryRulesetAction.INSTANCE, getQueryRulesetRequest, ActionListener.wrap(getQueryRulesetResponse -> {
+                    QueryRuleset queryRuleset = getQueryRulesetResponse.queryRuleset();
+
+                    for (QueryRule rule : queryRuleset.rules()) {
+                        // TODO check criteria to see if the rule matches.
+
+                        // Assuming the rule matches, add the pinned IDs/docs.
+                        pinnedIds.addAll((List<String>) rule.actions().get("ids"));
+                        pinnedDocs.addAll((List<Item>) rule.actions().get("docs"));
+                    }
+                    listener.onResponse(null);
+                }, listener::onFailure));
+            });
+        }
+        idSetOnce.set(pinnedIds.stream().distinct().toList());
+        docsSetOnce.set(pinnedDocs.stream().distinct().toList());
 
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        RuleQueryBuilder rewritten = new RuleQueryBuilder(newOrganicQuery, rulesetIds, matchCriteria, curatedIds, idSetOnce::get, curatedDocs, docsSetOnce::get);
+        RuleQueryBuilder rewritten =
+            new RuleQueryBuilder(newOrganicQuery, rulesetIds, matchCriteria, curatedIds, idSetOnce::get, curatedDocs, docsSetOnce::get);
         rewritten.boost(this.boost);
         return rewritten;
     }

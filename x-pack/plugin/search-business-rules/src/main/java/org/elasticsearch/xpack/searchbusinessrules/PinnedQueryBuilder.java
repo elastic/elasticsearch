@@ -105,7 +105,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         /**
          * Read from a stream.
          */
-        Item(StreamInput in) throws IOException {
+        public Item(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
         }

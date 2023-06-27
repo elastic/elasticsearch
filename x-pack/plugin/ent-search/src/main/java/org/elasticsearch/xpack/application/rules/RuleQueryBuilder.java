@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Ite
  * the other search results.
  */
 public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
-    public static final String NAME = "rules";
+    public static final String NAME = "rule_query";
 
     private static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");

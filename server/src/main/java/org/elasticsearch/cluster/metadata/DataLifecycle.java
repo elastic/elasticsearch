@@ -103,11 +103,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         this.downsampling = downsampling;
     }
 
-    // Temporary so compilation will not fail in the draft
-    public DataLifecycle(@Nullable Retention dataRetention) {
-        this(dataRetention, null);
-    }
-
     public DataLifecycle(long timeInMills) {
         this(TimeValue.timeValueMillis(timeInMills));
     }

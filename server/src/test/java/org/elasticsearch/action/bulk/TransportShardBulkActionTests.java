@@ -784,40 +784,42 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     public void testTranslogPositionToSync() throws Exception {
         IndexShard shard = newStartedShard(true);
 
-        BulkItemRequest[] items = new BulkItemRequest[randomIntBetween(2, 5)];
-        for (int i = 0; i < items.length; i++) {
-            DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id_" + i)
-                .source(Requests.INDEX_CONTENT_TYPE)
-                .opType(DocWriteRequest.OpType.INDEX);
-            items[i] = new BulkItemRequest(i, writeRequest);
-        }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
-
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        while (context.hasMoreOperationsToExecute()) {
-            TransportShardBulkAction.executeBulkItemRequest(
-                context,
-                null,
-                threadPool::absoluteTimeInMillis,
-                new NoopMappingUpdatePerformer(),
-                listener -> {},
-                ASSERTING_DONE_LISTENER
-            );
-        }
-
-        assertTrue(shard.isSyncNeeded());
-
-        // if we sync the location, nothing else is unsynced
-        CountDownLatch latch = new CountDownLatch(1);
-        shard.syncAfterWrite(context.getLocationToSync(), e -> {
-            if (e != null) {
-                throw new AssertionError(e);
+        try (var operationPermit = getOperationPermit(shard)) {
+            BulkItemRequest[] items = new BulkItemRequest[randomIntBetween(2, 5)];
+            for (int i = 0; i < items.length; i++) {
+                DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id_" + i)
+                    .source(Requests.INDEX_CONTENT_TYPE)
+                    .opType(DocWriteRequest.OpType.INDEX);
+                items[i] = new BulkItemRequest(i, writeRequest);
             }
-            latch.countDown();
-        });
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        latch.await();
-        assertFalse(shard.isSyncNeeded());
+            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+            while (context.hasMoreOperationsToExecute()) {
+                TransportShardBulkAction.executeBulkItemRequest(
+                    context,
+                    null,
+                    threadPool::absoluteTimeInMillis,
+                    new NoopMappingUpdatePerformer(),
+                    listener -> {},
+                    ASSERTING_DONE_LISTENER
+                );
+            }
+
+            assertTrue(shard.isSyncNeeded());
+
+            // if we sync the location, nothing else is unsynced
+            CountDownLatch latch = new CountDownLatch(1);
+            shard.syncAfterWrite(context.getLocationToSync(), e -> {
+                if (e != null) {
+                    throw new AssertionError(e);
+                }
+                latch.countDown();
+            });
+
+            latch.await();
+            assertFalse(shard.isSyncNeeded());
+        }
 
         closeShards(shard);
     }

@@ -1502,32 +1502,37 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testAsyncFsync() throws InterruptedException, IOException {
+    public void testAsyncFsync() throws Exception {
         IndexShard shard = newStartedShard();
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
-        Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        CountDownLatch latch = new CountDownLatch(thread.length);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.countDown();
-                        latch.await();
-                        for (int i = 0; i < 10000; i++) {
-                            semaphore.acquire();
-                            shard.syncAfterWrite(new Translog.Location(randomLong(), randomLong(), randomInt()), e -> semaphore.release());
+        try (var operationPermit = getOperationPermit(shard)) {
+            Thread[] thread = new Thread[randomIntBetween(3, 5)];
+            CountDownLatch latch = new CountDownLatch(thread.length);
+            for (int i = 0; i < thread.length; i++) {
+                thread[i] = new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+                            latch.countDown();
+                            latch.await();
+                            for (int i = 0; i < 10000; i++) {
+                                semaphore.acquire();
+                                shard.syncAfterWrite(
+                                    new Translog.Location(randomLong(), randomLong(), randomInt()),
+                                    e -> semaphore.release()
+                                );
+                            }
+                        } catch (Exception ex) {
+                            throw new RuntimeException(ex);
                         }
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
                     }
-                }
-            };
-            thread[i].start();
-        }
+                };
+                thread[i].start();
+            }
 
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
+            for (int i = 0; i < thread.length; i++) {
+                thread[i].join();
+            }
         }
         assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
 

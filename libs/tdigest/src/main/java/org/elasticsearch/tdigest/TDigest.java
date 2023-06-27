@@ -22,7 +22,6 @@
 package org.elasticsearch.tdigest;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -112,8 +111,6 @@ public abstract class TDigest {
         }
     }
 
-    public abstract void add(List<? extends TDigest> others);
-
     /**
      * Re-examines a t-digest to determine whether some centroids are redundant.  If your data are
      * perversely ordered, this may be a good idea.  Even if not, this may save 20% or so in space.
@@ -201,13 +198,5 @@ public abstract class TDigest {
 
     public double getMax() {
         return max;
-    }
-
-    /**
-     * Override the min and max values for testing purposes
-     */
-    void setMinMax(double min, double max) {
-        this.min = min;
-        this.max = max;
     }
 }

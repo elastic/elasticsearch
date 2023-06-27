@@ -95,7 +95,7 @@ public interface IndexAnalyzers extends Closeable {
     /**
      * Reload any analyzers that have reloadable components
      */
-    default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings) throws IOException {
+    default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings, String resource) throws IOException {
         return List.of();
     }
 
@@ -135,12 +135,13 @@ public interface IndexAnalyzers extends Closeable {
             }
 
             @Override
-            public List<String> reload(AnalysisRegistry registry, IndexSettings indexSettings) throws IOException {
+            public List<String> reload(AnalysisRegistry registry, IndexSettings indexSettings, String resource) throws IOException {
 
                 List<NamedAnalyzer> reloadableAnalyzers = analyzers.values()
                     .stream()
-                    .filter(a -> a.analyzer() instanceof ReloadableCustomAnalyzer)
+                    .filter(a -> a.analyzer() instanceof ReloadableCustomAnalyzer ra && ra.usesResource(resource))
                     .toList();
+
                 if (reloadableAnalyzers.isEmpty()) {
                     return List.of();
                 }

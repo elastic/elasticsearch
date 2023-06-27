@@ -751,11 +751,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     return NON_GEO_PROCESSOR_TYPE;
                 }
 
-                @Override
-                public boolean isAsync() {
-                    return false;
-                }
-
             });
             return procMap;
         }

@@ -621,6 +621,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .build();
 
                 try (var httpChannel = fakeRestRequest.getHttpChannel()) {
+                    transport.serverAcceptedChannel(httpChannel);
                     transport.incomingRequest(fakeRestRequest.getHttpRequest(), httpChannel);
                 }
 
@@ -719,6 +720,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .withPath(path)
                 .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             mockAppender.assertAllExpectationsMatched();
         } finally {
@@ -1353,16 +1355,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
             }
             return this;
-        }
-
-        private void expectation(boolean expected, Level level, String message) {
-            var name = "message";
-            var logger = AbstractHttpServerTransport.class.getName();
-            if (expected) {
-                appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
-            } else {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
-            }
         }
 
         public void assertExpectationsMatched() {

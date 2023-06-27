@@ -218,10 +218,10 @@ public class SearchApplicationIndexService {
      * @param app SearchApplication
      * @param listener
      */
-    public void checkAliasConsistency(SearchApplication app, ActionListener<Map<String,String>> listener) {
+    public void checkAliasConsistency(SearchApplication app, ActionListener<Map<String, String>> listener) {
         final Metadata metadata = clusterService.state().metadata();
         final String searchAliasName = getSearchAliasName(app);
-        final Map<String,String> inconsistentIndices = new HashMap<>();
+        final Map<String, String> inconsistentIndices = new HashMap<>();
 
         if (metadata.hasAlias(searchAliasName)) {
             Set<String> indicesInAlias = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());

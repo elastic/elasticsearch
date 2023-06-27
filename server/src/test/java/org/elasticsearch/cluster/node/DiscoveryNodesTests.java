@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -25,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -401,48 +403,40 @@ public class DiscoveryNodesTests extends ESTestCase {
         abstract Set<String> matchingNodeIds(DiscoveryNodes nodes);
     }
 
-    public void testMaxMinNodeVersion() {
+    public void testMaxMinNodeVersions() {
         assertEquals(Version.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxNodeVersion());
         assertEquals(Version.CURRENT.minimumCompatibilityVersion(), DiscoveryNodes.EMPTY_NODES.getMinNodeVersion());
+        assertEquals(IndexVersion.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxDataNodeCompatibleIndexVersion());
+        assertEquals(IndexVersion.MINIMUM_COMPATIBLE, DiscoveryNodes.EMPTY_NODES.getMinSupportedIndexVersion());
+
+        List<VersionInformation> dataVersions = List.of(
+            new VersionInformation(Version.fromString("3.2.5"), IndexVersion.fromId(2000099), IndexVersion.fromId(3020599)),
+            new VersionInformation(Version.fromString("3.0.7"), IndexVersion.fromId(2000099), IndexVersion.fromId(3000799)),
+            new VersionInformation(Version.fromString("2.1.0"), IndexVersion.fromId(1000099), IndexVersion.fromId(2010099))
+        );
+        List<VersionInformation> observerVersions = List.of(
+            new VersionInformation(Version.fromString("5.0.17"), IndexVersion.fromId(0), IndexVersion.fromId(5001799)),
+            new VersionInformation(Version.fromString("2.0.1"), IndexVersion.fromId(1000099), IndexVersion.fromId(2000199)),
+            new VersionInformation(Version.fromString("1.6.0"), IndexVersion.fromId(0), IndexVersion.fromId(1060099)));
 
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        discoBuilder.add(
-            new DiscoveryNode(
-                "name_" + 1,
-                "node_" + 1,
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                Version.fromString("5.1.0")
-            )
-        );
-        discoBuilder.add(
-            new DiscoveryNode(
-                "name_" + 2,
-                "node_" + 2,
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                Version.fromString("6.3.0")
-            )
-        );
-        discoBuilder.localNodeId("node_" + between(1, 3));
-        if (randomBoolean()) {
-            discoBuilder.masterNodeId("node_" + between(1, 3));
+        for (int i=0; i<dataVersions.size(); i++) {
+            discoBuilder.add(DiscoveryNodeUtils.builder("data_" + i).version(dataVersions.get(i))
+                .roles(Set.of(randomBoolean() ? DiscoveryNodeRole.DATA_ROLE : DiscoveryNodeRole.MASTER_ROLE))
+                .build());
         }
-        discoBuilder.add(
-            new DiscoveryNode(
-                "name_" + 3,
-                "node_" + 3,
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                Version.fromString("1.1.0")
-            )
-        );
+        for (int i=0; i<observerVersions.size(); i++) {
+            discoBuilder.add(DiscoveryNodeUtils.builder("observer_" + i).version(observerVersions.get(i))
+                .roles(Set.of())
+                .build());
+        }
         DiscoveryNodes build = discoBuilder.build();
-        assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
-        assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());
+
+        assertEquals(Version.fromString("5.0.17"), build.getMaxNodeVersion());
+        assertEquals(Version.fromString("1.6.0"), build.getMinNodeVersion());
+        assertEquals(Version.fromString("2.1.0"), build.getSmallestNonClientNodeVersion());
+        assertEquals(IndexVersion.fromId(2010099), build.getMaxDataNodeCompatibleIndexVersion());
+        assertEquals(IndexVersion.fromId(2000099), build.getMinSupportedIndexVersion());
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

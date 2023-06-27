@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE;
@@ -927,22 +928,37 @@ public class RestControllerTests extends ESTestCase {
      */
     public void testApiProtectionWithServerlessEnabledAsEndUser() {
         final RestController restController = new RestController(null, client, circuitBreakerService, new UsageService(), tracer);
-        restController.getApiProtections().setEnabled(true);
         restController.registerHandler(new PublicRestHandler());
         restController.registerHandler(new InternalRestHandler());
         restController.registerHandler(new HiddenRestHandler());
-        List<String> accessiblePaths = List.of("/public", "/internal");
-        accessiblePaths.forEach(path -> {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
-            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-        });
-        List<String> inaccessiblePaths = List.of("/hidden");
-        inaccessiblePaths.forEach(path -> {
+
+        Consumer<List<String>> checkProtected = paths -> paths.forEach(path -> {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
             AssertingChannel channel = new AssertingChannel(request, false, RestStatus.NOT_FOUND);
             restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
         });
+        Consumer<List<String>> checkUnprotected = paths -> paths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+
+        List<String> accessiblePaths = List.of("/public", "/internal");
+        List<String> inaccessiblePaths = List.of("/hidden");
+
+        // API protections are disabled by default
+        checkUnprotected.accept(accessiblePaths);
+        checkUnprotected.accept(inaccessiblePaths);
+
+        // API protections can be dynamically enabled
+        restController.getApiProtections().setEnabled(true);
+        checkUnprotected.accept(accessiblePaths);
+        checkProtected.accept(inaccessiblePaths);
+
+        // API protections can be dynamically disabled
+        restController.getApiProtections().setEnabled(false);
+        checkUnprotected.accept(accessiblePaths);
+        checkUnprotected.accept(inaccessiblePaths);
     }
 
     @ServerlessScope(Scope.PUBLIC)

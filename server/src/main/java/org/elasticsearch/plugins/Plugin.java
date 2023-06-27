@@ -23,6 +23,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -82,6 +83,7 @@ public abstract class Plugin implements Closeable {
      *                                    is called, but will return the repositories service once the node is initialized.
      * @param tracer                      An interface for distributed tracing
      * @param allocationService           A service to manage shard allocation in the cluster
+     * @param indicesService              A service to manage indices in the cluster
      */
     public Collection<Object> createComponents(
         Client client,
@@ -96,7 +98,8 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         return Collections.emptyList();
     }

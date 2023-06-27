@@ -296,8 +296,8 @@ public class ModelLoadingService implements ClusterStateListener {
         TaskId parentTaskId,
         ActionListener<LocalModel> modelActionListener
     ) {
-        SetOnce<Exception> exceptionToNotifyListener = new SetOnce<>();
-        SetOnce<LocalModel> localModelToNotifyListener = new SetOnce<>();
+        final SetOnce<Exception> exceptionToNotifyListener = new SetOnce<>();
+        final SetOnce<LocalModel> localModelToNotifyListener = new SetOnce<>();
         try {
             synchronized (loadingListeners) {
                 final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);

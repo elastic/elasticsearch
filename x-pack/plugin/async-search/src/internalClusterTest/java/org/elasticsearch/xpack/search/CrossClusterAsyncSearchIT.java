@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.LegacyReaderContext;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -68,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -95,9 +98,27 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchListenerPlugin.class,
             AsyncSearch.class,
             AsyncResultsIndexPlugin.class,
-            LocalStateCompositeXPackPlugin.class
+            LocalStateCompositeXPackPlugin.class,
+            TestQueryBuilderPlugin.class
         );
         return Stream.concat(super.nodePlugins(clusterAlias).stream(), plugs.stream()).collect(Collectors.toList());
+    }
+
+    public static class TestQueryBuilderPlugin extends Plugin implements SearchPlugin {
+        public TestQueryBuilderPlugin() {}
+
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            QuerySpec<SlowRunningQueryBuilder> slowRunningSpec = new QuerySpec<>(
+                SlowRunningQueryBuilder.NAME,
+                SlowRunningQueryBuilder::new,
+                p -> {
+                    throw new IllegalStateException("not implemented");
+                }
+            );
+
+            return List.of(slowRunningSpec);
+        }
     }
 
     public void testCancelViaTasksAPI() throws Exception {
@@ -254,7 +275,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(1));
-            final TaskInfo rootTask = tasks.get(0);
 
             AtomicReference<List<TaskInfo>> remoteClusterSearchTasks = new AtomicReference<>();
             assertBusy(() -> {
@@ -322,6 +342,100 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
 
         assertBusy(() -> expectThrows(ExecutionException.class, () -> getAsyncStatus(response.getId())));
+        assertBusy(() -> {
+            final Iterable<TransportService> transportServices = cluster(REMOTE_CLUSTER).getInstances(TransportService.class);
+            for (TransportService transportService : transportServices) {
+                assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
+            }
+        });
+    }
+
+    public void testCancellationViaTimeoutWithAllowPartialResultsSetToFalse() throws Exception {
+        setupTwoClusters();
+
+        SearchListenerPlugin.blockQueryPhase();
+
+        TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
+        // query builder that will sleep for the specified amount of time in the query phase
+        SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
+
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest("demo", REMOTE_CLUSTER + ":prod");
+        request.setCcsMinimizeRoundtrips(randomBoolean());
+        request.getSearchRequest().source(sourceBuilder);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.getSearchRequest().allowPartialSearchResults(false);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+
+        SearchListenerPlugin.waitSearchStarted();
+
+        // ensure tasks are present on both clusters and not cancelled
+        try {
+            ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(SearchAction.INSTANCE.name())
+                .get();
+            List<TaskInfo> tasks = listTasksResponse.getTasks();
+            assertThat(tasks.size(), equalTo(1));
+
+            AtomicReference<List<TaskInfo>> remoteClusterSearchTasks = new AtomicReference<>();
+            assertBusy(() -> {
+                List<TaskInfo> remoteSearchTasks = client(REMOTE_CLUSTER).admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .get()
+                    .getTasks()
+                    .stream()
+                    .filter(t -> t.action().contains(SearchAction.NAME))
+                    .collect(Collectors.toList());
+                assertThat(remoteSearchTasks.size(), greaterThan(0));
+                remoteClusterSearchTasks.set(remoteSearchTasks);
+            });
+
+            for (TaskInfo taskInfo : remoteClusterSearchTasks.get()) {
+                assertFalse("taskInfo on remote cluster should not be cancelled yet: " + taskInfo, taskInfo.cancelled());
+            }
+
+        } finally {
+            SearchListenerPlugin.allowQueryPhase();
+        }
+
+        // query phase has begun, so wait for query failure (due to timeout)
+        SearchListenerPlugin.waitQueryFailure();
+
+        // wait for the async_search task to be cancelled or unregistered
+        assertBusy(() -> {
+            ListTasksResponse taskResponses = client().admin().cluster().prepareListTasks().setDetailed(true).get();
+            List<TaskInfo> asyncSearchTaskInfos = new ArrayList<>();
+            for (TaskInfo task : taskResponses.getTasks()) {
+                if (task.action().contains("search")) {
+                    if (task.description().contains("async_search{indices[")) {
+                        asyncSearchTaskInfos.add(task);
+                    }
+                }
+            }
+
+            if (asyncSearchTaskInfos.size() > 0) {
+                // if still present, and it is cancelled, then we can proceed with the test
+                assertTrue(asyncSearchTaskInfos.get(0).cancelled());
+            }
+            // if not present, then it has been unregistered and the async search should no longer be running, so can proceed
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> { assertFalse(getAsyncStatus(response.getId()).isRunning()); });
+
+        AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+        assertFalse(statusResponse.isRunning());
+        assertEquals(0, statusResponse.getSuccessfulShards());
+        assertEquals(0, statusResponse.getSkippedShards());
+        assertThat(statusResponse.getFailedShards(), greaterThanOrEqualTo(1));
+
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster(REMOTE_CLUSTER).getInstances(TransportService.class);
             for (TransportService transportService : transportServices) {
@@ -407,9 +521,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     public static class SearchListenerPlugin extends Plugin {
         private static final AtomicReference<CountDownLatch> startedLatch = new AtomicReference<>();
         private static final AtomicReference<CountDownLatch> queryLatch = new AtomicReference<>();
+        private static final AtomicReference<CountDownLatch> failedQueryLatch = new AtomicReference<>();
 
         static void reset() {
             startedLatch.set(new CountDownLatch(1));
+            failedQueryLatch.set(new CountDownLatch(1));
         }
 
         static void blockQueryPhase() {
@@ -425,6 +541,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         static void waitSearchStarted() throws InterruptedException {
             assertTrue(startedLatch.get().await(60, TimeUnit.SECONDS));
+        }
+
+        static void waitQueryFailure() throws Exception {
+            assertTrue(failedQueryLatch.get().await(60, TimeUnit.SECONDS));
         }
 
         @Override
@@ -444,6 +564,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                             assertTrue(latch.await(60, TimeUnit.SECONDS));
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailedQueryPhase(SearchContext searchContext) {
+                    // only count failed queries that have a timeout set (to be sure we are listening for our test query)
+                    if (searchContext.timeout().millis() > -1) {
+                        if (failedQueryLatch.get().getCount() > 0) {
+                            failedQueryLatch.get().countDown();
                         }
                     }
                 }

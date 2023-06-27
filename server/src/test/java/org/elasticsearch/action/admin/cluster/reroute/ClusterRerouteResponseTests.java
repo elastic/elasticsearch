@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -83,111 +84,127 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
     public void testToXContentWithDeprecatedClusterState() {
         var clusterState = createClusterState();
-        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 35, Strings.format("""
-            {
-              "acknowledged": true,
-              "state": {
-                "cluster_uuid": "_na_",
-                "version": 0,
-                "state_uuid": "%s",
-                "master_node": "node0",
-                "blocks": {},
-                "nodes": {
-                  "node0": {
-                    "name": "",
-                    "ephemeral_id": "%s",
-                    "transport_address": "0.0.0.0:9000",
-                    "external_id": "",
-                    "attributes": {},
-                    "roles": [
-                      "data",
-                      "data_cold",
-                      "data_content",
-                      "data_frozen",
-                      "data_hot",
-                      "data_warm",
-                      "index",
-                      "ingest",
-                      "master",
-                      "ml",
-                      "remote_cluster_client",
-                      "search",
-                      "transform",
-                      "voting_only"
-                    ],
-                    "version": "%s"
-                  }
-                },
-                "transport_versions": [
-                  {
-                    "node_id": "node0",
-                    "transport_version": "8000099"
-                  }
-                ],
-                "metadata": {
-                  "cluster_uuid": "_na_",
-                  "cluster_uuid_committed": false,
-                  "cluster_coordination": {
-                    "term": 0,
-                    "last_committed_config": [],
-                    "last_accepted_config": [],
-                    "voting_config_exclusions": []
-                  },
-                  "templates": {},
-                  "indices": {
-                    "index": {
-                      "version": 1,
-                      "mapping_version": 1,
-                      "settings_version": 1,
-                      "aliases_version": 1,
-                      "routing_num_shards": 1,
-                      "state": "open",
-                      "settings": {
-                        "index": {
-                          "shard": {
-                            "check_on_startup": "true"
+        assertXContent(
+            createClusterRerouteResponse(clusterState),
+            ToXContent.EMPTY_PARAMS,
+            35,
+            Strings.format(
+                """
+                    {
+                      "acknowledged": true,
+                      "state": {
+                        "cluster_uuid": "_na_",
+                        "version": 0,
+                        "state_uuid": "%s",
+                        "master_node": "node0",
+                        "blocks": {},
+                        "nodes": {
+                          "node0": {
+                            "name": "",
+                            "ephemeral_id": "%s",
+                            "transport_address": "0.0.0.0:9000",
+                            "external_id": "",
+                            "attributes": {},
+                            "roles": [
+                              "data",
+                              "data_cold",
+                              "data_content",
+                              "data_frozen",
+                              "data_hot",
+                              "data_warm",
+                              "index",
+                              "ingest",
+                              "master",
+                              "ml",
+                              "remote_cluster_client",
+                              "search",
+                              "transform",
+                              "voting_only"
+                            ],
+                            "version": "%s",
+                            "minIndexVersion": "%s",
+                            "maxIndexVersion": "%s"
+                          }
+                        },
+                        "transport_versions": [
+                          {
+                            "node_id": "node0",
+                            "transport_version": "8000099"
+                          }
+                        ],
+                        "metadata": {
+                          "cluster_uuid": "_na_",
+                          "cluster_uuid_committed": false,
+                          "cluster_coordination": {
+                            "term": 0,
+                            "last_committed_config": [],
+                            "last_accepted_config": [],
+                            "voting_config_exclusions": []
                           },
-                          "number_of_shards": "1",
-                          "number_of_replicas": "0",
-                          "version": {
-                            "created": "%s"
+                          "templates": {},
+                          "indices": {
+                            "index": {
+                              "version": 1,
+                              "mapping_version": 1,
+                              "settings_version": 1,
+                              "aliases_version": 1,
+                              "routing_num_shards": 1,
+                              "state": "open",
+                              "settings": {
+                                "index": {
+                                  "shard": {
+                                    "check_on_startup": "true"
+                                  },
+                                  "number_of_shards": "1",
+                                  "number_of_replicas": "0",
+                                  "version": {
+                                    "created": "%s"
+                                  },
+                                  "max_script_fields": "10"
+                                }
+                              },
+                              "mappings": {},
+                              "aliases": [],
+                              "primary_terms": {
+                                "0": 0
+                              },
+                              "in_sync_allocations": {
+                                "0": []
+                              },
+                              "rollover_info": {},
+                              "system": false,
+                              "timestamp_range": {
+                                "shards": []
+                              }
+                            }
                           },
-                          "max_script_fields": "10"
+                          "index-graveyard": {
+                            "tombstones": []
+                          },
+                          "reserved_state":{}
+                        },
+                        "routing_table": {
+                          "indices": {}
+                        },
+                        "routing_nodes": {
+                          "unassigned": [],
+                          "nodes": {
+                            "node0": []
+                          }
                         }
-                      },
-                      "mappings": {},
-                      "aliases": [],
-                      "primary_terms": {
-                        "0": 0
-                      },
-                      "in_sync_allocations": {
-                        "0": []
-                      },
-                      "rollover_info": {},
-                      "system": false,
-                      "timestamp_range": {
-                        "shards": []
                       }
-                    }
-                  },
-                  "index-graveyard": {
-                    "tombstones": []
-                  },
-                  "reserved_state":{}
-                },
-                "routing_table": {
-                  "indices": {}
-                },
-                "routing_nodes": {
-                  "unassigned": [],
-                  "nodes": {
-                    "node0": []
-                  }
-                }
-              }
-            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT, Version.CURRENT.id), """
-            The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
-            Specify ?metric=none to adopt the future behaviour.""");
+                    }""",
+                clusterState.stateUUID(),
+                clusterState.getNodes().get("node0").getEphemeralId(),
+                Version.CURRENT,
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.CURRENT,
+                Version.CURRENT.id
+            ),
+            """
+                The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
+                Specify ?metric=none to adopt the future behaviour."""
+        );
     }
 
     public void testToXContentWithDeprecatedClusterStateAndMetadata() {

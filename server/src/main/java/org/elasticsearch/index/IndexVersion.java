@@ -10,7 +10,13 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -53,7 +59,7 @@ import java.util.TreeMap;
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
  */
 @SuppressWarnings({"checkstyle:linelength", "deprecation"})
-public record IndexVersion(int id, Version luceneVersion) implements Comparable<IndexVersion> {
+public record IndexVersion(int id, Version luceneVersion) implements Comparable<IndexVersion>, ToXContentFragment {
 
     /*
      * NOTE: IntelliJ lies!
@@ -246,6 +252,10 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return VERSION_IDS.values();
     }
 
+    public static IndexVersion readVersion(StreamInput in) throws IOException {
+        return fromId(in.readVInt());
+    }
+
     public static IndexVersion fromId(int id) {
         IndexVersion known = VERSION_IDS.get(id);
         if (known != null) {
@@ -263,6 +273,10 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
             : Version.fromBits(VERSION_IDS.firstEntry().getValue().luceneVersion.major - 1, 0, 0);
 
         return new IndexVersion(id, luceneVersion);
+    }
+
+    public static void writeVersion(IndexVersion version, StreamOutput out) throws IOException {
+        out.writeVInt(version.id);
     }
 
     @Deprecated(forRemoval = true)
@@ -312,6 +326,11 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
     @Override
     public int compareTo(IndexVersion other) {
         return Integer.compare(this.id, other.id);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 
     @Override

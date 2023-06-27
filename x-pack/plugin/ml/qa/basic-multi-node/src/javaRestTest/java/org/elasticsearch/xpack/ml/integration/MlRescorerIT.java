@@ -237,7 +237,8 @@ public class MlRescorerIT extends ESRestTestCase {
             }""", true);
 
         response = responseAsMap(searchResponse);
-        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));*/
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
+        */
     }
 
     private void indexData(String data) throws IOException {

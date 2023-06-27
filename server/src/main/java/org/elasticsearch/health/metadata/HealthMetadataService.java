@@ -149,19 +149,14 @@ public class HealthMetadataService {
                 readyToPublish = false;
             } else if (isMaster && previousHealthMetadata.equals(healthMetadata) == false) {
                 if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-                    taskQueue.submitTask("health-metadata-update", ignored -> healthMetadata, null);
+                    taskQueue.submitTask("health-metadata-update", () -> this.healthMetadata, null);
                 }
             }
         }
     }
 
     private void resetHealthMetadata(String source) {
-        taskQueue.submitTask(source, storedHealthMetadata -> {
-            if (storedHealthMetadata != null) {
-                this.healthMetadata = storedHealthMetadata;
-            }
-            return this.healthMetadata;
-        }, null);
+        taskQueue.submitTask(source, () -> this.healthMetadata, null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -187,13 +182,13 @@ public class HealthMetadataService {
 
         default ClusterState execute(ClusterState currentState) {
             var initialHealthMetadata = HealthMetadata.getFromClusterState(currentState);
-            var finalHealthMetadata = doExecute(initialHealthMetadata);
+            var finalHealthMetadata = doExecute();
             return finalHealthMetadata.equals(initialHealthMetadata)
                 ? currentState
                 : currentState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
 
-        HealthMetadata doExecute(HealthMetadata initialHealthMetadata);
+        HealthMetadata doExecute();
 
         class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
 

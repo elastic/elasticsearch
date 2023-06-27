@@ -124,13 +124,7 @@ public class JobDataCountsPersister {
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(content);
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                IndexAction.INSTANCE,
-                request,
-                listener.delegateFailure((l, r) -> l.onResponse(true))
-            );
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, listener.map(r -> true));
         } catch (IOException ioe) {
             String msg = "[" + jobId + "] Failed writing data_counts stats";
             logger.error(msg, ioe);

@@ -60,11 +60,7 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
                 SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
                 SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
-                client.execute(
-                    SearchAction.INSTANCE,
-                    searchRequest,
-                    listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
-                );
+                client.execute(SearchAction.INSTANCE, searchRequest, l);
             } catch (Exception e) {
                 l.onFailure(e);
             }

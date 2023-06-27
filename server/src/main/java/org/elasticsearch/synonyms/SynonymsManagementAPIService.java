@@ -347,9 +347,7 @@ public class SynonymsManagementAPIService {
         client.execute(
             ReloadAnalyzerAction.INSTANCE,
             reloadAnalyzersRequest,
-            listener.delegateFailure((reloadResponseListener, reloadResponse) -> {
-                reloadResponseListener.onResponse(new SynonymsReloadResult<>(synonymsOperationResult, reloadResponse));
-            })
+            listener.map(reloadResponse -> new SynonymsReloadResult<>(synonymsOperationResult, reloadResponse))
         );
     }
 

@@ -507,7 +507,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 }
             }
             return true;
-        }, request.getTimeout(), listener.delegateFailure((l, result) -> l.onResponse(response)));
+        }, request.getTimeout(), listener.map(result -> response));
     }
 
     @Override

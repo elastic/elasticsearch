@@ -280,28 +280,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
         // set it the first time...
         shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-
-            }
         });
         // now set it again and make sure we fail
         try {
             shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-
-                }
             });
             fail("listener already set");
         } catch (IllegalStateException ex) {

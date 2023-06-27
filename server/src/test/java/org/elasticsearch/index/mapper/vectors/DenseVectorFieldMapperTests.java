@@ -652,11 +652,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         };
     }
 
-    @Override
-    protected boolean allowsNullValues() {
-        return true;
-    }
-
     public void testCannotBeUsedInMultifields() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "keyword");

@@ -59,15 +59,17 @@ public class HealthMetadataService {
     // Allows us to know if this node is the elected master without checking the cluster state, effectively protecting
     // us from checking the cluster state before the cluster state is initialized
     private volatile boolean isMaster = false;
-    private volatile HealthMetadata previousHealthMetadata;
-    private volatile HealthMetadata healthMetadata;
+    // we hold an in-memory representation of the healthMetadata which will be updated by the settings updaters. This way, we can
+    // get the initial values (reading default values from `Settings`) and then, potentially, user changed values (they'll be received
+    // through the settings updater). Later, we always post the latest in-memory HealthMetadata to the ClusterState to maintain an
+    // up-to-date version of it across the cluster.
+    private volatile HealthMetadata localHealthMetadata;
 
     private HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
-        this.previousHealthMetadata = initialHealthMetadata(settings);
-        this.healthMetadata = this.previousHealthMetadata;
+        this.localHealthMetadata = initialHealthMetadata(settings);
         this.taskQueue = clusterService.createTaskQueue(
             "health metadata service",
             Priority.NORMAL,
@@ -148,16 +150,14 @@ public class HealthMetadataService {
             if (readyToPublishAsMaster) {
                 resetHealthMetadata("health-metadata-update-master-election");
                 readyToPublishAsMaster = false;
-            } else if (isMaster && previousHealthMetadata.equals(healthMetadata) == false) {
-                if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-                    taskQueue.submitTask("health-metadata-update", () -> this.healthMetadata, null);
-                }
+            } else if (isMaster && event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
+                taskQueue.submitTask("health-metadata-update", () -> this.localHealthMetadata, null);
             }
         }
     }
 
     private void resetHealthMetadata(String source) {
-        taskQueue.submitTask(source, () -> this.healthMetadata, null);
+        taskQueue.submitTask(source, () -> this.localHealthMetadata, null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -204,7 +204,8 @@ public class HealthMetadataService {
     }
 
     private void updateOnDiskSettingsUpdated(String settingName, String value) {
-        var diskBuilder = HealthMetadata.Disk.newBuilder(healthMetadata.getDiskMetadata());
+        var diskBuilder = HealthMetadata.Disk.newBuilder(this.localHealthMetadata.getDiskMetadata());
+        var healthMetadataBuilder = HealthMetadata.newBuilder(this.localHealthMetadata);
 
         if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey().equals(settingName)) {
             diskBuilder.highWatermark(value, settingName);
@@ -220,20 +221,20 @@ public class HealthMetadataService {
             diskBuilder.floodStageMaxHeadroom(value, settingName);
         }
 
-        this.previousHealthMetadata = healthMetadata;
-        this.healthMetadata = HealthMetadata.newBuilder(previousHealthMetadata).disk(diskBuilder.build()).build();
+        this.localHealthMetadata = healthMetadataBuilder.disk(diskBuilder.build()).build();
     }
 
     private void updateOnShardLimitsSettingsUpdated(String settingName, Integer value) {
-        var shardLimitsBuilder = HealthMetadata.ShardLimits.newBuilder(healthMetadata.getShardLimitsMetadata());
+        var shardLimitsBuilder = HealthMetadata.ShardLimits.newBuilder(this.localHealthMetadata.getShardLimitsMetadata());
+        var healthMetadataBuilder = HealthMetadata.newBuilder(this.localHealthMetadata);
 
         if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey().equals(settingName)) {
             shardLimitsBuilder.maxShardsPerNode(value);
         } else if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey().equals(settingName)) {
             shardLimitsBuilder.maxShardsPerNodeFrozen(value);
         }
-        this.previousHealthMetadata = healthMetadata;
-        this.healthMetadata = HealthMetadata.newBuilder(previousHealthMetadata).shardLimits(shardLimitsBuilder.build()).build();
+
+        this.localHealthMetadata = healthMetadataBuilder.shardLimits(shardLimitsBuilder.build()).build();
     }
 
     private static HealthMetadata initialHealthMetadata(Settings settings) {

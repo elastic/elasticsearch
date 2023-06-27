@@ -116,7 +116,7 @@ public class DiscoveryNodeUtils {
             return this;
         }
 
-        public Builder version(NodeVersions versions) {
+        public Builder version(VersionInformation versions) {
             this.version = versions.nodeVersion();
             this.minIndexVersion = versions.minIndexVersion();
             this.maxIndexVersion = versions.maxIndexVersion();
@@ -139,11 +139,11 @@ public class DiscoveryNodeUtils {
                 hostAddress = address.getAddress();
             }
 
-            NodeVersions versionInfo;
+            VersionInformation versionInfo;
             if (minIndexVersion == null || maxIndexVersion == null) {
-                versionInfo = NodeVersions.inferVersions(version);
+                versionInfo = VersionInformation.inferVersions(version);
             } else {
-                versionInfo = new NodeVersions(version, minIndexVersion, maxIndexVersion);
+                versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
             }
 
             return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);

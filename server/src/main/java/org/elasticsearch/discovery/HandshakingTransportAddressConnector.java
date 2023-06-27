@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.NodeVersions;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
@@ -87,7 +87,11 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     transportAddress,
                     emptyMap(),
                     emptySet(),
-                    new NodeVersions(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT)
+                    new VersionInformation(
+                        Version.CURRENT.minimumCompatibilityVersion(),
+                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersion.CURRENT
+                    )
                 ),
                 handshakeConnectionProfile,
                 listener.delegateFailure((l, connection) -> {

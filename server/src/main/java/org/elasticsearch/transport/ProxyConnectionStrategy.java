@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.NodeVersions;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -299,7 +299,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     resolved,
                     attributes,
                     DiscoveryNodeRole.roles(),
-                    new NodeVersions(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT)
+                    new VersionInformation(
+                        Version.CURRENT.minimumCompatibilityVersion(),
+                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersion.CURRENT
+                    )
                 );
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {

@@ -15,21 +15,25 @@ import java.util.Objects;
 
 /**
  * Represents the versions of various aspects of an Elasticsearch node.
- * @param nodeVersion   The release version
+ * @param nodeVersion       The node {@link Version}
  * @param minIndexVersion   The minimum {@link IndexVersion} supported by this node
  * @param maxIndexVersion   The maximum {@link IndexVersion} supported by this node
  */
-public record NodeVersions(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
 
-    public static final NodeVersions CURRENT = new NodeVersions(Version.CURRENT, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+    public static final VersionInformation CURRENT = new VersionInformation(
+        Version.CURRENT,
+        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersion.CURRENT
+    );
 
-    public static NodeVersions inferVersions(Version nodeVersion) {
+    public static VersionInformation inferVersions(Version nodeVersion) {
         if (nodeVersion == null) {
             return null;
         } else if (nodeVersion.equals(Version.CURRENT)) {
             return CURRENT;
         } else if (nodeVersion.before(Version.V_8_10_0)) {
-            return new NodeVersions(
+            return new VersionInformation(
                 nodeVersion,
                 IndexVersion.fromId(nodeVersion.minimumIndexCompatibilityVersion().id),
                 IndexVersion.fromId(nodeVersion.id)
@@ -39,7 +43,7 @@ public record NodeVersions(Version nodeVersion, IndexVersion minIndexVersion, In
         }
     }
 
-    public NodeVersions {
+    public VersionInformation {
         Objects.requireNonNull(nodeVersion);
         Objects.requireNonNull(minIndexVersion);
         Objects.requireNonNull(maxIndexVersion);

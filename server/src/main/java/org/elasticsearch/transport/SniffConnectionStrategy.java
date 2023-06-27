@@ -18,7 +18,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.NodeVersions;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -492,7 +492,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
-        var seedVersion = new NodeVersions(
+        var seedVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion(),
             IndexVersion.MINIMUM_COMPATIBLE,
             IndexVersion.CURRENT

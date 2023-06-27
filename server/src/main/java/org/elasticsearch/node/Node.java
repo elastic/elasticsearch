@@ -86,7 +86,6 @@ import org.elasticsearch.common.settings.PublicSettings;
 import org.elasticsearch.common.settings.PublicSettingsFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -478,14 +477,10 @@ public class Node implements Closeable {
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
 
-            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.flatMap(Plugin::getSettingUpgraders)
-                .collect(Collectors.toSet());
-
             final SettingsModule settingsModule = new SettingsModule(
                 settings,
                 additionalSettings,
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                settingsUpgraders
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
 
             PublicSettings serverlessPublicSettings = createOrchestratorSettings(

@@ -10,6 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -543,12 +544,17 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         setState(clusterService, clusterState);
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
         final var countDownLatch = new CountDownLatch(1);
-        service.unassignPersistentTask(unassignedId, tasks.getLastAllocationId(), "unassignment test", ActionListener.wrap(task -> {
-            assertThat(task.getAssignment().getExecutorNode(), is(nullValue()));
-            assertThat(task.getId(), equalTo(unassignedId));
-            assertThat(task.getAssignment().getExplanation(), equalTo("unassignment test"));
-            countDownLatch.countDown();
-        }, e -> fail()));
+        service.unassignPersistentTask(
+            unassignedId,
+            tasks.getLastAllocationId(),
+            "unassignment test",
+            ActionTestUtils.assertNoFailureListener(task -> {
+                assertThat(task.getAssignment().getExecutorNode(), is(nullValue()));
+                assertThat(task.getId(), equalTo(unassignedId));
+                assertThat(task.getAssignment().getExplanation(), equalTo("unassignment test"));
+                countDownLatch.countDown();
+            })
+        );
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }

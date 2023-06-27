@@ -269,8 +269,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 new ActionFilters(new HashSet<>()),
                 NodesRequest::new,
                 NodeRequest::new,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                ThreadPool.Names.GENERIC
             );
         }
 

@@ -45,8 +45,8 @@ import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -82,7 +82,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
@@ -116,26 +115,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void setupCreateIndexRequestAndAliasValidator() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
-        searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
+        searchExecutionContext = SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
             parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> randomNonNegativeLong(),
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
+            writableRegistry()
         );
     }
 
@@ -598,17 +581,17 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testCalculateNumRoutingShards() {
-        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(1, IndexVersion.CURRENT));
-        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(2, IndexVersion.CURRENT));
-        assertEquals(768, MetadataCreateIndexService.calculateNumRoutingShards(3, IndexVersion.CURRENT));
-        assertEquals(576, MetadataCreateIndexService.calculateNumRoutingShards(9, IndexVersion.CURRENT));
-        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(512, IndexVersion.CURRENT));
-        assertEquals(2048, MetadataCreateIndexService.calculateNumRoutingShards(1024, IndexVersion.CURRENT));
-        assertEquals(4096, MetadataCreateIndexService.calculateNumRoutingShards(2048, IndexVersion.CURRENT));
+        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(1, IndexVersion.current()));
+        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(2, IndexVersion.current()));
+        assertEquals(768, MetadataCreateIndexService.calculateNumRoutingShards(3, IndexVersion.current()));
+        assertEquals(576, MetadataCreateIndexService.calculateNumRoutingShards(9, IndexVersion.current()));
+        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(512, IndexVersion.current()));
+        assertEquals(2048, MetadataCreateIndexService.calculateNumRoutingShards(1024, IndexVersion.current()));
+        assertEquals(4096, MetadataCreateIndexService.calculateNumRoutingShards(2048, IndexVersion.current()));
 
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);
-            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(randomNumShards, IndexVersion.CURRENT);
+            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(randomNumShards, IndexVersion.current());
             if (numRoutingShards <= 1024) {
                 assertTrue("numShards: " + randomNumShards, randomNumShards < 513);
                 assertTrue("numRoutingShards: " + numRoutingShards, numRoutingShards > 512);

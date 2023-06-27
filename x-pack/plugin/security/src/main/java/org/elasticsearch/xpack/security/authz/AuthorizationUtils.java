@@ -129,7 +129,7 @@ public final class AuthorizationUtils {
                 securityContext.executeAsInternalUser(InternalUsers.STORAGE_USER, version, consumer);
                 break;
             case DLM_ORIGIN:
-                securityContext.executeAsInternalUser(InternalUsers.DLM_USER, version, consumer);
+                securityContext.executeAsInternalUser(InternalUsers.DATA_STREAM_LIFECYCLE_USER, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:

@@ -221,7 +221,7 @@ POST /_security/api_key
 {
   "name": "my-restricted-api-key",
   "role_descriptors": {
-    "restricted-role": {
+    "my-restricted-role-descriptor": {
       "index": [
         {
           "names": ["my-search-app"],

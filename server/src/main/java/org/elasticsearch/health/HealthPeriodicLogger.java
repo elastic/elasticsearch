@@ -61,7 +61,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
             // overall status
             final HealthStatus status = HealthStatus.merge(this.indicatorResults.stream().map(HealthIndicatorResult::status));
-            result.put("elasticsearch.health.overall.status", status.xContentValue());
+            result.put(String.format(Locale.ROOT, "%s.overall.status", HEALTH_FIELD_PREFIX), status.xContentValue());
 
             // top-level status for each indicator
             this.indicatorResults.forEach((indicatorResult) -> {

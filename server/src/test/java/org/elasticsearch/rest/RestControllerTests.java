@@ -932,14 +932,14 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(new InternalRestHandler());
         restController.registerHandler(new HiddenRestHandler());
 
-        Consumer<List<String>> checkProtected = paths -> paths.forEach(path -> {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.NOT_FOUND);
-            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-        });
-        Consumer<List<String>> checkUnprotected = paths -> paths.forEach(path -> {
+        final Consumer<List<String>> checkUnprotected = paths -> paths.forEach(path -> {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
             AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+        final Consumer<List<String>> checkProtected = paths -> paths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.NOT_FOUND);
             restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
         });
 

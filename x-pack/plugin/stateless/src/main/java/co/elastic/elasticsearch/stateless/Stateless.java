@@ -25,7 +25,6 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleSt
 import co.elastic.elasticsearch.stateless.autoscaling.RestGetStatelessAutoscalingMetricsHandler;
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction;
 import co.elastic.elasticsearch.stateless.autoscaling.action.TransportGetStatelessAutoscalingMetricsAction;
-import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
@@ -34,6 +33,8 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsServ
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.PublishNodeIngestLoadAction;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishNodeIngestLoadMetric;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.search.AutoscalingDiskSizeMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.search.SearchTierMetricsService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
@@ -111,6 +112,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -140,7 +142,7 @@ import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETT
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
-public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin, ClusterCoordinationPlugin {
+public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin, ClusterCoordinationPlugin, ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -210,7 +212,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-
         return List.of(new RestGetStatelessAutoscalingMetricsHandler());
     }
 
@@ -305,6 +306,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         var memoryMetricsService = new MemoryMetricsService();
         var ingestMetricService = new IngestMetricsService(settings, threadPool::relativeTimeInNanos, memoryMetricsService);
         clusterService.addListener(ingestMetricService);
+        var searchMetricsService = new SearchTierMetricsService(memoryMetricsService);
         return List.of(
             objectStoreService,
             translogReplicator,
@@ -314,7 +316,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             autoscalingDiskSizeMetricsService,
             ingestMetricService,
             memoryMetricsService,
-            ingestLoadSampler
+            ingestLoadSampler,
+            searchMetricsService
         );
     }
 

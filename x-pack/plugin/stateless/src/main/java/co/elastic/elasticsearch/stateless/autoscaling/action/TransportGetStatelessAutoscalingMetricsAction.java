@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless.autoscaling.action;
 
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction.Request;
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction.Response;
-import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.model.StatelessAutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.model.TierMetrics;
 
@@ -50,16 +49,13 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
 
     private static final Logger logger = LogManager.getLogger(TransportGetStatelessAutoscalingMetricsAction.class);
 
-    private final AutoscalingDiskSizeMetricsService autoscalingDiskSizeMetricsService;
-
     @Inject
     public TransportGetStatelessAutoscalingMetricsAction(
         final TransportService transportService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AutoscalingDiskSizeMetricsService autoscalingDiskSizeMetricsService
+        final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             GetStatelessAutoscalingMetricsAction.NAME,
@@ -72,7 +68,6 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
             Response::new,
             ThreadPool.Names.MANAGEMENT
         );
-        this.autoscalingDiskSizeMetricsService = autoscalingDiskSizeMetricsService;
     }
 
     @Override

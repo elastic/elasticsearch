@@ -15,10 +15,10 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,20 +26,32 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record NodeIngestLoadSnapshot(double load, MetricQuality metricQuality) implements AutoscalingMetrics {
-    public NodeIngestLoadSnapshot(StreamInput in) throws IOException {
-        this(in.readDouble(), MetricQuality.readFrom(in));
+public record SearchTierMetrics(MemoryMetrics memoryMetrics, MaxShardCopies maxShardCopies, StorageMetrics storageMetrics)
+    implements
+        AutoscalingMetrics {
+
+    public SearchTierMetrics(StreamInput in) throws IOException {
+        this(new MemoryMetrics(in), new MaxShardCopies(in), new StorageMetrics(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(load);
-        metricQuality.writeTo(out);
+        memoryMetrics.writeTo(out);
+        maxShardCopies.writeTo(out);
+        storageMetrics.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        serializeMetric(builder, load, metricQuality);
+        builder.startObject();
+
+        builder.object("metrics", (objectBuilder) -> {
+            memoryMetrics.toXContent(objectBuilder, params);
+            maxShardCopies.toXContent(objectBuilder, params);
+            storageMetrics.toXContent(objectBuilder, params);
+        });
+
+        builder.endObject();
         return builder;
     }
 }

@@ -23,7 +23,7 @@
  * Side Public License, v 1.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.action.metrics;
+package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;

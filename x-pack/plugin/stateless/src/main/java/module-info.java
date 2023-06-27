@@ -30,5 +30,9 @@ module org.elasticsearch.stateless {
     exports co.elastic.elasticsearch.stateless.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.xpack to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.autoscaling.action to org.elasticsearch.server;
-    exports co.elastic.elasticsearch.stateless.autoscaling.indexing to org.elasticsearch.server;
+
+    exports co.elastic.elasticsearch.stateless.autoscaling;
+    exports co.elastic.elasticsearch.stateless.autoscaling.indexing;
+    exports co.elastic.elasticsearch.stateless.autoscaling.search;
+    exports co.elastic.elasticsearch.stateless.autoscaling.memory;
 }

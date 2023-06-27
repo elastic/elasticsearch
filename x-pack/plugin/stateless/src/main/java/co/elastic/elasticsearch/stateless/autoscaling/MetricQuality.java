@@ -15,7 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.model;
+package co.elastic.elasticsearch.stateless.autoscaling;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 public enum MetricQuality {
     EXACT((byte) 0, "exact"),
@@ -45,5 +50,13 @@ public enum MetricQuality {
             case 2 -> MISSING;
             default -> throw new IllegalStateException("No metric quality for [" + id + "]");
         };
+    }
+
+    public static MetricQuality readFrom(StreamInput in) throws IOException {
+        return MetricQuality.fromId(in.readByte());
+    }
+
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(getId());
     }
 }

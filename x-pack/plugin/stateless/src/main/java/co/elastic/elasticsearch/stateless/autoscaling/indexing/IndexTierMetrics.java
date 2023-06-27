@@ -18,28 +18,37 @@
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
-public record NodeIngestLoadSnapshot(double load, MetricQuality metricQuality) implements AutoscalingMetrics {
-    public NodeIngestLoadSnapshot(StreamInput in) throws IOException {
-        this(in.readDouble(), MetricQuality.readFrom(in));
+public record IndexTierMetrics(List<NodeIngestLoadSnapshot> nodesLoad, MemoryMetrics memoryMetrics) implements AutoscalingMetrics {
+
+    public IndexTierMetrics(StreamInput in) throws IOException {
+        this(in.readList(NodeIngestLoadSnapshot::new), new MemoryMetrics(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(load);
-        metricQuality.writeTo(out);
+        out.writeList(nodesLoad);
+        memoryMetrics.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        serializeMetric(builder, load, metricQuality);
+        builder.startObject();
+
+        builder.object("metrics", (objectBuilder) -> {
+            objectBuilder.xContentList("indexing_load", nodesLoad);
+            memoryMetrics.toXContent(objectBuilder, params);
+        });
+
+        builder.endObject();
         return builder;
     }
 }

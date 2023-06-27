@@ -15,14 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.action.metrics;
+package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService.DiskSizeMetrics;
+import co.elastic.elasticsearch.stateless.autoscaling.search.AutoscalingDiskSizeMetricsService.DiskSizeMetrics;
 
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService.NO_TIMESTAMP;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.AutoscalingDiskSizeMetricsService.NO_TIMESTAMP;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.core.TimeValue.timeValueDays;
 import static org.hamcrest.Matchers.equalTo;

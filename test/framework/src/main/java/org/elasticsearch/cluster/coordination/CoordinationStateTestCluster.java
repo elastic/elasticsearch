@@ -156,7 +156,7 @@ public class CoordinationStateTestCluster {
                 localNode.getAddress(),
                 localNode.getAttributes(),
                 roles,
-                localNode.getVersion()
+                localNode.getVersionInformation()
             );
 
             state = new CoordinationState(localNode, persistedState, electionStrategy);

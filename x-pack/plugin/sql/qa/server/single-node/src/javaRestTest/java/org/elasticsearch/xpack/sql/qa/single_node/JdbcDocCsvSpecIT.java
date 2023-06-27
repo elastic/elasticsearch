@@ -75,11 +75,6 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
     }
 
     @Override
-    protected boolean logEsResultSet() {
-        return false;
-    }
-
-    @Override
     protected final void doTest() throws Throwable {
         try (Connection csv = csvConnection(testCase); Connection es = esJdbc()) {
 

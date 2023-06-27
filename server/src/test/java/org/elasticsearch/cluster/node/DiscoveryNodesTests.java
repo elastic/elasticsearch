@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -239,7 +240,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                     nodeAddress,
                     attrs,
                     node.getRoles(),
-                    node.getVersion()
+                    node.getVersionInformation()
                 );
             }
             nodesB.add(node);
@@ -413,7 +414,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                Version.fromString("5.1.0")
+                VersionInformation.inferVersions(Version.fromString("5.1.0"))
             )
         );
         discoBuilder.add(
@@ -423,7 +424,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                Version.fromString("6.3.0")
+                VersionInformation.inferVersions(Version.fromString("6.3.0"))
             )
         );
         discoBuilder.localNodeId("node_" + between(1, 3));
@@ -437,7 +438,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                Version.fromString("1.1.0")
+                VersionInformation.inferVersions(Version.fromString("1.1.0"))
             )
         );
         DiscoveryNodes build = discoBuilder.build();
@@ -477,7 +478,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
         };
 
-        final BiFunction<Integer, Version, DiscoveryNode> nodeVersionFactory = (i, v) -> new DiscoveryNode(
+        final BiFunction<Integer, VersionInformation, DiscoveryNode> nodeVersionFactory = (i, v) -> new DiscoveryNode(
             "name" + i,
             "id" + i,
             buildNewFakeTransportAddress(),
@@ -486,9 +487,12 @@ public class DiscoveryNodesTests extends ESTestCase {
             v
         );
 
-        final IntFunction<DiscoveryNode> nodeFactory = i -> nodeVersionFactory.apply(i, Version.CURRENT);
+        final IntFunction<DiscoveryNode> nodeFactory = i -> nodeVersionFactory.apply(i, VersionInformation.CURRENT);
 
-        final var node0 = nodeVersionFactory.apply(0, VersionUtils.randomVersion(random()));
+        final var node0 = nodeVersionFactory.apply(
+            0,
+            new VersionInformation(VersionUtils.randomVersion(random()), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+        );
         testHarness.accept(builder -> builder.add(node0), 0L);
 
         final var node1 = nodeFactory.apply(1);
@@ -511,7 +515,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         testHarness.accept(builder -> builder.remove(node2), 2L);
 
         // if old nodes are present then the generation is forced to zero
-        final var node3 = nodeVersionFactory.apply(3, Version.V_8_8_0);
+        final var node3 = nodeVersionFactory.apply(3, VersionInformation.inferVersions(Version.V_8_8_0));
         testHarness.accept(builder -> builder.add(node3), 0L);
 
         // and it remains at zero while the old node is present

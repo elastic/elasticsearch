@@ -266,7 +266,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             SeqNoFieldMapper.NAME,
             SourceFieldMapper.NAME,
             FieldNamesFieldMapper.NAME,
-            NestedPathFieldMapper.name(IndexVersion.CURRENT)
+            NestedPathFieldMapper.name(IndexVersion.current())
         )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }

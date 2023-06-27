@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -99,7 +100,7 @@ public class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(
         Settings settings,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion,
         ThreadPool threadPool
     ) {
@@ -108,7 +109,7 @@ public class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(
         Settings settings,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings
@@ -152,7 +153,7 @@ public class MockTransportService extends TransportService {
     public static MockTransportService createNewService(
         Settings settings,
         Transport transport,
-        Version version,
+        VersionInformation version,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
@@ -163,7 +164,7 @@ public class MockTransportService extends TransportService {
     public static MockTransportService createNewService(
         Settings settings,
         Transport transport,
-        Version version,
+        VersionInformation version,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,

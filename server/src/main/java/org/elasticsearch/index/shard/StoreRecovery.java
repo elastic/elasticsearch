@@ -601,7 +601,7 @@ public final class StoreRecovery {
                     indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                     indexShard.finalizeRecovery();
                     indexShard.postRecovery("restore done");
-                    return null;
+                    return true;
                 }));
             });
         }));

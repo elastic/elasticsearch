@@ -95,7 +95,7 @@ order for it to be accessible by the API keys.
 `metadata`::: (object) Optional meta-data. Within the `metadata` object, keys
 that begin with `_` are reserved for system usage.
 
-`restriction`::: (object) Optional restriction. For more information, see
+`restriction`::: (object) Optional restriction for when the role descriptor is allowed to be effective. For more information, see
 <<role-restriction>>.
 `workflows`:::: (list) A list of workflows to which the API key is restricted.
 For a full list see <<workflows-restriction>>.

@@ -9,11 +9,11 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -498,7 +498,7 @@ public class ExchangeServiceTests extends ESTestCase {
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,
             MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool, namedWriteableRegistry),
-            Version.CURRENT,
+            VersionInformation.CURRENT,
             threadPool,
             null,
             Collections.emptySet()

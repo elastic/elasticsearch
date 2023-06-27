@@ -327,7 +327,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
                 float v = parseToFloat(value);
                 if (isIndexed) {
                     return HalfFloatPoint.newExactQuery(field, v);
@@ -337,13 +337,28 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues) {
                 float[] v = new float[values.size()];
                 int pos = 0;
+                float lowerValue = Long.MAX_VALUE;
+                float upperValue = Long.MIN_VALUE;
                 for (Object value : values) {
-                    v[pos++] = parseToFloat(value);
+                    float floatValue = parseToFloat(value);
+                    v[pos++] = floatValue;
+                    if (floatValue > upperValue) {
+                        upperValue = floatValue;
+                    }
+                    if (floatValue < lowerValue) {
+                        lowerValue = floatValue;
+                    }
                 }
-                return HalfFloatPoint.newSetQuery(field, v);
+
+                Query query = HalfFloatPoint.newSetQuery(field, v);
+                if (hasDocValues) {
+                    Query dvQuery = FloatField.newRangeQuery(name(), lowerValue, upperValue);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+                return query;
             }
 
             @Override
@@ -480,7 +495,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
                 float v = parse(value, false);
                 if (isIndexed) {
                     return FloatPoint.newExactQuery(field, v);
@@ -490,7 +505,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues) {
                 float[] v = new float[values.size()];
                 int pos = 0;
                 for (Object value : values) {
@@ -626,7 +641,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
                 double v = parse(value, false);
                 if (isIndexed) {
                     return DoublePoint.newExactQuery(field, v);
@@ -636,7 +651,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues) {
                 double[] v = values.stream().mapToDouble(value -> parse(value, false)).toArray();
                 return DoublePoint.newSetQuery(field, v);
             }
@@ -761,13 +776,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
-                return INTEGER.termQuery(field, value, isIndexed);
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+                return INTEGER.termQuery(field, value, isIndexed, hasDocValues);
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
-                return INTEGER.termsQuery(field, values);
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues) {
+                return INTEGER.termsQuery(field, values, isIndexed, hasDocValues);
             }
 
             @Override
@@ -850,13 +865,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
-                return INTEGER.termQuery(field, value, isIndexed);
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+                return INTEGER.termQuery(field, value, isIndexed, hasDocValues);
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
-                return INTEGER.termsQuery(field, values);
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues) {
+                return INTEGER.termsQuery(field, values, isIndexed, hasDocValues);
             }
 
             @Override
@@ -939,7 +954,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -952,13 +967,22 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues) {
                 int[] v = new int[values.size()];
                 int upTo = 0;
 
+                int lowerValue = Integer.MAX_VALUE;
+                int upperValue = Integer.MIN_VALUE;
                 for (Object value : values) {
                     if (hasDecimalPart(value) == false) {
-                        v[upTo++] = parse(value, true);
+                        int currentValue = parse(value, true);
+                        v[upTo++] = currentValue;
+                        if (currentValue > upperValue) {
+                            upperValue = currentValue;
+                        }
+                        if (currentValue < lowerValue) {
+                            lowerValue = currentValue;
+                        }
                     }
                 }
 
@@ -968,7 +992,19 @@ public class NumberFieldMapper extends FieldMapper {
                 if (upTo != v.length) {
                     v = Arrays.copyOf(v, upTo);
                 }
-                return IntPoint.newSetQuery(field, v);
+//                return IntPoint.newSetQuery(field, v);
+
+                Query query;
+                if (isIndexed) {
+                    query = IntPoint.newSetQuery(field, v);
+                    if (hasDocValues) {
+                        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery(field, lowerValue, upperValue);
+                        query = new IndexOrDocValuesQuery(query, dvQuery);
+                    }
+                } else {
+                    query = SortedNumericDocValuesField.newSlowSetQuery(field, lowerValue, upperValue);
+                }
+                return query;
             }
 
             @Override
@@ -1091,7 +1127,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -1104,7 +1140,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues) {
                 long[] v = new long[values.size()];
                 int upTo = 0;
 
@@ -1228,9 +1264,9 @@ public class NumberFieldMapper extends FieldMapper {
             return parser;
         }
 
-        public abstract Query termQuery(String field, Object value, boolean isIndexed);
+        public abstract Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues);
 
-        public abstract Query termsQuery(String field, Collection<?> values);
+        public abstract Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasDocValues);
 
         public abstract Query rangeQuery(
             String field,
@@ -1552,14 +1588,14 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed());
+            return type.termQuery(name(), value, isIndexed(), hasDocValues());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
-                return type.termsQuery(name(), values);
+                return type.termsQuery(name(), values, isIndexed(), hasDocValues());
             } else {
                 return super.termsQuery(values, context);
             }

@@ -63,7 +63,7 @@ dependencies {
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-  runtimeOnly 'com.google.guava:guava:19.0'
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:9.37"

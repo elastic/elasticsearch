@@ -293,7 +293,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", IndexVersion.CURRENT, false, true)
+        final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", IndexVersion.current(), false, true)
             .build(MapperBuilderContext.root(false));
 
         // test store z disabled
@@ -376,7 +376,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder = new LegacyGeoShapeFieldMapper.Builder(
             "test",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             true
         ).coerce(true).build(MapperBuilderContext.root(false));

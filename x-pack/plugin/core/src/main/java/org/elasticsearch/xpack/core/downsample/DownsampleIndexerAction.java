@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -113,11 +112,6 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);
             out.writeStringArray(labelFields);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

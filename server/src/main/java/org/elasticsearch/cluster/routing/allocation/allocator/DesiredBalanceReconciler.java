@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -145,7 +145,7 @@ public class DesiredBalanceReconciler {
 
             final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
             // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(Version.V_7_2_0)
+            indexMetadata.getCreationVersion().onOrAfter(IndexVersion.V_7_2_0)
                 || indexMetadata.getState() == IndexMetadata.State.OPEN
                 || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(

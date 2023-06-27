@@ -709,46 +709,37 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * It is the responsibility of the caller to ensure that the ref count is correctly decremented
      * when the object is no longer needed.
      */
-    @SuppressWarnings({ "unchecked" })
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        Rewriteable.rewriteAndFetch(
-            shardSearchRequest.getRewriteable(),
-            indicesService.getDataRewriteContext(shardSearchRequest::nowInMillis),
-            listener.delegateFailure((l, rewriteable) -> {
-                runAsync(getExecutor(readerContext.indexShard()), () -> {
-                    readerContext.setAggregatedDfs(request.dfs());
-                    try (
-                        SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);
-                        SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
-                    ) {
-                        searchContext.searcher().setAggregatedDfs(request.dfs());
-                        QueryPhase.execute(searchContext);
-                        if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
-                            // no hits, we can release the context since there will be no fetch phase
-                            freeReaderContext(readerContext.id());
-                        }
-                        executor.success();
-                        // Pass the rescoreDocIds to the queryResult to send them the coordinating node and
-                        // receive them back in fetch phase.
-                        // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs
-                        // to stay in the data node.
-                        final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
-                        searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
-                        readerContext.setRescoreDocIds(rescoreDocIds);
-                        searchContext.queryResult().incRef();
-                        return searchContext.queryResult();
-                    } catch (Exception e) {
-                        assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                        logger.trace("Query phase failed", e);
-                        // we handle the failure in the failure listener below
-                        throw e;
-                    }
-                }, wrapFailureListener(l, readerContext, markAsUsed));
-            })
-        );
+        runAsync(getExecutor(readerContext.indexShard()), () -> {
+            readerContext.setAggregatedDfs(request.dfs());
+            try (
+                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);
+                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
+            ) {
+                searchContext.searcher().setAggregatedDfs(request.dfs());
+                QueryPhase.execute(searchContext);
+                if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                    // no hits, we can release the context since there will be no fetch phase
+                    freeReaderContext(readerContext.id());
+                }
+                executor.success();
+                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
+                final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
+                searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
+                readerContext.setRescoreDocIds(rescoreDocIds);
+                searchContext.queryResult().incRef();
+                return searchContext.queryResult();
+            } catch (Exception e) {
+                assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                logger.trace("Query phase failed", e);
+                // we handle the failure in the failure listener below
+                throw e;
+            }
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     private Executor getExecutor(IndexShard indexShard) {

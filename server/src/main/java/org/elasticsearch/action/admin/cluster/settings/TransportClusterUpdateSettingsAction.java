@@ -242,7 +242,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         protected volatile boolean changed = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
-        private final ClusterSettings clusterSettings;
 
         public ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
@@ -251,7 +250,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             ActionListener<? extends AcknowledgedResponse> listener
         ) {
             super(priority, request, listener);
-            this.clusterSettings = clusterSettings;
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
         }
@@ -267,8 +265,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         public ClusterState execute(final ClusterState currentState) {
             final ClusterState clusterState = updater.updateSettings(
                 currentState,
-                clusterSettings.upgradeSettings(request.transientSettings()),
-                clusterSettings.upgradeSettings(request.persistentSettings()),
+                request.transientSettings(),
+                request.persistentSettings(),
                 logger
             );
             changed = clusterState != currentState;

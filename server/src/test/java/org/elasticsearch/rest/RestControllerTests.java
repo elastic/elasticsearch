@@ -927,6 +927,7 @@ public class RestControllerTests extends ESTestCase {
      */
     public void testApiProtectionWithServerlessEnabledAsEndUser() {
         final RestController restController = new RestController(null, client, circuitBreakerService, new UsageService(), tracer);
+        restController.getApiProtections().setEnabled(true);
         restController.registerHandler(new PublicRestHandler());
         restController.registerHandler(new InternalRestHandler());
         restController.registerHandler(new HiddenRestHandler());

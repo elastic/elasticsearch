@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -17,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.FailBeforeCurrentVersionQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -200,9 +202,13 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version"));
         assertThat(ex.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
 
-        String expectedCause = "[fail_before_current_version] was released first in version XXXXXXX, failed compatibility check trying to"
-            + " send it to node with version XXXXXXX";
-        String actualCause = ex.getCause().getMessage().replaceAll("\\d{7,}", "XXXXXXX");
+        String expectedCause = Strings.format(
+            "[fail_before_current_version] was released first in version %s, failed compatibility "
+                + "check trying to send it to node with version %s",
+            FailBeforeCurrentVersionQueryBuilder.FUTURE_VERSION,
+            TransportVersion.MINIMUM_CCS_VERSION
+        );
+        String actualCause = ex.getCause().getMessage();
         assertEquals(expectedCause, actualCause);
     }
 }

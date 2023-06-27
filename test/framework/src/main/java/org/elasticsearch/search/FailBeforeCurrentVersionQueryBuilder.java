@@ -22,6 +22,7 @@ import java.io.IOException;
 public class FailBeforeCurrentVersionQueryBuilder extends DummyQueryBuilder {
 
     public static final String NAME = "fail_before_current_version";
+    public static final int FUTURE_VERSION = TransportVersion.current().id() + 11_111;
 
     public FailBeforeCurrentVersionQueryBuilder(StreamInput in) throws IOException {
         super(in);
@@ -48,6 +49,6 @@ public class FailBeforeCurrentVersionQueryBuilder extends DummyQueryBuilder {
     public TransportVersion getMinimalSupportedVersion() {
         // this is what causes the failure - it always reports a version in the future, so it is never compatible with
         // current or minimum CCS TransportVersion
-        return new TransportVersion(TransportVersion.current().id() + 11_111);
+        return new TransportVersion(FUTURE_VERSION);
     }
 }

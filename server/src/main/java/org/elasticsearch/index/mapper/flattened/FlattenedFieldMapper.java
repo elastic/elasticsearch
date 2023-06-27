@@ -701,11 +701,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(name());
-        }
-
-        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;

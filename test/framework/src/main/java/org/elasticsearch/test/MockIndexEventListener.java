@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -88,7 +89,8 @@ public final class MockIndexEventListener {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             return Collections.singletonList(listener);
         }

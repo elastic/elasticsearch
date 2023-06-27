@@ -500,7 +500,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filters1.getBucketByKey("q1").getDocCount(), equalTo(1L));
         },
             new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))), ft)
-                .withQuery(Queries.newNonNestedFilter(IndexVersion.CURRENT))
+                .withQuery(Queries.newNonNestedFilter(IndexVersion.current()))
         );
         testCase(buildIndex, result -> {
             InternalFilters filters = (InternalFilters) result;
@@ -508,7 +508,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
         },
             new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())), ft).withQuery(
-                Queries.newNonNestedFilter(IndexVersion.CURRENT)
+                Queries.newNonNestedFilter(IndexVersion.current())
             )
         );
     }

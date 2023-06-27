@@ -160,6 +160,7 @@ public class XPackPluginTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         assertEquals(license, XPackPlugin.getSharedLicenseService().getLicense());
@@ -208,6 +209,7 @@ public class XPackPluginTests extends ESTestCase {
             null,
             null,
             mockEnvironment,
+            null,
             null,
             null,
             null,

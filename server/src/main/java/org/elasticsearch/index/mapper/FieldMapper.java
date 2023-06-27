@@ -1047,7 +1047,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer
         ) {
-            return analyzerParam(name, updateable, initializer, defaultAnalyzer, IndexVersion.CURRENT);
+            return analyzerParam(name, updateable, initializer, defaultAnalyzer, IndexVersion.current());
         }
 
         /**

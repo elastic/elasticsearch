@@ -534,11 +534,6 @@ public class SettingsUpdaterTests extends ESTestCase {
                 throw new IllegalArgumentException("Invalid in isolation setting");
             }
 
-            @Override
-            public void validate(final String value, final Map<Setting<?>, Object> settings) {
-
-            }
-
         }, Property.NodeScope);
     }
 

@@ -44,7 +44,7 @@ final class EmptyDirectory extends FilterDirectory {
     static final EmptyDirectory INSTANCE;
     static {
         final var directory = new ByteBuffersDirectory();
-        var emptySegmentInfos = new SegmentInfos(IndexVersion.CURRENT.luceneVersion().major);
+        var emptySegmentInfos = new SegmentInfos(IndexVersion.current().luceneVersion().major);
         emptySegmentInfos.setUserData(
             Map.of(
                 Engine.HISTORY_UUID_KEY,

@@ -239,7 +239,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                     nodeAddress,
                     attrs,
                     node.getRoles(),
-                    node.getVersion()
+                    node.getVersionInformation()
                 );
             }
             nodesB.add(node);

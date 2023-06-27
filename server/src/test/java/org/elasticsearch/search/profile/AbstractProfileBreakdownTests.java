@@ -126,6 +126,7 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
             });
             threads[t].start();
         }
+        // starting all threads simultaneously increases the likelihood of failure in case we don't synchronize timer access properly
         latch.countDown();
         for (Thread t : threads) {
             t.join();

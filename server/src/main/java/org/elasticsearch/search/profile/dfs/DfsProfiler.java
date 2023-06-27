@@ -51,12 +51,6 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         return newTimer;
     }
 
-    public Timer stopTimer(DfsTimingType dfsTimingType) {
-        Timer newTimer = getNewTimer(dfsTimingType);
-        newTimer.stop();
-        return newTimer;
-    }
-
     public QueryProfiler addQueryProfiler(ProfileCollectorManager collectorManager) {
         QueryProfiler queryProfiler = new QueryProfiler();
         queryProfiler.setCollectorManager(collectorManager::getCollectorTree);

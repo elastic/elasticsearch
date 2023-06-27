@@ -416,11 +416,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
-    protected void assertSearchable(MappedFieldType fieldType) {
-
-    }
-
-    @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;

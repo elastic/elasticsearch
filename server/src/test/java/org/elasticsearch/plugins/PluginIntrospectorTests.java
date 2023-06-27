@@ -336,12 +336,7 @@ public class PluginIntrospectorTests extends ESTestCase {
                 return null;
             }
         }
-        class SubBazIngestPlugin extends BazIngestPlugin {
-            @Override
-            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-                return null;
-            }
-        }
+        class SubBazIngestPlugin extends BazIngestPlugin {}
 
         assertThat(pluginIntrospector.overriddenMethods(BazIngestPlugin.class), contains("getProcessors"));
         assertThat(pluginIntrospector.overriddenMethods(SubBazIngestPlugin.class), contains("getProcessors"));

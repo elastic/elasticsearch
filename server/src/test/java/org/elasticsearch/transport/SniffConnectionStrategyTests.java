@@ -806,7 +806,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 getLocalNode(unresponsive1).getAddress(),
                 accessibleNode.getAttributes(),
                 accessibleNode.getRoles(),
-                accessibleNode.getVersion()
+                accessibleNode.getVersionInformation()
             );
 
             knownNodes.add(unaddressableSeedNode);

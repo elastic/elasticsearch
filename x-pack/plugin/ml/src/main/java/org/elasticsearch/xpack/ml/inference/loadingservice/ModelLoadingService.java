@@ -298,6 +298,7 @@ public class ModelLoadingService implements ClusterStateListener {
     ) {
         final SetOnce<Exception> exceptionToNotifyListener = new SetOnce<>();
         final SetOnce<LocalModel> localModelToNotifyListener = new SetOnce<>();
+        final SetOnce<Runnable> modelLoadingRunnable = new SetOnce<>();
         try {
             synchronized (loadingListeners) {
                 final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
@@ -321,32 +322,43 @@ public class ModelLoadingService implements ClusterStateListener {
                 );
 
                 // The cachedModel entry is null, but there are listeners present, that means it is being loaded
+                // If it is already being loaded, we don't need to start another loading process and we know the listener will
+                // eventually be called
                 if (listeners != null) {
                     return true;
                 }
 
+                // The model is not currently being loaded (indicated by listeners check above).
+                // So start a new load outside of the synchronized block.
                 if (Consumer.SEARCH != consumer && referencedModels.contains(modelId) == false) {
                     // The model is requested by a pipeline but not referenced by any ingest pipelines.
                     // This means it is a simulate call and the model should not be cached
                     logger.trace(
                         () -> format("[%s] (model_alias [%s]) not actively loading, eager loading without cache", modelId, modelIdOrAlias)
                     );
-                    loadWithoutCaching(modelId, consumer, parentTaskId, modelActionListener);
+                    modelLoadingRunnable.set(() -> loadWithoutCaching(modelId, consumer, parentTaskId, modelActionListener));
                 } else {
                     logger.trace(() -> format("[%s] (model_alias [%s]) attempting to load and cache", modelId, modelIdOrAlias));
                     loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
-                    loadModel(modelId, consumer);
+                    modelLoadingRunnable.set(() -> loadModel(modelId, consumer));
                 }
                 return false;
             } // synchronized (loadingListeners)
         } finally {
             // Notify the passed listener if the model was already in cache or an exception was thrown
+            // However, if we don't notify the listener here,
+            // it will be notified when the model is loaded. Either via the runnable below or some already existing loading thread.
             assert exceptionToNotifyListener.get() == null || localModelToNotifyListener.get() == null
                 : "both exception and local model set";
             if (exceptionToNotifyListener.get() != null) {
+                assert modelLoadingRunnable.get() == null : "Exception encountered, model loading runnable should be null";
                 modelActionListener.onFailure(exceptionToNotifyListener.get());
             } else if (localModelToNotifyListener.get() != null) {
+                assert modelLoadingRunnable.get() == null : "Model was cached, model loading runnable should be null";
                 modelActionListener.onResponse(localModelToNotifyListener.get());
+            } else if (modelLoadingRunnable.get() != null) {
+                // We needed to start the model loading, with or without caching. We execute this outside of the synchronous block
+                modelLoadingRunnable.get().run();
             }
         }
     }

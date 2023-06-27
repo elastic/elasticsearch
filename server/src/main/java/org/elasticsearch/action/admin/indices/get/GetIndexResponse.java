@@ -210,6 +210,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 }
 
                 builder.startObject("settings");
+
                 Settings indexSettings = settings.get(index);
                 if (indexSettings != null) {
                     indexSettings.toXContent(builder, params);

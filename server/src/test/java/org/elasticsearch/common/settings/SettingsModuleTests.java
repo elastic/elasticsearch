@@ -219,7 +219,7 @@ public class SettingsModuleTests extends ModuleTestCase {
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
         runSettingWithoutNamespaceTest(
             key,
-            () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of())
+            () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of(), null)
         );
     }
 
@@ -228,7 +228,7 @@ public class SettingsModuleTests extends ModuleTestCase {
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
         runSettingWithoutNamespaceTest(
             key,
-            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of())
+            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of(), null)
         );
     }
 
@@ -237,7 +237,7 @@ public class SettingsModuleTests extends ModuleTestCase {
         final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
         runSettingWithoutNamespaceTest(
             key,
-            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting))
+            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting), null)
         );
     }
 

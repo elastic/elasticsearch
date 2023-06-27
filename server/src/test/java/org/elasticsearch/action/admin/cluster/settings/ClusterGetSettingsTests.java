@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.DefaultSettingsFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +46,7 @@ public class ClusterGetSettingsTests extends ESTestCase {
     }
 
     public void testTransportFilters() throws Exception {
-        final SettingsFilter filter = new SettingsFilter(List.of("persistent.foo.filtered", "transient.foo.filtered"));
+        final SettingsFilter filter = new DefaultSettingsFilter(List.of("persistent.foo.filtered", "transient.foo.filtered"));
 
         TransportClusterGetSettingsAction action = new TransportClusterGetSettingsAction(
             mock(TransportService.class),

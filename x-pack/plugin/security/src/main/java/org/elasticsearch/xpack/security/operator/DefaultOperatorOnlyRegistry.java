@@ -17,8 +17,11 @@ import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAct
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.PutLicenseAction;
@@ -81,6 +84,7 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
             return null;
         }
     }
+
 
     @Override
     public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {

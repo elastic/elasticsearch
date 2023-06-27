@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -46,6 +47,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
     private final MetadataCreateIndexService createIndexService;
     private final SystemIndices systemIndices;
+    private final SettingsFilter settingsFilter;
 
     @Inject
     public TransportCreateIndexAction(
@@ -55,7 +57,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        SettingsFilter settingsFilter
     ) {
         super(
             CreateIndexAction.NAME,
@@ -70,6 +73,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         );
         this.createIndexService = createIndexService;
         this.systemIndices = systemIndices;
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -122,6 +126,12 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 listener.onFailure(new IllegalStateException(message));
                 return;
             }
+        }
+
+        try {
+            settingsFilter.validateSettings(request.settings());
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
 
         final CreateIndexClusterStateUpdateRequest updateRequest;

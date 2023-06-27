@@ -92,6 +92,16 @@ public class Setting<T> implements ToXContentObject {
          * Operator only Dynamic setting
          */
         OperatorDynamic,
+        /**
+         * Serverless public setting.
+         * This setting will be not-restricted in serverless deployment.
+         * public users (non operator) will be able to set this setting and to see this setting's value.
+         * Applies to both IndexScope and Dynamic (cluster setting).
+         * This property will not take any effect for non-serverless deployment and is not conflicting with any settings.
+         *
+         * All the other settings will be restricted to operator-only users.
+         */
+        ServerlessPublic,
 
         /**
          * mark this setting as final, not updateable even when the context is not dynamic
@@ -195,6 +205,7 @@ public class Setting<T> implements ToXContentObject {
             if (propertiesAsSet.stream().filter(DEPRECATED_PROPERTIES::contains).count() > 1) {
                 throw new IllegalArgumentException("setting [" + key + "] must be at most one of [" + DEPRECATED_PROPERTIES + "]");
             }
+            // validate Property.OperatorServerless
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
@@ -363,6 +374,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isOperatorOnly() {
         return properties.contains(Property.OperatorDynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is dynamically updateable and visible to operators in serverless,
+     * otherwise <code>false</code>
+     */
+    public final boolean isServerlessPublic() {
+        return properties.contains(Property.ServerlessPublic);
     }
 
     /**

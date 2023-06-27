@@ -88,7 +88,8 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             metadataCreateIndexService,
             mock(ActionFilters.class),
             indexNameExpressionResolver,
-            SYSTEM_INDICES
+            SYSTEM_INDICES,
+            null
         );
     }
 

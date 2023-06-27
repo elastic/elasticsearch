@@ -215,7 +215,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         1,
         0,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     public static final String SETTING_ROUTING_PARTITION_SIZE = "index.routing_partition_size";

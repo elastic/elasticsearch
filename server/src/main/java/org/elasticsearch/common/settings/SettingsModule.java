@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -35,17 +36,21 @@ public class SettingsModule implements Module {
 
     private final Settings settings;
     private final Set<String> settingsFilterPattern = new HashSet<>();
+    private final Set<String> serverlessOperatorSettingsNames = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
     private final Set<Setting<?>> consistentSettings = new HashSet<>();
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
+    private ThreadContext threadContext;
 
+    // test only
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
         this(settings, Arrays.asList(additionalSettings), Collections.emptyList(), Collections.emptySet());
     }
 
+    // test only
     public SettingsModule(
         Settings settings,
         List<Setting<?>> additionalSettings,
@@ -58,7 +63,26 @@ public class SettingsModule implements Module {
             settingsFilter,
             settingUpgraders,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS,
+            null
+        );
+    }
+
+    public SettingsModule(
+        Settings settings,
+        List<Setting<?>> additionalSettings,
+        List<String> settingsFilter,
+        Set<SettingUpgrader<?>> settingUpgraders,
+        ThreadContext threadContext
+    ) {
+        this(
+            settings,
+            additionalSettings,
+            settingsFilter,
+            settingUpgraders,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS,
+            threadContext
         );
     }
 
@@ -68,8 +92,10 @@ public class SettingsModule implements Module {
         final List<String> settingsFilter,
         final Set<SettingUpgrader<?>> settingUpgraders,
         final Set<Setting<?>> registeredClusterSettings,
-        final Set<Setting<?>> registeredIndexSettings
+        final Set<Setting<?>> registeredIndexSettings,
+        ThreadContext threadContext
     ) {
+        this.threadContext = threadContext;
         this.settings = settings;
         for (Setting<?> setting : registeredClusterSettings) {
             registerSetting(setting);
@@ -148,7 +174,21 @@ public class SettingsModule implements Module {
         }
         // by now we are fully configured, lets check node level settings for unregistered index settings
         clusterSettings.validate(settings, true);
-        this.settingsFilter = new SettingsFilter(settingsFilterPattern);
+
+        this.settingsFilter = spiLookup(threadContext);
+    }
+
+    private ServerlessOperatorSettingsFilter spiLookup(ThreadContext threadContext) {
+        DefaultSettingsFilter defaultSettingsFilter = new DefaultSettingsFilter(settingsFilterPattern);
+
+        // if spi lookup etc... The SPI interface would be a factory
+        ServerlessOperatorSettingsFilter serverlessOperatorSettingsFilter = new ServerlessOperatorSettingsFilter(
+            serverlessOperatorSettingsNames,
+            threadContext,
+            defaultSettingsFilter,
+            indexScopedSettings
+        );
+        return serverlessOperatorSettingsFilter;
     }
 
     @Override
@@ -167,6 +207,10 @@ public class SettingsModule implements Module {
     private void registerSetting(Setting<?> setting) {
         if (setting.getKey().contains(".") == false && isS3InsecureCredentials(setting) == false) {
             throw new IllegalArgumentException("setting [" + setting.getKey() + "] is not in any namespace, its name must contain a dot");
+        }
+        if (setting.isServerlessPublic()) {
+            // validate that it is not an affix setting
+            serverlessOperatorSettingsNames.add(setting.getKey());
         }
         if (setting.isFiltered()) {
             if (settingsFilterPattern.contains(setting.getKey()) == false) {

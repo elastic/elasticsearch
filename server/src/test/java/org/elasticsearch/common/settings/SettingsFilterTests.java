@@ -30,7 +30,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class SettingsFilterTests extends ESTestCase {
     public void testAddingAndRemovingFilters() {
         HashSet<String> hashSet = new HashSet<>(Arrays.asList("foo", "bar", "baz"));
-        SettingsFilter settingsFilter = new SettingsFilter(hashSet);
+        DefaultSettingsFilter settingsFilter = new DefaultSettingsFilter(hashSet);
         assertEquals(settingsFilter.getPatterns(), hashSet);
     }
 
@@ -132,7 +132,7 @@ public class SettingsFilterTests extends ESTestCase {
     }
 
     private void testFiltering(Settings source, Settings filtered, String... patterns) throws IOException {
-        SettingsFilter settingsFilter = new SettingsFilter(Arrays.asList(patterns));
+        SettingsFilter settingsFilter = new DefaultSettingsFilter(Arrays.asList(patterns));
 
         // Test using direct filtering
         Settings filteredSettings = settingsFilter.filter(source);

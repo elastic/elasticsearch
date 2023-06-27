@@ -125,7 +125,11 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
-        return List.of(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
+        return List.of(
+            DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING,
+            DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING,
+            DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING
+        );
     }
 
     @Override

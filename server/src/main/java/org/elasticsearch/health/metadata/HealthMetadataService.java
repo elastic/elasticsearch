@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -49,7 +50,6 @@ public class HealthMetadataService {
 
     private final ClusterService clusterService;
     private final ClusterStateListener clusterStateListener;
-    private final Settings settings;
     private final MasterServiceTaskQueue<UpsertHealthMetadataTask> taskQueue;
     private volatile boolean enabled;
 
@@ -59,14 +59,15 @@ public class HealthMetadataService {
     // Allows us to know if this node is the elected master without checking the cluster state, effectively protecting
     // us from checking the cluster state before the cluster state is initialized
     private volatile boolean isMaster = false;
+    private volatile HealthMetadata previousHealthMetadata;
     private volatile HealthMetadata healthMetadata;
 
     private HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
-        this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
-        this.healthMetadata = initialHealthMetadata(settings);
+        this.previousHealthMetadata = initialHealthMetadata(settings);
+        this.healthMetadata = this.previousHealthMetadata;
         this.taskQueue = clusterService.createTaskQueue(
             "health metadata service",
             Priority.NORMAL,
@@ -79,24 +80,6 @@ public class HealthMetadataService {
         healthMetadataService.registerListeners();
         return healthMetadataService;
     }
-
-    private static HealthMetadata initialHealthMetadata(Settings settings) {
-        return new HealthMetadata(
-            new HealthMetadata.Disk(
-                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
-                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.get(settings),
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings),
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.get(settings),
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
-            ),
-            new HealthMetadata.ShardLimits(
-                SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
-                SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
-            )
-        );
-    }
-
     private void registerListeners() {
         if (this.enabled) {
             this.clusterService.addListener(clusterStateListener);
@@ -104,8 +87,6 @@ public class HealthMetadataService {
 
         var clusterSettings = clusterService.getClusterSettings();
 
-        // The method `updateOnSettingsUpdated` depends on the `enabled` attribute, which can be updated by the next consumer, so, the next
-        // line **must** be the first listener to register.
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
 
         Stream.of(
@@ -116,7 +97,7 @@ public class HealthMetadataService {
             .forEach(
                 setting -> clusterSettings.addSettingsUpdateConsumer(
                     setting,
-                    value -> updateOnSettingsUpdated(new UpdateDiskMetadata(setting.getKey(), value.getStringRep()))
+                    value -> updateOnDiskSettingsUpdated(setting.getKey(), value.getStringRep())
                 )
             );
 
@@ -128,7 +109,7 @@ public class HealthMetadataService {
             .forEach(
                 setting -> clusterSettings.addSettingsUpdateConsumer(
                     setting,
-                    value -> updateOnSettingsUpdated(new UpdateDiskMetadata(setting.getKey(), value.getStringRep()))
+                    value -> updateOnDiskSettingsUpdated(setting.getKey(), value.getStringRep())
                 )
             );
 
@@ -136,9 +117,9 @@ public class HealthMetadataService {
             .forEach(
                 setting -> clusterSettings.addSettingsUpdateConsumer(
                     setting,
-                    value -> updateOnSettingsUpdated(new UpdateShardLimitsMetadata(setting.getKey(), value))
+                    value -> updateOnShardLimitsSettingsUpdated(setting.getKey(), value)
                 )
-            );;
+            );
     }
 
     private void enable(boolean enabled) {
@@ -160,27 +141,27 @@ public class HealthMetadataService {
         } else if (isMaster == false) {
             readyToPublish = false;
         }
+
         // Wait until every node in the cluster is upgraded to 8.5.0 or later
         if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             if (readyToPublish) {
                 resetHealthMetadata("health-metadata-update-master-election");
                 readyToPublish = false;
-            }
-        }
-    }
-
-    private void updateOnSettingsUpdated(UpsertHealthMetadataTask task) {
-        // We do not use the cluster state to check if this is the master node because the cluster state might not have been initialized
-        if (isMaster && enabled) {
-            ClusterState clusterState = clusterService.state();
-            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
-                taskQueue.submitTask("health-metadata-update", task, null);
+            } else if (isMaster && previousHealthMetadata.equals(healthMetadata) == false) {
+                if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
+                    taskQueue.submitTask("health-metadata-update", ignored -> healthMetadata, null);
+                }
             }
         }
     }
 
     private void resetHealthMetadata(String source) {
-        taskQueue.submitTask(source, new InsertHealthMetadata(settings), null);
+        taskQueue.submitTask(source, storedHealthMetadata -> {
+            if (storedHealthMetadata != null) {
+                this.healthMetadata = storedHealthMetadata;
+            }
+            return this.healthMetadata;
+        }, null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -193,10 +174,10 @@ public class HealthMetadataService {
     /**
      * A base class for health metadata cluster state update tasks.
      */
-    abstract static class UpsertHealthMetadataTask implements ClusterStateTaskListener {
+    interface UpsertHealthMetadataTask extends ClusterStateTaskListener {
 
         @Override
-        public void onFailure(@Nullable Exception e) {
+        default void onFailure(@Nullable Exception e) {
             logger.log(
                 MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
                 () -> "failure during health metadata update",
@@ -204,7 +185,7 @@ public class HealthMetadataService {
             );
         }
 
-        ClusterState execute(ClusterState currentState) {
+        default ClusterState execute(ClusterState currentState) {
             var initialHealthMetadata = HealthMetadata.getFromClusterState(currentState);
             var finalHealthMetadata = doExecute(initialHealthMetadata);
             return finalHealthMetadata.equals(initialHealthMetadata)
@@ -212,9 +193,9 @@ public class HealthMetadataService {
                 : currentState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
 
-        abstract HealthMetadata doExecute(HealthMetadata initialHealthMetadata);
+        HealthMetadata doExecute(HealthMetadata initialHealthMetadata);
 
-        static class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
+        class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
 
             @Override
             public Tuple<ClusterState, Void> executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
@@ -226,100 +207,53 @@ public class HealthMetadataService {
         }
     }
 
-    /**
-     * A health metadata cluster state update task that updates a single setting of disk with the new value.
-     */
-    static class UpdateDiskMetadata extends UpsertHealthMetadataTask {
-        private final String setting;
-        private final String value;
+    private void updateOnDiskSettingsUpdated(String settingName, String value) {
+        var diskBuilder = HealthMetadata.Disk.newBuilder(healthMetadata.getDiskMetadata());
 
-        UpdateDiskMetadata(String setting, String value) {
-            this.setting = setting;
-            this.value = value;
+        if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey().equals(settingName)) {
+            diskBuilder.highWatermark(value, settingName);
+        } else if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey().equals(settingName)) {
+            diskBuilder.floodStageWatermark(value, settingName);
+        } else if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey().equals(settingName)) {
+            diskBuilder.frozenFloodStageWatermark(value, settingName);
+        } else if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey().equals(settingName)) {
+            diskBuilder.frozenFloodStageMaxHeadroom(value, settingName);
+        } else if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey().equals(settingName)) {
+            diskBuilder.highMaxHeadroom(value, settingName);
+        } else if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey().equals(settingName)) {
+            diskBuilder.floodStageMaxHeadroom(value, settingName);
         }
 
-        @Override
-        HealthMetadata doExecute(HealthMetadata initialHealthMetadata) {
-            assert initialHealthMetadata != null : "health metadata should have been initialized";
-            return new HealthMetadata(
-                diskMetadataFrom(initialHealthMetadata.getDiskMetadata()),
-                initialHealthMetadata.getShardLimitsMetadata()
-            );
-        }
-
-        private HealthMetadata.Disk diskMetadataFrom(HealthMetadata.Disk initialDiskMetadata) {
-            HealthMetadata.Disk.Builder builder = HealthMetadata.Disk.newBuilder(initialDiskMetadata);
-            if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
-                builder.highWatermark(value, setting);
-            }
-            if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey().equals(setting)) {
-                builder.floodStageWatermark(value, setting);
-            }
-            if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey().equals(setting)) {
-                builder.frozenFloodStageWatermark(value, setting);
-            }
-            if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
-                builder.frozenFloodStageMaxHeadroom(value, setting);
-            }
-            if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
-                builder.highMaxHeadroom(value, setting);
-            }
-            if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
-                builder.floodStageMaxHeadroom(value, setting);
-            }
-            return builder.build();
-        }
+        this.previousHealthMetadata = healthMetadata;
+        this.healthMetadata = HealthMetadata.newBuilder(previousHealthMetadata).disk(diskBuilder.build()).build();
     }
 
-    /**
-     * A health metadata cluster state update task that updates a single setting of shardLimits with the new value.
-     */
-    static class UpdateShardLimitsMetadata extends UpsertHealthMetadataTask {
+    private void updateOnShardLimitsSettingsUpdated(String settingName, Integer value) {
+        var shardLimitsBuilder = HealthMetadata.ShardLimits.newBuilder(healthMetadata.getShardLimitsMetadata());
 
-        private final String setting;
-        private final Integer value;
-
-        UpdateShardLimitsMetadata(String setting, Integer value) {
-            this.setting = setting;
-            this.value = value;
+        if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey().equals(settingName)) {
+            shardLimitsBuilder.maxShardsPerNode(value);
+        } else if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey().equals(settingName)) {
+            shardLimitsBuilder.maxShardsPerNodeFrozen(value);
         }
-
-        @Override
-        HealthMetadata doExecute(HealthMetadata initialHealthMetadata) {
-            assert initialHealthMetadata != null : "health metadata should have been initialized";
-            return new HealthMetadata(
-                initialHealthMetadata.getDiskMetadata(),
-                shardLimitsMetadataFrom(initialHealthMetadata.getShardLimitsMetadata())
-            );
-        }
-
-        private HealthMetadata.ShardLimits shardLimitsMetadataFrom(HealthMetadata.ShardLimits initialShardLimits) {
-            var builder = HealthMetadata.ShardLimits.newBuilder(initialShardLimits);
-            if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey().equals(setting)) {
-                builder.maxShardsPerNode(value);
-            }
-            if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey().equals(setting)) {
-                builder.maxShardsPerNodeFrozen(value);
-            }
-            return builder.build();
-        }
+        this.previousHealthMetadata = healthMetadata;
+        this.healthMetadata = HealthMetadata.newBuilder(previousHealthMetadata).shardLimits(shardLimitsBuilder.build()).build();
     }
 
-    /**
-     * A health metadata cluster state update task that reads the settings from the local node and resets the
-     * health metadata in the cluster state with these values.
-     */
-    static class InsertHealthMetadata extends UpsertHealthMetadataTask {
-
-        private final Settings settings;
-
-        InsertHealthMetadata(Settings settings) {
-            this.settings = settings;
-        }
-
-        @Override
-        HealthMetadata doExecute(HealthMetadata initialHealthMetadata) {
-            return initialHealthMetadata(settings);
-        }
+    private static HealthMetadata initialHealthMetadata(Settings settings) {
+        return new HealthMetadata(
+            new HealthMetadata.Disk(
+                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
+                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.get(settings),
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings),
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.get(settings),
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
+            ),
+            new HealthMetadata.ShardLimits(
+                SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
+                SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
+            )
+        );
     }
 }

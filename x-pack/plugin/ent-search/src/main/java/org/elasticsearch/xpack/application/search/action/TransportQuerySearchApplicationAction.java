@@ -29,8 +29,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
 
-import java.util.Map;
-
 public class TransportQuerySearchApplicationAction extends HandledTransportAction<SearchApplicationSearchRequest, SearchResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportQuerySearchApplicationAction.class);
@@ -63,26 +61,16 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
                 SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
                 SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
-                systemIndexService.checkAliasConsistency(searchApplication, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Map<String, String> inconsistentIndices) {
-
-                        for (String key : inconsistentIndices.keySet()) {
-                            HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
-                        }
-
-                        client.execute(
-                            SearchAction.INSTANCE,
-                            searchRequest,
-                            listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
-                        );
+                systemIndexService.checkAliasConsistency(searchApplication, listener.delegateFailure((l2, inconsistentIndices) -> {
+                    for (String key : inconsistentIndices.keySet()) {
+                        HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+                    client.execute(
+                        SearchAction.INSTANCE,
+                        searchRequest,
+                        listener.delegateFailure((l3, searchResponse) -> l3.onResponse(searchResponse))
+                    );
+                }));
             } catch (Exception e) {
                 l.onFailure(e);
             }

@@ -95,6 +95,8 @@ public class SearchApplicationIndexService {
     public static final String SEARCH_APPLICATION_ALIAS_NAME = ".search-app";
     public static final String SEARCH_APPLICATION_CONCRETE_INDEX_NAME = ".search-app-1";
     public static final String SEARCH_APPLICATION_INDEX_NAME_PATTERN = ".search-app-*";
+    private static final String INCONSISTENT_INDICES_NOT_IN_ALIAS_MSG = "index is in search application but not in associated alias";
+    private static final String INCONSISTENT_ALIAS_NOT_IN_INDICES_MSG = "index is in alias but not associcated with search application";
 
     // The client to perform any operations on user indices (alias, ...).
     private final Client client;
@@ -209,31 +211,40 @@ public class SearchApplicationIndexService {
         }));
     }
 
+    /**
+     * Checks for consistency between the indices specified in the search application and the associated
+     * search application alias. Populates a map of inconsistent indices and the reason for inconsistency
+     * that can be used to generate Warning messages in response headers.
+     * @param app SearchApplication
+     * @param listener
+     */
     public void checkAliasConsistency(SearchApplication app, ActionListener<Map<String,String>> listener) {
         final Metadata metadata = clusterService.state().metadata();
         final String searchAliasName = getSearchAliasName(app);
-
         final Map<String,String> inconsistentIndices = new HashMap<>();
 
         if (metadata.hasAlias(searchAliasName)) {
             Set<String> indicesInAlias = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());
             Set<String> configuredIndices = Set.of(app.indices());
 
-            Set<String> indicesInAliasButNotInSearchApp = new HashSet<>(indicesInAlias);
-            indicesInAliasButNotInSearchApp.removeAll(configuredIndices);
-            indicesInAliasButNotInSearchApp.forEach(index -> inconsistentIndices.put(index, "Index is in alias but not in search app"));
+            Set<String> indicesInAliasButNotInSearchApp = findMissingIndices(indicesInAlias, configuredIndices);
+            indicesInAliasButNotInSearchApp.forEach(index -> inconsistentIndices.put(index, INCONSISTENT_ALIAS_NOT_IN_INDICES_MSG));
 
-            Set<String> indicesInSearchAppButNotInAlias = new HashSet<>(configuredIndices);
-            indicesInSearchAppButNotInAlias.removeAll(indicesInAlias);
-            indicesInSearchAppButNotInAlias.forEach(index -> inconsistentIndices.put(index, "Index is in search app but not in alias"));
-
+            Set<String> indicesInSearchAppButNotInAlias = findMissingIndices(configuredIndices, indicesInAlias);
+            indicesInSearchAppButNotInAlias.forEach(index -> inconsistentIndices.put(index, INCONSISTENT_INDICES_NOT_IN_ALIAS_MSG));
         } else {
             for (String index : app.indices()) {
-                inconsistentIndices.put(index, "Index is in search app but not in alias");
+                inconsistentIndices.put(index, INCONSISTENT_INDICES_NOT_IN_ALIAS_MSG);
             }
         }
 
         listener.onResponse(inconsistentIndices);
+    }
+
+    private Set<String> findMissingIndices(Set<String> indices, Set<String> toExclude) {
+        Set<String> diff = new HashSet<>(indices);
+        diff.removeAll(toExclude);
+        return diff;
     }
 
     private static String getSearchAliasName(SearchApplication app) {

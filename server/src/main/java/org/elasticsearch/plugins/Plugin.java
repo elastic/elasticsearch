@@ -18,7 +18,6 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -146,15 +145,6 @@ public abstract class Plugin implements Closeable {
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Get the setting upgraders provided by this plugin.
-     *
-     * @return the settings upgraders
-     */
-    public List<SettingUpgrader<?>> getSettingUpgraders() {
         return Collections.emptyList();
     }
 

@@ -141,7 +141,7 @@ public class InMemoryJavaCompiler {
                 throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
             }
         } catch (IOException e) {
-            throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
+            throw new RuntimeException("Could not close file manager for " + sources.entrySet().stream().toList());
         }
 
         return files.stream().collect(Collectors.toMap(InMemoryJavaFileObject::getClassName, InMemoryJavaFileObject::getByteCode));
@@ -166,7 +166,7 @@ public class InMemoryJavaCompiler {
                 throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
             }
         } catch (IOException e) {
-            throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
+            throw new RuntimeException("Could not close file handler for class " + className + " with source code " + sourceCode);
         }
         return file.getByteCode();
     }

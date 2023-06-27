@@ -571,7 +571,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
      * conditions:
      *
      * 1. Service defined in package exported in parent layer.
-     * 2. Service defined in a compile-time dependency, optionally present at runtime
+     * 2. Service defined in a compile-time dependency, optionally present at runtime.
      * 3. Service defined in modular jar in uberjar
      * 4. Service defined in non-modular jar in uberjar
      *

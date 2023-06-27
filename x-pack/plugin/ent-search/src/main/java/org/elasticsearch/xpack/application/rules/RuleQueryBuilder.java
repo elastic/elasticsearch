@@ -140,13 +140,41 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(ORGANIC_QUERY_FIELD.getPreferredName());
-        organicQuery.toXContent(builder, params);
-        builder.array(RULESET_IDS_FIELD.getPreferredName(), rulesetIds.toArray());
-        builder.field(MATCH_CRITERIA_FIELD.getPreferredName());
-        builder.map(matchCriteria);
-        builder.array(CURATED_IDS_FIELD.getPreferredName(), curatedIds.toArray());
-        builder.array(CURATED_DOCS_FIELD.getPreferredName(), curatedDocs.toArray());
+        if (organicQuery != null) {
+            builder.field(ORGANIC_QUERY_FIELD.getPreferredName());
+            organicQuery.toXContent(builder, params);
+        }
+
+        if (rulesetIds != null) {
+            builder.startArray(RULESET_IDS_FIELD.getPreferredName());
+            for (String value : rulesetIds) {
+                builder.value(value);
+            }
+            builder.endArray();
+        }
+
+        if (matchCriteria != null) {
+            builder.field(MATCH_CRITERIA_FIELD.getPreferredName());
+            builder.map(matchCriteria);
+        }
+
+        if (curatedIds != null) {
+            builder.startArray(CURATED_IDS_FIELD.getPreferredName());
+            for (String value : curatedIds) {
+                builder.value(value);
+            }
+            builder.endArray();
+        }
+
+        if (curatedDocs != null) {
+            builder.startArray(CURATED_DOCS_FIELD.getPreferredName());
+            for (Item value : curatedDocs) {
+                value.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -181,13 +209,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     @SuppressWarnings("unchecked")
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (curatedIds.isEmpty() == false || curatedDocs.isEmpty() == false) {
+        if (curatedIds != null && (curatedIds.isEmpty() == false) || (curatedDocs != null && curatedDocs.isEmpty() == false)) {
+            // We have at least one of curated IDs and curated docs. We're done.
             return this;
         } else if (curatedIdSupplier != null) {
             List<String> curatedIds = curatedIdSupplier.get();
             if (curatedIds == null) {
                 return this; // not executed yet
             } else {
+                // We have curated IDs. We're done.
                 return new RuleQueryBuilder(organicQuery, rulesetIds, matchCriteria, curatedIds, curatedDocs);
             }
         } else if (curatedDocsSupplier != null) {
@@ -195,6 +225,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             if (curatedDocs == null) {
                 return this; // not executed yet
             } else {
+                // We have curated docs. We're done.
                 return new RuleQueryBuilder(organicQuery, rulesetIds, matchCriteria, curatedIds, curatedDocs);
             }
         }
@@ -213,7 +244,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                     for (QueryRule rule : queryRuleset.rules()) {
                         // TODO check criteria to see if the rule matches.
 
-                        // Assuming the rule matches, add the pinned IDs/docs.
+                        // If rule matches, add the pinned IDs/docs.
                         pinnedIds.addAll((List<String>) rule.actions().get("ids"));
                         pinnedDocs.addAll((List<Item>) rule.actions().get("docs"));
                     }
@@ -233,20 +264,44 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedIds.toArray(new String[0]));
+        PinnedQueryBuilder pinnedQueryBuilder;
+        if (curatedIds != null) {
+            pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedIds.toArray(new String[0]));
+        } else if (curatedDocs != null) {
+            pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedDocs.toArray(new Item[0]));
+        } else {
+            throw new IllegalArgumentException("Either curatedIds or curatedDocs must be set");
+        }
+
         return pinnedQueryBuilder.toQuery(context);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(organicQuery, rulesetIds, matchCriteria);
+    public boolean doEquals(RuleQueryBuilder other) {
+        if (this == other) return true;
+        if (other == null || getClass() != other.getClass()) return false;
+        if (super.equals(other) == false) return false;
+        return Objects.equals(rulesetIds, other.rulesetIds) && Objects.equals(matchCriteria, other.matchCriteria) && Objects.equals(
+            organicQuery,
+            other.organicQuery
+        ) && Objects.equals(curatedIds, other.curatedIds) && Objects.equals(curatedIdSupplier, other.curatedIdSupplier) && Objects.equals(
+            curatedDocs,
+            other.curatedDocs
+        ) && Objects.equals(curatedDocsSupplier, other.curatedDocsSupplier) && Objects.equals(logger, other.logger);
     }
 
     @Override
-    protected boolean doEquals(RuleQueryBuilder other) {
-        return Objects.equals(rulesetIds, other.rulesetIds)
-            && Objects.equals(matchCriteria, other.matchCriteria)
-            && Objects.equals(organicQuery, other.organicQuery);
+    public int doHashCode() {
+        return Objects.hash(super.hashCode(),
+            rulesetIds,
+            matchCriteria,
+            organicQuery,
+            curatedIds,
+            curatedIdSupplier,
+            curatedDocs,
+            curatedDocsSupplier,
+            logger
+        );
     }
 
     // TODO update this to 8.10.0

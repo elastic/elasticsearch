@@ -26,6 +26,7 @@ dependencies {
   implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
 
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(":test:framework")
   testImplementation(project(':modules:lang-mustache'))
 
   javaRestTestImplementation(project(path: xpackModule('core')))

@@ -8,7 +8,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
@@ -23,8 +22,4 @@ public class StrictDynamicMappingException extends DocumentParsingException {
         super(in);
     }
 
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
-    }
 }

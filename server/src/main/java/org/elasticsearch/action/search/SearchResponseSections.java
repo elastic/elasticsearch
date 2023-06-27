@@ -124,11 +124,6 @@ public class SearchResponseSections implements ChunkedToXContent {
         );
     }
 
-    @Override
-    public boolean isFragment() {
-        return true;
-    }
-
     protected void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException();
     }

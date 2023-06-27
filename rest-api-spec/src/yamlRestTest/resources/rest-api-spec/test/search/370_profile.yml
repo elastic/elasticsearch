@@ -306,7 +306,6 @@ dfs profile for search with dfs_query_then_fetch:
           keyword: "b"
 
   # expect both shards to have dfs profiles
-  # expect both shards to have dfs profiles
   - do:
       search:
         index: keywords

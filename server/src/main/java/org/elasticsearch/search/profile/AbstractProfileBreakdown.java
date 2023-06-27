@@ -31,7 +31,6 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     private final Map<T, Collection<Timer>> timings;
 
     /** Sole constructor. */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public AbstractProfileBreakdown(Class<T> clazz) {
         T[] enumConstants = clazz.getEnumConstants();
         timings = new HashMap<>(enumConstants.length, 1.0f);

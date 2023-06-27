@@ -135,6 +135,7 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
         long totalCounter = breakdownMap.get(TestTimingTypes.ONE + "_count") + breakdownMap.get(TestTimingTypes.TWO + "_count")
             + breakdownMap.get(TestTimingTypes.THREE + "_count");
         assertEquals(threads.length * startsPerThread, totalCounter);
+
     }
 
     private void runTimerNTimes(Timer t, int n) {

@@ -43,7 +43,7 @@ dependencies {
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  runtimeOnly 'com.google.guava:guava:19.0'
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation(testArtifact(project(xpackModule('core'))))

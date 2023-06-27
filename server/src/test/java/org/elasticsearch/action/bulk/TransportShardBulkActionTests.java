@@ -809,7 +809,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         // if we sync the location, nothing else is unsynced
         CountDownLatch latch = new CountDownLatch(1);
-        shard.sync(context.getLocationToSync(), e -> {
+        shard.syncAfterWrite(context.getLocationToSync(), e -> {
             if (e != null) {
                 throw new AssertionError(e);
             }

@@ -1516,7 +1516,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         latch.await();
                         for (int i = 0; i < 10000; i++) {
                             semaphore.acquire();
-                            shard.sync(new Translog.Location(randomLong(), randomLong(), randomInt()), (ex) -> semaphore.release());
+                            shard.syncAfterWrite(new Translog.Location(randomLong(), randomLong(), randomInt()), e -> semaphore.release());
                         }
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);

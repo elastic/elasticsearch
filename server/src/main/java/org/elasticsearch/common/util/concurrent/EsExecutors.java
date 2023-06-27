@@ -40,12 +40,15 @@ public class EsExecutors {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsExecutors.class);
 
+    // although the available processors may technically change, for node sizing we use the number available at launch
+    private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
     /**
      * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
     public static final Setting<Integer> PROCESSORS_SETTING = new Setting<>(
         "processors",
-        s -> Integer.toString(Runtime.getRuntime().availableProcessors()),
+        s -> Integer.toString(MAX_NUM_PROCESSORS),
         processorsParser("processors"),
         Property.Deprecated,
         Property.NodeScope
@@ -66,7 +69,7 @@ public class EsExecutors {
     private static Function<String, Integer> processorsParser(final String name) {
         return s -> {
             final int value = Setting.parseInt(s, 1, name);
-            final int availableProcessors = Runtime.getRuntime().availableProcessors();
+            final int availableProcessors = MAX_NUM_PROCESSORS;
             if (value > availableProcessors) {
                 deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,

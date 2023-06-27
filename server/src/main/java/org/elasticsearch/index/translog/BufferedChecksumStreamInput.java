@@ -13,7 +13,6 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -102,11 +101,12 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
 
     @Override
     public int read() throws IOException {
-        try {
-            return readByte() & 0xFF;
-        } catch (EOFException e) {
-            return -1;
+        int b = delegate.read();
+        if (b == -1) {
+            return b;
         }
+        digest.update((byte) b);
+        return b;
     }
 
     @Override

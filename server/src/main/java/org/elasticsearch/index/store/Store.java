@@ -35,9 +35,9 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -46,14 +46,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
@@ -73,7 +72,6 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
@@ -839,7 +837,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // TODO we should check the checksum in lucene if we hit an exception
                     logger.warn(
                         () -> format(
-                            "failed to build store metadata. checking segment info integrity " + "(with commit [%s])",
+                            "failed to build store metadata. checking segment info integrity (with commit [%s])",
                             commit == null ? "no" : "yes"
                         ),
                         ex
@@ -882,6 +880,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return version == null ? null : org.elasticsearch.Version.fromString(version);
         }
 
+        public static boolean isReadAsHash(String file) {
+            return SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)) || file.startsWith(IndexFileNames.SEGMENTS + "_");
+        }
+
         private static void checksumFromLuceneFile(
             Directory directory,
             String file,
@@ -891,51 +893,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean readFileAsHash,
             BytesRef writerUuid
         ) throws IOException {
-            final String checksum;
-            final BytesRefBuilder fileHash = new BytesRefBuilder();
             try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
-                final long length;
-                try {
-                    length = in.length();
-                    if (length < CodecUtil.footerLength()) {
-                        // truncated files trigger IAE if we seek negative... these files are really corrupted though
+                final long length = in.length();
+                if (length < CodecUtil.footerLength()) {
+                    // If the file isn't long enough to contain the footer then verifying it triggers an IAE, but really it's corrupted
+                    throw new CorruptIndexException(
+                        Strings.format(
+                            "Cannot retrieve checksum from file: %s file length must be >= %d but was: %d",
+                            file,
+                            CodecUtil.footerLength(),
+                            length
+                        ),
+                        in
+                    );
+                }
+                final BytesRef fileHash; // not really a "hash", it's either the exact contents of certain small files or it's empty
+                final long footerChecksum;
+                assert readFileAsHash == isReadAsHash(file) : file;
+                if (readFileAsHash) {
+                    assert length <= ByteSizeUnit.MB.toIntBytes(1) : file + " has length " + length;
+                    fileHash = new BytesRef(Math.toIntExact(length));
+                    fileHash.length = fileHash.bytes.length;
+                    in.readBytes(fileHash.bytes, fileHash.offset, fileHash.length);
+                    final var crc32 = new CRC32();
+                    crc32.update(fileHash.bytes, fileHash.offset, fileHash.length - 8);
+                    final var computedChecksum = crc32.getValue();
+                    footerChecksum = CodecUtil.retrieveChecksum(in);
+                    if (computedChecksum != footerChecksum) {
                         throw new CorruptIndexException(
-                            "Can't retrieve checksum from file: "
-                                + file
-                                + " file length must be >= "
-                                + CodecUtil.footerLength()
-                                + " but was: "
-                                + in.length(),
+                            Strings.format("Checksum from footer=%d did not match computed checksum=%d", footerChecksum, computedChecksum),
                             in
                         );
                     }
-                    if (readFileAsHash) {
-                        // additional safety we checksum the entire file we read the hash for...
-                        final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in);
-                        hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
-                        checksum = digestToString(verifyingIndexInput.verify());
-                    } else {
-                        checksum = digestToString(CodecUtil.retrieveChecksum(in));
-                    }
-
-                } catch (Exception ex) {
-                    logger.debug(() -> "Can retrieve checksum from file [" + file + "]", ex);
-                    throw ex;
+                } else {
+                    fileHash = new BytesRef(BytesRef.EMPTY_BYTES);
+                    footerChecksum = CodecUtil.retrieveChecksum(in);
                 }
-                builder.put(file, new StoreFileMetadata(file, length, checksum, version, fileHash.get(), writerUuid));
+                builder.put(file, new StoreFileMetadata(file, length, digestToString(footerChecksum), version, fileHash, writerUuid));
+            } catch (Exception ex) {
+                logger.debug(() -> "Failed computing metadata for file [" + file + "]", ex);
+                throw ex;
             }
-        }
-
-        /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB
-         */
-        public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size) throws IOException {
-            final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
-            fileHash.grow(len);
-            fileHash.setLength(len);
-            final int readBytes = Streams.readFully(in, fileHash.bytes(), 0, len);
-            assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
-            assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
         }
 
         @Override

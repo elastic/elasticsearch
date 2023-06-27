@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -93,7 +94,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build()
         );
-        service.verifyIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(src, IndexVersion.MINIMUM_COMPATIBLE);
     }
 
     public void testIncompatibleVersion() {
@@ -106,7 +107,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> service.verifyIndexMetadata(metadata, Version.CURRENT.minimumIndexCompatibilityVersion())
+            () -> service.verifyIndexMetadata(metadata, IndexVersion.MINIMUM_COMPATIBLE)
         ).getMessage();
         assertThat(
             message,
@@ -129,7 +130,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
         indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
-        service.verifyIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(goodMeta, IndexVersion.MINIMUM_COMPATIBLE);
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {

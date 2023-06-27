@@ -638,7 +638,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             updatedVisibleClosedIndices,
             null,
             updatedMappingsByHash,
-            IndexVersion.min(IndexVersion.fromId(index.getCompatibilityVersion().id), oldestIndexVersion),
+            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion),
             reservedStateMetadata
         );
     }
@@ -2300,7 +2300,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         visibleClosedIndices.add(name);
                     }
                 }
-                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
+                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id());
                 if (sha256HashesInUse != null) {
                     final var mapping = indexMetadata.mapping();
                     if (mapping != null) {

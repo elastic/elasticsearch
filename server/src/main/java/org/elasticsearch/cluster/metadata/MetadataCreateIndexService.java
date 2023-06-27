@@ -1042,7 +1042,7 @@ public class MetadataCreateIndexService {
 
         if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
             DiscoveryNodes nodes = currentState.nodes();
-            IndexVersion createdVersion = IndexVersion.min(IndexVersion.CURRENT, nodes.getMaxDataNodeCompatibleIndexVersion());
+            IndexVersion createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
             indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion.toVersion());
         }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {

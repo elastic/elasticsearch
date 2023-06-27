@@ -40,7 +40,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -101,7 +101,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -145,7 +145,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -257,7 +257,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -273,7 +273,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -293,7 +293,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory

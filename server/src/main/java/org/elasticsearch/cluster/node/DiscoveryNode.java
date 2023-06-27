@@ -348,7 +348,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 IndexVersion.fromId(version.id)
             );
         } else {
-            return new VersionInformation(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+            return new VersionInformation(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
         }
     }
 

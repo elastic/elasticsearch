@@ -24,7 +24,7 @@ import java.util.Objects;
  * a bulk indexing operation starts.
  */
 public class RollupBeforeBulkInfo implements NamedWriteable, ToXContentObject {
-    public static final String NAME = "rollup_before_bulk";
+    public static final String NAME = "rollup_before_bulk_info";
     private final long currentTimeMillis;
     private final long executionId;
     private final long estimatedSizeInBytes;

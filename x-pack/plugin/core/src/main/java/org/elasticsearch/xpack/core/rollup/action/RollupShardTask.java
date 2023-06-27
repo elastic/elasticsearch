@@ -36,6 +36,7 @@ public class RollupShardTask extends CancellableTask {
     private final AtomicReference<RollupShardIndexerStatus> rollupShardIndexerStatus = new AtomicReference<>(
         RollupShardIndexerStatus.INITIALIZED
     );
+    private final RollupBulkStats rollupBulkStats;
     private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(null);
     private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(null);
 
@@ -58,6 +59,7 @@ public class RollupShardTask extends CancellableTask {
         this.config = config;
         this.shardId = shardId;
         this.rollupStartTime = System.currentTimeMillis();
+        this.rollupBulkStats = new RollupBulkStats();
     }
 
     public String getRollupIndex() {
@@ -88,7 +90,8 @@ public class RollupShardTask extends CancellableTask {
             indexStartTimeMillis,
             indexEndTimeMillis,
             docsProcessed,
-            getDocsProcessedPercentage(),
+            100.0F * docsProcessed / totalShardDocCount,
+            rollupBulkStats.getRollupBulkInfo(),
             lastBeforeBulkInfo.get(),
             lastAfterBulkInfo.get(),
             rollupShardIndexerStatus.get()
@@ -125,6 +128,10 @@ public class RollupShardTask extends CancellableTask {
 
     public RollupAfterBulkInfo getLastAfterBulkInfo() {
         return lastAfterBulkInfo.get();
+    }
+
+    public long getDocsProcessed() {
+        return docsProcessed;
     }
 
     public long getRollupStartTime() {
@@ -197,5 +204,13 @@ public class RollupShardTask extends CancellableTask {
 
     public void setDocsProcessed(long docsProcessed) {
         this.docsProcessed = docsProcessed;
+    }
+
+    public void updateRollupBulkInfo(long bulkDurationMillis, long bulkIngestTookMillis, long bulkTookMillis) {
+        this.rollupBulkStats.update(bulkDurationMillis, bulkIngestTookMillis, bulkTookMillis);
+    }
+
+    public RollupBulkInfo getRollupBulkInfo() {
+        return this.rollupBulkStats.getRollupBulkInfo();
     }
 }

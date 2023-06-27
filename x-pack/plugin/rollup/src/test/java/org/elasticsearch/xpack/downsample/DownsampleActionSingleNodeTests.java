@@ -732,6 +732,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             );
 
             assertEquals(0.0F, task.getDocsProcessedPercentage(), 0.001);
+            assertEquals(0L, task.getRollupBulkInfo().getTotalBulkCount());
+            assertEquals(0L, task.getRollupBulkInfo().getBulkTookSumMillis());
+            assertEquals(0L, task.getRollupBulkInfo().getBulkDurationSumMillis());
+            assertEquals(0L, task.getRollupBulkInfo().getBulkIngestSumMillis());
             assertEquals(RollupShardIndexerStatus.INITIALIZED, task.getRollupShardIndexerStatus());
 
             final DownsampleIndexerAction.ShardDownsampleResponse executeResponse = indexer.execute();
@@ -740,6 +744,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(task.getNumReceived(), task.getTotalShardDocCount());
             assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
             assertEquals(100.0F, task.getDocsProcessedPercentage(), 0.001);
+            assertTrue(task.getRollupBulkInfo().getBulkDurationSumMillis() > 0);
+            assertTrue(task.getRollupBulkInfo().getBulkTookSumMillis() > 0);
+            assertTrue(task.getRollupBulkInfo().getBulkIngestSumMillis() >= 0);
+            assertEquals(1L, task.getRollupBulkInfo().getTotalBulkCount());
             assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTimeMillis());
             assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTimeMillis());
             assertEquals(RollupShardIndexerStatus.COMPLETED, task.getRollupShardIndexerStatus());
@@ -748,8 +756,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertTrue(task.getLastBeforeBulkInfo().getEstimatedSizeInBytes() > 0);
             assertFalse(task.getLastAfterBulkInfo().hasFailures());
             assertEquals(RestStatus.OK.getStatus(), task.getLastAfterBulkInfo().getRestStatusCode());
-            assertTrue(task.getLastAfterBulkInfo().getBulkDurationInMillis() > 0);
-            assertTrue(task.getLastAfterBulkInfo().getTook() > 0);
+            assertTrue(task.getLastAfterBulkInfo().getLastBulkDurationInMillis() > 0);
+            assertTrue(task.getLastAfterBulkInfo().getLastTookInMillis() > 0);
             assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastIndexingTimestamp());
             assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastSourceTimestamp());
             assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastTargetTimestamp());

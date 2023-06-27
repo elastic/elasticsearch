@@ -41,24 +41,54 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
 
     @Override
     protected RollupShardStatus createTestInstance() {
+        long docsProcessed = randomLongBetween(500_000, 800_000);
+        long indexEndTimeMillis = System.currentTimeMillis() + randomLongBetween(400_000, 500_000);
+        long indexStartTimeMillis = System.currentTimeMillis() - randomLongBetween(400_000, 500_000);
+        long lastIndexingTimestamp = System.currentTimeMillis() + randomLongBetween(200_000, 300_000);
+        long lastTargetTimestamp = System.currentTimeMillis() - randomLongBetween(200_000, 300_000);
+        long lastSourceTimestamp = System.currentTimeMillis();
+        long totalShardDocCount = randomLongBetween(500_000, 800_000);
+        long numFailed = randomNonNegativeLong();
+        long numIndexed = randomNonNegativeLong();
+        long numSent = randomNonNegativeLong();
+        long numReceived = randomNonNegativeLong();
+        long rollupStart = randomMillisUpToYear9999();
+        final ShardId shardId = new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(5));
+        final RollupShardIndexerStatus rollupShardIndexerStatus = randomFrom(RollupShardIndexerStatus.values());
         return new RollupShardStatus(
-            new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(5)),
-            randomMillisUpToYear9999(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomLongBetween(500_000, 800_000),
-            System.currentTimeMillis(),
-            System.currentTimeMillis() - randomLongBetween(200_000, 300_000),
-            System.currentTimeMillis() + randomLongBetween(200_000, 300_000),
-            System.currentTimeMillis() - randomLongBetween(400_000, 500_000),
-            System.currentTimeMillis() + randomLongBetween(400_000, 500_000),
-            randomLongBetween(500_000, 800_000),
-            (float) randomDoubleBetween(0.0D, 100.00D, true),
+            shardId,
+            rollupStart,
+            numReceived,
+            numSent,
+            numIndexed,
+            numFailed,
+            totalShardDocCount,
+            lastSourceTimestamp,
+            lastTargetTimestamp,
+            lastIndexingTimestamp,
+            indexStartTimeMillis,
+            indexEndTimeMillis,
+            docsProcessed,
+            100.0F * docsProcessed / totalShardDocCount,
+            createTestRollupBulkInfo(),
             createTestBeforeBulkInfoInstance(),
             createTestAfterBulkInfoInstance(),
-            randomFrom(RollupShardIndexerStatus.values())
+            rollupShardIndexerStatus
+        );
+    }
+
+    private RollupBulkInfo createTestRollupBulkInfo() {
+        return new RollupBulkInfo(
+            randomNonNegativeByte(),
+            randomNonNegativeLong(),
+            randomNonNegativeByte(),
+            randomNonNegativeLong(),
+            randomNonNegativeByte(),
+            randomNonNegativeLong(),
+            randomNonNegativeByte(),
+            randomNonNegativeLong(),
+            randomNonNegativeByte(),
+            randomNonNegativeLong()
         );
     }
 

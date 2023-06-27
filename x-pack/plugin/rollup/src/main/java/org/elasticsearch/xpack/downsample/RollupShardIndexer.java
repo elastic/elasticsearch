@@ -221,19 +221,23 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                long bulkDurationInMillis = Math.max(1, System.currentTimeMillis() - bulkStartTime);
+                long bulkDurationMillis = Math.max(1, System.currentTimeMillis() - bulkStartTime);
+                long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
+                long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
                 task.setAfterBulkInfo(
                     new RollupAfterBulkInfo(
                         System.currentTimeMillis(),
                         executionId,
-                        bulkDurationInMillis,
-                        response.getIngestTookInMillis(),
-                        response.getTook().getMillis(),
+                        bulkDurationMillis,
+                        bulkIngestTookMillis,
+                        bulkTookMillis,
                         response.hasFailures(),
                         response.status().getStatus()
                     )
                 );
+                task.updateRollupBulkInfo(bulkDurationMillis, bulkIngestTookMillis, bulkTookMillis);
+
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
                     task.addNumFailed(failedItems.size());

@@ -24,20 +24,20 @@ import java.util.Objects;
  * a bulk indexing operation ends.
  */
 public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
-    public static final String NAME = "rollup_after_bulk";
+    public static final String NAME = "rollup_after_bulk_info";
     private final long currentTimeMillis;
     private final long executionId;
-    private final long bulkDurationInMillis;
-    private final long ingestTookInMillis;
-    private final long took;
+    private final long lastBulkDurationInMillis;
+    private final long lastIngestTookInMillis;
+    private final long lastTookInMillis;
     private final boolean hasFailures;
     private final int restStatusCode;
 
     private static final ParseField CURRENT_TIME_IN_MILLIS = new ParseField("current_time_in_millis");
     private static final ParseField EXECUTION_ID = new ParseField("execution_id");
-    private static final ParseField BULK_DURATION_IN_MILLIS = new ParseField("bulk_duration_in_millis");
-    private static final ParseField INGEST_TOOK_IN_MILLIS = new ParseField("ingest_took_in_millis");
-    private static final ParseField TOOK = new ParseField("took");
+    private static final ParseField LAST_BULK_DURATION_IN_MILLIS = new ParseField("last_bulk_duration_in_millis");
+    private static final ParseField LAST_INGEST_TOOK_IN_MILLIS = new ParseField("last_ingest_took_in_millis");
+    private static final ParseField LAST_TOOK_IN_MILLIS = new ParseField("last_took_in_millis");
     private static final ParseField HAS_FAILURES = new ParseField("has_failures");
     private static final ParseField REST_STATUS_CODE = new ParseField("rest_status_code");
 
@@ -58,9 +58,9 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
 
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), CURRENT_TIME_IN_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXECUTION_ID);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BULK_DURATION_IN_MILLIS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), INGEST_TOOK_IN_MILLIS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOOK);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_BULK_DURATION_IN_MILLIS);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_INGEST_TOOK_IN_MILLIS);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_TOOK_IN_MILLIS);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), REST_STATUS_CODE);
     }
@@ -68,9 +68,9 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
     public RollupAfterBulkInfo(final StreamInput in) throws IOException {
         currentTimeMillis = in.readLong();
         executionId = in.readLong();
-        bulkDurationInMillis = in.readLong();
-        ingestTookInMillis = in.readLong();
-        took = in.readLong();
+        lastBulkDurationInMillis = in.readLong();
+        lastIngestTookInMillis = in.readLong();
+        lastTookInMillis = in.readLong();
         hasFailures = in.readBoolean();
         restStatusCode = in.readInt();
     }
@@ -86,9 +86,9 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
     ) {
         this.currentTimeMillis = currentTimeMillis;
         this.executionId = executionId;
-        this.bulkDurationInMillis = bulkDurationInMillis;
-        this.ingestTookInMillis = ingestTookInMillis;
-        this.took = took;
+        this.lastBulkDurationInMillis = bulkDurationInMillis;
+        this.lastIngestTookInMillis = ingestTookInMillis;
+        this.lastTookInMillis = took;
         this.hasFailures = hasFailures;
         this.restStatusCode = restStatusCode;
     }
@@ -101,16 +101,16 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
         return executionId;
     }
 
-    public long getBulkDurationInMillis() {
-        return bulkDurationInMillis;
+    public long getLastBulkDurationInMillis() {
+        return lastBulkDurationInMillis;
     }
 
-    public long getIngestTookInMillis() {
-        return ingestTookInMillis;
+    public long getLastIngestTookInMillis() {
+        return lastIngestTookInMillis;
     }
 
-    public long getTook() {
-        return took;
+    public long getLastTookInMillis() {
+        return lastTookInMillis;
     }
 
     public boolean hasFailures() {
@@ -128,16 +128,24 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
         RollupAfterBulkInfo that = (RollupAfterBulkInfo) o;
         return currentTimeMillis == that.currentTimeMillis
             && executionId == that.executionId
-            && bulkDurationInMillis == that.bulkDurationInMillis
-            && ingestTookInMillis == that.ingestTookInMillis
-            && took == that.took
+            && lastBulkDurationInMillis == that.lastBulkDurationInMillis
+            && lastIngestTookInMillis == that.lastIngestTookInMillis
+            && lastTookInMillis == that.lastTookInMillis
             && hasFailures == that.hasFailures
             && restStatusCode == that.restStatusCode;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(currentTimeMillis, executionId, bulkDurationInMillis, ingestTookInMillis, took, hasFailures, restStatusCode);
+        return Objects.hash(
+            currentTimeMillis,
+            executionId,
+            lastBulkDurationInMillis,
+            lastIngestTookInMillis,
+            lastTookInMillis,
+            hasFailures,
+            restStatusCode
+        );
     }
 
     @Override
@@ -148,11 +156,11 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
             + ", executionId="
             + executionId
             + ", bulkDurationInMillis="
-            + bulkDurationInMillis
+            + lastBulkDurationInMillis
             + ", ingestTookInMillis="
-            + ingestTookInMillis
+            + lastIngestTookInMillis
             + ", took="
-            + took
+            + lastTookInMillis
             + ", hasFailures="
             + hasFailures
             + ", restStatusCode="
@@ -169,9 +177,9 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(currentTimeMillis);
         out.writeLong(executionId);
-        out.writeLong(bulkDurationInMillis);
-        out.writeLong(ingestTookInMillis);
-        out.writeLong(took);
+        out.writeLong(lastBulkDurationInMillis);
+        out.writeLong(lastIngestTookInMillis);
+        out.writeLong(lastTookInMillis);
         out.writeBoolean(hasFailures);
         out.writeInt(restStatusCode);
     }
@@ -181,9 +189,9 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
         builder.startObject(NAME);
         builder.field(CURRENT_TIME_IN_MILLIS.getPreferredName(), currentTimeMillis);
         builder.field(EXECUTION_ID.getPreferredName(), executionId);
-        builder.field(BULK_DURATION_IN_MILLIS.getPreferredName(), bulkDurationInMillis);
-        builder.field(INGEST_TOOK_IN_MILLIS.getPreferredName(), ingestTookInMillis);
-        builder.field(TOOK.getPreferredName(), took);
+        builder.field(LAST_BULK_DURATION_IN_MILLIS.getPreferredName(), lastBulkDurationInMillis);
+        builder.field(LAST_INGEST_TOOK_IN_MILLIS.getPreferredName(), lastIngestTookInMillis);
+        builder.field(LAST_TOOK_IN_MILLIS.getPreferredName(), lastTookInMillis);
         builder.field(HAS_FAILURES.getPreferredName(), hasFailures);
         builder.field(REST_STATUS_CODE.getPreferredName(), restStatusCode);
         return builder.endObject();

@@ -34,6 +34,7 @@ public class RollupShardStatus implements Task.Status {
     private static final ParseField LAST_SOURCE_TIMESTAMP = new ParseField("last_source_timestamp");
     private static final ParseField LAST_TARGET_TIMESTAMP = new ParseField("last_target_timestamp");
     private static final ParseField LAST_INDEXING_TIMESTAMP = new ParseField("last_indexing_timestamp");
+    private static final ParseField DOCS_PROCESSED = new ParseField("docs_processed");
     private static final ParseField INDEX_START_TIME_MILLIS = new ParseField("index_start_time");
     private static final ParseField INDEX_END_TIME_MILLIS = new ParseField("index_end_time");
     private static final ParseField DOCS_PROCESSED_PERCENTAGE = new ParseField("docs_processed_percentage");
@@ -51,9 +52,8 @@ public class RollupShardStatus implements Task.Status {
     private final long lastSourceTimestamp;
     private final long lastTargetTimestamp;
     private final long lastIndexingTimestamp;
-    private final long indexStartTime;
-    private final long indexEndTime;
     private final float docsProcessedPercentage;
+    private final long docsProcessed;
     private final RollupBeforeBulkInfo rollupBeforeBulkInfo;
     private final RollupAfterBulkInfo rollupAfterBulkInfo;
 
@@ -75,11 +75,10 @@ public class RollupShardStatus implements Task.Status {
                 (Long) args[8],
                 (Long) args[9],
                 (Long) args[10],
-                (Long) args[11],
-                (Float) args[12],
-                (RollupBeforeBulkInfo) args[13],
-                (RollupAfterBulkInfo) args[14],
-                RollupShardIndexerStatus.valueOf((String) args[15])
+                (Float) args[11],
+                (RollupBeforeBulkInfo) args[12],
+                (RollupAfterBulkInfo) args[13],
+                RollupShardIndexerStatus.valueOf((String) args[14])
             )
         );
 
@@ -93,8 +92,7 @@ public class RollupShardStatus implements Task.Status {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SOURCE_TIMESTAMP);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_TARGET_TIMESTAMP);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_INDEXING_TIMESTAMP);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_START_TIME_MILLIS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_END_TIME_MILLIS);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), DOCS_PROCESSED);
         PARSER.declareFloat(ConstructingObjectParser.constructorArg(), DOCS_PROCESSED_PERCENTAGE);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
@@ -121,8 +119,7 @@ public class RollupShardStatus implements Task.Status {
             lastSourceTimestamp = in.readLong();
             lastTargetTimestamp = in.readLong();
             lastIndexingTimestamp = in.readLong();
-            indexStartTime = in.readLong();
-            indexEndTime = in.readLong();
+            docsProcessed = in.readLong();
             docsProcessedPercentage = in.readFloat();
             rollupBeforeBulkInfo = new RollupBeforeBulkInfo(in);
             rollupAfterBulkInfo = new RollupAfterBulkInfo(in);
@@ -132,8 +129,7 @@ public class RollupShardStatus implements Task.Status {
             lastSourceTimestamp = -1;
             lastTargetTimestamp = -1;
             lastIndexingTimestamp = -1;
-            indexStartTime = -1;
-            indexEndTime = -1;
+            docsProcessed = 0;
             docsProcessedPercentage = 0;
             rollupBeforeBulkInfo = null;
             rollupAfterBulkInfo = null;
@@ -152,8 +148,7 @@ public class RollupShardStatus implements Task.Status {
         long lastSourceTimestamp,
         long lastTargetTimestamp,
         long lastIndexingTimestamp,
-        long indexStartTime,
-        long indexEndTime,
+        long docsProcessed,
         float docsProcessedPercentage,
         final RollupBeforeBulkInfo rollupBeforeBulkInfo,
         final RollupAfterBulkInfo rollupAfterBulkInfo,
@@ -169,8 +164,7 @@ public class RollupShardStatus implements Task.Status {
         this.lastSourceTimestamp = lastSourceTimestamp;
         this.lastTargetTimestamp = lastTargetTimestamp;
         this.lastIndexingTimestamp = lastIndexingTimestamp;
-        this.indexStartTime = indexStartTime;
-        this.indexEndTime = indexEndTime;
+        this.docsProcessed = docsProcessed;
         this.docsProcessedPercentage = docsProcessedPercentage;
         this.rollupBeforeBulkInfo = rollupBeforeBulkInfo;
         this.rollupAfterBulkInfo = rollupAfterBulkInfo;
@@ -191,11 +185,10 @@ public class RollupShardStatus implements Task.Status {
         builder.field(OUT_NUM_DOCS_INDEXED_FIELD.getPreferredName(), numIndexed);
         builder.field(OUT_NUM_DOCS_FAILED_FIELD.getPreferredName(), numFailed);
         builder.field(TOTAL_SHARD_DOC_COUNT.getPreferredName(), totalShardDocCount);
-        builder.field(INDEX_START_TIME_MILLIS.getPreferredName(), indexStartTime);
-        builder.field(INDEX_END_TIME_MILLIS.getPreferredName(), indexEndTime);
         builder.field(LAST_SOURCE_TIMESTAMP.getPreferredName(), lastSourceTimestamp);
         builder.field(LAST_TARGET_TIMESTAMP.getPreferredName(), lastTargetTimestamp);
         builder.field(LAST_INDEXING_TIMESTAMP.getPreferredName(), lastIndexingTimestamp);
+        builder.field(DOCS_PROCESSED.getPreferredName(), docsProcessed);
         builder.field(DOCS_PROCESSED_PERCENTAGE.getPreferredName(), docsProcessedPercentage);
         rollupBeforeBulkInfo.toXContent(builder, params);
         rollupAfterBulkInfo.toXContent(builder, params);
@@ -222,8 +215,7 @@ public class RollupShardStatus implements Task.Status {
             out.writeLong(lastSourceTimestamp);
             out.writeLong(lastTargetTimestamp);
             out.writeLong(lastIndexingTimestamp);
-            out.writeLong(indexStartTime);
-            out.writeLong(indexEndTime);
+            out.writeLong(docsProcessed);
             out.writeFloat(docsProcessedPercentage);
             rollupBeforeBulkInfo.writeTo(out);
             rollupAfterBulkInfo.writeTo(out);
@@ -247,8 +239,7 @@ public class RollupShardStatus implements Task.Status {
             && lastSourceTimestamp == that.lastSourceTimestamp
             && lastTargetTimestamp == that.lastTargetTimestamp
             && lastIndexingTimestamp == that.lastIndexingTimestamp
-            && indexStartTime == that.indexStartTime
-            && indexEndTime == that.indexEndTime
+            && docsProcessed == that.docsProcessed
             && docsProcessedPercentage == that.docsProcessedPercentage
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Objects.equals(shardId.id(), that.shardId.id())
@@ -271,8 +262,7 @@ public class RollupShardStatus implements Task.Status {
             lastSourceTimestamp,
             lastTargetTimestamp,
             lastIndexingTimestamp,
-            indexStartTime,
-            indexEndTime,
+            docsProcessed,
             docsProcessedPercentage,
             rollupBeforeBulkInfo,
             rollupAfterBulkInfo,

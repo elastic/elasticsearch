@@ -19,10 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RollupShardTask extends CancellableTask {
     private final String rollupIndex;
-    private long totalShardDocCount;
-    private long indexStartTime;
-    private long indexEndTime;
-    private float docsProcessedPercentage;
+    private volatile long totalShardDocCount;
+    private volatile long docsProcessed;
     private final DownsampleConfig config;
     private final ShardId shardId;
     private final long rollupStartTime;
@@ -81,9 +79,8 @@ public class RollupShardTask extends CancellableTask {
             lastSourceTimestamp.get(),
             lastTargetTimestamp.get(),
             lastIndexingTimestamp.get(),
-            indexStartTime,
-            indexEndTime,
-            docsProcessedPercentage,
+            docsProcessed,
+            getDocsProcessedPercentage(),
             lastBeforeBulkInfo.get(),
             lastAfterBulkInfo.get(),
             rollupShardIndexerStatus.get()
@@ -130,20 +127,12 @@ public class RollupShardTask extends CancellableTask {
         return rollupShardIndexerStatus.get();
     }
 
-    public long getIndexStartTime() {
-        return indexStartTime;
-    }
-
-    public long getIndexEndTime() {
-        return indexEndTime;
-    }
-
     public long getLastIndexingTimestamp() {
         return lastIndexingTimestamp.get();
     }
 
     public float getDocsProcessedPercentage() {
-        return docsProcessedPercentage;
+        return getTotalShardDocCount() <= 0 ? 0.0F : 100.0F * docsProcessed / totalShardDocCount;
     }
 
     public void addNumReceived(long count) {
@@ -190,15 +179,7 @@ public class RollupShardTask extends CancellableTask {
         this.totalShardDocCount = totalShardDocCount;
     }
 
-    public void setIndexStartTimestampMillis(long startTime) {
-        this.indexStartTime = startTime;
-    }
-
-    public void setIndexEndTimestampMillis(long endTime) {
-        this.indexEndTime = endTime;
-    }
-
-    public void setDocsProcessedPercentage(float percentage) {
-        this.docsProcessedPercentage = percentage;
+    public void setDocsProcessed(long docsProcessed) {
+        this.docsProcessed = docsProcessed;
     }
 }

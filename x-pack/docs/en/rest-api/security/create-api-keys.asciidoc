@@ -212,6 +212,7 @@ echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64 <1>
 <1> Use `-n` so that the `echo` command doesn't print the trailing newline
 character
 
+//tag::create-api-key-with-role-restriction-example[]
 The following example creates an API key with a <<role-restriction, restriction>> to the `search_application_query` workflow,
 which allows to call only <<search-application-search, Search Application Search API>>:
 
@@ -235,3 +236,4 @@ POST /_security/api_key
   }
 }
 ----
+//end::create-api-key-with-role-restriction-example[]

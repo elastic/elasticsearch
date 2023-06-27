@@ -25,3 +25,7 @@ The below section lists workflows that you can restrict the role to:
 NOTE: Workflow names are case-sensitive.
 --
 
+[discrete]
+==== Examples
+
+include::../../rest-api/security/create-api-keys.asciidoc[tag=create-api-key-with-role-restriction-example]

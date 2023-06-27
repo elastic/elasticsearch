@@ -60,6 +60,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
@@ -98,6 +100,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final HttpTracer httpLogger;
     private final Tracer tracer;
     private volatile boolean shuttingDown;
+    private final ReadWriteLock shuttingDownRWLock = new ReentrantReadWriteLock();
 
     private volatile long slowLogThresholdMs;
 
@@ -251,12 +254,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-        shuttingDown = true;
-        refCounted.decRef();
-        boolean closed = false;
 
-        // httpChannels has no more puts after shuttingDown because of the guard in serverAcceptedChannel
-        httpChannels.values().forEach(RequestTrackingHttpChannel::setCloseWhenIdle);
+        var wlock = shuttingDownRWLock.writeLock();
+        try {
+            wlock.lock();
+            shuttingDown = true;
+            refCounted.decRef();
+            httpChannels.values().forEach(RequestTrackingHttpChannel::setCloseWhenIdle);
+        } finally {
+            wlock.unlock();
+        }
+
+        boolean closed = false;
 
         if (shutdownGracePeriodMillis > 0) {
             try {
@@ -375,13 +384,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
-        if (shuttingDown) {
-            logger.warn("server accepted channel after shutting down");
-            httpChannel.close();
-            return;
+        var rlock = shuttingDownRWLock.readLock();
+        try {
+            rlock.lock();
+            if (shuttingDown) {
+                logger.warn("server accepted channel after shutting down");
+                httpChannel.close();
+                return;
+            }
+            RequestTrackingHttpChannel trackingChannel = httpChannels.putIfAbsent(httpChannel, new RequestTrackingHttpChannel(httpChannel));
+            assert trackingChannel == null : "Channel should only be added to http channel set once";
+        } finally {
+            rlock.unlock();
         }
-        RequestTrackingHttpChannel trackingChannel = httpChannels.putIfAbsent(httpChannel, new RequestTrackingHttpChannel(httpChannel));
-        assert trackingChannel == null : "Channel should only be added to http channel set once";
         refCounted.incRef();
         httpChannel.addCloseListener(ActionListener.running(() -> {
             httpChannels.remove(httpChannel);

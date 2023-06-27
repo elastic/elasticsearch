@@ -3749,7 +3749,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
+     * Executes a scheduled refresh if necessary. Completes the listener with true if a refresh was performed otherwise false.
      */
     public void scheduledRefresh(ActionListener<Boolean> listener) {
         ActionListener.run(listener, l -> {

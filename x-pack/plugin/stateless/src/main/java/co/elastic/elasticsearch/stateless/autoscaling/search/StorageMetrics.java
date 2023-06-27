@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
@@ -26,20 +26,35 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record NodeIngestLoadSnapshot(double load, MetricQuality metricQuality) implements AutoscalingMetrics {
-    public NodeIngestLoadSnapshot(StreamInput in) throws IOException {
-        this(in.readDouble(), MetricQuality.readFrom(in));
+public record StorageMetrics(
+    long maxInteractiveSizeInBytes,
+    long totalInteractiveDataSizeInBytes,
+    long totalDataSizeInBytes,
+    MetricQuality quality
+) implements AutoscalingMetrics {
+
+    public StorageMetrics(StreamInput in) throws IOException {
+        this(in.readLong(), in.readLong(), in.readLong(), MetricQuality.readFrom(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(load);
-        metricQuality.writeTo(out);
+        out.writeLong(maxInteractiveSizeInBytes);
+        out.writeLong(totalInteractiveDataSizeInBytes);
+        out.writeLong(totalDataSizeInBytes);
+        quality.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        serializeMetric(builder, load, metricQuality);
+        builder.field("max_interactive_data_size_in_bytes");
+        serializeMetric(builder, maxInteractiveSizeInBytes, quality);
+
+        builder.field("total_interactive_data_size_in_bytes");
+        serializeMetric(builder, totalInteractiveDataSizeInBytes, quality);
+
+        builder.field("total_data_size_in_bytes");
+        serializeMetric(builder, totalDataSizeInBytes, quality);
         return builder;
     }
 }

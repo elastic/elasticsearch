@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.model.MetricQuality;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -102,7 +102,7 @@ public class IngestMetricsService implements ClusterStateListener {
     }
 
     @Nullable
-    IndexTierAutoscalingMetrics getIndexTierMetrics() {
+    public IndexTierMetrics getIndexTierMetrics() {
         var nodeLoadIterator = nodesIngestLoad.entrySet().iterator();
         var ingestLoads = new ArrayList<NodeIngestLoadSnapshot>();
         while (nodeLoadIterator.hasNext()) {
@@ -114,11 +114,7 @@ public class IngestMetricsService implements ClusterStateListener {
                 ingestLoads.add(value.getIngestLoadSnapshot());
             }
         }
-        return new IndexTierAutoscalingMetrics(
-            Collections.unmodifiableList(ingestLoads),
-            memoryMetricsService.getMinNodeMemoryInBytes(),
-            memoryMetricsService.getTotalMemoryInBytes()
-        );
+        return new IndexTierMetrics(Collections.unmodifiableList(ingestLoads), memoryMetricsService.getMemoryMetrics());
     }
 
     private long relativeTimeInNanos() {

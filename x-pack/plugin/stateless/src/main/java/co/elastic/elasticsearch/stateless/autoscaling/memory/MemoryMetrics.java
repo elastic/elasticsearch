@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
@@ -26,20 +26,26 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record NodeIngestLoadSnapshot(double load, MetricQuality metricQuality) implements AutoscalingMetrics {
-    public NodeIngestLoadSnapshot(StreamInput in) throws IOException {
-        this(in.readDouble(), MetricQuality.readFrom(in));
+public record MemoryMetrics(long nodeMemoryInBytes, long totalMemoryInBytes, MetricQuality quality) implements AutoscalingMetrics {
+
+    public MemoryMetrics(StreamInput in) throws IOException {
+        this(in.readLong(), in.readLong(), MetricQuality.readFrom(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(load);
-        metricQuality.writeTo(out);
+        out.writeLong(nodeMemoryInBytes);
+        out.writeLong(totalMemoryInBytes);
+        quality.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        serializeMetric(builder, load, metricQuality);
+        builder.field("node_memory_in_bytes");
+        serializeMetric(builder, nodeMemoryInBytes, quality);
+
+        builder.field("total_memory_in_bytes");
+        serializeMetric(builder, totalMemoryInBytes, quality);
         return builder;
     }
 }

@@ -18,7 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.autoscaling.model.MetricQuality;
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;

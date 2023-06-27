@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.model;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

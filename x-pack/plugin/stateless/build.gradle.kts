@@ -1,6 +1,7 @@
 import org.gradle.api.tasks.SourceSet
 
 plugins {
+    id("elasticsearch.internal-es-plugin")
     id("elasticsearch.internal-cluster-test")
 }
 

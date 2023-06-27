@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.model.MetricQuality;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;

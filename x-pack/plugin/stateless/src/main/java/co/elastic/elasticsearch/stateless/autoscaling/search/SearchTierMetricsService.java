@@ -15,12 +15,25 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
+package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 
-public class MemoryMetricsService {
-    public MemoryMetrics getMemoryMetrics() {
-        return new MemoryMetrics(4096, 8192, MetricQuality.EXACT);
+public class SearchTierMetricsService {
+
+    private final MemoryMetricsService memoryMetricsService;
+
+    public SearchTierMetricsService(MemoryMetricsService memoryMetricsService) {
+        this.memoryMetricsService = memoryMetricsService;
+    }
+
+    public SearchTierMetrics getSearchTierMetrics() {
+        var memoryMetrics = memoryMetricsService.getMemoryMetrics();
+        return new SearchTierMetrics(
+            memoryMetrics,
+            new MaxShardCopies(1, MetricQuality.EXACT),
+            new StorageMetrics(100, 1000, 10000, MetricQuality.EXACT)
+        );
     }
 }

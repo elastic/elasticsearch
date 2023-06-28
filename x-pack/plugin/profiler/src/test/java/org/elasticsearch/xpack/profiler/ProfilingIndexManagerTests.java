@@ -172,7 +172,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         for (String index : existingIndices) {
             IndexMetadata mockMetadata = mock(IndexMetadata.class);
             when(mockMetadata.getIndex()).thenReturn(new Index(index, index));
-            when(mockMetadata.getCompatibilityVersion()).thenReturn(IndexVersion.CURRENT);
+            when(mockMetadata.getCompatibilityVersion()).thenReturn(IndexVersion.current());
             indices.put(index, mockMetadata);
         }
         return ClusterState.builder(new ClusterName("test"))

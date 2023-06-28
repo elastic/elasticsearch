@@ -128,7 +128,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             )
         );
 
-        indexCreated = IndexVersionUtils.randomVersionBetween(random(), minCompat, IndexVersion.CURRENT);
+        indexCreated = IndexVersionUtils.randomVersionBetween(random(), minCompat, IndexVersion.current());
         IndexMetadata goodMeta = newIndexMeta(
             "foo",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated.id()).build()

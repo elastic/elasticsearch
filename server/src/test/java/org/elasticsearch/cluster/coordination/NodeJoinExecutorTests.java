@@ -84,13 +84,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT, metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
 
         expectThrows(
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureIndexCompatibility(
                 IndexVersion.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.CURRENT),
+                IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
                 metadata
             )
         );
@@ -108,7 +108,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Metadata metadata = metaBuilder.build();
         expectThrows(
             IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT, metadata)
+            () -> NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata)
         );
     }
 
@@ -189,7 +189,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT, metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
     }
 
     public static Settings.Builder randomCompatibleVersionSettings() {

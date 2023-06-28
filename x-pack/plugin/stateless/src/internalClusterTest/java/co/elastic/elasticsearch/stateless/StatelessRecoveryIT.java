@@ -22,14 +22,18 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -40,27 +44,30 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.anyOf;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
@@ -123,51 +130,100 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         testTranslogRecovery(false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/pull/456")
     public void testRelocatingIndexShards() throws Exception {
-        var numShards = randomIntBetween(1, 3);
-        startIndexNodes(numShards);
+        final var numShards = randomIntBetween(1, 3);
+        final var indexNodes = startIndexNodes(Math.max(2, numShards));
 
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, 0).build());
         ensureGreen(indexName);
-        indexDocs(indexName, randomIntBetween(1, 100));
-        if (randomBoolean()) {
-            flush(indexName);
-        }
 
-        final int iters = randomIntBetween(5, 10);
-        for (int i = 0; i < iters; i++) {
-            final AtomicBoolean running = new AtomicBoolean(true);
+        final ClusterStateListener verifyGreenListener = event -> {
+            // ensure that the master remains unchanged, and the index remains green, throughout the test
+            assertTrue(event.localNodeMaster());
+            final var indexRoutingTable = event.state().routingTable().index(indexName);
+            assertEquals(numShards, indexRoutingTable.size());
+            for (int i = 0; i < numShards; i++) {
+                final var indexShardRoutingTable = indexRoutingTable.shard(i);
+                assertEquals(1, indexShardRoutingTable.size());
+                assertThat(
+                    indexRoutingTable.prettyPrint(),
+                    indexShardRoutingTable.primaryShard().state(),
+                    oneOf(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING)
+                );
+            }
+        };
 
-            final Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
-            for (int j = 0; j < threads.length; j++) {
-                threads[j] = new Thread(() -> {
-                    while (running.get()) {
-                        indexDocs(indexName, 20);
+        final var masterNodeClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        masterNodeClusterService.addListener(verifyGreenListener);
+
+        try {
+            final AtomicInteger docIdGenerator = new AtomicInteger();
+            final IntConsumer docIndexer = numDocs -> {
+                var bulkRequest = client().prepareBulk();
+                for (int i = 0; i < numDocs; i++) {
+                    bulkRequest.add(
+                        new IndexRequest(indexName).id("doc-" + docIdGenerator.incrementAndGet())
+                            .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+                    );
+                }
+                assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10)));
+            };
+
+            docIndexer.accept(between(1, 100));
+            if (randomBoolean()) {
+                flush(indexName);
+            }
+
+            final var initialPrimaryTerms = getPrimaryTerms(indexName);
+
+            final int iters = randomIntBetween(5, 10);
+            for (int i = 0; i < iters; i++) {
+
+                final var nodeToRemove = indexNodes.get(i % indexNodes.size());
+
+                final AtomicBoolean running = new AtomicBoolean(true);
+
+                final Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
+                for (int j = 0; j < threads.length; j++) {
+                    threads[j] = new Thread(() -> {
+                        while (running.get()) {
+                            docIndexer.accept(between(1, 20));
+                        }
+                    });
+                    threads[j].start();
+                }
+
+                try {
+                    logger.info("--> excluding [{}]", nodeToRemove);
+                    updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToRemove), indexName);
+                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToRemove))));
+                } finally {
+                    running.set(false);
+                    for (Thread thread : threads) {
+                        thread.join();
                     }
-                });
-                threads[j].start();
+                }
+
+                assertArrayEquals(initialPrimaryTerms, getPrimaryTerms(indexName));
+
+                if (randomBoolean()) {
+                    docIndexer.accept(between(1, 10));
+                }
+
+                // verify all docs are present without needing input from a search node
+                var bulkRequest = client().prepareBulk();
+                for (int docId = 1; docId < docIdGenerator.get(); docId++) {
+                    bulkRequest.add(new IndexRequest(indexName).id("doc-" + docId).create(true).source(Map.of()));
+                }
+                var bulkResponse = bulkRequest.get(TimeValue.timeValueSeconds(10));
+                for (BulkItemResponse bulkResponseItem : bulkResponse.getItems()) {
+                    assertEquals(RestStatus.CONFLICT, bulkResponseItem.status());
+                }
             }
-            var initialPrimaryTerms = getPrimaryTerms(indexName);
-            var existingNodes = new HashSet<>(internalCluster().nodesInclude(indexName));
-            startIndexNode();
-
-            final String nodeToRemove = randomFrom(existingNodes);
-            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToRemove), indexName);
-
-            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToRemove))));
-            ensureGreen(indexName);
-
-            running.set(false);
-            for (Thread thread : threads) {
-                thread.join();
-            }
-
-            var updatedPrimaryTerms = getPrimaryTerms(indexName);
-            assertPrimaryTermIncremented(initialPrimaryTerms, updatedPrimaryTerms);
-
-            internalCluster().stopNode(nodeToRemove);
-            ensureGreen(indexName);
+        } finally {
+            masterNodeClusterService.removeListener(verifyGreenListener);
         }
     }
 
@@ -181,18 +237,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             primaryTerms[i] = indexMetadata.primaryTerm(i);
         }
         return primaryTerms;
-    }
-
-    private void assertPrimaryTermIncremented(long[] initial, long[] updated) {
-        assertThat(updated.length, equalTo(initial.length));
-        long totalInitial = 0;
-        long totalUpdated = 0;
-        for (int i = 0; i < initial.length; i++) {
-            totalInitial += initial[i];
-            totalUpdated += updated[i];
-            assertThat(updated[i], anyOf(equalTo(initial[i]), equalTo(initial[i] + 1)));
-        }
-        assertThat("At least 1 primary term should increment", totalUpdated, equalTo(totalInitial + 1));
     }
 
     public void testRecoverIndexingShard() throws Exception {

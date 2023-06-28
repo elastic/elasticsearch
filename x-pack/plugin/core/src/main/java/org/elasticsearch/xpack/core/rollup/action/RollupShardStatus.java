@@ -141,13 +141,13 @@ public class RollupShardStatus implements Task.Status {
         numIndexed = in.readLong();
         numFailed = in.readLong();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_025) && in.readBoolean()) {
-            totalShardDocCount = in.readLong();
-            lastSourceTimestamp = in.readLong();
-            lastTargetTimestamp = in.readLong();
-            lastIndexingTimestamp = in.readLong();
-            indexStartTimeMillis = in.readLong();
-            indexEndTimeMillis = in.readLong();
-            docsProcessed = in.readLong();
+            totalShardDocCount = in.readVLong();
+            lastSourceTimestamp = in.readVLong();
+            lastTargetTimestamp = in.readVLong();
+            lastIndexingTimestamp = in.readVLong();
+            indexStartTimeMillis = in.readVLong();
+            indexEndTimeMillis = in.readVLong();
+            docsProcessed = in.readVLong();
             docsProcessedPercentage = in.readFloat();
             rollupBulkInfo = new RollupBulkInfo(in);
             rollupBeforeBulkInfo = new RollupBeforeBulkInfo(in);
@@ -252,13 +252,13 @@ public class RollupShardStatus implements Task.Status {
         out.writeLong(numFailed);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_025)) {
             out.writeBoolean(true);
-            out.writeLong(totalShardDocCount);
-            out.writeLong(lastSourceTimestamp);
-            out.writeLong(lastTargetTimestamp);
-            out.writeLong(lastIndexingTimestamp);
-            out.writeLong(indexStartTimeMillis);
-            out.writeLong(indexEndTimeMillis);
-            out.writeLong(docsProcessed);
+            out.writeVLong(totalShardDocCount);
+            out.writeVLong(lastSourceTimestamp);
+            out.writeVLong(lastTargetTimestamp);
+            out.writeVLong(lastIndexingTimestamp);
+            out.writeVLong(indexStartTimeMillis);
+            out.writeVLong(indexEndTimeMillis);
+            out.writeVLong(docsProcessed);
             out.writeFloat(docsProcessedPercentage);
             rollupBulkInfo.writeTo(out);
             rollupBeforeBulkInfo.writeTo(out);

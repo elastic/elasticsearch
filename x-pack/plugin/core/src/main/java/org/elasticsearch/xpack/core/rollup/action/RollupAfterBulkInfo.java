@@ -67,7 +67,7 @@ public record RollupAfterBulkInfo(
     }
 
     public RollupAfterBulkInfo(final StreamInput in) throws IOException {
-        this(in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readBoolean(), in.readInt());
+        this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readBoolean(), in.readVInt());
     }
 
     @Override
@@ -77,13 +77,13 @@ public record RollupAfterBulkInfo(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(currentTimeMillis);
-        out.writeLong(executionId);
-        out.writeLong(lastBulkDurationInMillis);
-        out.writeLong(lastIngestTookInMillis);
-        out.writeLong(lastTookInMillis);
+        out.writeVLong(currentTimeMillis);
+        out.writeVLong(executionId);
+        out.writeVLong(lastBulkDurationInMillis);
+        out.writeVLong(lastIngestTookInMillis);
+        out.writeVLong(lastTookInMillis);
         out.writeBoolean(hasFailures);
-        out.writeInt(restStatusCode);
+        out.writeVInt(restStatusCode);
     }
 
     @Override

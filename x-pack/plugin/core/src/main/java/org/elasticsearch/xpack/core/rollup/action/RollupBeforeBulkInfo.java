@@ -48,7 +48,7 @@ public record RollupBeforeBulkInfo(long currentTimeMillis, long executionId, lon
     }
 
     public RollupBeforeBulkInfo(final StreamInput in) throws IOException {
-        this(in.readLong(), in.readLong(), in.readLong(), in.readInt());
+        this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVInt());
     }
 
     @Override

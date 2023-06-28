@@ -80,16 +80,16 @@ public record RollupBulkInfo(
 
     public RollupBulkInfo(final StreamInput in) throws IOException {
         this(
-            in.readLong(),
-            in.readLong(),
-            in.readLong(),
-            in.readLong(),
-            in.readLong(),
-            in.readLong(),
-            in.readLong(),
-            in.readLong(),
-            in.readLong(),
-            in.readLong()
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong()
         );
     }
 

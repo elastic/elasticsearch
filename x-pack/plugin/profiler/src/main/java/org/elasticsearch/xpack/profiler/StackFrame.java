@@ -18,10 +18,6 @@ import java.util.Map;
 import java.util.Objects;
 
 final class StackFrame implements ToXContentObject {
-    private static final String[] PATH_FILE_NAME = new String[] { "Stackframe", "file", "name" };
-    private static final String[] PATH_FUNCTION_NAME = new String[] { "Stackframe", "function", "name" };
-    private static final String[] PATH_FUNCTION_OFFSET = new String[] { "Stackframe", "function", "offset" };
-    private static final String[] PATH_LINE_NUMBER = new String[] { "Stackframe", "line", "number" };
     List<String> fileName;
     List<String> functionName;
     List<Integer> functionOffset;
@@ -46,26 +42,12 @@ final class StackFrame implements ToXContentObject {
     }
 
     public static StackFrame fromSource(Map<String, Object> source) {
-        // stack frames may either be stored with synthetic source or regular one
-        // which results either in a nested or flat document structure.
-
-        if (source.containsKey("Stackframe")) {
-            // synthetic source
-            return new StackFrame(
-                ObjectPath.eval(PATH_FILE_NAME, source),
-                ObjectPath.eval(PATH_FUNCTION_NAME, source),
-                ObjectPath.eval(PATH_FUNCTION_OFFSET, source),
-                ObjectPath.eval(PATH_LINE_NUMBER, source)
-            );
-        } else {
-            // regular source
-            return new StackFrame(
-                source.get("Stackframe.file.name"),
-                source.get("Stackframe.function.name"),
-                source.get("Stackframe.function.offset"),
-                source.get("Stackframe.line.number")
-            );
-        }
+        return new StackFrame(
+            source.get("Stackframe.file.name"),
+            source.get("Stackframe.function.name"),
+            source.get("Stackframe.function.offset"),
+            source.get("Stackframe.line.number")
+        );
     }
 
     @Override

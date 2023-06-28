@@ -257,3 +257,47 @@ teardown:
           params:
             field_name: field3
             field_value: value3
+
+---
+"Query Search Application - Warning returned when indices and aliases are inconsistent":
+  - skip:
+      features: ["warnings", "headers"]
+
+  - do:
+      indices.create:
+        index: test-index3
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test-search-index1
+                alias: test-search-application-1
+            - add:
+                index: test-search-index2
+                alias: test-search-application-1
+            - add:
+                index: test-index3
+                alias: test-search-application-1
+
+  - do:
+      indices.delete:
+        index: test-search-index2
+        ignore: 404
+
+  - do:
+      warnings:
+        - "test-search-index2 index is in search application but not in associated alias"
+        - "test-index3 index is in alias but not associcated with search application"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search_application.search:
+        name: test-search-application-1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc1" }

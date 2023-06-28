@@ -222,7 +222,7 @@ public class DiscoveryNodeTests extends ESTestCase {
                     withExternalId ? "test-external-id" : "test-name",
                     Version.CURRENT,
                     IndexVersion.MINIMUM_COMPATIBLE,
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             )
         );

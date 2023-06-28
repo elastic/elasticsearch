@@ -458,7 +458,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             Version.CURRENT,
             Version.CURRENT,
             IndexVersion.MINIMUM_COMPATIBLE,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             apmIndicesExist };
         final String expectedJson = Strings.format("""
             {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -53,7 +54,7 @@ import java.util.TreeMap;
  * Each index version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
  * <p>
  * To add a new index version, add a new constant at the bottom of the list that is one greater than the current highest version,
- * ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
+ * ensure it has a unique id, and update the {@link #current()} constant to point to the new version.
  * <h2>Reverting an index version</h2>
  * If you revert a commit with an index version change, you <em>must</em> ensure there is a <em>new</em> index version
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
@@ -178,16 +179,28 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
      * Detached index versions added below here.
      */
 
-    /**
-     * Reference to the most recent index version.
-     * This should be the index version with the highest id.
-     */
-    public static final IndexVersion CURRENT = V_8_10_0;
+    private static class CurrentHolder {
+        private static final IndexVersion CURRENT = findCurrent(V_8_10_0);
 
-    /**
-     * Reference to the earliest compatible index version to this version of the codebase.
-     * This should be the index version used by the first release of the previous major version.
-     */
+        // finds the pluggable current version, or uses the given fallback
+        private static IndexVersion findCurrent(IndexVersion fallback) {
+            var versionExtension = VersionExtension.load();
+            if (versionExtension == null) {
+                return fallback;
+            }
+            var version = versionExtension.getCurrentIndexVersion();
+
+            assert version.onOrAfter(fallback);
+            assert version.luceneVersion.equals(Version.LATEST)
+                : "IndexVersion must be upgraded to ["
+                + Version.LATEST
+                + "] is still set to ["
+                + version.luceneVersion
+                + "]";
+            return version;
+        }
+    }
+
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
 
     static {
@@ -239,13 +252,6 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
 
     static {
         VERSION_IDS = getAllVersionIds(IndexVersion.class);
-
-        assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST)
-            : "IndexVersion must be upgraded to ["
-                + org.apache.lucene.util.Version.LATEST
-                + "] is still set to ["
-                + CURRENT.luceneVersion
-                + "]";
     }
 
     static Collection<IndexVersion> getAllVersions() {
@@ -296,6 +302,14 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
      */
     public static IndexVersion max(IndexVersion version1, IndexVersion version2) {
         return version1.id > version2.id ? version1 : version2;
+    }
+
+    /**
+     * Returns the most recent index version.
+     * This should be the index version with the highest id.
+     */
+    public static IndexVersion current() {
+        return CurrentHolder.CURRENT;
     }
 
     public boolean after(IndexVersion version) {

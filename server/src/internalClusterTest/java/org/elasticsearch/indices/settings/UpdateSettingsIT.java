@@ -129,9 +129,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         );
 
         @Override
-        public void onIndexModule(IndexModule indexModule) {}
-
-        @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(FINAL_SETTING);
         }

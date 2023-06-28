@@ -477,7 +477,7 @@ public final class DataStreamTestHelper {
             null,
             ScriptCompiler.NONE,
             false,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         ).build(MapperBuilderContext.root(false));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
@@ -495,7 +495,7 @@ public final class DataStreamTestHelper {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
                     true,
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();

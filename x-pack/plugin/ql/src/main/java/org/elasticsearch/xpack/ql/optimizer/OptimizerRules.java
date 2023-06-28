@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -1666,6 +1667,35 @@ public final class OptimizerRules {
         }
     }
 
+    public static class FoldNull extends OptimizerExpressionRule<Expression> {
+
+        public FoldNull() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof IsNotNull isnn) {
+                if (isnn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof IsNull isn) {
+                if (isn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof In in) {
+                if (Expressions.isNull(in.value())) {
+                    return Literal.of(in, null);
+                }
+            } else if (e instanceof Alias == false
+                && e.nullable() == Nullability.TRUE
+                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                    return Literal.of(e, null);
+                }
+            return e;
+        }
+    }
+
     // a IS NULL AND a IS NOT NULL -> FALSE
     // a IS NULL AND a > 10 -> a IS NULL and FALSE
     // can be extended to handle null conditions where available
@@ -1685,10 +1715,10 @@ public final class OptimizerRules {
 
             // first find isNull/isNotNull
             for (Expression ex : splits) {
-                if (ex instanceof IsNull) {
-                    nullExpressions.add(((IsNull) ex).field());
-                } else if (ex instanceof IsNotNull) {
-                    notNullExpressions.add(((IsNotNull) ex).field());
+                if (ex instanceof IsNull isn) {
+                    nullExpressions.add(isn.field());
+                } else if (ex instanceof IsNotNull isnn) {
+                    notNullExpressions.add(isnn.field());
                 }
                 // the rest
                 else {

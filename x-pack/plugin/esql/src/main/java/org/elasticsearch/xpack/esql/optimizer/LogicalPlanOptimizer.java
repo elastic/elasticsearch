@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -30,15 +29,10 @@ import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -55,7 +49,6 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.time.ZoneId;
@@ -70,6 +63,9 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 
 public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
@@ -126,7 +122,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     static class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
 
         SubstituteSurrogates() {
-            super(OptimizerRules.TransformDirection.UP);
+            super(TransformDirection.UP);
         }
 
         @Override
@@ -211,7 +207,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
 
         ConvertStringToByteRef() {
-            super(OptimizerRules.TransformDirection.UP);
+            super(TransformDirection.UP);
         }
 
         @Override
@@ -235,7 +231,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     static class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
 
         CombineProjections() {
-            super(OptimizerRules.TransformDirection.UP);
+            super(TransformDirection.UP);
         }
 
         @Override
@@ -298,27 +294,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
-
-        FoldNull() {
-            super(OptimizerRules.TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof Alias == false
-                && e.nullable() == Nullability.TRUE
-                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                return Literal.of(e, null);
-            }
-            return e;
-        }
-    }
-
     static class FoldNullInIn extends OptimizerRules.OptimizerExpressionRule<In> {
 
         FoldNullInIn() {
-            super(OptimizerRules.TransformDirection.UP);
+            super(TransformDirection.UP);
         }
 
         @Override
@@ -678,39 +657,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
             throw new UnsupportedOperationException("Expected child to be instance of Project");
-        }
-    }
-
-    /**
-     * LIKE/RLIKE expressions can be simplified in some specific cases:
-     *
-     *  field LIKE "foo"  ->   field == "foo"       // constant match, no wildcards
-     *  field LIKE "*"    ->   NOT (field IS NULL)  // match all
-     */
-    public static class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
-
-        public ReplaceRegexMatch() {
-            super(OptimizerRules.TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(RegexMatch<?> regexMatch) {
-            Expression e = regexMatch;
-            StringPattern pattern = regexMatch.pattern();
-            if (pattern.matchesAll()) {
-                e = new Not(e.source(), new IsNull(e.source(), regexMatch.field()));
-            } else {
-                String match = pattern.exactMatch();
-                if (match != null) {
-                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
-                    e = regexToEquals(regexMatch, literal);
-                }
-            }
-            return e;
-        }
-
-        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
-            return new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }
 

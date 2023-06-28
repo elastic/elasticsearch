@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -52,5 +53,10 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
     @Override
     public AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
         return CountAggregatorFunction.supplier(bigArrays, inputChannels);
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 }

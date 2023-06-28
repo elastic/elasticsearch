@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -25,6 +27,8 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.List;
@@ -59,7 +63,9 @@ public final class EvalMapper {
         new BooleanLogic(),
         new Nots(),
         new Attributes(),
-        new Literals()
+        new Literals(),
+        new IsNotNulls(),
+        new IsNulls()
     );
 
     private EvalMapper() {}
@@ -223,6 +229,54 @@ public final class EvalMapper {
                 case NULL -> Block::constantNullBlock;
                 case DOC, UNKNOWN -> throw new UnsupportedOperationException("can't eval to doc or unknown");
             };
+        }
+    }
+
+    static class IsNulls extends ExpressionMapper<IsNull> {
+
+        @Override
+        protected Supplier<ExpressionEvaluator> map(IsNull isNull, Layout layout) {
+            Supplier<ExpressionEvaluator> field = toEvaluator(isNull.field(), layout);
+            return () -> new IsNullEvaluator(field.get());
+        }
+
+        record IsNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
+            @Override
+            public Block eval(Page page) {
+                Block fieldBlock = field.eval(page);
+                if (fieldBlock.asVector() != null) {
+                    return BooleanBlock.newConstantBlockWith(false, page.getPositionCount());
+                }
+                boolean[] result = new boolean[page.getPositionCount()];
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    result[p] = fieldBlock.isNull(p);
+                }
+                return new BooleanArrayVector(result, result.length).asBlock();
+            }
+        }
+    }
+
+    static class IsNotNulls extends ExpressionMapper<IsNotNull> {
+
+        @Override
+        protected Supplier<ExpressionEvaluator> map(IsNotNull isNotNull, Layout layout) {
+            Supplier<ExpressionEvaluator> field = toEvaluator(isNotNull.field(), layout);
+            return () -> new IsNotNullEvaluator(field.get());
+        }
+
+        record IsNotNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
+            @Override
+            public Block eval(Page page) {
+                Block fieldBlock = field.eval(page);
+                if (fieldBlock.asVector() != null) {
+                    return BooleanBlock.newConstantBlockWith(true, page.getPositionCount());
+                }
+                boolean[] result = new boolean[page.getPositionCount()];
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    result[p] = fieldBlock.isNull(p) == false;
+                }
+                return new BooleanArrayVector(result, result.length).asBlock();
+            }
         }
     }
 }

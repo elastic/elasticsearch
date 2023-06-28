@@ -49,6 +49,7 @@ import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyInfoTransportAction;
@@ -105,6 +106,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -199,7 +201,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
             new ActionHandler<>(GetStatelessAutoscalingMetricsAction.INSTANCE, TransportGetStatelessAutoscalingMetricsAction.class),
-            new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class)
+            new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
+            new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class)
         );
     }
 

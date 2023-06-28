@@ -50,6 +50,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -329,6 +330,8 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
+import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerBuilder;
+import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerFeature;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -847,6 +850,21 @@ public class MachineLearning extends Plugin
     }
 
     @Override
+    public List<RescorerSpec<?>> getRescorers() {
+        if (enabled && InferenceRescorerFeature.isEnabled()) {
+            // Inference rescorer requires access to the model loading service
+            return List.of(
+                new RescorerSpec<>(
+                    InferenceRescorerBuilder.NAME,
+                    in -> new InferenceRescorerBuilder(in, modelLoadingService::get),
+                    parser -> InferenceRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                )
+            );
+        }
+        return List.of();
+    }
+
+    @Override
     public Collection<Object> createComponents(
         Client client,
         ClusterService clusterService,
@@ -860,7 +878,8 @@ public class MachineLearning extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled

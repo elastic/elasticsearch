@@ -230,7 +230,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             actualNode.getAddress(),
             actualNode.getAttributes(),
             new HashSet<>(randomSubsetOf(actualNode.getRoles())),
-            actualNode.getVersion()
+            actualNode.getVersionInformation()
         );
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
@@ -389,7 +389,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             otherNodeOld.getAddress(),
             otherNodeOld.getAttributes(),
             otherNodeOld.getRoles(),
-            otherNodeOld.getVersion()
+            otherNodeOld.getVersionInformation()
         );
 
         final var afterElectionClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(

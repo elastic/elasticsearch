@@ -47,11 +47,6 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected TextSimilarityConfigUpdate doParseInstance(XContentParser parser) throws IOException {
         return TextSimilarityConfigUpdate.fromXContentStrict(parser);
     }

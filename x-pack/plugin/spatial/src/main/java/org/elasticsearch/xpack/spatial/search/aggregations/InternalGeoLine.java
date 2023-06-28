@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -207,11 +206,6 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 
     @Override

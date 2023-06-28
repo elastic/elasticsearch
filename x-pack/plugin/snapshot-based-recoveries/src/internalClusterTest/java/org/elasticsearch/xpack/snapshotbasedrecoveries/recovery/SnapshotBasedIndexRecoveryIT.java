@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -725,7 +726,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                                     // IllegalIndexShardStateException which it considers to be retryable, and will reset the recovery and
                                     // generate a new `CancellableThreads` which is cancelled instead of the original `CancellableThreads`,
                                     // permitting a subsequent read.
-                                    assert exception instanceof IndexShardClosedException : exception;
+                                    assert assertShardClosedException(exception);
                                     transportService.getThreadPool().generic().execute(() -> {
                                         safeAwait(readFromBlobRespondLatch);
                                         try {
@@ -735,6 +736,15 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                                         }
                                     });
                                 }
+                            }
+
+                            private boolean assertShardClosedException(Exception e) {
+                                if (e instanceof CancellableThreads.ExecutionCancelledException cancelledException) {
+                                    assert cancelledException.getMessage().contains("shard closed") : e;
+                                } else {
+                                    assert e instanceof IndexShardClosedException : e;
+                                }
+                                return true;
                             }
                         }, task)
                     )

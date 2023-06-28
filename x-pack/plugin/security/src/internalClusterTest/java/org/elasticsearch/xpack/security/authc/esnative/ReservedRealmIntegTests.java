@@ -51,11 +51,6 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         return settings;
     }
 
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false;
-    }
-
     public void testAuthenticate() {
         final List<String> usernames = Arrays.asList(
             ElasticUser.NAME,

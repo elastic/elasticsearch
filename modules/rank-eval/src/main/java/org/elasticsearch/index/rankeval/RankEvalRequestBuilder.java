@@ -18,11 +18,6 @@ public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest
         super(client, action, request);
     }
 
-    @Override
-    public RankEvalRequest request() {
-        return request;
-    }
-
     public void setRankEvalSpec(RankEvalSpec spec) {
         this.request.setRankEvalSpec(spec);
     }

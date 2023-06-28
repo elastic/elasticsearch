@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -68,7 +67,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_022) && in.readBoolean()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_025) && in.readBoolean()) {
                 this.indexStartTimeMillis = in.readLong();
                 this.indexEndTimeMillis = in.readLong();
             } else {
@@ -131,7 +130,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_022)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_025)) {
                 out.writeBoolean(true);
                 out.writeLong(indexStartTimeMillis);
                 out.writeLong(indexEndTimeMillis);
@@ -142,11 +141,6 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);
             out.writeStringArray(labelFields);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

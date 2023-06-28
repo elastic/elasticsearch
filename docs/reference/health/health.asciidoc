@@ -365,6 +365,43 @@ watermark threshold>>.
 `policies`::
     (int) The number of index lifecycle policies that the system is managing.
 
+`stagnating_indices`::
+    (int) the number of indices managed by {ilm} that has been stagnant longer than expected.
+
+`stagnating_indices_per_action`::
+    (optional, map) Summary of the number of indices, grouped by action, that have been stagnant longer than
+    expected.
++
+.Properties of `stagnating_indices_per_action`
+[%collapsible%open]
+=======
+`downsample`::
+(int) The number of stagnant indices in the `downsample` action.
+
+`allocate`::
+(int) The number of stagnant indices in the `allocate` action.
+
+`shrink`::
+(int) The number of stagnant indices in the `shrink` action.
+
+`searchable_snapshot`::
+(int) The number of stagnant indices in the `searchable_snapshot` action.
+
+`rollover`::
+(int) The number of stagnant indices in the `rollver` action.
+
+`forcemerge`::
+(int) The number of stagnant indices in the `forcemerge` action.
+
+`delete`::
+(int) The number of stagnant indices in the `delete` action.
+
+`migrate`::
+(int) The number of stagnant indices in the `migrate` action.
+
+
+=======
+
 [[health-api-response-details-slm]]
 ===== slm
 

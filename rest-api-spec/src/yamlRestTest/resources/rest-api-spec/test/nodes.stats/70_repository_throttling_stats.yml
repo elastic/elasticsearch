@@ -12,7 +12,7 @@
 
   - do:
       nodes.stats:
-        metric: [ repository ]
+        metric: [ repositories ]
 
   - is_true: nodes.$node_id.repositories
   - match: { nodes.$node_id.repositories: {} }
@@ -47,7 +47,7 @@
 
   - do:
       nodes.stats:
-        metric: [ repository ]
+        metric: [ repositories ]
 
   - is_true: nodes.$node_id.repositories
 

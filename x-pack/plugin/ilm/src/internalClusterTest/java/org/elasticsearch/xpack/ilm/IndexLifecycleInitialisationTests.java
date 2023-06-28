@@ -178,12 +178,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         );
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test").settings(settings))
-            .actionGet();
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
         assertBusy(() -> { assertTrue(indexExists("test")); });
@@ -191,9 +188,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = client().admin()
-                .cluster()
-                .prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
                 .execute()
                 .actionGet()
                 .getState()
@@ -264,10 +259,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test").settings(settings))
-            .actionGet();
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
         // using AtomicLong only to extract a value from a lambda rather than the more traditional atomic update use-case
@@ -340,14 +332,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         String indexName = "test-2019.09.14";
         logger.info("Creating index [{}]", indexName);
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest(indexName).settings(
-                    Settings.builder().put(settings).put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
-                )
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(
+            new CreateIndexRequest(indexName).settings(
+                Settings.builder().put(settings).put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
             )
-            .actionGet();
+        ).actionGet();
         assertAcked(createIndexResponse);
 
         DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd");
@@ -422,21 +411,16 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test").settings(settings))
-            .actionGet();
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = client().admin()
-                .cluster()
-                .prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
                 .execute()
                 .actionGet()
                 .getState()

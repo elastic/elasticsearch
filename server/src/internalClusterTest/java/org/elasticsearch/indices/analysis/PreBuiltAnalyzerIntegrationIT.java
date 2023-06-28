@@ -63,7 +63,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
 
-            client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(settings(randomVersion)).get();
+            indicesAdmin().prepareCreate(indexName).setMapping(mapping).setSettings(settings(randomVersion)).get();
         }
 
         ensureGreen();
@@ -86,7 +86,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         int amountOfIndicesToClose = randomInt(numIndices - 1);
         for (int i = 0; i < amountOfIndicesToClose; i++) {
             String indexName = indexNames.get(i);
-            client().admin().indices().prepareClose(indexName).execute().actionGet();
+            indicesAdmin().prepareClose(indexName).execute().actionGet();
         }
 
         ensureGreen();

@@ -53,8 +53,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             actionFilters,
             NodesStatsRequest::new,
             NodeStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeStats.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.nodeService = nodeService;
     }
@@ -96,7 +95,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
             NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
             NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequest.Metric.REPOSITORY.containedIn(metrics)
+            NodesStatsRequest.Metric.REPOSITORIES.containedIn(metrics)
         );
     }
 

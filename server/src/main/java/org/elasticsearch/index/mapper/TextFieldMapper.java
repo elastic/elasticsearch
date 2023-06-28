@@ -277,7 +277,7 @@ public class TextFieldMapper extends FieldMapper {
         final TextParams.Analyzers analyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.CURRENT, indexAnalyzers);
+            this(name, IndexVersion.current(), indexAnalyzers);
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {

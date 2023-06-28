@@ -75,8 +75,7 @@ key. This parameter is optional. When it is not specified or is an empty array,
 the API key has a point in time snapshot of permissions of the specified user or
 access token. If you supply role descriptors, the resultant permissions are an
 intersection of API keys permissions and the permissions of the user or access
-token. The structure of role descriptor is the same as the request for create
-role API. For more details, see <<security-api-put-role>>.
+token. The structure of a role descriptor is the same as the request for <<api-key-role-descriptors, create API keys API>>.
 
 `metadata`:::
 (Optional, object) Arbitrary metadata that you want to associate with the API key.

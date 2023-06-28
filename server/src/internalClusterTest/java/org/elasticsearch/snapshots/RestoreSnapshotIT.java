@@ -931,7 +931,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(indexName));
         index(indexName, "some_id", Map.of("foo", "bar"));
-        assertAcked(admin().indices().prepareClose(indexName).get());
+        assertAcked(indicesAdmin().prepareClose(indexName).get());
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")

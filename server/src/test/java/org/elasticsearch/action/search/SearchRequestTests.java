@@ -17,10 +17,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
@@ -99,6 +101,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         } else {
             // tests version prior to 8.8 so remove possible rank builder
             searchRequest.source().rankBuilder(null);
+            // tests version prior to 8_500_999 so remove possible multiple queries
+            searchRequest.source().subSearches(new ArrayList<>());
         }
         searchRequest.source()
             .knnSearch(
@@ -148,6 +152,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (version.before(TransportVersion.V_8_8_0) && searchRequest.source() != null) {
             // Versions before 8.8 don't support rank
             searchRequest.source().rankBuilder(null);
+        }
+        if (version.before(TransportVersion.V_8_500_013) && searchRequest.source() != null) {
+            // Versions before 8_500_999 don't support queries
+            searchRequest.source().subSearches(new ArrayList<>());
         }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
@@ -221,6 +229,24 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // cannot have multiple queries without rank
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            if (searchRequest.scroll() != null) {
+                searchRequest.requestCache(false);
+            }
+            searchRequest.source()
+                .subSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(new TermQueryBuilder("three", "four")),
+                        new SubSearchSourceBuilder(new TermQueryBuilder("five", "six"))
+                    )
+                );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[sub_searches] requires [rank]", validationErrors.validationErrors().get(0));
         }
         {
             // Rescore is not allowed on scroll requests
@@ -303,10 +329,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals(validationErrors.validationErrors().toString(), 1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires a minimum of [2] result sets which "
-                    + "either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
                 validationErrors.validationErrors().get(0)
             );
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -713,7 +714,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     retentionLeaseId,
                     followerGlobalCheckpoint.getAsLong(),
                     "ccr",
-                    ActionListener.wrap(response::onResponse, e -> fail(e.toString()))
+                    ActionTestUtils.assertNoFailureListener(response::onResponse)
                 );
                 response.actionGet();
                 return threadPool.scheduleWithFixedDelay(

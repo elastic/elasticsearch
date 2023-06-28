@@ -390,6 +390,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         List.of(
             "search-" + randomAlphaOfLengthBetween(1, 20),
+            ".search-acl-filter-" + randomAlphaOfLengthBetween(1, 20),
             ".elastic-analytics-collections",
             ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
             ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),

@@ -68,6 +68,7 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
     private final BooleanSupplier isBootstrappedSupplier;
     private final Consumer<VotingConfiguration> votingConfigurationConsumer;
     private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);
+    private final boolean singleNodeDiscovery;
 
     public ClusterBootstrapService(
         Settings settings,
@@ -76,7 +77,8 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
         BooleanSupplier isBootstrappedSupplier,
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
-        if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
+        singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
+        if (singleNodeDiscovery) {
             if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
                 throw new IllegalArgumentException(
                     "setting ["
@@ -124,7 +126,7 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
     void logBootstrapState(Metadata metadata) {
         if (metadata.clusterUUIDCommitted()) {
             final var clusterUUID = metadata.clusterUUID();
-            if (bootstrapRequirements.isEmpty()) {
+            if (singleNodeDiscovery || bootstrapRequirements.isEmpty()) {
                 logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
             } else {
                 transportService.getThreadPool()

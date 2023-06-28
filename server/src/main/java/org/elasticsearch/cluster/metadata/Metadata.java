@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -50,6 +49,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
@@ -231,7 +231,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private volatile SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
-    private final Version oldestIndexVersion;
+    private final IndexVersion oldestIndexVersion;
 
     private Metadata(
         String clusterUUID,
@@ -256,7 +256,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
         Map<String, MappingMetadata> mappingsByHash,
-        Version oldestIndexVersion,
+        IndexVersion oldestIndexVersion,
         Map<String, ReservedStateMetadata> reservedStateMetadata
     ) {
         this.clusterUUID = clusterUUID;
@@ -638,7 +638,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             updatedVisibleClosedIndices,
             null,
             updatedMappingsByHash,
-            index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
+            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion),
             reservedStateMetadata
         );
     }
@@ -719,7 +719,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return this.coordinationMetadata;
     }
 
-    public Version oldestIndexVersion() {
+    public IndexVersion oldestIndexVersion() {
         return this.oldestIndexVersion;
     }
 
@@ -2272,7 +2272,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             final List<String> visibleClosedIndices = new ArrayList<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
 
-            int oldestIndexVersionId = Version.CURRENT.id;
+            int oldestIndexVersionId = IndexVersion.current().id();
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
 
@@ -2300,7 +2300,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         visibleClosedIndices.add(name);
                     }
                 }
-                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
+                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id());
                 if (sha256HashesInUse != null) {
                     final var mapping = indexMetadata.mapping();
                     if (mapping != null) {
@@ -2362,7 +2362,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 visibleClosedIndicesArray,
                 indicesLookup,
                 Collections.unmodifiableMap(mappingsByHash),
-                Version.fromId(oldestIndexVersionId),
+                IndexVersion.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
         }

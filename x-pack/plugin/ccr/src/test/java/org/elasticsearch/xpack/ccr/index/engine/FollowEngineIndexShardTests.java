@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.index.engine;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -98,10 +99,10 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         );
 
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<Releasable> actionListener = ActionListener.wrap(releasable -> {
+        ActionListener<Releasable> actionListener = ActionTestUtils.assertNoFailureListener(releasable -> {
             releasable.close();
             latch.countDown();
-        }, e -> { assert false : "expected no exception, but got [" + e.getMessage() + "]"; });
+        });
         indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));

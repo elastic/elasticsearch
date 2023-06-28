@@ -126,7 +126,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareCreate("should-fail").get()
+            () -> indicesAdmin().prepareCreate("should-fail").get()
         );
         verifyException(dataNodes, counts, e);
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();

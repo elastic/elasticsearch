@@ -52,8 +52,4 @@ public class GetModelSnapshotsActionRequestTests extends AbstractXContentSeriali
         return Request::new;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

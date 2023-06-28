@@ -21,7 +21,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
 
     public void testSqlTranslateAction() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").get());
         client().prepareBulk()
             .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42, "date", "1984-01-04"))
             .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43, "date", "1989-12-19"))

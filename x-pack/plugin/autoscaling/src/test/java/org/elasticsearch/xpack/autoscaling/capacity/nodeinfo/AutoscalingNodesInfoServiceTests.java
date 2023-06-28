@@ -199,9 +199,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.assertNoResponder();
         assertMatchesResponse(nodes, response, responseInfo);
 
-        ClusterState notMasterState = ClusterState.builder(masterState)
-            .nodes(DiscoveryNodes.builder(masterState.nodes()).masterNodeId(null))
-            .build();
+        ClusterState notMasterState = ClusterState.builder(masterState).nodes(masterState.nodes().withMasterNodeId(null)).build();
 
         // client throws if called.
         service.onClusterChanged(new ClusterChangedEvent("test", notMasterState, masterState));
@@ -569,6 +567,13 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {
-        return new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
+        return new DiscoveryNode(
+            node.getName(),
+            node.getId(),
+            node.getAddress(),
+            node.getAttributes(),
+            node.getRoles(),
+            node.getVersionInformation()
+        );
     }
 }

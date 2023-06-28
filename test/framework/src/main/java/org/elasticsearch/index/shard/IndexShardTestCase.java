@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -872,6 +873,22 @@ public abstract class IndexShardTestCase extends ESTestCase {
             inSyncIds,
             newRoutingTable
         );
+    }
+
+    public static Releasable getOperationPermit(final IndexShard shard) {
+        return PlainActionFuture.get(future -> {
+            if (shard.routingEntry().primary()) {
+                shard.acquirePrimaryOperationPermit(future, null);
+            } else {
+                shard.acquireReplicaOperationPermit(
+                    shard.getOperationPrimaryTerm(),
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    future,
+                    null
+                );
+            }
+        }, 0, TimeUnit.NANOSECONDS);
     }
 
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {

@@ -961,7 +961,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
             assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
-            String currentLuceneVersion = IndexVersion.CURRENT.luceneVersion().toString();
+            String currentLuceneVersion = IndexVersion.current().luceneVersion().toString();
             String bwcLuceneVersion = getOldClusterVersion().luceneVersion().toString();
             String minCompatibleBWCVersion = Version.CURRENT.minimumCompatibilityVersion().luceneVersion().toString();
             if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {

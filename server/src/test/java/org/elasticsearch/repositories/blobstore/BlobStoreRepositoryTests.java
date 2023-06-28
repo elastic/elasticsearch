@@ -127,7 +127,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             String id = Integer.toString(i);
             client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush(indexName).get();
+        indicesAdmin().prepareFlush(indexName).get();
 
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -283,9 +283,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         ensureGreen("green-index");
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("red-index")
+            indicesAdmin().prepareCreate("red-index")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), "*")
@@ -295,9 +293,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
 
         final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repositoryName, "test-snap-1")
             .setWaitForCompletion(true)
             .setPartial(true)
             .get();

@@ -25,38 +25,43 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Represents the version of the wire protocol used to communicate between ES nodes.
+ * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
  * <p>
- * Prior to 8.8.0, the release {@link Version} was used everywhere. This class separates the wire protocol version
- * from the release version.
+ * Prior to 8.8.0, the release {@link Version} was used everywhere. This class separates the wire protocol version from the release version.
  * <p>
- * Each transport version constant has an id number, which for versions prior to 8.9.0 is the same as the release version
- * for backwards compatibility. In 8.9.0 this is changed to an incrementing number, disconnected from the release version.
+ * Each transport version constant has an id number, which for versions prior to 8.9.0 is the same as the release version for backwards
+ * compatibility. In 8.9.0 this is changed to an incrementing number, disconnected from the release version.
  * <p>
- * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure
- * each protocol version is only added to the source file once. This string needs to be unique (normally a UUID,
- * but can be any other unique nonempty string).
- * If two concurrent PRs add the same transport version, the different unique ids cause a git conflict, ensuring the second PR to be merged
- * must be updated with the next free version first. Without the unique id string, git will happily merge the two versions together,
- * resulting in the same transport version being used across multiple commits,
- * causing problems when you try to upgrade between those two merged commits.
+ * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure each protocol
+ * version is only added to the source file once. This string needs to be unique (normally a UUID, but can be any other unique nonempty
+ * string). If two concurrent PRs add the same transport version, the different unique ids cause a git conflict, ensuring that the second PR
+ * to be merged must be updated with the next free version first. Without the unique id string, git will happily merge the two versions
+ * together, resulting in the same transport version being used across multiple commits, causing problems when you try to upgrade between
+ * those two merged commits.
  * <h2>Version compatibility</h2>
- * The earliest compatible version is hardcoded in the {@link #MINIMUM_COMPATIBLE} field. Previously, this was dynamically calculated
- * from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version numbers.
- * So the minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous major version.
- * {@link #MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
+ * The earliest compatible version is hardcoded in the {@link #MINIMUM_COMPATIBLE} field. Previously, this was dynamically calculated from
+ * the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version numbers. So the
+ * minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous major version. {@link
+ * #MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
  * <p>
- * The earliest CCS compatible version is hardcoded at {@link #MINIMUM_CCS_VERSION}, as the transport version used by the
- * previous minor release. This should be updated appropriately whenever a minor release happens.
+ * The earliest CCS compatible version is hardcoded at {@link #MINIMUM_CCS_VERSION}, as the transport version used by the previous minor
+ * release. This should be updated appropriately whenever a minor release happens.
  * <h2>Adding a new version</h2>
- * A new transport version should be added <em>every time</em> a change is made to the serialization protocol of one or more classes.
- * Each transport version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
+ * A new transport version should be added <em>every time</em> a change is made to the serialization protocol of one or more classes. Each
+ * transport version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
  * <p>
- * To add a new transport version, add a new constant at the bottom of the list that is one greater than the current highest version,
- * ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
+ * To add a new transport version, add a new constant at the bottom of the list that is one greater than the current highest version, ensure
+ * it has a unique id, and update the {@link CurrentHolder#CURRENT} constant to point to the new version.
  * <h2>Reverting a transport version</h2>
- * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version
- * representing the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
+ * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version representing
+ * the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
+ * <h2>Scope of usefulness of {@link TransportVersion}</h2>
+ * {@link TransportVersion} is a property of the transport connection between a pair of nodes, and should not be used as an indication of
+ * the version of any single node. The {@link TransportVersion} of a connection is negotiated between the nodes via some logic that is not
+ * totally trivial, and may change in future. Any other places that might make decisions based on this version effectively have to reproduce
+ * this negotiation logic, which would be fragile. If you need to make decisions based on the version of a single node, do so using a
+ * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
+ * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
 public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
@@ -131,12 +136,42 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_005 = registerTransportVersion(8_500_005, "65370d2a-d936-4383-a2e0-8403f708129b");
     public static final TransportVersion V_8_500_006 = registerTransportVersion(8_500_006, "7BB5621A-80AC-425F-BA88-75543C442F23");
     public static final TransportVersion V_8_500_007 = registerTransportVersion(8_500_007, "77261d43-4149-40af-89c5-7e71e0454fce");
+    // Introduced for stateless plugin
     public static final TransportVersion V_8_500_008 = registerTransportVersion(8_500_008, "8884ab9d-94cd-4bac-aff8-01f2c394f47c");
+
     public static final TransportVersion V_8_500_009 = registerTransportVersion(8_500_009, "35091358-fd41-4106-a6e2-d2a1315494c1");
     public static final TransportVersion V_8_500_010 = registerTransportVersion(8_500_010, "9818C628-1EEC-439B-B943-468F61460675");
     public static final TransportVersion V_8_500_011 = registerTransportVersion(8_500_011, "2209F28D-B52E-4BC4-9889-E780F291C32E");
+    public static final TransportVersion V_8_500_012 = registerTransportVersion(8_500_012, "BB6F4AF1-A860-4FD4-A138-8150FFBE0ABD");
+    public static final TransportVersion V_8_500_013 = registerTransportVersion(8_500_013, "f65b85ac-db5e-4558-a487-a1dde4f6a33a");
+    public static final TransportVersion V_8_500_014 = registerTransportVersion(8_500_014, "D115A2E1-1739-4A02-AB7B-64F6EA157EFB");
+    public static final TransportVersion V_8_500_015 = registerTransportVersion(8_500_015, "651216c9-d54f-4189-9fe1-48d82d276863");
+    public static final TransportVersion V_8_500_016 = registerTransportVersion(8_500_016, "492C94FB-AAEA-4C9E-8375-BDB67A398584");
+    public static final TransportVersion V_8_500_017 = registerTransportVersion(8_500_017, "0EDCB5BA-049C-443C-8AB1-5FA58FB996FB");
+    public static final TransportVersion V_8_500_018 = registerTransportVersion(8_500_018, "827C32CE-33D9-4AC3-A773-8FB768F59EAF");
+    public static final TransportVersion V_8_500_019 = registerTransportVersion(8_500_019, "09bae57f-cab8-423c-aab3-c9778509ffe3");
+    // 8.9.0
+    public static final TransportVersion V_8_500_020 = registerTransportVersion(8_500_020, "ECB42C26-B258-42E5-A835-E31AF84A76DE");
+    public static final TransportVersion V_8_500_021 = registerTransportVersion(8_500_021, "102e0d84-0c08-402c-a696-935f3a3da873");
+    // Introduced for stateless plugin
+    public static final TransportVersion V_8_500_022 = registerTransportVersion(8_500_022, "4993c724-7a81-4955-84e7-403484610091");
+    public static final TransportVersion V_8_500_023 = registerTransportVersion(8_500_023, "01b06435-5d73-42ff-a121-3b36b771375e");
+    public static final TransportVersion V_8_500_024 = registerTransportVersion(8_500_024, "db337007-f823-4dbd-968e-375383814c17");
 
-    private static final TransportVersion CURRENT = findCurrent(V_8_500_011);
+    private static class CurrentHolder {
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_024);
+
+        // finds the pluggable current version, or uses the given fallback
+        private static TransportVersion findCurrent(TransportVersion fallback) {
+            var versionExtension = VersionExtension.load();
+            if (versionExtension == null) {
+                return fallback;
+            }
+            var version = versionExtension.getCurrentTransportVersion();
+            assert version.onOrAfter(fallback);
+            return version;
+        }
+    }
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -148,7 +183,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_8_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_020;
 
     static {
         // see comment on IDS field
@@ -244,7 +279,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * This should be the transport version with the highest id.
      */
     public static TransportVersion current() {
-        return CURRENT;
+        return CurrentHolder.CURRENT;
     }
 
     public boolean after(TransportVersion version) {
@@ -270,15 +305,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
-    }
-
-    // finds the pluggable current version, or uses the given fallback
-    private static TransportVersion findCurrent(TransportVersion fallback) {
-        var versionExtension = VersionExtension.load();
-        if (versionExtension == null) {
-            return fallback;
-        }
-        return new TransportVersion(versionExtension.getCurrentTransportVersionId());
     }
 
     @Override

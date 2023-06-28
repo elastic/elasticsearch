@@ -40,6 +40,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,6 +51,9 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     private IndexReader reader;
     private IndexSearcher searcher;
     private int numDocs;
+    private int numField2Docs;
+    private int numField3Docs;
+    private int numField2AndField3Docs;
 
     @Override
     public void setUp() throws Exception {
@@ -60,8 +64,18 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("field1", "value", Field.Store.NO));
-            if (i == 0) {
+            boolean field2 = randomBoolean();
+            if (field2) {
                 doc.add(new StringField("field2", "value", Field.Store.NO));
+                numField2Docs++;
+            }
+            boolean field3 = randomBoolean();
+            if (field3) {
+                doc.add(new StringField("field3", "value", Field.Store.NO));
+                numField3Docs++;
+            }
+            if (field2 && field3) {
+                numField2AndField3Docs++;
             }
             writer.addDocument(doc);
         }
@@ -94,7 +108,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, null);
             searcher.search(new TermQuery(new Term("field2", "value")), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
         }
     }
 
@@ -114,12 +128,445 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, null);
             searcher.search(new TermQuery(new Term("field2", "value")), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(1, aggsCollector.getTotalHits());
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(numField2Docs, aggsCollector.getTotalHits());
         }
     }
 
-    // TODO add tests for terminate_after and all the features combined
+    public void testPostFilterTopDocsOnly() throws IOException {
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, null, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            TermQuery termQuery = new TermQuery(new Term("field1", "value"));
+            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, null, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
+        }
+    }
+
+    public void testPostFilterWithAggs() throws IOException {
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            TermQuery termQuery = new TermQuery(new Term("field1", "value"));
+            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggsCollector, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(numDocs, aggsCollector.getTotalHits());
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggsCollector, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
+            // post_filter is not applied to aggs
+            assertEquals(reader.maxDoc(), aggsCollector.getTotalHits());
+        }
+    }
+
+    public void testMinScoreTopDocsOnly() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        float thresholdScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField2Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+            thresholdScore = topDocs.scoreDocs[numField2Docs].score;
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, maxScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, thresholdScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, maxScore + 100f);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
+        }
+    }
+
+    public void testMinScoreWithAggs() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        float thresholdScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField2Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+            thresholdScore = topDocs.scoreDocs[numField2Docs].score;
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, maxScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
+            // min_score is applied to aggs as well as top docs
+            assertEquals(numField2Docs, aggsCollector.getTotalHits());
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, thresholdScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(numDocs, aggsCollector.getTotalHits());
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topScoreDocCollector,
+                null,
+                0,
+                aggsCollector,
+                maxScore + 100f
+            );
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(0, aggsCollector.getTotalHits());
+        }
+    }
+
+    public void testPostFilterAndMinScoreTopDocsOnly() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        float thresholdScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field3", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+        Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField3Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+            thresholdScore = topDocs.scoreDocs[numField3Docs].score;
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, null, maxScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2AndField3Docs, topScoreDocCollector.topDocs().totalHits.value);
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, null, thresholdScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, null, maxScore + 100f);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
+        }
+    }
+
+    public void testPostFilterAndMinScoreWithAggs() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        float thresholdScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field3", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+        Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField3Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+            thresholdScore = topDocs.scoreDocs[numField3Docs].score;
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggs, maxScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2AndField3Docs, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(numField3Docs, aggs.getTotalHits());
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topScoreDocCollector,
+                filterWeight,
+                0,
+                aggsCollector,
+                thresholdScore
+            );
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(numDocs, aggsCollector.getTotalHits());
+        }
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topScoreDocCollector,
+                filterWeight,
+                0,
+                aggsCollector,
+                maxScore + 100f
+            );
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(0, aggsCollector.getTotalHits());
+        }
+    }
+
+    public void testTerminateAfterTopDocsOnly() throws IOException {
+        {
+            int terminateAfter = randomIntBetween(1, numDocs - 1);
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, terminateAfter, null, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topDocs.getTotalHits());
+        }
+        {
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, numDocs, null, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numDocs, topDocs.getTotalHits());
+        }
+    }
+
+    public void testTerminateAfterWithAggs() throws IOException {
+        {
+            int terminateAfter = randomIntBetween(1, numDocs - 1);
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            DummyTotalHitCountCollector aggs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, terminateAfter, aggs, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topDocs.getTotalHits());
+            assertEquals(terminateAfter, aggs.getTotalHits());
+        }
+        {
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            DummyTotalHitCountCollector aggs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, numDocs, aggs, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numDocs, topDocs.getTotalHits());
+            assertEquals(numDocs, aggs.getTotalHits());
+        }
+    }
+
+    public void testTerminateAfterTopDocsOnlyWithPostFilter() throws IOException {
+        TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+        Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+        {
+            int terminateAfter = randomIntBetween(1, numField2Docs - 1);
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, null, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topDocs.getTotalHits());
+        }
+        {
+            int terminateAfter = randomIntBetween(numField2Docs, Integer.MAX_VALUE);
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, null, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topDocs.getTotalHits());
+        }
+    }
+
+    public void testTerminateAfterWithAggsAndPostFilter() throws IOException {
+        TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+        Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+        {
+            int terminateAfter = randomIntBetween(1, numField2Docs - 1);
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            DummyTotalHitCountCollector aggs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, aggs, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topDocs.getTotalHits());
+            // aggs see more docs because they are not filtered
+            assertThat(aggs.getTotalHits(), Matchers.greaterThanOrEqualTo(terminateAfter));
+        }
+        {
+            int terminateAfter = randomIntBetween(numField2Docs, Integer.MAX_VALUE);
+            DummyTotalHitCountCollector topDocs = new DummyTotalHitCountCollector();
+            DummyTotalHitCountCollector aggs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, aggs, null);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numField2Docs, topDocs.getTotalHits());
+            // aggs see more docs because they are not filtered
+            assertThat(aggs.getTotalHits(), Matchers.greaterThanOrEqualTo(numField2Docs));
+        }
+    }
+
+    public void testTerminateAfterTopDocsOnlyWithMinScore() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField2Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+        }
+        {
+            int terminateAfter = randomIntBetween(1, numField2Docs - 1);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, terminateAfter, null, maxScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topScoreDocCollector.topDocs().totalHits.value);
+        }
+    }
+
+    public void testTerminateAfterWithAggsAndMinScore() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField2Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+        }
+        {
+            int terminateAfter = randomIntBetween(1, numField2Docs - 1);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, terminateAfter, aggs, maxScore);
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topScoreDocCollector.topDocs().totalHits.value);
+            assertEquals(terminateAfter, aggs.getTotalHits());
+        }
+    }
+
+    public void testTerminateAfterAndPostFilterAndMinScoreTopDocsOnly() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field3", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+        Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField3Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+        }
+        {
+            int terminateAfter = randomIntBetween(1, numField2AndField3Docs - 1);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topScoreDocCollector,
+                filterWeight,
+                terminateAfter,
+                null,
+                maxScore
+            );
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topScoreDocCollector.topDocs().totalHits.value);
+        }
+    }
+
+    public void testTerminateAfterAndPostFilterAndMinScoreWithAggs() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field3", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+        Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+        {
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(numField3Docs + 1, 1000);
+            searcher.search(booleanQuery, topScoreDocCollector);
+            TopDocs topDocs = topScoreDocCollector.topDocs();
+            assertEquals(numDocs, topDocs.totalHits.value);
+            maxScore = topDocs.scoreDocs[0].score;
+        }
+        {
+            int terminateAfter = randomIntBetween(1, numField2AndField3Docs - 1);
+            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
+            DummyTotalHitCountCollector aggs = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topScoreDocCollector,
+                filterWeight,
+                terminateAfter,
+                aggs,
+                maxScore
+            );
+            searcher.search(booleanQuery, queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, topScoreDocCollector.topDocs().totalHits.value);
+            // aggs see more documents because the filter is not applied to them
+            assertThat(aggs.getTotalHits(), Matchers.greaterThanOrEqualTo(terminateAfter));
+        }
+    }
 
     public void testScoreModeTopDocsOnly() throws IOException {
         ScoreMode scoreMode = randomFrom(ScoreMode.values());
@@ -365,136 +812,6 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 minScore
             );
             assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
-        }
-    }
-
-    public void testPostFilterTopDocsOnly() throws IOException {
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            TermQuery termQuery = new TermQuery(new Term("field2", "value"));
-            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, null, null);
-            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            TermQuery termQuery = new TermQuery(new Term("field1", "value"));
-            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, null, null);
-            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
-        }
-    }
-
-    public void testPostFilterWithAggs() throws IOException {
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
-            TermQuery termQuery = new TermQuery(new Term("field1", "value"));
-            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggsCollector, null);
-            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(numDocs, aggsCollector.getTotalHits());
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
-            TermQuery termQuery = new TermQuery(new Term("field2", "value"));
-            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, filterWeight, 0, aggsCollector, null);
-            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-            // post_filter is not applied to aggs
-            assertEquals(reader.maxDoc(), aggsCollector.getTotalHits());
-        }
-    }
-
-    public void testMinScoreTopDocsOnly() throws IOException {
-        searcher.setSimilarity(new BM25Similarity());
-        float maxScore;
-        float thresholdScore;
-        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
-            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
-            .build();
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(2, 1000);
-            searcher.search(booleanQuery, topScoreDocCollector);
-            TopDocs topDocs = topScoreDocCollector.topDocs();
-            assertEquals(numDocs, topDocs.totalHits.value);
-            maxScore = topDocs.scoreDocs[0].score;
-            thresholdScore = topDocs.scoreDocs[1].score;
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, maxScore);
-            searcher.search(booleanQuery, new QueryPhaseCollector(topScoreDocCollector, null, 0, null, maxScore));
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, thresholdScore);
-            searcher.search(booleanQuery, queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, maxScore + 100f);
-            searcher.search(booleanQuery, queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
-        }
-    }
-
-    public void testMinScoreWithAggs() throws IOException {
-        searcher.setSimilarity(new BM25Similarity());
-        float maxScore;
-        float thresholdScore;
-        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
-            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
-            .build();
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(2, 1000);
-            searcher.search(booleanQuery, topScoreDocCollector);
-            TopDocs topDocs = topScoreDocCollector.topDocs();
-            assertEquals(numDocs, topDocs.totalHits.value);
-            maxScore = topDocs.scoreDocs[0].score;
-            thresholdScore = topDocs.scoreDocs[1].score;
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, maxScore);
-            searcher.search(booleanQuery, queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(1, topScoreDocCollector.topDocs().totalHits.value);
-            // min_score is applied to aggs as well as top docs
-            assertEquals(1, aggsCollector.getTotalHits());
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, aggsCollector, thresholdScore);
-            searcher.search(booleanQuery, queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(numDocs, aggsCollector.getTotalHits());
-        }
-        {
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);
-            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topScoreDocCollector, null, 0, null, maxScore + 100f);
-            searcher.search(booleanQuery, queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(0, topScoreDocCollector.topDocs().totalHits.value);
-            assertEquals(0, aggsCollector.getTotalHits());
         }
     }
 

@@ -85,6 +85,6 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
 
     @Override
     public String toString() {
-        return "PublishNodeIngestLoadRequest{nodeId='" + nodeId + "', seqNo=" + seqNo + ", ingestionLoad=" + ingestionLoad + '}';
+        return "PublishNodeIngestLoadRequest{" + "nodeId='" + nodeId + '\'' + ", seqNo=" + seqNo + ", ingestionLoad=" + ingestionLoad + '}';
     }
 }

@@ -48,8 +48,8 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
         var size = getShardSize(shard, randomNonNegativeLong());
         // shards with no timestamp are considered interactive
-        assertThat(size.interactiveSizeInBytes(), greaterThan(0L));
-        assertThat(size.nonInteractiveSizeInBytes(), equalTo(0L));
+        assertThat(size.interactiveSize(), greaterThan(0L));
+        assertThat(size.nonInteractiveSize(), equalTo(0L));
     }
 
     public void testShardSizeWithNewDataStreamEntries() throws InterruptedException {
@@ -68,8 +68,8 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
         var size = getShardSize(shard, now);
         // shards with no timestamp are considered interactive
-        assertThat(size.interactiveSizeInBytes(), greaterThan(0L));
-        assertThat(size.nonInteractiveSizeInBytes(), equalTo(0L));
+        assertThat(size.interactiveSize(), greaterThan(0L));
+        assertThat(size.nonInteractiveSize(), equalTo(0L));
     }
 
     public void testShardSizeWithOldDataStreamEntries() throws InterruptedException {
@@ -88,8 +88,8 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
         var size = getShardSize(shard, now);
         // shards with no timestamp are considered interactive
-        assertThat(size.interactiveSizeInBytes(), equalTo(0L));
-        assertThat(size.nonInteractiveSizeInBytes(), greaterThan(0L));
+        assertThat(size.interactiveSize(), equalTo(0L));
+        assertThat(size.nonInteractiveSize(), greaterThan(0L));
     }
 
     private void indexRandom(String index, Consumer<IndexRequestBuilder> requestBuilder) throws InterruptedException {
@@ -106,6 +106,6 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
     }
 
     private static ShardSize getShardSize(IndexShard shard, long currentTimeMillis) {
-        return new ShardSizeStatsReader(createBuiltInClusterSettings(), () -> currentTimeMillis, null).getShardSize(shard);
+        return new ShardSizeStatsReader(createBuiltInClusterSettings(), () -> currentTimeMillis).getShardSize(shard);
     }
 }

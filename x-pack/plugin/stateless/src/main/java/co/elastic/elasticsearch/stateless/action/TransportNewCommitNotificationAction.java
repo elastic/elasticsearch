@@ -18,8 +18,8 @@
 package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
-import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesCollector;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -46,7 +46,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(NAME, ignored -> ActionResponse.Empty.INSTANCE);
 
     private final IndicesService indicesService;
-    private final ShardSizesCollector shardSizesCollector;
+    private final ShardSizeStatsReader shardSizeStatsReader;
 
     @Inject
     public TransportNewCommitNotificationAction(
@@ -55,7 +55,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndicesService indicesService,
-        ShardSizesCollector shardSizesCollector
+        ShardSizeStatsReader shardSizeStatsReader
     ) {
         super(
             NAME,
@@ -67,7 +67,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             ThreadPool.Names.SAME
         );
         this.indicesService = indicesService;
-        this.shardSizesCollector = shardSizesCollector;
+        this.shardSizeStatsReader = shardSizeStatsReader;
     }
 
     @Override
@@ -102,7 +102,9 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                     request.getCompoundCommit(),
                     listener.delegateFailure((l, v) -> ActionListener.completeWith(l, () -> {
                         shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
-                        shardSizesCollector.detectShardSize(shard.shardId());
+
+                        var size = shardSizeStatsReader.getShardSize(shard);
+                        logger.info("Search shard {} has size {}", request.shardId(), size);
 
                         return ActionResponse.Empty.INSTANCE;
                     }))

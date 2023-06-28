@@ -6,7 +6,7 @@ issues:
  - 95541
 highlight:
   title: Better indexing and search performance under concurrent indexing and search
-  body: "When a query like a match phrase query or a wildcard query targets a constant keyword field \
+  body: "When a query like a match phrase query or a terms query targets a constant keyword field \
   we can skip the query execution on shards where the query is rewritten to match no documents.\
   We take advantage of index mappings including constant keyword fields and rewrite queries in such a way that, if\
   a constant keyword field does not match a value defined in the index mapping we rewrite the query to match no\

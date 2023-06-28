@@ -72,7 +72,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `include_defaults`::
-(Optional, Boolean) Functionality in experimental:[]. If `true`, return all default settings in the response.
+(Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
 Defaults to `false`.
 
 [[get-component-template-api-example]]

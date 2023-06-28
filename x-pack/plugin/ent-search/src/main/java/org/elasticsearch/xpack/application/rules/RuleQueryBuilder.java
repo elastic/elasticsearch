@@ -4,7 +4,6 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
 package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
@@ -14,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,160 +37,217 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 /**
- * A query that will promote selected documents (identified by ID) above matches produced by an "organic" query. In practice, some upstream
- * system will identify the promotions associated with a user's query string and use this object to ensure these are "pinned" to the top of
- * the other search results.
+ * A query that will determine based on query context and configured query rules,
+ * whether a query should be modified based on actions specified in matching rules.
+ *
+ * This iteration will determine if a query should have pinned documents and if so,
+ * modify the query accordingly to pin those documents.
  */
 public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
+
     public static final String NAME = "rule_query";
 
     private static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
+
     private static final ParseField CURATED_IDS_FIELD = new ParseField("curated_ids");
-    private static final ParseField CURATED_DOCS_FIELD = new ParseField("curated_docs");
+
     private final List<String> rulesetIds;
     private final Map<String,Object> matchCriteria;
     private QueryBuilder organicQuery;
+
     private final List<String> curatedIds;
     private final Supplier<List<String>> curatedIdSupplier;
-    private final List<Item> curatedDocs;
-    private final Supplier<List<Item>> curatedDocsSupplier;
 
     private final Logger logger = LogManager.getLogger(RuleQueryBuilder.class);
 
-    public RuleQueryBuilder(QueryBuilder organicQuery, List<String> rulesetIds, Map<String,Object> matchCriteria) {
-        this(organicQuery, rulesetIds, matchCriteria, null, null, null, null);
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_9_0;
     }
 
-    public RuleQueryBuilder(QueryBuilder organicQuery, List<String> rulesetIds, Map<String,Object> matchCriteria, Supplier<List<String>> curatedIdSupplier, Supplier<List<Item>> curatedDocsSupplier) {
-        this(organicQuery, rulesetIds, matchCriteria, null, curatedIdSupplier, null, curatedDocsSupplier);
-    }
-
-    public RuleQueryBuilder(QueryBuilder organicQuery, List<String> rulesetIds, Map<String,Object> matchCriteria, List<String> curatedIds, List<Item> curatedDocs) {
-        this(organicQuery, rulesetIds, matchCriteria, curatedIds, null, curatedDocs, null);
-    }
-
-    public RuleQueryBuilder(QueryBuilder organicQuery, List<String> rulesetIds, Map<String,Object> matchCriteria, List<String> curatedIds, Supplier<List<String>> curatedIdSupplier, List<Item> curatedDocs, Supplier<List<Item>> curatedDocsSupplier) {
-        if (organicQuery == null) {
-            throw new IllegalArgumentException("[" + NAME + "] organicQuery cannot be null");
-        }
+    public RuleQueryBuilder(QueryBuilder organicQuery, Map<String,Object> matchCriteria, @Nullable List<String> rulesetIds) {
+        // TODO validation
         this.organicQuery = organicQuery;
-
-        if (rulesetIds == null || rulesetIds.isEmpty()) {
-            throw new IllegalArgumentException("[" + NAME + "] rulesetIds cannot be null or empty");
-        }
-        this.rulesetIds = rulesetIds;
-
-        if (matchCriteria == null || matchCriteria.isEmpty()) {
-            throw new IllegalArgumentException("[" + NAME + "] matchCriteria cannot be null or empty");
-        }
-        this.matchCriteria = matchCriteria;
-        this.curatedIds = curatedIds;
-        this.curatedIdSupplier = curatedIdSupplier;
-        this.curatedDocs = curatedDocs;
-        this.curatedDocsSupplier = curatedDocsSupplier;
+        this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyMap());
+        this.rulesetIds = (rulesetIds != null ? rulesetIds : Collections.emptyList());
+        this.curatedIds = Collections.emptyList();
+        this.curatedIdSupplier = null;
     }
 
-    /**
-     * Read from a stream.
-     */
     public RuleQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.organicQuery = in.readNamedWriteable(QueryBuilder.class);
-        this.rulesetIds = in.readOptionalStringList();
-        this.matchCriteria = in.readMap();
-        curatedIds = in.readOptionalStringList();
+        organicQuery = in.readNamedWriteable(QueryBuilder.class);
+        matchCriteria = in.readMap();
+        rulesetIds = in.readList(StreamInput::readString);
+        curatedIds = in.readImmutableList(StreamInput::readString);
         curatedIdSupplier = null;
-        curatedDocs = in.readBoolean() ? in.readList(Item::new) : null;
-        curatedDocsSupplier = null;
+    }
+
+    private RuleQueryBuilder(
+        QueryBuilder organicQuery,
+        Map<String,Object> matchCriteria,
+        @Nullable List<String> rulesetIds,
+        Supplier<List<String>> curatedIdSupplier
+    ) {
+        // No validation, this is a POC
+        this.organicQuery = organicQuery;
+        this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyMap());
+        this.rulesetIds = (rulesetIds != null ? rulesetIds : Collections.emptyList());
+        this.curatedIds = Collections.emptyList();
+        this.curatedIdSupplier = curatedIdSupplier;
+    }
+
+    private RuleQueryBuilder(
+        QueryBuilder organicQuery,
+        Map<String,Object> matchCriteria,
+        @Nullable List<String> rulesetIds,
+        List<String> curatedIds
+    ) {
+        // No validation, this is a POC
+        this.organicQuery = organicQuery;
+        this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyMap());
+        this.rulesetIds = (rulesetIds != null ? rulesetIds : Collections.emptyList());
+        this.curatedIds = curatedIds;
+        this.curatedIdSupplier = null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(organicQuery);
-        out.writeOptionalStringCollection(rulesetIds);
-        out.writeGenericMap(matchCriteria);
-        out.writeOptionalStringCollection(curatedIds);
-        if (curatedDocs == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeList(curatedDocs);
+        if (curatedIdSupplier != null) {
+            throw new IllegalStateException("curatedIdSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         }
-    }
 
-    /**
-     * @return the organic query set in the constructor
-     */
-    public QueryBuilder organicQuery() {
-        return this.organicQuery;
+        out.writeNamedWriteable(organicQuery);
+        out.writeGenericMap(matchCriteria);
+        out.writeStringCollection(rulesetIds);
+        out.writeStringCollection(curatedIds);
     }
 
     public List<String> rulesetIds() {
-        return this.rulesetIds;
+        return rulesetIds;
     }
 
     public Map<String,Object> matchCriteria() {
-        return this.matchCriteria;
+        return matchCriteria;
+    }
+
+    public QueryBuilder organicQuery() {
+        return organicQuery;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (organicQuery != null) {
-            builder.field(ORGANIC_QUERY_FIELD.getPreferredName());
-            organicQuery.toXContent(builder, params);
+        builder.field(ORGANIC_QUERY_FIELD.getPreferredName(), organicQuery);
+        builder.startArray(MATCH_CRITERIA_FIELD.getPreferredName());
+        builder.field(MATCH_CRITERIA_FIELD.getPreferredName());
+        builder.mapContents(matchCriteria); // TODO confirm this is right
+        builder.endArray();
+        builder.startArray(RULESET_IDS_FIELD.getPreferredName());
+        for (String rulesetId : rulesetIds) {
+            builder.value(rulesetId);
         }
-
-        if (rulesetIds != null) {
-            builder.startArray(RULESET_IDS_FIELD.getPreferredName());
-            for (String value : rulesetIds) {
-                builder.value(value);
-            }
-            builder.endArray();
+        builder.endArray();
+        builder.startArray(CURATED_IDS_FIELD.getPreferredName());
+        for (String curatedId : curatedIds) {
+            builder.value(curatedId);
         }
-
-        if (matchCriteria != null) {
-            builder.field(MATCH_CRITERIA_FIELD.getPreferredName());
-            builder.map(matchCriteria);
-        }
-
-        if (curatedIds != null) {
-            builder.startArray(CURATED_IDS_FIELD.getPreferredName());
-            for (String value : curatedIds) {
-                builder.value(value);
-            }
-            builder.endArray();
-        }
-
-        if (curatedDocs != null) {
-            builder.startArray(CURATED_DOCS_FIELD.getPreferredName());
-            for (Item value : curatedDocs) {
-                value.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-
-        boostAndQueryNameToXContent(builder);
+        builder.endArray();
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedIds.toArray(new String[0]));
+        return pinnedQueryBuilder.toQuery(context);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (curatedIds.isEmpty() == false) {
+            return this;
+        } else if (curatedIdSupplier != null) {
+            List<String> curatedIds = curatedIdSupplier.get();
+            if (curatedIds == null) {
+                return this; // not executed yet
+            } else {
+                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds, curatedIds);
+            }
+        }
+
+        // Identify matching rules and apply them if applicable
+        SetOnce<List<String>> idSetOnce = new SetOnce<>();
+        List<String> pinnedIds = new ArrayList<>();
+        // TODO - Can we get away with a single ruleset for MVP?
+        //  If we still want this refactor this to a List call and filter by ruleset name. For now, as a GET, just support one ruleset ID
+        if (rulesetIds.size() > 1) {
+            throw new IllegalArgumentException("Not yet");
+        }
+        String rulesetId = rulesetIds.get(0);
+        GetQueryRulesetAction.Request getQueryRulesetRequest = new GetQueryRulesetAction.Request(rulesetId);
+        queryRewriteContext.registerAsyncAction((client, listener) -> {
+            client.execute(GetQueryRulesetAction.INSTANCE,
+                getQueryRulesetRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(GetQueryRulesetAction.Response response) {
+                        QueryRuleset queryRuleset = response.queryRuleset();
+                        for (QueryRule rule : queryRuleset.rules()) {
+                            // TODO check criteria to see if the rule matches before adding the pinned IDs
+                            pinnedIds.addAll((List<String>) rule.actions().get("ids"));
+                        }
+                        idSetOnce.set(pinnedIds.stream().distinct().toList());
+                        listener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // Ruleset not found, no rules to apply
+                        idSetOnce.set(Collections.emptyList());
+                        listener.onResponse(null);
+                    }
+                }
+            );
+        });
+
+        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
+        RuleQueryBuilder rewritten = new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetIds, idSetOnce::get);
+        rewritten.boost(this.boost);
+        return rewritten;
+    }
+
+    @Override
+    protected boolean doEquals(RuleQueryBuilder other) {
+        if (this == other) return true;
+        if (other == null || getClass() != other.getClass()) return false;
+        if (super.equals(other) == false) return false;
+        return Objects.equals(rulesetIds, other.rulesetIds)
+            && Objects.equals(matchCriteria, other.matchCriteria)
+            && Objects.equals(organicQuery, other.organicQuery)
+            && Objects.equals(curatedIdSupplier, other.curatedIdSupplier);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(super.hashCode(), rulesetIds, matchCriteria, organicQuery, curatedIdSupplier);
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
         QueryBuilder organicQuery = (QueryBuilder) a[0];
         @SuppressWarnings("unchecked")
-        List<String> rulesetIds = (List<String>) a[1];
+        Map<String,Object> matchCriteria = (Map<String,Object>) a[1];
         @SuppressWarnings("unchecked")
-        Map<String,Object> matchCriteria = (Map<String,Object>) a[2];
-        return new RuleQueryBuilder(organicQuery, rulesetIds, matchCriteria);
+        List<String> rulesetIds = (List<String>) a[2];
+        return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
     });
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
-        PARSER.declareStringArray(optionalConstructorArg(), RULESET_IDS_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
+        PARSER.declareStringArray(constructorArg(), RULESET_IDS_FIELD);
         declareStandardFields(PARSER);
     }
 
@@ -206,107 +264,4 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return NAME;
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (curatedIds != null && (curatedIds.isEmpty() == false) || (curatedDocs != null && curatedDocs.isEmpty() == false)) {
-            // We have at least one of curated IDs and curated docs. We're done.
-            return this;
-        } else if (curatedIdSupplier != null) {
-            List<String> curatedIds = curatedIdSupplier.get();
-            if (curatedIds == null) {
-                return this; // not executed yet
-            } else {
-                // We have curated IDs. We're done.
-                return new RuleQueryBuilder(organicQuery, rulesetIds, matchCriteria, curatedIds, curatedDocs);
-            }
-        } else if (curatedDocsSupplier != null) {
-            List<Item> curatedDocs = curatedDocsSupplier.get();
-            if (curatedDocs == null) {
-                return this; // not executed yet
-            } else {
-                // We have curated docs. We're done.
-                return new RuleQueryBuilder(organicQuery, rulesetIds, matchCriteria, curatedIds, curatedDocs);
-            }
-        }
-
-        // Identify matching rules and apply them if applicable
-        SetOnce<List<String>> idSetOnce = new SetOnce<>();
-        SetOnce<List<Item>> docsSetOnce = new SetOnce<>();
-        List<String> pinnedIds = new ArrayList<>();
-        List<Item> pinnedDocs = new ArrayList<>();
-        for (String rulesetId : rulesetIds) {
-            GetQueryRulesetAction.Request getQueryRulesetRequest = new GetQueryRulesetAction.Request(rulesetId);
-            queryRewriteContext.registerAsyncAction((client, listener) -> {
-                client.execute(GetQueryRulesetAction.INSTANCE, getQueryRulesetRequest, ActionListener.wrap(getQueryRulesetResponse -> {
-                    QueryRuleset queryRuleset = getQueryRulesetResponse.queryRuleset();
-
-                    for (QueryRule rule : queryRuleset.rules()) {
-                        // TODO check criteria to see if the rule matches.
-
-                        // If rule matches, add the pinned IDs/docs.
-                        pinnedIds.addAll((List<String>) rule.actions().get("ids"));
-                        pinnedDocs.addAll((List<Item>) rule.actions().get("docs"));
-                    }
-                    listener.onResponse(null);
-                }, listener::onFailure));
-            });
-        }
-        idSetOnce.set(pinnedIds.stream().distinct().toList());
-        docsSetOnce.set(pinnedDocs.stream().distinct().toList());
-
-        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        RuleQueryBuilder rewritten =
-            new RuleQueryBuilder(newOrganicQuery, rulesetIds, matchCriteria, curatedIds, idSetOnce::get, curatedDocs, docsSetOnce::get);
-        rewritten.boost(this.boost);
-        return rewritten;
-    }
-
-    @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        PinnedQueryBuilder pinnedQueryBuilder;
-        if (curatedIds != null) {
-            pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedIds.toArray(new String[0]));
-        } else if (curatedDocs != null) {
-            pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedDocs.toArray(new Item[0]));
-        } else {
-            throw new IllegalArgumentException("Either curatedIds or curatedDocs must be set");
-        }
-
-        return pinnedQueryBuilder.toQuery(context);
-    }
-
-    @Override
-    public boolean doEquals(RuleQueryBuilder other) {
-        if (this == other) return true;
-        if (other == null || getClass() != other.getClass()) return false;
-        if (super.equals(other) == false) return false;
-        return Objects.equals(rulesetIds, other.rulesetIds) && Objects.equals(matchCriteria, other.matchCriteria) && Objects.equals(
-            organicQuery,
-            other.organicQuery
-        ) && Objects.equals(curatedIds, other.curatedIds) && Objects.equals(curatedIdSupplier, other.curatedIdSupplier) && Objects.equals(
-            curatedDocs,
-            other.curatedDocs
-        ) && Objects.equals(curatedDocsSupplier, other.curatedDocsSupplier) && Objects.equals(logger, other.logger);
-    }
-
-    @Override
-    public int doHashCode() {
-        return Objects.hash(super.hashCode(),
-            rulesetIds,
-            matchCriteria,
-            organicQuery,
-            curatedIds,
-            curatedIdSupplier,
-            curatedDocs,
-            curatedDocsSupplier,
-            logger
-        );
-    }
-
-    // TODO update this to 8.10.0
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_9_0;
-    }
 }

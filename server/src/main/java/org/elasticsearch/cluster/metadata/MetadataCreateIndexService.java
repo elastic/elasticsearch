@@ -1336,9 +1336,7 @@ public class MetadataCreateIndexService {
         if (defaultMapping != null) {
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, defaultMapping, MergeReason.INDEX_TEMPLATE);
         }
-        for (CompressedXContent mapping : mappings) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-        }
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {

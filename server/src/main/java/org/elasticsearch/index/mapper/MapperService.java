@@ -12,11 +12,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -352,24 +355,73 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
+    public DocumentMapper merge(String type, List<CompressedXContent> mappingSources, MergeReason reason) {
+        Explicit<Boolean> subobjects = null;
+
         final DocumentMapper currentMapper = this.mapper;
-        if (currentMapper != null && currentMapper.mappingSource().equals(mappingSource)) {
-            return currentMapper;
-        }
-        synchronized (this) {
-            Mapping incomingMapping = parseMapping(type, mappingSource);
-            Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
-            // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
-            // We should identify these cases reliably and save expensive serialization here
-            DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
-            if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-                return newMapper;
+        if (currentMapper != null) {
+            if (mappingSources.size() == 1 && currentMapper.mappingSource().equals(mappingSources.get(0))) {
+                return currentMapper;
             }
-            this.mapper = newMapper;
-            assert assertSerialization(newMapper);
+            if (currentMapper.mapping().getRoot().subobjectsExplicit()) {
+                subobjects = Explicit.explicitBoolean(currentMapper.mapping().getRoot().isEnabled());
+            }
+        }
+
+        List<Mapping> parsedMappings = new LinkedList<>();
+        for (CompressedXContent mappingSource : mappingSources) {
+            Mapping mapping = parseMapping(type, mappingSource);
+            if (mapping.getRoot().subobjectsExplicit()) {
+                boolean explicitSubobjects = mapping.getRoot().subobjects();
+                if (subobjects != null && subobjects.value() != explicitSubobjects) {
+                    throw new MapperParsingException("Failed to parse mappings: contradicting subobjects settings provided");
+                }
+                subobjects = Explicit.explicitBoolean(explicitSubobjects);
+            }
+            parsedMappings.add(mapping);
+        }
+
+        if (subobjects != null && subobjects.value() != ObjectMapper.Defaults.SUBOBJECTS.value()) {
+            // we need to reparse as parsing is affected by the subobjects setting
+            parsedMappings.clear();
+            for (CompressedXContent mappingSource : mappingSources) {
+                parsedMappings.add(parseMapping(type, mappingSource, subobjects));
+            }
+        }
+
+        DocumentMapper ret = null;
+        for (Mapping parsedMapping : parsedMappings) {
+            ret = doMerge(reason, parsedMapping);
+        }
+        return ret;
+    }
+
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
+        Explicit<Boolean> subobjects = null;
+        final DocumentMapper currentMapper = this.mapper;
+        if (currentMapper != null) {
+            if (currentMapper.mappingSource().equals(mappingSource)) {
+                return currentMapper;
+            }
+            if (currentMapper.mapping().getRoot().subobjectsExplicit()) {
+                subobjects = Explicit.explicitBoolean(currentMapper.mapping().getRoot().isEnabled());
+            }
+        }
+        Mapping incomingMapping = parseMapping(type, mappingSource, subobjects);
+        return doMerge(reason, incomingMapping);
+    }
+
+    private synchronized DocumentMapper doMerge(MergeReason reason, Mapping incomingMapping) {
+        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+        // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
+        // We should identify these cases reliably and save expensive serialization here
+        DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             return newMapper;
         }
+        this.mapper = newMapper;
+        assert assertSerialization(newMapper);
+        return newMapper;
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
@@ -379,8 +431,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public Mapping parseMapping(String mappingType, CompressedXContent mappingSource) {
+        return parseMapping(mappingType, mappingSource, null);
+    }
+
+    public Mapping parseMapping(String mappingType, CompressedXContent mappingSource, @Nullable Explicit<Boolean> subobjects) {
         try {
-            return mappingParser.parse(mappingType, mappingSource);
+            return mappingParser.parse(mappingType, mappingSource, subobjects);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }

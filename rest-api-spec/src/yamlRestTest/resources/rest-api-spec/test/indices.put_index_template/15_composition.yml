@@ -349,3 +349,37 @@
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
           ignore_missing_component_templates: ["foo"]
+
+---
+"Composable index templates that include subobjects: false":
+  - skip:
+      version: ' - 8.9.1'
+      reason: 'https://github.com/elastic/elasticsearch/issues/96768 fixed after 8.9.0'
+
+  - do:
+      cluster.put_component_template:
+        name: test-subobjects
+        body:
+          template:
+            mappings:
+              subobjects: false
+
+  - do:
+      cluster.put_component_template:
+        name: test-field
+        body:
+          template:
+            mappings:
+              properties:
+                parent.subfield:
+                  type: keyword
+
+  - do:
+      indices.put_index_template:
+        name: logs-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - test-subobjects
+            - test-field

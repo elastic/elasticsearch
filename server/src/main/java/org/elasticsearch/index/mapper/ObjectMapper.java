@@ -449,6 +449,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return subobjects.value();
     }
 
+    public final boolean subobjectsExplicit() {
+        return subobjects.explicit();
+    }
+
     @Override
     public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
         return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperBuilderContext);

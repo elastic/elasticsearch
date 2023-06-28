@@ -1589,10 +1589,7 @@ public class MetadataIndexTemplateService {
             List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (CompressedXContent mapping : mappings) {
-                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-                }
-
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);
                 if (template.getDataStreamTemplate() != null) {
                     validateTimestampFieldMapping(mapperService.mappingLookup());
                 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -72,8 +73,13 @@ public final class MappingParser {
         return remainingFields.toString();
     }
 
-    @SuppressWarnings("unchecked")
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+        return parse(type, source, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    Mapping parse(@Nullable String type, CompressedXContent source, @Nullable Explicit<Boolean> explicitSubobjects)
+        throws MapperParsingException {
         Objects.requireNonNull(source, "source cannot be null");
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
         if (mapping.isEmpty()) {
@@ -93,13 +99,14 @@ public final class MappingParser {
         if (type.isEmpty()) {
             throw new MapperParsingException("type cannot be an empty string");
         }
-        return parse(type, mapping);
+        return parse(type, mapping, explicitSubobjects);
     }
 
-    private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+    private Mapping parse(String type, Map<String, Object> mapping, @Nullable Explicit<Boolean> explicitSubobjects)
+        throws MapperParsingException {
         final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
-        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, mappingParserContext);
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, mappingParserContext, explicitSubobjects);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;

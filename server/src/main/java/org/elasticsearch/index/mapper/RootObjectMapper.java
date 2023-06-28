@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -399,9 +400,17 @@ public class RootObjectMapper extends ObjectMapper {
         b.startObject();
     }
 
-    public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+    public static RootObjectMapper.Builder parse(
+        String name,
+        Map<String, Object> node,
+        MappingParserContext parserContext,
+        @Nullable Explicit<Boolean> explicitSubobjects
+    )
         throws MapperParsingException {
         Explicit<Boolean> subobjects = parseSubobjects(node);
+        if (subobjects.explicit() == false && explicitSubobjects != null) {
+            subobjects = explicitSubobjects;
+        }
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {

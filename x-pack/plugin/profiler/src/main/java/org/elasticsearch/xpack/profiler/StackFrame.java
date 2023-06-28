@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 

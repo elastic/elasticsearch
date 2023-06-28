@@ -1042,7 +1042,7 @@ public class MetadataCreateIndexService {
 
         if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
             DiscoveryNodes nodes = currentState.nodes();
-            IndexVersion createdVersion = IndexVersion.min(IndexVersion.CURRENT, nodes.getMaxDataNodeCompatibleIndexVersion());
+            IndexVersion createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
             indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion.toVersion());
         }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
@@ -1580,7 +1580,7 @@ public class MetadataCreateIndexService {
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
         if (sourceMetadata.getSettings().hasValue(IndexMetadata.SETTING_VERSION_COMPATIBILITY)) {
-            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, sourceMetadata.getCompatibilityVersion());
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, sourceMetadata.getCompatibilityVersion().id());
         }
     }
 

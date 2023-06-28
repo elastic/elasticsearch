@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.store;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -689,7 +688,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 new RecoverySource.SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     new IndexId("some_index", UUIDs.randomBase64UUID(random()))
                 )
             );

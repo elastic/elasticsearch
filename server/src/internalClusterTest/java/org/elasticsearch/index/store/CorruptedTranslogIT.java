@@ -88,7 +88,9 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             final UnassignedInfo unassignedInfo = allocationExplainResponse.getExplanation().getUnassignedInfo();
             assertThat(description, unassignedInfo, not(nullValue()));
             assertThat(description, unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            final Throwable cause = ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class);
+            var failure = unassignedInfo.getFailure();
+            assertNotNull(failure);
+            final Throwable cause = ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class);
             if (cause != null) {
                 assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
             }

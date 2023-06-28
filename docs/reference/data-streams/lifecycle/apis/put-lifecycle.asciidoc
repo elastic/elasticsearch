@@ -1,10 +1,10 @@
-[[dlm-put-lifecycle]]
+[[data-streams-put-lifecycle]]
 === Set the lifecycle of a data stream
 ++++
 <titleabbrev>Put Data Stream Lifecycle</titleabbrev>
 ++++
 
-experimental::[]
+preview::[]
 
 Configures the data lifecycle for the targeted data streams.
 
@@ -14,18 +14,18 @@ Configures the data lifecycle for the targeted data streams.
 If the {es} {security-features} are enabled, you must have the `manage_data_stream_lifecycle` index privilege or higher to use this API.
 For more information, see <<security-privileges>>.
 
-[[dlm-put-lifecycle-request]]
+[[data-streams-put-lifecycle-request]]
 ==== {api-request-title}
 
 `PUT _data_stream/<data-stream>/_lifecycle`
 
-[[dlm-put-lifecycle-desc]]
+[[data-streams-put-lifecycle-desc]]
 ==== {api-description-title}
 
 Configures the data lifecycle for the targeted data streams. If multiple data streams are provided but at least one of them
 does not exist, then the update of the lifecycle will fail for all of them and the API will respond with `404`.
 
-[[dlm-put-lifecycle-path-params]]
+[[data-streams-put-lifecycle-path-params]]
 ==== {api-path-parms-title}
 
 `<data-stream>`::
@@ -55,7 +55,7 @@ If defined, every document added to this data stream will be stored at least for
 duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely.
 ====
 
-[[dlm-put-lifecycle-example]]
+[[data-streams-put-lifecycle-example]]
 ==== {api-examples-title}
 
 The following example sets the lifecycle of `my-data-stream`:

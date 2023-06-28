@@ -142,8 +142,7 @@ Example response:
   "migration_status" : "NO_MIGRATION_NEEDED"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/8100099/\\d+/]
-
+// TESTRESPONSE[s/"minimum_index_version" : "8100099"/"minimum_index_version" : $body.$_path/]
 
 When you submit a POST request to the `_migration/system_features` endpoint to
 start the migration process, the response indicates what features will be

@@ -61,7 +61,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.StampedLock;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
@@ -100,7 +100,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final HttpTracer httpLogger;
     private final Tracer tracer;
     private volatile boolean shuttingDown;
-    private final ReadWriteLock shuttingDownRWLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock shuttingDownRWLock = new StampedLock().asReadWriteLock();
 
     private volatile long slowLogThresholdMs;
 

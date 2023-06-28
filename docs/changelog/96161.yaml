@@ -6,19 +6,24 @@ issues:
  - 95541
 highlight:
   title: Better indexing and search performance under concurrent indexing and search
-  body: "When a query like a match phrase query or a terms query targets a constant keyword field \
-  we can skip the query execution on shards where the query is rewritten to match no documents.\
-  We take advantage of index mappings including constant keyword fields and rewrite queries in such a way that, if\
-  a constant keyword field does not match a value defined in the index mapping we rewrite the query to match no\
-  document. This will result in the shard level request to return immediately, before the query is executed on the data\
-  node and, as a result, skipping the shard completely. In a real world scenario it is likely that index patterns or\
-  data streams include tens or hundreds of backing indices each of them with multiple shards involved. Skipping shards\
-  in such scenario might result in better query performance and better cluster resource usage. Note, anyway, that\
-  execution of the pre-filter and the corresponding \"can match\" phase where rewriting happens, depends on the overall
-  number of shards involved and on whether there is at least one of them returning a non-empty result (see\
+  body: "When a query like a match phrase query or a terms query targets a constant keyword field we can skip\
+  query execution on shards where the query is rewritten to match no documents. We take advantage of index mappings\
+  including constant keyword fields and rewrite queries in such a way that, if a constant keyword field does not\
+  match the value defined in the index mapping, we rewrite the query to match no document. This will result in the\
+  shard level request to return immediately, before the query is executed on the data node and, as a result, skipping\
+  the shard completely. Here we leverage the ability to skip shards whenever possible to avoid unnecessary shard\
+  refreshes and improve query latency. Refreshing shards not including documents targeted by a query improves query\
+  latency since the search thread does not need to wait anymore for unnecessary shard refreshes. Before introducing\
+  this change a query hitting multiple shards, including those with no documents matching the search criteria,\
+  (think about using index patterns or data streams with many backing indices) would result in a\
+  \"shard refresh storm\" affecting many shards and increasing query latency as a result of the search thread waiting\
+  on shard refreshes to complete before being able to initiate and carry out the search operation. Now the search\
+  thread will just need to wait for refreshes to be completed on shards that have relevant data. Note that execution
+  of the shard pre-filter and the corresponding \"can match\" phase where rewriting happens, depends on the overall\
+  number of shards involved and on whether there is at least one of them returning a non-empty\ result (see\
   'pre_filter_shard_size' setting to understand how to control this behaviour). We do the rewrite operation on the data\
-  node in the so called \"can match\" phase, taking advantage of the fact that, at that moment, we can access the index\
-  mapping and extract information about constant keyword fields and their value. This means we still \"fan-out\" the\
-  request from the coordinator node to involved data nodes. Doing the rewrite on the coordinator node is indeed not\
-  possible due to the unavailability of the index mapping."
+  node in the so called \"can match\" phase, taking advantage of the fact that, at that moment, we can access the\
+  index mapping and extract information about constant keyword fields and their value. This means we still\"fan-out\"\
+  search queries from the coordinator node to involved data nodes. Rewriting queries based on index mappings\
+  is not possible on the coordinator node because the coordinator node is missing index mapping information."
   notable: true

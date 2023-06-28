@@ -134,6 +134,10 @@ setup:
 
 ---
 "Test rescore with stored model":
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+
   - do:
       search:
         index: store
@@ -166,6 +170,10 @@ setup:
   - match: { hits.hits.2._score: 3.0 }
 ---
 "Test rescore with stored model and smaller window_size":
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+
   - do:
       search:
         index: store
@@ -184,6 +192,10 @@ setup:
   - match: { hits.hits.4._score: 1.0 }
 ---
 "Test rescore with stored model and chained rescorers":
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+
   - do:
       search:
         index: store

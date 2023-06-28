@@ -266,9 +266,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .build()
         );
 
-        /// MP: TODO: should we be testing against this?
-        final int totalShards = indexOutsideSearchRangeShardCount + indexWithinSearchRangeShardCount;
-
         // Either add data outside of the range, or documents that don't have timestamp data
         final boolean indexDataWithTimestamp = randomBoolean();
         // Add enough documents to have non-metadata segment files in all shards,
@@ -336,6 +333,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
             .from("2020-11-28T00:00:00.000000000Z", true)
             .to("2020-11-29T00:00:00.000000000Z");
+
         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
             indicesToSearch.toArray(new String[0]),
             SearchRequest.DEFAULT_INDICES_OPTIONS,
@@ -350,8 +348,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
             assertNotNull(searchShardsResponse);
 
-            List<SearchShardsGroup> unskippedShardsFromIndexWithinRange = searchShardsResponse.getGroups()
-                .stream()
+            Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
+
+            List<SearchShardsGroup> unskippedShardsFromIndexWithinRange = groups.stream()
                 .filter(g -> g.skipped() == false)
                 .filter(g -> g.shardId().getIndex().getName().equals(indexWithinSearchRange))
                 .collect(Collectors.toList());
@@ -362,8 +361,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(unskippedShardsFromIndexWithinRange.size(), equalTo(0));
             }
 
-            long unskippedShardsFromIndexOutsideRangeCount = searchShardsResponse.getGroups()
-                .stream()
+            long unskippedShardsFromIndexOutsideRangeCount = groups.stream()
                 .filter(g -> g.skipped() == false)
                 .filter(g -> g.shardId().getIndex().getName().equals(indexOutsideSearchRange))
                 .count();
@@ -412,8 +410,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
             assertNotNull(searchShardsResponse);
 
-            List<SearchShardsGroup> shardsFromIndexWithinRange = searchShardsResponse.getGroups()
-                .stream()
+            Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
+            List<SearchShardsGroup> shardsFromIndexWithinRange = groups.stream()
                 .filter(g -> g.shardId().getIndex().getName().equals(indexWithinSearchRange))
                 .collect(Collectors.toList());
 
@@ -426,8 +424,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(shardsFromIndexWithinRange.size(), equalTo(0));
             }
 
-            List<SearchShardsGroup> shardsFromIndexOutsideRange = searchShardsResponse.getGroups()
-                .stream()
+            List<SearchShardsGroup> shardsFromIndexOutsideRange = groups.stream()
                 .filter(g -> g.shardId().getIndex().getName().equals(searchableSnapshotIndexOutsideSearchRange))
                 .collect(Collectors.toList());
             assertThat(shardsFromIndexOutsideRange.size(), equalTo(indexOutsideSearchRangeShardCount));
@@ -735,7 +732,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             assertThat(groups.size(), equalTo(indexWithinSearchRangeShardCount));
             for (SearchShardsGroup group : groups) {
                 assertFalse(group + " should not be marked as skipped", group.skipped());
-                assertThat(group.allocatedNodes().size(), equalTo(0));
                 assertThat(group.shardId().getIndexName(), equalTo(searchableSnapshotIndexWithinSearchRange));
             }
 

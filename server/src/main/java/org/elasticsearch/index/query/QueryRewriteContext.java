@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -26,9 +27,11 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
@@ -288,5 +291,35 @@ public class QueryRewriteContext {
     public boolean indexMatches(String pattern) {
         assert indexNameMatcher != null;
         return indexNameMatcher.test(pattern);
+    }
+
+    /**
+     * Returns the names of all mapped fields that match a given pattern
+     *
+     * All names returned by this method are guaranteed to resolve to a
+     * MappedFieldType if passed to {@link #getFieldType(String)}
+     *
+     * @param pattern the field name pattern
+     */
+    public Set<String> getMatchingFieldNames(String pattern) {
+        if (runtimeMappings.isEmpty()) {
+            return mappingLookup.getMatchingFieldNames(pattern);
+        }
+        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+        if ("*".equals(pattern)) {
+            matches.addAll(runtimeMappings.keySet());
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcard
+            if (runtimeMappings.containsKey(pattern)) {
+                matches.add(pattern);
+            }
+        } else {
+            for (String name : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(pattern, name)) {
+                    matches.add(name);
+                }
+            }
+        }
+        return matches;
     }
 }

@@ -435,8 +435,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
                 pluginsService.flatMap(Plugin::getSettings).toList(),
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                Collections.emptySet()
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
             searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));

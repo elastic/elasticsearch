@@ -572,7 +572,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
         headersToCopy = headers;
-        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, serverlessEnabled);
+        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 

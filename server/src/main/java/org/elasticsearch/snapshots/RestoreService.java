@@ -1290,15 +1290,12 @@ public class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
-                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion.toVersion())) {
+                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
                 }
                 try {
-                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
-                        snapshotIndexMetadata,
-                        minIndexCompatibilityVersion.toVersion()
-                    );
+                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
                 } catch (Exception ex) {
                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                 }

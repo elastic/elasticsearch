@@ -134,7 +134,7 @@ class RollupShardIndexer {
     }
 
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
-        long startTime = System.currentTimeMillis();
+        long startTime = client.threadPool().relativeTimeInMillis();
         task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
         task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED);
         BulkProcessor2 bulkProcessor = createBulkProcessor();
@@ -153,7 +153,7 @@ class RollupShardIndexer {
             task.getNumSent(),
             task.getNumIndexed(),
             task.getNumFailed(),
-            TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
+            TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime)
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
@@ -210,24 +210,24 @@ class RollupShardIndexer {
                 task.addNumSent(request.numberOfActions());
                 task.setBeforeBulkInfo(
                     new RollupBeforeBulkInfo(
-                        System.currentTimeMillis(),
+                        client.threadPool().relativeTimeInMillis(),
                         executionId,
                         request.estimatedSizeInBytes(),
                         request.numberOfActions()
                     )
                 );
-                bulkStartTime = System.currentTimeMillis();
+                bulkStartTime = client.threadPool().relativeTimeInMillis();
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                long bulkDurationMillis = Math.max(1, System.currentTimeMillis() - bulkStartTime);
+                long bulkDurationMillis = client.threadPool().relativeTimeInMillis() - bulkStartTime;
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
                 task.setAfterBulkInfo(
                     new RollupAfterBulkInfo(
-                        System.currentTimeMillis(),
+                        client.threadPool().relativeTimeInMillis(),
                         executionId,
                         bulkDurationMillis,
                         bulkIngestTookMillis,

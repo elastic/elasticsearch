@@ -299,7 +299,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         ).toInstant().toEpochMilli(),
                         dimensionFields.toArray(new String[0]),
                         metricFields.toArray(new String[0]),
-                        labelFields.toArray(new String[0])
+                        labelFields.toArray(new String[0]),
+                        client
                     );
                     rollupIndexerRequest.setParentTask(parentTask);
                     client.execute(DownsampleIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {

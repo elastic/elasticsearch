@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +40,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
+        private Client client;
         private DownsampleAction.Request downsampleRequest;
         private long indexStartTimeMillis;
         private long indexEndTimeMillis;
@@ -52,9 +54,11 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
             final long indexEndTimeMillis,
             final String[] dimensionFields,
             final String[] metricFields,
-            final String[] labelFields
+            final String[] labelFields,
+            final Client client
         ) {
             super(downsampleRequest.indices());
+            this.client = client;
             this.indexStartTimeMillis = indexStartTimeMillis;
             this.indexEndTimeMillis = indexEndTimeMillis;
             this.downsampleRequest = downsampleRequest;
@@ -286,7 +290,8 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
                 request.getIndexEndTimeMillis(),
                 request.downsampleRequest.getDownsampleConfig(),
                 headers,
-                shardId()
+                shardId(),
+                request.client
             );
         }
     }

@@ -128,7 +128,7 @@ public class LocalAllocateDangledIndices {
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetadata indexMetadata : request.indices) {
-                        if (indexMetadata.getCompatibilityVersion().indexVersion.before(minIndexCompatibilityVersion)) {
+                        if (indexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] since it's current compatibility version [{}] "
                                     + "is not supported by at least one node in the cluster minVersion [{}]",
@@ -139,7 +139,7 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (indexMetadata.getCompatibilityVersion().indexVersion.after(maxIndexCompatibilityVersion)) {
+                        if (indexMetadata.getCompatibilityVersion().after(maxIndexCompatibilityVersion)) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] since its current compatibility version [{}] "
                                     + "is later than the maximum supported index version in the cluster [{}]",
@@ -175,10 +175,7 @@ public class LocalAllocateDangledIndices {
                         try {
                             // The dangled index might be from an older version, we need to make sure it's compatible
                             // with the current version.
-                            newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
-                                indexMetadata,
-                                minIndexCompatibilityVersion.toVersion()
-                            );
+                            newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, minIndexCompatibilityVersion);
                             newIndexMetadata = IndexMetadata.builder(newIndexMetadata)
                                 .settings(
                                     Settings.builder()

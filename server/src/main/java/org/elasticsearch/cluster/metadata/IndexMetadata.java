@@ -1044,14 +1044,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Return the {@link Version} that this index provides compatibility for.
-     * This is typically compared to the {@link Version#minimumIndexCompatibilityVersion()} to figure out whether the index can be handled
+     * Return the {@link IndexVersion} that this index provides compatibility for.
+     * This is typically compared to the {@link IndexVersion#MINIMUM_COMPATIBLE} to figure out whether the index can be handled
      * by the cluster.
      * By default, this is equal to the {@link #getCreationVersion()}, but can also be a newer version if the index has been imported as
      * a legacy index from an older snapshot, and its metadata has been converted to be handled by newer version nodes.
      */
-    public Version getCompatibilityVersion() {
-        return indexCompatibilityVersion.toVersion();
+    public IndexVersion getCompatibilityVersion() {
+        return indexCompatibilityVersion;
     }
 
     public long getCreationDate() {

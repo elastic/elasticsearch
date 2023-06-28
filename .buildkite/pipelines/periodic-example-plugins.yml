@@ -1,0 +1,12 @@
+steps:
+  - label: example-plugins
+    command: |-
+      cd $$WORKSPACE/plugins/examples
+
+      .ci/scripts/run-gradle.sh build
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304

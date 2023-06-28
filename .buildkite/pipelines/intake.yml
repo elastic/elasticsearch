@@ -1,0 +1,112 @@
+steps:
+  - label: sanity-check
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files precommit
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+  - wait: null
+  - label: part1
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart1
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+  - label: part2
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart2
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+  - group: bwc-snapshots
+    steps:
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest
+        matrix:
+          setup:
+            BWC_VERSION:
+              - 6.8.24
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-ubuntu-2004
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
+  - wait: null
+  - label: dra-snapshot
+    command: |-
+      WORKFLOW="snapshot"
+      RM_BRANCH="%BRANCH%" && [[ "%BRANCH%" == "main" ]] && RM_BRANCH=master
+      ES_VERSION=$$(cat build-tools-internal/version.properties \
+            | grep elasticsearch \
+            | sed "s/elasticsearch *= *//g")
+      VERSION_SUFFIX="" && [[ "$$WORKFLOW" == "snapshot" ]] && VERSION_SUFFIX="-SNAPSHOT"
+      BEATS_BUILD_ID="$$(./.ci/scripts/resolve-dra-manifest.sh beats $$RM_BRANCH $$ES_VERSION $$WORKFLOW)"
+      ML_CPP_BUILD_ID="$$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp $$RM_BRANCH $$ES_VERSION $$WORKFLOW)"
+      set -euo pipefail
+      set +x
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      export VAULT_TOKEN
+      .ci/scripts/run-gradle.sh -Ddra.artifacts=true \
+          -Ddra.artifacts.dependency.beats=$${BEATS_BUILD_ID} \
+          -Ddra.artifacts.dependency.ml-cpp=$${ML_CPP_BUILD_ID} \
+          -Ddra.workflow=$$WORKFLOW \
+          -Dcsv=$$WORKSPACE/build/distributions/dependencies-$${ES_VERSION}$${VERSION_SUFFIX}.csv \
+          buildReleaseArtifacts \
+          exportCompressedDockerImages \
+          :distribution:generateDependenciesReport
+
+      #unset VAULT_TOKEN
+      set -x
+      $$WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$$VERSION_SUFFIX"
+
+      # we regenerate this file as part of the release manager invocation
+      rm $$WORKSPACE/build/distributions/elasticsearch-jdbc-$${ES_VERSION}$${VERSION_SUFFIX}.taco.sha512
+
+      # Allow other users access to read the artifacts so they are readable in the
+      # container
+      find $$WORKSPACE -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
+
+      # Allow other users write access to create checksum files
+      find $$WORKSPACE -type d -path "*/build/distributions" -exec chmod a+w {} \;
+
+      # Artifacts should be generated
+      docker run --rm \
+             --name release-manager \
+             -e VAULT_ADDR \
+             -e VAULT_ROLE_ID \
+             -e VAULT_SECRET_ID \
+             --mount type=bind,readonly=false,src="$$PWD",target=/artifacts \
+             docker.elastic.co/infra/release-manager:latest \
+             cli collect \
+             --project elasticsearch \
+             --branch "$$RM_BRANCH" \
+             --commit "$$GIT_COMMIT" \
+             --workflow "$$WORKFLOW" \
+             --version "$$ES_VERSION" \
+             --artifact-set main \
+             --dependency beats:https://artifacts-$${WORKFLOW}.elastic.co/beats/$${BEATS_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json \
+             --dependency ml-cpp:https://artifacts-$${WORKFLOW}.elastic.co/ml-cpp/$${ML_CPP_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+  - wait: null
+  - label: update-last-good-commit
+    command: /usr/bin/true
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: n1-standard-1

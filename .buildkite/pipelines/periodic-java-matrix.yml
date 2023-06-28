@@ -1,0 +1,29 @@
+steps:
+  - group: java-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - java8
+              - java11
+              - openjdk16
+              - zulu8
+              - zulu11
+              - corretto11
+              - corretto8
+              - adoptopenjdk11
+              - adoptopenjdk8
+              - openjdk17
+              - openjdk18
+              - openjdk19
+              - openjdk20
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-ubuntu-2004
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"

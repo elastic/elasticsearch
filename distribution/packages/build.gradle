@@ -335,6 +335,7 @@ Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
       if (oss) {
         rename('elasticsearch', 'elasticsearch-oss')
       }
+      fileMode 0644
     }
   }
 }

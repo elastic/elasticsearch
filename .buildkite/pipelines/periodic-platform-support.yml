@@ -1,0 +1,52 @@
+steps:
+  - group: platform-support-unix
+    steps:
+      - label: "{{matrix.image}} / platform-support-unix"
+        command: |-
+          if [ "$$os" == "amazon-2022&&immutable" ]; then
+            # Skip BWC testing on Amazon 2022 as there's an incompatibility with older ES versions on this system
+            .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true checkPart1 checkPart2
+          else
+            .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+          fi
+        matrix:
+          setup:
+            image:
+              - family/brian-elasticsearch-centos-7
+              - family/brian-elasticsearch-debian-9
+              - family/brian-elasticsearch-debian-10
+              - family/brian-elasticsearch-debian-11
+              - family/brian-elasticsearch-opensuse-leap-15
+              - family/brian-elasticsearch-oraclelinux-7
+              - family/brian-elasticsearch-oraclelinux-8
+              - family/brian-elasticsearch-sles-12
+              - family/brian-elasticsearch-sles-15
+              - family/brian-elasticsearch-ubuntu-1804
+              - family/brian-elasticsearch-ubuntu-2004
+              - family/brian-elasticsearch-ubuntu-2022
+              - family/brian-elasticsearch-rocky-8
+              - family/brian-elasticsearch-rhel-7
+              - family/brian-elasticsearch-rhel-8
+              - family/brian-elasticsearch-rhel-9
+              - family/brian-elasticsearch-almalinux-8
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
+          machineType: custom-32-98304
+          diskSizeGb: 350
+        env: {}
+  - group: platform-support-arm
+    steps:
+      - label: "{{matrix.image}} / platform-support-arm"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        matrix:
+          setup:
+            image: []
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env: {}

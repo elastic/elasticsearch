@@ -1,0 +1,19 @@
+steps:
+  - group: java-fips-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / java-fips-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true check
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - java11
+              - openjdk17
+              - openjdk18
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-ubuntu-2004
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"

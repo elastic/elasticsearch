@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# On some distros, this directory ends up not readable by the `elasticsearch` user that gets created during tests
+# This fixes that
+chmod 755 ~
+
+WORKSPACE="$(pwd)"
+export WORKSPACE
+
+BUILD_NUMBER="$BUILDKITE_BUILD_NUMBER"
+export BUILD_NUMBER
+
+COMPOSE_HTTP_TIMEOUT="120"
+export COMPOSE_HTTP_TIMEOUT
+
+JOB_BRANCH="$BUILDKITE_BRANCH"
+export JOB_BRANCH
+
+GRADLEW="./gradlew --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW
+
+GRADLEW_BAT="./gradlew.bat --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW_BAT
+
+export $(cat .ci/java-versions.properties | grep '=' | xargs)
+
+JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
+export JAVA_HOME
+
+JAVA11_HOME="$HOME/.java/java11"
+export JAVA11_HOME
+
+JAVA16_HOME="$HOME/.java/openjdk16"
+export JAVA16_HOME
+
+if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
+  RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+  export RUNTIME_JAVA_HOME
+fi
+
+GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export GRADLE_BUILD_CACHE_USERNAME
+
+GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export GRADLE_BUILD_CACHE_PASSWORD

@@ -61,8 +61,8 @@ public class HealthMetadataService {
     private volatile boolean isMaster = false;
     // we hold an in-memory representation of the healthMetadata which will be updated by the settings updaters. This way, we can
     // get the initial values (reading default values from `Settings`) and then, potentially, user changed values (they'll be received
-    // through the settings updater). Later and if this node is the master, we will always post the latest in-memory HealthMetadata to the ClusterState to maintain an
-    // up-to-date version of it across the cluster.
+    // through the settings updater). Later and if this node is the master, we will always post the latest in-memory HealthMetadata to the
+    // ClusterState to maintain an up-to-date version of it across the cluster.
     private volatile HealthMetadata localHealthMetadata;
 
     private HealthMetadataService(ClusterService clusterService, Settings settings) {

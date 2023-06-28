@@ -38,7 +38,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -222,10 +221,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             var onComplete = new ArrayList<Releasable>();
 
             var compoundTranslog = new ReleasableBytesStreamOutput(bigArrays);
-            var header = new ReleasableBytesStreamOutput(bigArrays);
+            var headerStream = new ReleasableBytesStreamOutput(bigArrays);
 
             onComplete.add(compoundTranslog);
-            onComplete.add(header);
+            onComplete.add(headerStream);
 
             for (var entry : shardSyncStates.entrySet()) {
                 ShardId shardId = entry.getKey();
@@ -261,15 +260,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 return null;
             }
 
-            var bufferedChecksumStreamOutput = new BufferedChecksumStreamOutput(header);
-            bufferedChecksumStreamOutput.writeMap(checkpoints);
-            header.writeLong(bufferedChecksumStreamOutput.getChecksum());
+            // Write the header to the stream
+            new CompoundTranslogHeader(checkpoints).writeToStore(headerStream);
 
             long beforeIncrement = this.fileName.getAndIncrement();
             assert beforeIncrement == fileName;
             return new CompoundTranslog(
                 Strings.format("%019d", fileName),
-                CompositeBytesReference.of(header.bytes(), compoundTranslog.bytes()),
+                CompositeBytesReference.of(headerStream.bytes(), compoundTranslog.bytes()),
                 onComplete
             );
         }

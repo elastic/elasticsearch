@@ -101,27 +101,14 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         return RecoveryState.Translog.UNKNOWN;
     }
 
-    private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata metadata) {
-        try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(metadata.name()))) {
-            BufferedChecksumStreamInput bufferedChecksumStreamInput = new BufferedChecksumStreamInput(streamInput, metadata.name());
-            Map<ShardId, TranslogMetadata> checkpoints = bufferedChecksumStreamInput.readMap(ShardId::new, TranslogMetadata::new);
-
-            // Verify checksum of compound file
-            long expectedChecksum = bufferedChecksumStreamInput.getChecksum();
-            long readChecksum = streamInput.readLong();
-            if (readChecksum != expectedChecksum) {
-                throw new TranslogCorruptedException(
-                    metadata.name(),
-                    "checksum verification failed - expected: 0x"
-                        + Long.toHexString(expectedChecksum)
-                        + ", got: 0x"
-                        + Long.toHexString(readChecksum)
-                );
-            }
+    private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
+        try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(blobMetadata.name()))) {
+            CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
+            Map<ShardId, TranslogMetadata> metadata = translogHeader.metadata();
 
             // Check if the compound translog file contains eligible operations for this shard
-            if (checkpoints.containsKey(shardId)) {
-                TranslogMetadata translogMetadata = checkpoints.get(shardId);
+            if (metadata.containsKey(shardId)) {
+                TranslogMetadata translogMetadata = metadata.get(shardId);
                 // Check if at least one of the operations fall within the eligible range
                 if (toSeqNo >= translogMetadata.minSeqNo() && fromSeqNo <= translogMetadata.maxSeqNo()) {
                     // Go to the translog file to read it
@@ -147,7 +134,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                 }
             }
         } catch (IOException e) {
-            throw new TranslogCorruptedException(metadata.name(), "error while reading translog file from object store", e);
+            throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
         }
         return Collections.emptyIterator();
     }

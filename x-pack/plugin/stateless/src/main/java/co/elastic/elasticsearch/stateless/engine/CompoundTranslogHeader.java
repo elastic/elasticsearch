@@ -1,0 +1,97 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package co.elastic.elasticsearch.stateless.engine;
+
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.InputStreamDataInput;
+import org.apache.lucene.store.OutputStreamDataOutput;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
+import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
+
+import java.io.IOException;
+import java.util.Map;
+
+public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
+
+    private static final String TRANSLOG_REPLICATOR_CODEC = "translog_replicator_file";
+    // Pin the transport version to 8.9 to ensure that serialization changes of used types can be read without version negotiation. In the
+    // future this might need to be advanced if 8.9 is no longer available.
+    private static final TransportVersion PINNED_TRANSPORT_VERSION = TransportVersion.V_8_9_0;
+    private static final int VERSION_WITH_TRANSPORT_VERSION = 0;
+    private static final int CURRENT_VERSION = VERSION_WITH_TRANSPORT_VERSION;
+
+    public static CompoundTranslogHeader readFromStore(String name, StreamInput streamInput) throws IOException {
+        streamInput.setTransportVersion(PINNED_TRANSPORT_VERSION);
+        BufferedChecksumStreamInput input = new BufferedChecksumStreamInput(streamInput, TRANSLOG_REPLICATOR_CODEC);
+        InputStreamDataInput dataInput = new InputStreamDataInput(input);
+        int magic = CodecUtil.readBEInt(dataInput);
+        if (magic == CodecUtil.CODEC_MAGIC) {
+            int version = CodecUtil.checkHeaderNoMagic(
+                dataInput,
+                TRANSLOG_REPLICATOR_CODEC,
+                VERSION_WITH_TRANSPORT_VERSION,
+                CURRENT_VERSION
+            );
+            return readHeader(name, input);
+        } else {
+            return readHeaderOld(name, magic, input);
+        }
+    }
+
+    private static CompoundTranslogHeader readHeaderOld(String name, int firstBytes, StreamInput input) throws IOException {
+        // This is pretty inefficient, but these files should never be that large and this code path should not be exercised post-MVP.
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.writeInt(firstBytes);
+            Streams.copy(input, output, false);
+            return readHeader(name, new BufferedChecksumStreamInput(output.bytes().streamInput(), TRANSLOG_REPLICATOR_CODEC));
+        }
+    }
+
+    private static CompoundTranslogHeader readHeader(String name, BufferedChecksumStreamInput input) throws IOException {
+        Map<ShardId, TranslogMetadata> metadata = input.readMap(ShardId::new, TranslogMetadata::new);
+        // Verify checksum of compound file
+        long expectedChecksum = input.getChecksum();
+        long readChecksum = Integer.toUnsignedLong(input.readInt());
+        if (readChecksum != expectedChecksum) {
+            throw new TranslogCorruptedException(
+                name,
+                "checksum verification failed - expected: 0x"
+                    + Long.toHexString(expectedChecksum)
+                    + ", got: 0x"
+                    + Long.toHexString(readChecksum)
+            );
+        }
+        return new CompoundTranslogHeader(metadata);
+    }
+
+    public void writeToStore(StreamOutput streamOutput) throws IOException {
+        streamOutput.setTransportVersion(PINNED_TRANSPORT_VERSION);
+        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
+        CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_REPLICATOR_CODEC, CURRENT_VERSION);
+        out.writeMap(metadata);
+        out.writeInt((int) out.getChecksum());
+        out.flush();
+    }
+}

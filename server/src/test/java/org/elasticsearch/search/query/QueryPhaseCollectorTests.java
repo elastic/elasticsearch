@@ -96,8 +96,10 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testNegativeTerminateAfter() {
-        expectThrows(IllegalArgumentException.class, () -> new QueryPhaseCollector(null, null, randomIntBetween(Integer.MIN_VALUE, -1),
-            null, null));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new QueryPhaseCollector(new DummyTotalHitCountCollector(), null, randomIntBetween(Integer.MIN_VALUE, -1), null, null)
+        );
     }
 
     public void testTopDocsOnly() throws IOException {

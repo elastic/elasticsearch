@@ -116,11 +116,15 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.INDEX_ROLE));
     }
 
+    protected String startIndexNode(Settings extraSettings) {
+        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.INDEX_ROLE).put(extraSettings));
+    }
+
     protected String startSearchNode() {
         return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.SEARCH_ROLE));
     }
 
-    private Settings settingsForRoles(DiscoveryNodeRole... roles) {
+    private Settings.Builder settingsForRoles(DiscoveryNodeRole... roles) {
         return nodeSettings().putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
             Arrays.stream(roles).map(DiscoveryNodeRole::roleName).toList()
@@ -134,8 +138,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                     : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
                     // only use up to 0.1% disk to be friendly.
                     : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString()
-            )
-            .build();
+            );
     }
 
     protected String startMasterOnlyNode() {

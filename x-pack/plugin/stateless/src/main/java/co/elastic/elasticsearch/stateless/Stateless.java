@@ -297,7 +297,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
         var ingestLoadPublisher = new IngestLoadPublisher(client, clusterService, threadPool);
         var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings);
-        var ingestLoadProbe = new IngestLoadProbe(threadPool, writeLoadSampler);
+        var ingestLoadProbe = new IngestLoadProbe(writeLoadSampler::getExecutorStats);
         var ingestLoadSampler = IngestLoadSampler.create(
             threadPool,
             writeLoadSampler,

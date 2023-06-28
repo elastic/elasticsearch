@@ -56,7 +56,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -99,7 +99,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -160,7 +160,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -202,7 +202,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -272,7 +272,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -305,7 +305,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
         var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, Settings.EMPTY);
 
@@ -342,7 +342,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new ConstantAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
         var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, Settings.EMPTY);
 
@@ -374,14 +374,18 @@ public class IngestLoadSamplerTests extends ESTestCase {
         return randomDoubleBetween(0, bound, true);
     }
 
-    private static class ConstantAverageWriteLoadSampler extends AverageWriteLoadSampler {
-        ConstantAverageWriteLoadSampler(ThreadPool threadPool) {
+    private static class RandomtAverageWriteLoadSampler extends AverageWriteLoadSampler {
+        RandomtAverageWriteLoadSampler(ThreadPool threadPool) {
             super(threadPool, TimeValue.timeValueSeconds(1));
         }
 
         @Override
-        public double getAverageWriteLoad(String executor) {
-            return 1.0;
+        public ExecutorStats getExecutorStats(String executor) {
+            return new ExecutorStats(
+                randomDoubleBetween(0.0, 8.0, true),
+                randomDoubleBetween(100.0, 500.0, true),
+                randomIntBetween(0, 100)
+            );
         }
     }
 }

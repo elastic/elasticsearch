@@ -17,26 +17,63 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.core.TimeValue;
+
+import java.util.function.Function;
 
 /**
  * This class computes the current node indexing load
  */
 public class IngestLoadProbe {
-    private final ThreadPool threadPool;
-    private final AverageWriteLoadSampler writeLoadSampler;
 
-    public IngestLoadProbe(ThreadPool threadPool, AverageWriteLoadSampler writeLoadSampler) {
-        this.threadPool = threadPool;
-        this.writeLoadSampler = writeLoadSampler;
+    // TODO: ES-6250 makes this a cluster setting
+    /**
+     * MAX_TIME_TO_CLEAR_QUEUE is a threshold that defines the length of time that the current number of threads could take to clear up
+     * the queued work. In other words, the amount of work that is considered manageable using the current number of threads.
+     * For example, MAX_TIME_TO_CLEAR_QUEUE = 30sec means, 30 seconds worth of tasks in the queue is considered
+     * manageable with the current number of threads available.
+     */
+    public static final TimeValue MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(30);
+
+    private final Function<String, ExecutorStats> executorStatsProvider;
+
+    public IngestLoadProbe(Function<String, ExecutorStats> executorStatsProvider) {
+        this.executorStatsProvider = executorStatsProvider;
     }
 
     /**
      * Returns the current ingestion load (number of WRITE threads needed to cope with the current ingestion workload).
-     * The value returned is within the range [0, number_of_processors]
+     * <p>
+     * The ingestion load is calculated as max(totalThreadsNeeded, averageWriteLoad) for each write threadpool.
+     * totalThreadsNeeded is the number of threads need to handle the current load and based on queued tasks taking into account
+     * MAX_TIME_TO_CLEAR_QUEUE.
      */
     public double getIngestionLoad() {
-        // TODO: implement this
-        return 1;
+        double totalIngestionLoad = 0.0;
+        for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
+            var executorStats = executorStatsProvider.apply(executorName);
+            totalIngestionLoad += calculateIngestionLoadForExecutor(
+                executorStats.averageLoad(),
+                executorStats.averageTaskExecutionEWMA(),
+                executorStats.currentQueueSize(),
+                MAX_TIME_TO_CLEAR_QUEUE
+            );
+        }
+        return totalIngestionLoad;
+    }
+
+    static double calculateIngestionLoadForExecutor(
+        double averageWriteLoad,
+        double averageTaskExecutionTime,
+        long currentQueueSize,
+        TimeValue maxTimeToClearQueue
+    ) {
+        if (averageTaskExecutionTime == 0.0) {
+            return averageWriteLoad;
+        }
+        double tasksManageablePerThreadWithinMaxTime = maxTimeToClearQueue.nanos() / averageTaskExecutionTime;
+        double totalThreadsNeeded = currentQueueSize / tasksManageablePerThreadWithinMaxTime;
+        assert totalThreadsNeeded >= 0.0;
+        return Math.max(totalThreadsNeeded, averageWriteLoad);
     }
 }

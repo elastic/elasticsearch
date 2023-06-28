@@ -5,7 +5,7 @@ type: enhancement
 issues:
  - 95541
 highlight:
-  title: Skip shards when querying constant keyword fields
+  title: Better indexing and search performance under concurrent indexing and search
   body: "When a query like a match phrase query or a wildcard query targets a constant keyword field \
   we can skip the query execution on shards where the query is rewritten to match no documents.\
   We take advantage of index mappings including constant keyword fields and rewrite queries in such a way that, if\

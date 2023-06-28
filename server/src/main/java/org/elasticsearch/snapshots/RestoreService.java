@@ -981,7 +981,7 @@ public class RestoreService implements ClusterStateApplier {
         RestoreSnapshotRequest request,
         RepositoryMetadata repository,
         SnapshotInfo snapshotInfo,
-        List<BiConsumer<Snapshot, Version>> preRestoreVersionChecks
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreVersionChecks
     ) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
@@ -989,7 +989,7 @@ public class RestoreService implements ClusterStateApplier {
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
-        if (Version.CURRENT.before(snapshotInfo.version())) {
+        if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
@@ -1283,22 +1283,19 @@ public class RestoreService implements ClusterStateApplier {
                 final IndexId index = indexEntry.getValue();
                 final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
                 repositoriesService.getPreRestoreVersionChecks()
-                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
+                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion().indexVersion));
                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
                     snapshot,
                     originalIndexMetadata,
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
-                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion.toVersion())) {
+                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
                 }
                 try {
-                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
-                        snapshotIndexMetadata,
-                        minIndexCompatibilityVersion.toVersion()
-                    );
+                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
                 } catch (Exception ex) {
                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                 }

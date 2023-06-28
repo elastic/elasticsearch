@@ -1,41 +1,39 @@
-[[dlm-explain-lifecycle]]
-=== Explain Lifecycle API
+[[data-streams-explain-lifecycle]]
+=== Explain data stream lifecycle
 ++++
-<titleabbrev>Explain Data Lifecycle</titleabbrev>
+<titleabbrev>Explain Data Stream Lifecycle</titleabbrev>
 ++++
 
-experimental::[]
+preview::[]
 
 Retrieves the current data lifecycle status for one or more data stream backing indices.
 
 [[explain-lifecycle-api-prereqs]]
 ==== {api-prereq-title}
 
-* Nit: would rephrase as:
-
 If the {es} {security-features} are enabled, you must have at least the `manage_data_stream_lifecycle` index privilege or
 `view_index_metadata` index privilege to use this API. For more information, see <<security-privileges>>.
 
-[[dlm-explain-lifecycle-request]]
+[[data-streams-explain-lifecycle-request]]
 ==== {api-request-title}
 
 `GET <target>/_lifecycle/explain`
 
-[[dlm-explain-lifecycle-desc]]
+[[data-streams-explain-lifecycle-desc]]
 ==== {api-description-title}
 
-Retrieves information about the index's current DLM lifecycle state, such as
+Retrieves information about the index or data stream's current data stream lifecycle state, such as
 time since index creation, time since rollover, the lifecycle configuration
 managing the index, or any error that {es} might've encountered during the lifecycle
 execution.
 
-[[dlm-explain-lifecycle-path-params]]
+[[data-streams-explain-lifecycle-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
 (Required, string) Comma-separated list of indices.
 
-[[dlm-explain-lifecycle-query-params]]
+[[data-streams-explain-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
 `include_defaults`::
@@ -44,7 +42,7 @@ execution.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-[[dlm-explain-lifecycle-example]]
+[[data-streams-explain-lifecycle-example]]
 ==== {api-examples-title}
 
 The following example retrieves the lifecycle state of the index `.ds-metrics-2023.03.22-000001`:
@@ -53,9 +51,9 @@ The following example retrieves the lifecycle state of the index `.ds-metrics-20
 --------------------------------------------------
 GET .ds-metrics-2023.03.22-000001/_lifecycle/explain
 --------------------------------------------------
-// TEST[skip:we're not setting up DLM in these tests]
+// TEST[skip:we're not setting up data stream lifecycle in these tests]
 
-If the index is managed by DLM `explain` will show the `managed_by_lifecycle` field
+If the index is managed by a data stream lifecycle `explain` will show the `managed_by_lifecycle` field
 set to `true` and the rest of the response will contain information about the
 lifecycle execution status for this index:
 
@@ -77,8 +75,8 @@ lifecycle execution status for this index:
 --------------------------------------------------
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 
-<1> Shows if the index is being managed by DLM. If the index is not managed by
-DLM the other fields will not be shown
+<1> Shows if the index is being managed by data stream lifecycle. If the index is not managed by
+a data stream lifecycle the other fields will not be shown
 <2> When the index was created, this timestamp is used to determine when to
 rollover
 <3> The time since the index creation (used for calculating when to rollover

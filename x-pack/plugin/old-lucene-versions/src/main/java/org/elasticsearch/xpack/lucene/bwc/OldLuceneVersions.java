@@ -33,6 +33,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -84,7 +85,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         License.OperationMode.ENTERPRISE
     );
 
-    private static Version MINIMUM_ARCHIVE_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_ARCHIVE_VERSION = IndexVersion.fromId(5000099);
 
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
 
@@ -155,7 +156,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     }
 
     @Override
-    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+    public BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
         return (snapshot, version) -> {
             if (version.isLegacyIndexVersion()) {
                 if (ARCHIVE_FEATURE.checkWithoutTracking(getLicenseState()) == false) {
@@ -164,9 +165,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
                 if (version.before(MINIMUM_ARCHIVE_VERSION)) {
                     throw new SnapshotRestoreException(
                         snapshot,
-                        "the snapshot was created with Elasticsearch version ["
-                            + version
-                            + "] which isn't supported by the archive functionality"
+                        "the snapshot has indices of version [" + version + "] which isn't supported by the archive functionality"
                     );
                 }
             }

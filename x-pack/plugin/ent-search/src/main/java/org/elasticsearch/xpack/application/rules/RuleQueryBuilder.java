@@ -197,8 +197,18 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                     public void onResponse(GetQueryRulesetAction.Response response) {
                         QueryRuleset queryRuleset = response.queryRuleset();
                         for (QueryRule rule : queryRuleset.rules()) {
-                            // TODO check criteria to see if the rule matches before adding the pinned IDs
-                            pinnedIds.addAll((List<String>) rule.actions().get("ids"));
+                            if (rule.type() == QueryRule.QueryRuleType.PINNED) {
+                                for (QueryRuleCriteria criterion : rule.criteria()) {
+                                    for (String match : matchCriteria.keySet()) {
+                                        if (criterion.criteriaMetadata().equals(match) &&
+                                            criterion.criteriaValue().equals(matchCriteria.get(match))) {
+                                            pinnedIds.addAll((List<String>) rule.actions().get("ids"));
+                                        }
+                                    }
+                                }
+                            } else {
+                                logger.warn("Skipping unsupported query rule type [" + rule.type() + "]");
+                            }
                         }
                         idSetOnce.set(pinnedIds.stream().distinct().toList());
                         listener.onResponse(null);

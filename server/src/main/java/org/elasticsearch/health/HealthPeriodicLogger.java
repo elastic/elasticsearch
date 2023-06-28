@@ -41,40 +41,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class HealthPeriodicLogger implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
     public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
 
-    /**
-     * Creates a new HealthPeriodicLoggerResult.
-     * This creates a record that's used as the output of this feature.
-     *
-     * @param indicatorResults the results of the Health API call that will be used as the output.
-     */
-    public record HealthPeriodicLoggerResult(List<HealthIndicatorResult> indicatorResults) {
-
-        /**
-         * Create a Map of the results, which is then turned into JSON for logging
-         */
-        public Map<String, Object> toMap() {
-            final Map<String, Object> result = new HashMap<>();
-
-            if (this.indicatorResults == null || this.indicatorResults.isEmpty()) {
-                return result;
-            }
-
-            // overall status
-            final HealthStatus status = HealthStatus.merge(this.indicatorResults.stream().map(HealthIndicatorResult::status));
-            result.put(String.format(Locale.ROOT, "%s.overall.status", HEALTH_FIELD_PREFIX), status.xContentValue());
-
-            // top-level status for each indicator
-            this.indicatorResults.forEach((indicatorResult) -> {
-                result.put(
-                    String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
-                    indicatorResult.status().xContentValue()
-                );
-            });
-
-            return result;
-        }
-    }
-
     public static final String HEALTH_PERIODIC_LOGGER_POLL_INTERVAL = "health.periodic_logger.poll_interval";
     public static final Setting<TimeValue> HEALTH_PERIODIC_LOGGER_POLL_INTERVAL_SETTING = Setting.timeSetting(
         HEALTH_PERIODIC_LOGGER_POLL_INTERVAL,
@@ -188,25 +154,62 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     }
 
     /**
+     * Create a Map of the results, which is then turned into JSON for logging.
+     *
+     * The structure looks like:
+     * {"elasticsearch.health.overall.status": "green", "elasticsearch.health.[other indicators].status": "green"}
+     * Only the indicator status values are included, along with the computed top-level status.
+     *
+     * @param indicatorResults the results of the Health API call that will be used as the output.
+     */
+    // default visibility for testing purposes
+    Map<String, Object> toLoggedFields(List<HealthIndicatorResult> indicatorResults) {
+        if (indicatorResults == null || indicatorResults.isEmpty()) {
+            return Map.of();
+        }
+
+        final Map<String, Object> result = new HashMap<>();
+
+        // overall status
+        final HealthStatus status = HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
+        result.put(String.format(Locale.ROOT, "%s.overall.status", HEALTH_FIELD_PREFIX), status.xContentValue());
+
+        // top-level status for each indicator
+        indicatorResults.forEach((indicatorResult) -> {
+            result.put(
+                String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
+                indicatorResult.status().xContentValue()
+            );
+        });
+
+        return result;
+    }
+
+    /**
      * Handle the result of the Health Service getHealth call
      */
     // default visibility for testing purposes
     final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
         @Override
         public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
-            HealthPeriodicLoggerResult result = new HealthPeriodicLoggerResult(healthIndicatorResults);
-            Map<String, Object> resultsMap = result.toMap();
-            // if we have a valid response, log in JSON format
-            if (resultsMap.isEmpty() == false) {
-                ESLogMessage msg = new ESLogMessage().withFields(result.toMap());
-                logger.info(msg);
+            try {
+                Map<String, Object> resultsMap = toLoggedFields(healthIndicatorResults);
+
+                // if we have a valid response, log in JSON format
+                if (resultsMap.isEmpty() == false) {
+                    ESLogMessage msg = new ESLogMessage().withFields(resultsMap);
+                    logger.info(msg);
+                }
+            } catch (Exception e) {
+                logger.warn("Health Periodic Logger error:{}", e.toString());
+            } finally {
+                currentlyRunning.set(false);
             }
-            currentlyRunning.set(false);
         }
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn("Health Service logging error:{}", e.toString());
+            logger.warn("Health Periodic Logger error:{}", e.toString());
             currentlyRunning.set(false);
         }
     };

@@ -106,8 +106,11 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         var results = getTestIndicatorResults();
         var overallStatus = HealthStatus.merge(results.stream().map(HealthIndicatorResult::status));
 
-        HealthPeriodicLogger.HealthPeriodicLoggerResult result = new HealthPeriodicLogger.HealthPeriodicLoggerResult(results);
-        Map<String, Object> loggerResults = result.toMap();
+        HealthService testHealthService = getTestHealthService();
+        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, this.clusterService, client, testHealthService);
+        testHealthPeriodicLogger.init();
+
+        Map<String, Object> loggerResults = testHealthPeriodicLogger.toLoggedFields(results);
 
         assertEquals(results.size() + 1, loggerResults.size());
 
@@ -122,10 +125,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         // test empty results
         {
             List<HealthIndicatorResult> empty = new ArrayList<HealthIndicatorResult>();
-            HealthPeriodicLogger.HealthPeriodicLoggerResult emptyResults = new HealthPeriodicLogger.HealthPeriodicLoggerResult(empty);
-            Map<String, Object> emptyMap = emptyResults.toMap();
+            Map<String, Object> emptyResults = testHealthPeriodicLogger.toLoggedFields(empty);
 
-            assertEquals(0, emptyMap.size());
+            assertEquals(0, emptyResults.size());
         }
     }
 

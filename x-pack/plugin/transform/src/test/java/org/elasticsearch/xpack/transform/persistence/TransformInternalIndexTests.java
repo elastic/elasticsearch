@@ -31,6 +31,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,6 +44,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -64,7 +67,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         try {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
                 Settings.builder()
-                    .put(TransformInternalIndex.settings())
+                    .put(TransformInternalIndex.settings(Settings.EMPTY))
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
@@ -122,7 +125,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verifyNoMoreInteractions(client);
@@ -153,7 +156,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();
@@ -190,7 +193,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();
@@ -228,7 +231,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();
@@ -275,7 +278,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(2)).threadPool();
@@ -314,7 +317,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();
@@ -324,5 +327,13 @@ public class TransformInternalIndexTests extends ESTestCase {
         verifyNoMoreInteractions(adminClient);
         verify(indicesClient, times(1)).create(any(), any());
         verifyNoMoreInteractions(indicesClient);
+    }
+
+    public void testSettings() {
+        Settings settings = TransformInternalIndex.settings(Settings.EMPTY);
+        assertThat(settings.get(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey()), is(nullValue()));
+
+        settings = TransformInternalIndex.settings(Settings.builder().put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
+        assertThat(settings.getAsBoolean(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), false), is(true));
     }
 }

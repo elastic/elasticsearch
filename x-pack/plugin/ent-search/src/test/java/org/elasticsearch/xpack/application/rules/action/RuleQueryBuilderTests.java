@@ -33,8 +33,9 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
         return new RuleQueryBuilder(createRandomQuery(),
-            randomList(1, 10, String::new),
-            randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
+            randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))),
+            randomList(1, 10, String::new)
+        );
     }
 
     private static QueryBuilder createRandomQuery() {
@@ -107,15 +108,15 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () ->
-            new RuleQueryBuilder(new MatchAllQueryBuilder(), Collections.singletonList("rulesetId"), null));
+            new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId")));
         expectThrows(IllegalArgumentException.class, () ->
-            new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Map.of("foo", "bar")));
+            new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), null));
         expectThrows(IllegalArgumentException.class, () ->
-            new RuleQueryBuilder(new MatchAllQueryBuilder(), Collections.emptyList(), Map.of("foo", "bar")));
+            new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), Collections.emptyList()));
         expectThrows(IllegalArgumentException.class, () ->
-            new RuleQueryBuilder(null, Collections.singletonList("rulesetId"), Map.of("foo", "bar")));
+            new RuleQueryBuilder(null, Map.of("foo", "bar"), Collections.singletonList("rulesetId")));
         expectThrows(IllegalArgumentException.class, () ->
-            new RuleQueryBuilder(null, Collections.singletonList("rulesetId"), Collections.emptyMap()));
+            new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId")));
     }
 
     public void testFromJson() throws IOException {

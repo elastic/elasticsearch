@@ -422,11 +422,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             // connection closed early
             if (trackingChannel == null) {
                 logger.warn("http channel [{}] missing tracking channel", httpChannel);
-                handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
-            } else {
-                trackingChannel.incomingRequest();
-                handleIncomingRequest(httpRequest, trackingChannel, httpRequest.getInboundException());
+                return;
             }
+            trackingChannel.incomingRequest();
+            handleIncomingRequest(httpRequest, trackingChannel, httpRequest.getInboundException());
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
             networkService.getHandlingTimeTracker().addHandlingTime(took);

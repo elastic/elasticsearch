@@ -8,7 +8,6 @@
 
 package org.elasticsearch.system.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;

@@ -101,4 +101,12 @@ public record NamedQueryExtractorBuilder(String queryName, String featureName) i
     public int hashCode() {
         return Objects.hash(queryName, featureName);
     }
+
+    @Override
+    public String toString() {
+        return "NamedQueryExtractorBuilder{" +
+            "queryName='" + queryName + '\'' +
+            ", featureName='" + featureName + '\'' +
+            '}';
+    }
 }

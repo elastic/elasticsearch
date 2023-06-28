@@ -29,32 +29,26 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -433,49 +427,6 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertFalse(synchronouslyIncompleteFuture.isDone());
     }
 
-    public void testTranslogChecksumIsChecked() throws IOException {
-        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
-
-        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
-        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
-
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
-        translogReplicator.doStart();
-        translogReplicator.register(shardId);
-
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        Translog.Location finalLocation = new Translog.Location(0, 0, bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 0, finalLocation);
-
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        translogReplicator.sync(shardId, finalLocation, future);
-        future.actionGet();
-
-        assertThat(compoundFiles.size(), equalTo(1));
-
-        // Fiddle the checksum of the compound file
-        try (StreamInput streamInput = compoundFiles.get(0).streamInput()) {
-            BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(compoundFiles.get(0).streamInput(), "test");
-            Map<ShardId, TranslogMetadata> checkpoints = checksumStreamInput.readMap(ShardId::new, TranslogMetadata::new);
-            long wrongChecksum = checksumStreamInput.getChecksum() + randomLongBetween(1, 100);
-            BytesReference translogs = streamInput.readBytesReference();
-            try (BytesStreamOutput newCompoundFile = new BytesStreamOutput()) {
-                newCompoundFile.writeMap(checkpoints);
-                newCompoundFile.writeLong(wrongChecksum);
-                translogs.writeTo(newCompoundFile);
-                compoundFiles.replaceAll((ignored) -> newCompoundFile.bytes());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        var exception = expectThrows(TranslogCorruptedException.class, () -> {
-            var reader = new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId);
-            reader.next();
-        });
-        assertThat(exception.getMessage(), containsString("checksum verification failed"));
-    }
-
     public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
@@ -485,7 +436,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         doAnswer(invocation -> {
-            var metadata = invocation.<BytesReference>getArgument(1).streamInput().readMap(ShardId::new, TranslogMetadata::new);
+            var metadata = CompoundTranslogHeader.readFromStore("test", invocation.<BytesReference>getArgument(1).streamInput()).metadata();
             if (metadata.get(shardId).maxSeqNo() == 1L) {
                 firstSyncCompleter.set(invocation.getArgument(2));
                 intermediateStartedLatch.countDown();

@@ -908,7 +908,7 @@ public final class IngestDocument {
         }
 
         IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(ctxMap, other.ctxMap) && Objects.equals(ingestMetadata, other.ingestMetadata);
+        return Objects.equals(ctxMap, other.ctxMap) && Maps.deepEquals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override

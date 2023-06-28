@@ -63,7 +63,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             () -> nodeIngestLoad,
-            true,
+            () -> true,
             minSensitivityRatio,
             samplingFrequency,
             maxTimeBetweenMetricPublications,
@@ -106,7 +106,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
-            true,
+            () -> true,
             minSensitivityRatio,
             samplingFrequency,
             maxTimeBetweenMetricPublications,
@@ -167,7 +167,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             ingestLoadProbe,
-            true,
+            () -> true,
             minSensitivityRatio,
             samplingFrequency,
             maxTimeBetweenMetricPublications,
@@ -209,7 +209,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             readingIter::next,
-            true,
+            () -> true,
             minSensitivityRatio,
             samplingFrequency,
             maxTimeBetweenMetricPublications,
@@ -279,7 +279,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier,
-            true,
+            () -> true,
             minSensitivityRatio,
             samplingFrequency,
             maxTimeBetweenMetricPublications,
@@ -307,7 +307,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         };
         var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
-        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, Settings.EMPTY);
+        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, () -> true, Settings.EMPTY);
 
         // The sampler does not schedule any task before starting the service or publish any metrics
         assertThat(publishedMetrics, is(empty()));
@@ -344,7 +344,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         };
         var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
 
-        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, Settings.EMPTY);
+        var sampler = new IngestLoadSampler(
+            threadPool,
+            writeLoadSampler,
+            ingestLoadPublisher,
+            () -> indexLoad,
+            () -> false,
+            Settings.EMPTY
+        );
 
         // The sampler does not schedule any task before starting the service or publish any metrics
         assertThat(publishedMetrics, is(empty()));

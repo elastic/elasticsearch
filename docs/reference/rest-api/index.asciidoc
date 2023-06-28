@@ -20,7 +20,6 @@ not be included yet.
 * <<features-apis,Features APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
 * <<data-stream-apis,Data stream APIs>>
-* <<data-lifecycle-management-api, Data Lifecycle Management APIs>>
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
 * <<eql-apis,EQL search APIs>>
@@ -98,4 +97,3 @@ include::{es-repo-dir}/transform/apis/index.asciidoc[]
 include::usage.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
 include::defs.asciidoc[]
-include::{es-repo-dir}/dlm/apis/dlm-api.asciidoc[]

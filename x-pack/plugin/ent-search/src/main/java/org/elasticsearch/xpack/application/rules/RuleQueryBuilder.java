@@ -195,18 +195,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
         if (curatedIds.isEmpty() == false) {
             PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedIds.toArray(new String[0]));
-            logger.info("pinned ID query: " + pinnedQueryBuilder);
             return pinnedQueryBuilder.toQuery(context);
         } else if (curatedDocs.isEmpty() == false) {
-            logger.info("curatedDocs: " + curatedDocs);
-            for (Object i : curatedDocs) {
-                logger.info("curatedDoc: " + i + " " + i.getClass());
-            }
             PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, curatedDocs.toArray(new Item[0]));
-            logger.info("pinned docs query: " + pinnedQueryBuilder);
             return pinnedQueryBuilder.toQuery(context);
         } else {
-            logger.info("No curations, organic query: " + organicQuery);
             return organicQuery.toQuery(context);
         }
 
@@ -254,7 +247,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                                             if (rule.actions().containsKey("ids")) {
                                                 pinnedIds.addAll((List<String>) rule.actions().get("ids"));
                                             } else if (rule.actions().containsKey("docs")) {
-//                                                pinnedDocs.addAll((List<Item>) rule.actions().get("docs"));
                                                Object docsConfiguredInRule = rule.actions().get("docs");
                                                if ((docsConfiguredInRule instanceof List) == false) {
                                                    throw new IllegalArgumentException("docs must be a list");

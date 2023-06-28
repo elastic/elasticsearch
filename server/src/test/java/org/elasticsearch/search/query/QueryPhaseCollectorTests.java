@@ -95,6 +95,11 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new QueryPhaseCollector(null, null, 0, null, null));
     }
 
+    public void testNegativeTerminateAfter() {
+        expectThrows(IllegalArgumentException.class, () -> new QueryPhaseCollector(null, null, randomIntBetween(Integer.MIN_VALUE, -1),
+            null, null));
+    }
+
     public void testTopDocsOnly() throws IOException {
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);

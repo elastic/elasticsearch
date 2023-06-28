@@ -50,6 +50,9 @@ final class QueryPhaseCollector implements Collector {
     QueryPhaseCollector(Collector topDocsCollector, Weight postFilterWeight, int terminateAfter, Collector aggsCollector, Float minScore) {
         this.topDocsCollector = Objects.requireNonNull(topDocsCollector);
         this.postFilterWeight = postFilterWeight;
+        if (terminateAfter < 0) {
+            throw new IllegalArgumentException("terminateAfter must be greater than 0");
+        }
         this.terminateAfter = terminateAfter;
         this.aggsCollector = aggsCollector;
         this.minScore = minScore;

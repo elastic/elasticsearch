@@ -11,6 +11,9 @@ beta::[]
 Given specified query parameters, creates an Elasticsearch query to run. Any unspecified template parameters will be
 assigned their default values if applicable.
 
+If the search engine has an inconsistent state between its alias and configured indices, a warning header will be returned with the response.
+To resolve this inconsistent state, issue an updated <<put-search-application>> command.
+
 [[search-application-search-request]]
 ==== {api-request-title}
 

@@ -32,46 +32,20 @@ import static org.hamcrest.Matchers.closeTo;
 public class IngestLoadProbeTests extends ESTestCase {
 
     public void testCalculateIngestionLoadForExecutor() {
-        assertThat(calculateIngestionLoadForExecutor(0.0, 0.0, 0, TimeValue.timeValueSeconds(10)), closeTo(0.0, 1e-3));
-        assertThat(calculateIngestionLoadForExecutor(1.0, 0.0, 0, TimeValue.timeValueSeconds(10)), closeTo(1.0, 1e-3));
-        // A threadpool of 2 with average task time of 100ms can run 200 tasks per 10 seconds.
-        assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 100, TimeValue.timeValueSeconds(10)),
-            closeTo(2.00, 1e-3)
-        );
-        // Up to 200 (based on maxTimeToClearQueue of 10 sec) is manageable by the current number of threads
-        assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 200, TimeValue.timeValueSeconds(10)),
-            closeTo(2.00, 1e-3)
-        );
-        // We have 1 task more than maxTimeToClearQueue, we'd need roughly 1/100th of a thread more since each thread can do 100 tasks
-        // per maxTimeToClearQueue period.
-        assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 201, TimeValue.timeValueSeconds(10)),
-            closeTo(2.01, 1e-3)
-        );
-        assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 300, TimeValue.timeValueSeconds(10)),
-            closeTo(3.0, 1e-3)
-        );
-        // We have twice as many tasks to handle as a maxTimeToClearQueue period, we'd need twice the threads
-        assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 400, TimeValue.timeValueSeconds(10)),
-            closeTo(4.0, 1e-3)
-        );
-        assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 1000, TimeValue.timeValueSeconds(10)),
-            closeTo(10.0, 1e-3)
-        );
+        final TimeValue maxTimeToClearQueue = TimeValue.timeValueSeconds(10);
+        // Initially average task execution time is 0.0.
+        assertThat(calculateIngestionLoadForExecutor(0.0, 0.0, 0, maxTimeToClearQueue), closeTo(0.0, 1e-3));
         // When there is nothing in the queue, we'd still want to keep up with average load
-        assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 0, TimeValue.timeValueSeconds(10)),
-            closeTo(2.0, 1e-3)
-        );
-        assertThat(
-            calculateIngestionLoadForExecutor(1.0, timeValueMillis(100).nanos(), 0, TimeValue.timeValueSeconds(10)),
-            closeTo(1.0, 1e-3)
-        );
+        assertThat(calculateIngestionLoadForExecutor(1.0, timeValueMillis(100).nanos(), 0, maxTimeToClearQueue), closeTo(1.0, 1e-3));
+        // A threadpool of 2 with average task time of 100ms can run 200 tasks per 10 seconds.
+        assertThat(calculateIngestionLoadForExecutor(0.0, timeValueMillis(100).nanos(), 100, maxTimeToClearQueue), closeTo(1.00, 1e-3));
+        // We have 1 task in the queue, we'd need roughly 1/100th of a thread more since each thread can do 100 tasks
+        // per maxTimeToClearQueue period.
+        assertThat(calculateIngestionLoadForExecutor(1.0, timeValueMillis(100).nanos(), 1, maxTimeToClearQueue), closeTo(1.01, 1e-3));
+        assertThat(calculateIngestionLoadForExecutor(1.0, timeValueMillis(100).nanos(), 100, maxTimeToClearQueue), closeTo(2.00, 1e-3));
+        assertThat(calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 200, maxTimeToClearQueue), closeTo(4.00, 1e-3));
+        assertThat(calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 400, maxTimeToClearQueue), closeTo(6.0, 1e-3));
+        assertThat(calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 1000, maxTimeToClearQueue), closeTo(12.0, 1e-3));
     }
 
     public void testGetIngestionLoad() {
@@ -85,11 +59,12 @@ public class IngestLoadProbeTests extends ESTestCase {
 
         statsPerExecutor.clear();
         // With 200ms per task each thread can do 5 tasks per second
-        // 3 is the existing average load (max threads busy)
-        long queueSizeManageableWithinMaxTime = 5 * MAX_TIME_TO_CLEAR_QUEUE.seconds() * 3;
-        statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), (int) queueSizeManageableWithinMaxTime * 2));
+        var queueEmpty = randomBoolean();
+        int queueSize = queueEmpty ? 0 : 5 * (int) MAX_TIME_TO_CLEAR_QUEUE.seconds();
+        statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), queueSize));
         statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0));
         statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0));
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0 + 3.0, 1e-3));
+        var expectedExtraThreads = queueEmpty ? 0.0 : 1.0;
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0 + expectedExtraThreads, 1e-3));
     }
 }

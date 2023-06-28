@@ -74,6 +74,6 @@ public class IngestLoadProbe {
         double tasksManageablePerThreadWithinMaxTime = maxTimeToClearQueue.nanos() / averageTaskExecutionTime;
         double totalThreadsNeeded = currentQueueSize / tasksManageablePerThreadWithinMaxTime;
         assert totalThreadsNeeded >= 0.0;
-        return Math.max(totalThreadsNeeded, averageWriteLoad);
+        return averageWriteLoad + totalThreadsNeeded;
     }
 }

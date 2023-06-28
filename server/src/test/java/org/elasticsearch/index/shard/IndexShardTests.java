@@ -3811,12 +3811,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertThat(primary.getThreadPool().relativeTimeInMillis(), greaterThan(lastSearchAccess)));
 
         // Make shard search active again and ensure previously index document is visible:
-        CountDownLatch latch = new CountDownLatch(1);
-        primary.ensureShardSearchActive(refreshed -> {
-            assertTrue(refreshed);
-            latch.countDown();
+        long refreshesBefore = primary.refreshStats().getTotal();
+        primary.ensureShardSearchActive(registered -> { assertTrue(registered); });
+        assertBusy(() -> {
+            assertFalse(primary.hasRefreshPending());
+            assertThat(primary.refreshStats().getTotal(), equalTo(refreshesBefore + 1));
         });
-        latch.await();
         assertNotEquals(
             "awaitShardSearchActive must access a searcher to remove search idle state",
             lastSearchAccess,
@@ -3827,19 +3827,19 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
 
-        // No documents were added and shard is search active so makeShardSearchActive(...) should behave like a noop:
+        // No documents were added and shard is search active so ensureShardSearchActive(...) should behave like a noop:
         assertFalse(primary.getEngine().refreshNeeded());
-        CountDownLatch latch1 = new CountDownLatch(1);
-        primary.ensureShardSearchActive(refreshed -> {
-            assertFalse(refreshed);
+        CountDownLatch latch = new CountDownLatch(1);
+        primary.ensureShardSearchActive(registered -> {
+            assertFalse(registered);
             try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
                 assertEquals(2, searcher.getIndexReader().numDocs());
             } finally {
-                latch1.countDown();
+                latch.countDown();
             }
 
         });
-        latch1.await();
+        latch.await();
 
         // Index a document while shard is search active and ensure scheduleRefresh(...) makes documen visible:
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");

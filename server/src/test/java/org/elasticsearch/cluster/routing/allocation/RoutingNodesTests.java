@@ -44,9 +44,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class RoutingNodesTests extends ESAllocationTestCase {
@@ -482,10 +481,10 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, new RoutingChangesObserver() {
         });
 
-        assertThat(routingNodes.node("node-1").getByShardId(shardId), nullValue());
-        assertThat(routingNodes.node("node-2").getByShardId(shardId), nullValue());
+        assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));
+        assertThat(routingNodes.node("node-2").getByShardId(shardId).state(), equalTo(STARTED));
         assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
-        assertThat(routingNodes.unassigned().ignored(), hasSize(1));
+        assertThat(routingNodes.unassigned().ignored(), empty());
     }
 
     private boolean assertShardStats(RoutingNodes routingNodes) {

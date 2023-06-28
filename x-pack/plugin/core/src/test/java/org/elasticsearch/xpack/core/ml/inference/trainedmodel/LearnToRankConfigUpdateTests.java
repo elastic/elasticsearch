@@ -17,11 +17,15 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.NamedQueryExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.NamedQueryExtractorBuilderTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests.randomLearnToRankConfig;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +35,17 @@ import static org.hamcrest.Matchers.is;
 public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCase<LearnToRankConfigUpdate> {
 
     public static LearnToRankConfigUpdate randomLearnToRankConfigUpdate() {
-        return new LearnToRankConfigUpdate(randomBoolean() ? null : randomIntBetween(0, 10), null);
+        return new LearnToRankConfigUpdate(
+            randomBoolean() ? null : randomIntBetween(0, 10),
+            randomBoolean()
+                ? null
+                : Stream.generate(
+                () -> randomFrom(
+                    new LearnToRankConfigTests.TestValueExtractor(randomAlphaOfLength(10)),
+                    NamedQueryExtractorBuilderTests.randomInstance()
+                )
+            ).limit(randomInt(5)).collect(Collectors.toList())
+        );
     }
 
     public void testApply() {
@@ -47,7 +61,7 @@ public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCa
         );
 
         LearnToRankFeatureExtractorBuilder extractorBuilder = new LearnToRankConfigTests.TestValueExtractor("foo");
-        LearnToRankFeatureExtractorBuilder extractorBuilder2 = new LearnToRankConfigTests.TestValueExtractor("bar");
+        LearnToRankFeatureExtractorBuilder extractorBuilder2 = new NamedQueryExtractorBuilder("bar", "bar_bm25");
 
         LearnToRankConfig config = new LearnToRankConfigUpdate.Builder().setNumTopFeatureImportanceValues(1)
             .setFeatureExtractorBuilders(List.of(extractorBuilder2, extractorBuilder))

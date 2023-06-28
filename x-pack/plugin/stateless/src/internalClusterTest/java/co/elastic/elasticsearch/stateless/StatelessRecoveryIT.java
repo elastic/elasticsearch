@@ -130,7 +130,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         testTranslogRecovery(false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/pull/456")
     public void testRelocatingIndexShards() throws Exception {
         final var numShards = randomIntBetween(1, 3);
         final var indexNodes = startIndexNodes(Math.max(2, numShards));

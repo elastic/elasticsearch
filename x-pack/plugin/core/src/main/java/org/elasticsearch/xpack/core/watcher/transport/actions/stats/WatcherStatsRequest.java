@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,11 +55,6 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
     public void includeStats(boolean includeStats) {
         this.includeStats = includeStats;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

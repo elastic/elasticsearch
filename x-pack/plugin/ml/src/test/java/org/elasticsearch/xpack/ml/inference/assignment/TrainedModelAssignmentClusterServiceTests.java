@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -1467,10 +1468,16 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(name, isML, nativeMemory, allocatedProcessors, Version.CURRENT);
+        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT);
     }
 
-    private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors, Version version) {
+    private static DiscoveryNode buildNode(
+        String name,
+        boolean isML,
+        long nativeMemory,
+        int allocatedProcessors,
+        VersionInformation version
+    ) {
         return new DiscoveryNode(
             name,
             name,
@@ -1490,7 +1497,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(name, isML, nativeMemory, allocatedProcessors, Version.V_7_15_0);
+        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.inferVersions(Version.V_7_15_0));
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {

@@ -21,9 +21,9 @@ highlight:
   thread will just need to wait for refreshes to be completed on shards that have relevant data. Note that execution
   of the shard pre-filter and the corresponding \"can match\" phase where rewriting happens, depends on the overall\
   number of shards involved and on whether there is at least one of them returning a non-empty\ result (see\
-  'pre_filter_shard_size' setting to understand how to control this behaviour). We do the rewrite operation on the data\
-  node in the so called \"can match\" phase, taking advantage of the fact that, at that moment, we can access the\
-  index mapping and extract information about constant keyword fields and their value. This means we still\"fan-out\"\
-  search queries from the coordinator node to involved data nodes. Rewriting queries based on index mappings\
-  is not possible on the coordinator node because the coordinator node is missing index mapping information."
+  'pre_filter_shard_size' setting to understand how to control this behaviour). Elasticsearch does the rewrite\
+  operation on the data node in the so called \"can match\" phase, taking advantage of the fact that, at that moment,\
+  we can access index mappings and extract information about constant keyword fields and their value. This means we\
+  still\"fan-out\" search queries from the coordinator node to involved data nodes. Rewriting queries based on index\
+  mappings is not possible on the coordinator node because the coordinator node is missing index mapping information."
   notable: true

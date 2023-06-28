@@ -402,16 +402,17 @@ public class DiscoveryNodesTests extends ESTestCase {
         abstract Set<String> matchingNodeIds(DiscoveryNodes nodes);
     }
 
-    public void testMaxMinNodeVersions() {
+    public void testMinMaxNodeVersions() {
         assertEquals(Version.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxNodeVersion());
         assertEquals(Version.CURRENT.minimumCompatibilityVersion(), DiscoveryNodes.EMPTY_NODES.getMinNodeVersion());
         assertEquals(IndexVersion.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxDataNodeCompatibleIndexVersion());
         assertEquals(IndexVersion.MINIMUM_COMPATIBLE, DiscoveryNodes.EMPTY_NODES.getMinSupportedIndexVersion());
 
+        // use a mix of versions with major, minor, and patch numbers
         List<VersionInformation> dataVersions = List.of(
             new VersionInformation(Version.fromString("3.2.5"), IndexVersion.fromId(2000099), IndexVersion.fromId(3020599)),
             new VersionInformation(Version.fromString("3.0.7"), IndexVersion.fromId(2000099), IndexVersion.fromId(3000799)),
-            new VersionInformation(Version.fromString("2.1.0"), IndexVersion.fromId(1000099), IndexVersion.fromId(2010099))
+            new VersionInformation(Version.fromString("2.1.0"), IndexVersion.fromId(1050099), IndexVersion.fromId(2010099))
         );
         List<VersionInformation> observerVersions = List.of(
             new VersionInformation(Version.fromString("5.0.17"), IndexVersion.fromId(0), IndexVersion.fromId(5001799)),
@@ -435,9 +436,9 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         assertEquals(Version.fromString("5.0.17"), build.getMaxNodeVersion());
         assertEquals(Version.fromString("1.6.0"), build.getMinNodeVersion());
-        assertEquals(Version.fromString("2.1.0"), build.getSmallestNonClientNodeVersion());
-        assertEquals(IndexVersion.fromId(2010099), build.getMaxDataNodeCompatibleIndexVersion());
-        assertEquals(IndexVersion.fromId(2000099), build.getMinSupportedIndexVersion());
+        assertEquals(Version.fromString("2.1.0"), build.getSmallestNonClientNodeVersion());  // doesn't include 1.6.0 observer
+        assertEquals(IndexVersion.fromId(2010099), build.getMaxDataNodeCompatibleIndexVersion());   // doesn't include 2000199 observer
+        assertEquals(IndexVersion.fromId(2000099), build.getMinSupportedIndexVersion());            // also includes observers
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

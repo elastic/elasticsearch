@@ -166,7 +166,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public void testTypeAndFriendsAreDeprecatedFrom_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_6_0, IndexVersion.CURRENT);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_6_0, IndexVersion.current());
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they are now deprecated in new indices

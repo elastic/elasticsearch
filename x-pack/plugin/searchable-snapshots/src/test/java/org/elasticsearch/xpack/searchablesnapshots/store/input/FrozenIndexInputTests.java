@@ -55,7 +55,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(10),
-            new StoreFileMetadata(fileName, fileData.length, checksum, IndexVersion.CURRENT.luceneVersion().toString()),
+            new StoreFileMetadata(fileName, fileData.length, checksum, IndexVersion.current().luceneVersion().toString()),
             ByteSizeValue.ofBytes(fileData.length)
         );
 

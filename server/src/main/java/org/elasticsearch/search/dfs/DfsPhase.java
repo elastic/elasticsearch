@@ -41,6 +41,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -195,31 +196,43 @@ public class DfsPhase {
         context.dfsResult().knnResults(knnResults);
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int numHits, Profilers profilers, ContextIndexSearcher searcher)
+    /**
+     * @param <C> the type of collector
+     * @param <R> the #reduce() return type
+     */
+    static class CollectorManagerAdapter<C extends Collector, R> implements CollectorManager<C, Void> {
+
+        private final CollectorManager<C, R> wrapped;
+        private final Consumer<R> resultConsumer;
+
+        CollectorManagerAdapter(CollectorManager<C, R> in, Consumer<R> resultConsumer) {
+            this.wrapped = in;
+            this.resultConsumer = resultConsumer;
+        }
+
+
+        @Override
+        public C newCollector() throws IOException {
+            return wrapped.newCollector();
+        }
+
+        @Override
+        public Void reduce(Collection<C> collectors) throws IOException {
+            resultConsumer.accept(wrapped.reduce(collectors));
+            return null;
+        }
+    }
+
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher)
         throws IOException {
         final TopDocs[] topDocs = new TopDocs[1];
-        CollectorManager<TopScoreDocCollector, Void> topDocsCollectorManager = new CollectorManager<>() {
+        CollectorManager<? extends Collector, Void> cm  = new CollectorManagerAdapter<>(
+            TopScoreDocCollector.createSharedManager(k, null, Integer.MAX_VALUE),
+            res -> topDocs[0] = res
+        );
 
-            final CollectorManager<TopScoreDocCollector, TopDocs> wrapped = TopScoreDocCollector.createSharedManager(
-                numHits,
-                null,
-                Integer.MAX_VALUE
-            );
-
-            @Override
-            public TopScoreDocCollector newCollector() throws IOException {
-                return wrapped.newCollector();
-            }
-
-            @Override
-            public Void reduce(Collection<TopScoreDocCollector> collectors) throws IOException {
-                topDocs[0] = wrapped.reduce(collectors);
-                return null;
-            }
-        };
-        CollectorManager<? extends Collector, Void> cm = topDocsCollectorManager;
         if (profilers != null) {
-            ProfileCollectorManager ipcm = new ProfileCollectorManager(topDocsCollectorManager, CollectorResult.REASON_SEARCH_TOP_HITS);
+            ProfileCollectorManager ipcm = new ProfileCollectorManager(cm, CollectorResult.REASON_SEARCH_TOP_HITS);
             QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler(ipcm);
             cm = ipcm;
             // Set the current searcher profiler to gather query profiling information for gathering top K docs

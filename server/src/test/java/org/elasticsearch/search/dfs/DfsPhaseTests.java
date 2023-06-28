@@ -17,6 +17,7 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.Profilers;
@@ -27,6 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -83,11 +85,13 @@ public class DfsPhaseTests extends ESTestCase {
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
             Profilers profilers = new Profilers(searcher);
-            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, numDocs, profilers, searcher);
-            assertEquals(numDocs, dfsKnnResults.scoreDocs().length);
+            int k = 10;
+            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher);
+            assertEquals(k, dfsKnnResults.scoreDocs().length);
+            System.out.println(Arrays.asList(dfsKnnResults.scoreDocs()));
 
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
-            // System.out.println(Strings.toString(searchProfileDfsPhaseResult, true, false));
+            System.out.println(Strings.toString(searchProfileDfsPhaseResult, true, false));
 
             reader.close();
         }

@@ -359,7 +359,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 indexId
             )
         );

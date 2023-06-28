@@ -277,7 +277,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     final long nowMillis = threadPool.absoluteTimeInMillis();
                     snapshotsDetails.put(
                         indexName,
-                        new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, IndexVersion.CURRENT, nowMillis, nowMillis, "")
+                        new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, IndexVersion.current(), nowMillis, nowMillis, "")
                     );
                     indexSnapshots.put(new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()), List.of(snapshotId));
                 }

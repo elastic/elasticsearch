@@ -111,7 +111,7 @@ public class RepositoryDataTests extends ESTestCase {
             newSnapshot,
             new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -143,7 +143,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId.getUUID(),
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                    randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -211,7 +211,7 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotId,
             new RepositoryData.SnapshotDetails(
                 state,
-                randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -393,7 +393,7 @@ public class RepositoryDataTests extends ESTestCase {
 
         final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
             SnapshotState.SUCCESS,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomAlphaOfLength(10)
@@ -456,7 +456,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId,
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                    randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)

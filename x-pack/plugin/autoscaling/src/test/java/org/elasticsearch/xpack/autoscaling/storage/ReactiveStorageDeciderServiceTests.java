@@ -418,7 +418,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID())),
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             new IndexId(randomAlphaOfLength(5), UUIDs.randomBase64UUID())
         );
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))

@@ -516,7 +516,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     new RecoverySource.SnapshotRecoverySource(
                         UUIDs.randomBase64UUID(),
                         snapshot,
-                        IndexVersion.CURRENT,
+                        IndexVersion.current(),
                         new IndexId("test", UUIDs.randomBase64UUID(random()))
                     )
                 );

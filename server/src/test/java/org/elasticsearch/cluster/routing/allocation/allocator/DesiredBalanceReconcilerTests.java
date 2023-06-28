@@ -557,7 +557,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
             new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID(random()))),
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             new IndexId("index", UUIDs.randomBase64UUID(random()))
         );
         routingTable.addAsRestore(restoredIndexMetadata, recoverySource);

@@ -231,7 +231,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         return new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             snapshot,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             new IndexId("test", UUIDs.randomBase64UUID(random()))
         );
     }

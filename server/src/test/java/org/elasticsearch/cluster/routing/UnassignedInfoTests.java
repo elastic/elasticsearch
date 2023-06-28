@@ -353,7 +353,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-                            IndexVersion.CURRENT,
+                            IndexVersion.current(),
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         ),
                         new HashSet<>()
@@ -437,7 +437,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-                            IndexVersion.CURRENT,
+                            IndexVersion.current(),
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         )
                     )

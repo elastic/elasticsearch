@@ -207,7 +207,7 @@ public class RestoreServiceTests extends ESTestCase {
             List.of(),
             List.of(),
             randomAlphaOfLengthBetween(10, 100),
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             shards,

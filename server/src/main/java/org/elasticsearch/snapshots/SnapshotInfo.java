@@ -188,7 +188,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             }
 
             SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
-            IndexVersion version = this.version == -1 ? IndexVersion.CURRENT : IndexVersion.fromId(this.version);
+            IndexVersion version = this.version == -1 ? IndexVersion.current() : IndexVersion.fromId(this.version);
 
             int totalShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getTotalShards();
             int successfulShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getSuccessfulShards();
@@ -389,7 +389,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             entry.dataStreams(),
             entry.featureStates(),
             null,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             entry.startTime(),
             0L,
             totalShards,
@@ -422,7 +422,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             dataStreams,
             featureStates,
             reason,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             startTime,
             endTime,
             totalShards,
@@ -903,7 +903,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     public static SnapshotInfo fromXContentInternal(final String repoName, final XContentParser parser) throws IOException {
         String name = null;
         String uuid = null;
-        IndexVersion version = IndexVersion.CURRENT;
+        IndexVersion version = IndexVersion.current();
         SnapshotState state = SnapshotState.IN_PROGRESS;
         String reason = null;
         List<String> indices = Collections.emptyList();

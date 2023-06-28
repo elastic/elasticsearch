@@ -425,7 +425,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
             new Snapshot("_repo", new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID(random()))),
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             new IndexId(indexName, UUIDs.randomBase64UUID(random()))
         );
 

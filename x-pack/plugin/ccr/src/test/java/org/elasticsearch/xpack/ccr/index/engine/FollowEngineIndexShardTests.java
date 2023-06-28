@@ -134,7 +134,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );

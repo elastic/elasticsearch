@@ -294,7 +294,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), equalTo(IndexVersion.CURRENT));
+        assertThat(snapshotInfo.version(), equalTo(IndexVersion.current()));
 
         // Test restore after index deletion
         logger.info("--> delete indices");

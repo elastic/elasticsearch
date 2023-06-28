@@ -345,7 +345,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             new RecoverySource.SnapshotRecoverySource(
                                 UUIDs.randomBase64UUID(),
                                 new Snapshot("test", new SnapshotId("s1", UUIDs.randomBase64UUID())),
-                                IndexVersion.CURRENT,
+                                IndexVersion.current(),
                                 new IndexId("test", UUIDs.randomBase64UUID(random()))
                             ),
                             otherRouting.unassignedInfo(),

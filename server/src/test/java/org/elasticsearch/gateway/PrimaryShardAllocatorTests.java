@@ -476,7 +476,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     snapshot,
-                    IndexVersion.CURRENT,
+                    IndexVersion.current(),
                     new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
                 )
             )

@@ -398,7 +398,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
-                Strings.toString(jsonBuilder).replace(IndexVersion.CURRENT.toString(), versionString(version))
+                Strings.toString(jsonBuilder).replace(IndexVersion.current().toString(), versionString(version))
             ),
             repositoryData.getGenId(),
             randomBoolean()
@@ -413,7 +413,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
-                    .replace(String.valueOf(IndexVersion.CURRENT.id()), String.valueOf(version.id))
+                    .replace(String.valueOf(IndexVersion.current().id()), String.valueOf(version.id))
             )
         );
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);

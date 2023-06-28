@@ -1137,7 +1137,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsNewRestore(
                         indexMetadata,
-                        new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, IndexVersion.CURRENT, indexId),
+                        new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, IndexVersion.current(), indexId),
                         new HashSet<>()
                     )
                     .build()

@@ -1374,7 +1374,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),
-                    IndexVersion.CURRENT,
+                    IndexVersion.current(),
                     snapshotInfo.startTime(),
                     snapshotInfo.endTime(),
                     slmPolicy

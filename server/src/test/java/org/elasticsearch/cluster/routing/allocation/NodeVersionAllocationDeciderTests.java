@@ -450,7 +450,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsRestore(
                         metadata.index("test"),
-                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.CURRENT, indexId)
+                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId)
                     )
                     .build()
             )

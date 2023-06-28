@@ -387,7 +387,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             restoreUUID,
                             snapshot,
-                            IndexVersion.CURRENT,
+                            IndexVersion.current(),
                             new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
                         ),
                         new HashSet<>()
@@ -400,7 +400,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             restoreUUID,
                             snapshot,
-                            IndexVersion.CURRENT,
+                            IndexVersion.current(),
                             new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
                         )
                     );

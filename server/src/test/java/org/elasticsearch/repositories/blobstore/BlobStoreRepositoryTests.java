@@ -304,7 +304,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         final Consumer<RepositoryData.SnapshotDetails> snapshotDetailsAsserter = snapshotDetails -> {
             assertThat(snapshotDetails.getSnapshotState(), equalTo(SnapshotState.PARTIAL));
-            assertThat(snapshotDetails.getVersion(), equalTo(IndexVersion.CURRENT));
+            assertThat(snapshotDetails.getVersion(), equalTo(IndexVersion.current()));
             assertThat(snapshotDetails.getStartTimeMillis(), allOf(greaterThanOrEqualTo(beforeStartTime), lessThanOrEqualTo(afterEndTime)));
             assertThat(
                 snapshotDetails.getEndTimeMillis(),
@@ -328,7 +328,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repositoryData.withExtraDetails(
                 Collections.singletonMap(
                     snapshotId,
-                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, IndexVersion.CURRENT, -1, -1, null)
+                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, IndexVersion.current(), -1, -1, null)
                 )
             ),
             repositoryData.getGenId()
@@ -384,7 +384,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
             final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)

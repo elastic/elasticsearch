@@ -688,7 +688,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 new RecoverySource.SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
-                    IndexVersion.CURRENT,
+                    IndexVersion.current(),
                     new IndexId("some_index", UUIDs.randomBase64UUID(random()))
                 )
             );

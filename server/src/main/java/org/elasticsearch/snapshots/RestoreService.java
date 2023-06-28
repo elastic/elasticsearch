@@ -989,7 +989,7 @@ public class RestoreService implements ClusterStateApplier {
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
-        if (IndexVersion.CURRENT.before(snapshotInfo.version())) {
+        if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["

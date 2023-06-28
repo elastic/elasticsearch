@@ -678,7 +678,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                     ((SnapshotRecoverySource) recoveryState.getRecoverySource()).restoreUUID(),
                     new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
-                    IndexVersion.CURRENT,
+                    IndexVersion.current(),
                     repositoryData.resolveIndexId(INDEX_NAME)
                 );
                 assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA);

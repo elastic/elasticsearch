@@ -219,7 +219,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         assertThat(snapshotInfos.size(), Matchers.equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), Matchers.equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), Matchers.equalTo(IndexVersion.CURRENT));
+        assertThat(snapshotInfo.version(), Matchers.equalTo(IndexVersion.current()));
 
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();

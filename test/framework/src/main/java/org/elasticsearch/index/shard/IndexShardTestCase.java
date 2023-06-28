@@ -1033,7 +1033,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     /** Recover a shard from a snapshot using a given repository **/
     protected void recoverShardFromSnapshot(final IndexShard shard, final Snapshot snapshot, final Repository repository) {
-        final IndexVersion version = IndexVersion.CURRENT;
+        final IndexVersion version = IndexVersion.current();
         final ShardId shardId = shard.shardId();
         final IndexId indexId = new IndexId(shardId.getIndex().getName(), shardId.getIndex().getUUID());
         final DiscoveryNode node = getFakeDiscoNode(shard.routingEntry().currentNodeId());

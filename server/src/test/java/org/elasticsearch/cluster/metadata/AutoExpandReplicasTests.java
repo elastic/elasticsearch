@@ -186,7 +186,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                             buildNewFakeTransportAddress(),
                             n.getAttributes(),
                             n.getRoles(),
-                            n.getVersion()
+                            n.getVersionInformation()
                         )
                     )
                     .collect(Collectors.toCollection(ArrayList::new));

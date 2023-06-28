@@ -767,18 +767,18 @@ public class MetadataTests extends ESTestCase {
     public void testOldestIndexComputation() {
         Metadata metadata = buildIndicesWithVersions(
             IndexVersion.V_7_0_0,
-            IndexVersion.CURRENT,
-            IndexVersion.fromId(IndexVersion.CURRENT.id() + 1)
+            IndexVersion.current(),
+            IndexVersion.fromId(IndexVersion.current().id() + 1)
         ).build();
 
         assertEquals(IndexVersion.V_7_0_0, metadata.oldestIndexVersion());
 
         Metadata.Builder b = Metadata.builder();
-        assertEquals(IndexVersion.CURRENT, b.build().oldestIndexVersion());
+        assertEquals(IndexVersion.current(), b.build().oldestIndexVersion());
 
         Throwable ex = expectThrows(
             IllegalArgumentException.class,
-            () -> buildIndicesWithVersions(IndexVersion.V_7_0_0, IndexVersion.ZERO, IndexVersion.fromId(IndexVersion.CURRENT.id() + 1))
+            () -> buildIndicesWithVersions(IndexVersion.V_7_0_0, IndexVersion.ZERO, IndexVersion.fromId(IndexVersion.current().id() + 1))
                 .build()
         );
 
@@ -803,7 +803,7 @@ public class MetadataTests extends ESTestCase {
 
     private static IndexMetadata.Builder buildIndexMetadata(String name, String alias, Boolean writeIndex) {
         return IndexMetadata.builder(name)
-            .settings(settings(IndexVersion.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .creationDate(randomNonNegativeLong())
             .putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex))
             .numberOfShards(1)

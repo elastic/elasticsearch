@@ -9,6 +9,7 @@
 package org.elasticsearch.internal;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.ServiceLoader;
 
@@ -22,6 +23,13 @@ public interface VersionExtension {
      * This must be at least equal to the latest version found in {@link TransportVersion} V_* constants.
      */
     TransportVersion getCurrentTransportVersion();
+
+    /**
+     * Returns the {@link IndexVersion} that Elasticsearch should use.
+     * <p>
+     * This must be at least equal to the latest version found in {@link IndexVersion} V_* constants.
+     */
+    IndexVersion getCurrentIndexVersion();
 
     /**
      * Loads a single VersionExtension, or returns {@code null} if none are found.

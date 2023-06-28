@@ -29,86 +29,56 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.LongSupplier;
 
 public class ShardSizeStatsReader {
 
     private static final Logger logger = LogManager.getLogger(ShardSizeStatsReader.class);
 
-    private final IndicesService indicesService;
     private final LongSupplier currentTimeMillsSupplier;
 
     private long interactiveDataAge = TimeValue.timeValueDays(7).millis();// TODO ES-6224 make it a cluster setting
 
-    public ShardSizeStatsReader(ClusterSettings clusterSettings, LongSupplier currentTimeMillsSupplier, IndicesService indicesService) {
+    public ShardSizeStatsReader(ClusterSettings clusterSettings, LongSupplier currentTimeMillsSupplier) {
         // TODO ES-6224 listen for a changes to interactive data age via clusterSettings
-        // Make sure all sizes are pushed to elected master when this value changes
-        this.indicesService = indicesService;
         this.currentTimeMillsSupplier = currentTimeMillsSupplier;
     }
 
-    public ShardSizeStatsReader(ClusterService clusterService, ThreadPool threadPool, IndicesService indicesService) {
-        this(clusterService.getClusterSettings(), threadPool::relativeTimeInMillis, indicesService);
-    }
-
-    public Map<ShardId, ShardSize> getAllShardSizes() {
-        var sizes = new HashMap<ShardId, ShardSize>();
-        for (var indexService : indicesService) {
-            for (var indexShard : indexService) {
-                var shardSize = getShardSize(indexShard);
-                if (shardSize != null) {
-                    sizes.put(indexShard.shardId(), shardSize);
-                }
-            }
-        }
-        return sizes;
+    public ShardSizeStatsReader(ClusterService clusterService, ThreadPool threadPool) {
+        this(clusterService.getClusterSettings(), threadPool::relativeTimeInMillis);
     }
 
     /**
      * @return the ShardSize of the shard or {@code null} if operation could not be performed
      */
     @Nullable
-    public ShardSize getShardSize(ShardId shardId) {
-        return getShardSize(indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id()));
-    }
-
-    @Nullable
     public ShardSize getShardSize(IndexShard indexShard) {
         if (isSizeAvailable(indexShard.state()) == false) {
             return null;
         }
 
-        try {
-            try (var searcher = indexShard.acquireSearcher("shard_stats")) {
-                var interactiveSize = 0L;
-                var nonInteractiveSize = 0L;
+        try (var searcher = indexShard.acquireSearcher("shard_stats")) {
+            var interactiveSize = 0L;
+            var nonInteractiveSize = 0L;
 
-                final long currentTimeMillis = currentTimeMillsSupplier.getAsLong();
-                final long currentInteractiveDataAge = interactiveDataAge;
-                for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-                    var segmentSize = Lucene.segmentReader(ctx.reader()).getSegmentInfo().sizeInBytes();
-                    if (isInteractive(ctx.reader(), currentTimeMillis, currentInteractiveDataAge)) {
-                        interactiveSize += segmentSize;
-                    } else {
-                        nonInteractiveSize += segmentSize;
-                    }
+            final long currentTimeMillis = currentTimeMillsSupplier.getAsLong();
+            final long currentInteractiveDataAge = interactiveDataAge;
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                var segmentSize = Lucene.segmentReader(ctx.reader()).getSegmentInfo().sizeInBytes();
+                if (isInteractive(ctx.reader(), currentTimeMillis, currentInteractiveDataAge)) {
+                    interactiveSize += segmentSize;
+                } else {
+                    nonInteractiveSize += segmentSize;
                 }
-                return new ShardSize(interactiveSize, nonInteractiveSize);
-            } catch (IOException e) {
-                logger.warn("Failed to read shard size stats for {}", indexShard.shardId(), e);
-                return null;
             }
-        } catch (Exception e) {
-            logger.warn("Failed to acquire searcher for {}", indexShard.shardId(), e);
+            return new ShardSize(interactiveSize, nonInteractiveSize);
+        } catch (IOException e) {
+            logger.warn("Failed to read shard size stats for {}", indexShard.shardId());
             return null;
         }
     }

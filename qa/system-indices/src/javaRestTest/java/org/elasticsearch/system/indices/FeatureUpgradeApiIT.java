@@ -61,7 +61,7 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
             .orElse(Collections.emptyMap());
 
         assertThat(testFeature.size(), equalTo(4));
-        assertThat(testFeature.get("minimum_index_version"), equalTo(IndexVersion.CURRENT.toString()));
+        assertThat(testFeature.get("minimum_index_version"), equalTo(IndexVersion.current().toString()));
         assertThat(testFeature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));
         assertThat(testFeature.get("indices"), instanceOf(List.class));
 

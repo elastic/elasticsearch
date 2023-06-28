@@ -129,7 +129,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         IndexVersion minimumVersion = indexInfos.stream()
             .map(GetFeatureUpgradeStatusResponse.IndexInfo::getVersion)
             .min(IndexVersion::compareTo)
-            .orElse(IndexVersion.CURRENT);
+            .orElse(IndexVersion.current());
         GetFeatureUpgradeStatusResponse.UpgradeStatus initialStatus;
         if (featureName.equals(currentFeature)) {
             initialStatus = IN_PROGRESS;

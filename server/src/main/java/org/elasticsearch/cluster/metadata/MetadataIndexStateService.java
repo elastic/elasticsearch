@@ -1136,10 +1136,7 @@ public class MetadataIndexStateService {
 
                     // The index might be closed because we couldn't import it due to an old incompatible
                     // version, so we need to verify its compatibility.
-                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
-                        newIndexMetadata,
-                        minIndexCompatibilityVersion.toVersion()
-                    );
+                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(newIndexMetadata, minIndexCompatibilityVersion);
                     try {
                         indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);
                     } catch (Exception e) {

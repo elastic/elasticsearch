@@ -155,7 +155,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
-    private final SetOnce<ThreadPool> threadPoolHolder = new SetOnce<>();
 
     @Override
     public Collection<Object> createComponents(
@@ -176,7 +175,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     ) {
         this.scriptServiceHolder.set(scriptService);
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(client));
-        this.threadPoolHolder.set(threadPool);
         return Collections.emptyList();
     }
 
@@ -342,22 +340,11 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("stemmer", StemmerTokenFilterFactory::new);
         filters.put(
             "synonym",
-            requiresAnalysisSettings(
-                (i, e, n, s) -> new SynonymTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get(), threadPoolHolder.get())
-            )
+            requiresAnalysisSettings((i, e, n, s) -> new SynonymTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get()))
         );
         filters.put(
             "synonym_graph",
-            requiresAnalysisSettings(
-                (i, e, n, s) -> new SynonymGraphTokenFilterFactory(
-                    i,
-                    e,
-                    n,
-                    s,
-                    synonymsManagementServiceHolder.get(),
-                    threadPoolHolder.get()
-                )
-            )
+            requiresAnalysisSettings((i, e, n, s) -> new SynonymGraphTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get()))
         );
         filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("truncate", requiresAnalysisSettings(TruncateTokenFilterFactory::new));

@@ -45,12 +45,14 @@ public interface TokenFilterFactory {
      * @param charFilters           any CharFilterFactories for the preceding chain
      * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
      * @param allFilters            access to previously defined TokenFilterFactories
+     * @param loadFromResources     whether to load from external resources or not
      */
     default TokenFilterFactory getChainAwareTokenFilterFactory(
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        boolean loadFromResources
     ) {
         return this;
     }

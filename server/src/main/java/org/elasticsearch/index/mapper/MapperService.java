@@ -525,6 +525,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().isMultiField(field);
     }
 
+    /**
+     * Initialize analyzers from external resources.
+     * This is called during index creation in shard recovery where it is safe to load from external resources.
+     *
+     * This is called multiple times for multiple shards of the index,
+     * but as indexAnalyzers are shared by all the shards,
+     * {@link IndexAnalyzers#initializeFromResources} method must ensure that loading from resources happens only once.
+     */
+    public synchronized void initializeAnalyzersFromResources() {
+        indexAnalyzers.initializeFromResources();
+    }
+
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, String resource) throws IOException {
         logger.info("reloading search analyzers");
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722

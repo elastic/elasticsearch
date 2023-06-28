@@ -272,7 +272,7 @@ public final class AnalysisRegistry implements Closeable {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            });
+            }, false);
             tokenFilterFactories.add(tff);
         }
 

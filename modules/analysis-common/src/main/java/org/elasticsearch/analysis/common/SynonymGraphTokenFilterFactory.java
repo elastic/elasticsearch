@@ -20,7 +20,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.function.Function;
@@ -32,10 +31,9 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         Environment env,
         String name,
         Settings settings,
-        SynonymsManagementAPIService synonymsManagementAPIService,
-        ThreadPool threadPool
+        SynonymsManagementAPIService synonymsManagementAPIService
     ) {
-        super(indexSettings, env, name, settings, synonymsManagementAPIService, threadPool);
+        super(indexSettings, env, name, settings, synonymsManagementAPIService);
     }
 
     @Override
@@ -48,13 +46,14 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        boolean loadFromResources
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment);
+        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment, loadFromResources);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
-        return new TokenFilterFactory() {
+        return new SynonymGraphTokenFilterFactory(indexSettings, environment, name, settings, synonymsManagementAPIService) {
             @Override
             public String name() {
                 return name;
@@ -76,5 +75,4 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             }
         };
     }
-
 }

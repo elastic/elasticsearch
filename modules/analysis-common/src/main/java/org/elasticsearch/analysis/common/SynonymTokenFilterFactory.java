@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Reader;
 import java.io.StringReader;
@@ -38,24 +36,24 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SynonymTokenFilterFactory.class);
 
+    final IndexSettings indexSettings;
     private final String format;
     private final boolean expand;
     private final boolean lenient;
     protected final Settings settings;
     protected final Environment environment;
     protected final AnalysisMode analysisMode;
-    private final SynonymsManagementAPIService synonymsManagementAPIService;
-    private final ThreadPool threadPool;
+    final SynonymsManagementAPIService synonymsManagementAPIService;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
         Environment env,
         String name,
         Settings settings,
-        SynonymsManagementAPIService synonymsManagementAPIService,
-        ThreadPool threadPool
+        SynonymsManagementAPIService synonymsManagementAPIService
     ) {
         super(name, settings);
+        this.indexSettings = indexSettings;
         this.settings = settings;
 
         if (settings.get("ignore_case") != null) {
@@ -73,7 +71,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
-        this.threadPool = threadPool;
     }
 
     @Override
@@ -91,13 +88,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        boolean loadFromResources
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment);
+        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment, loadFromResources);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
-        return new TokenFilterFactory() {
+        return new SynonymTokenFilterFactory(indexSettings, environment, name, settings, synonymsManagementAPIService) {
             @Override
             public String name() {
                 return name;
@@ -156,7 +154,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    protected ReaderWithOrigin getRulesFromSettings(Environment env) {
+    protected ReaderWithOrigin getRulesFromSettings(Environment env, boolean loadFromResources) {
         if (settings.getAsList("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
@@ -171,15 +169,16 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 );
             }
             String synonymsSet = settings.get("synonyms_set", null);
-            // provide fake synonyms on master thread, as on Master an analyzer is built for validation only
-            if (MasterService.isMasterUpdateThread()) {
+            // provide fake synonyms when we can't load them (used when we are on master or cluster applier threads)
+            if (loadFromResources == false) {
                 return new ReaderWithOrigin(
                     new StringReader("fake rule => fake"),
-                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index"
+                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index",
+                    synonymsSet
                 );
             }
             return new ReaderWithOrigin(
-                Analysis.getReaderFromIndex(synonymsSet, threadPool, synonymsManagementAPIService),
+                Analysis.getReaderFromIndex(synonymsSet, synonymsManagementAPIService),
                 "[" + synonymsSet + "] synonyms_set in .synonyms index",
                 synonymsSet
             );

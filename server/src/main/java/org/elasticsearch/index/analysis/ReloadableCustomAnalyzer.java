@@ -16,7 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -136,8 +139,38 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
-        AnalyzerComponents components = AnalyzerComponents.createComponents(name, settings, tokenizers, charFilters, tokenFilters);
+        AnalyzerComponents components = AnalyzerComponents.createComponents(name, settings, tokenizers, charFilters, tokenFilters, true);
         this.components = components;
+    }
+
+    /**
+     * Load this analyzer from external resources if applicable.
+     * Currently only token filters can be initialized based on external resources.
+     *
+     * This is called during index creation in shard recovery where it is safe to load from external resources.
+     */
+    void initializeFromResources() {
+        if (resources == null) return;
+
+        TokenFilterFactory[] tokenFilters = components.getTokenFilters();
+        List<TokenFilterFactory> newTokenFilters = new ArrayList<>(tokenFilters.length);
+        for (TokenFilterFactory tokenFilter : tokenFilters) {
+            TokenFilterFactory newTokenFilter = tokenFilter.getChainAwareTokenFilterFactory(
+                components.getTokenizerFactory(),
+                Arrays.stream(components.getCharFilters()).toList(),
+                newTokenFilters,
+                null,
+                true
+            );
+            newTokenFilters.add(newTokenFilter);
+        }
+
+        AnalyzerComponents newComponents = new AnalyzerComponents(
+            components.getTokenizerFactory(),
+            components.getCharFilters(),
+            newTokenFilters.toArray(new TokenFilterFactory[0])
+        );
+        this.components = newComponents;
     }
 
     @Override

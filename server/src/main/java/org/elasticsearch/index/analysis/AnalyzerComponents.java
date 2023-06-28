@@ -44,6 +44,17 @@ public final class AnalyzerComponents {
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
+        return createComponents(name, analyzerSettings, tokenizers, charFilters, tokenFilters, false);
+    }
+
+    static AnalyzerComponents createComponents(
+        String name,
+        Settings analyzerSettings,
+        final Map<String, TokenizerFactory> tokenizers,
+        final Map<String, CharFilterFactory> charFilters,
+        final Map<String, TokenFilterFactory> tokenFilters,
+        boolean loadFromResources
+    ) {
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");
@@ -77,7 +88,13 @@ public final class AnalyzerComponents {
                     "Custom Analyzer [" + name + "] failed to find filter under name " + "[" + tokenFilterName + "]"
                 );
             }
-            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
+            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(
+                tokenizer,
+                charFiltersList,
+                tokenFilterList,
+                tokenFilters::get,
+                loadFromResources
+            );
             tokenFilterList.add(tokenFilter);
         }
 

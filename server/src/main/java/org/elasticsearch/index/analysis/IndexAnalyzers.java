@@ -93,6 +93,11 @@ public interface IndexAnalyzers extends Closeable {
     }
 
     /**
+     * Initialize analyzers based on loading data from external resources
+     */
+    default void initializeFromResources() {}
+
+    /**
      * Reload any analyzers that have reloadable components
      */
     default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings, String resource) throws IOException {
@@ -115,6 +120,8 @@ public interface IndexAnalyzers extends Closeable {
         Map<String, NamedAnalyzer> whitespaceNormalizers
     ) {
         return new IndexAnalyzers() {
+            private volatile boolean initialized = false;
+
             @Override
             public NamedAnalyzer getAnalyzer(AnalyzerType type, String name) {
                 return switch (type) {
@@ -159,6 +166,23 @@ public interface IndexAnalyzers extends Closeable {
                 }
 
                 return reloadableAnalyzers.stream().map(NamedAnalyzer::name).toList();
+            }
+
+            /**
+             * Initialize analyzers from external resources if applicable.
+             * This is called during index creation in shard recovery.
+             */
+            @Override
+            public void initializeFromResources() {
+                // we need to do initialization only once, even if this is called by multiple shards,
+                // as all shards of the same index share the same analyzers
+                if (initialized) return;
+                for (NamedAnalyzer analyzer : analyzers.values()) {
+                    if (analyzer.analyzer() instanceof ReloadableCustomAnalyzer ra) {
+                        ra.initializeFromResources();
+                    }
+                }
+                initialized = true;
             }
         };
     }

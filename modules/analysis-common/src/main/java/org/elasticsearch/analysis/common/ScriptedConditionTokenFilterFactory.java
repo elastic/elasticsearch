@@ -60,7 +60,8 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        boolean loadFromResources
     ) {
         List<TokenFilterFactory> filters = new ArrayList<>();
         List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
@@ -71,7 +72,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                     "ScriptedConditionTokenFilter [" + name() + "] refers to undefined token filter [" + filter + "]"
                 );
             }
-            tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+            tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters, false);
             filters.add(tff);
             existingChain.add(tff);
         }

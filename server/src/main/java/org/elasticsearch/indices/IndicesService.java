@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -626,8 +627,25 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
+        final IndexEventListener beforeIndexShardRecovery = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                try {
+                    if (indexShard.mapperService() != null) {
+                        // we finish loading analyzers from resources here
+                        // during shard recovery in the generic thread pool,
+                        // as this may require longer running operations and blocking calls
+                        indexShard.mapperService().initializeAnalyzersFromResources();
+                    }
+                    listener.onResponse(null);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
+        finalListeners.add(beforeIndexShardRecovery);
         IndexService indexService;
         try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             indexService = createIndexService(

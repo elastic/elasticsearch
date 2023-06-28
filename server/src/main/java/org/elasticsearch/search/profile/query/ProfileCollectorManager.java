@@ -47,7 +47,14 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
         List<CollectorResult> resultsPerProfiler = profileCollectors.stream()
             .map(ipc -> ipc.getCollectorTree())
             .collect(Collectors.toList());
-        this.collectorTree = new CollectorResult(this.getClass().getSimpleName(), "segment_search", 0, resultsPerProfiler);
+
+        long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
+        if (resultsPerProfiler.size() == 1) {
+            this.collectorTree = resultsPerProfiler.get(0);
+        }
+        if (resultsPerProfiler.size() > 1) {
+            this.collectorTree = new CollectorResult(resultsPerProfiler.get(0).getName()+"_MultiThreaded", reason, totalTime, resultsPerProfiler);
+        }
         return null;
     }
 

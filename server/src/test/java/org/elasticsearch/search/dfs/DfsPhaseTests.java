@@ -17,18 +17,18 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -84,14 +84,27 @@ public class DfsPhaseTests extends ESTestCase {
             };
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
-            Profilers profilers = new Profilers(searcher);
-            int k = 10;
-            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher);
-            assertEquals(k, dfsKnnResults.scoreDocs().length);
-            System.out.println(Arrays.asList(dfsKnnResults.scoreDocs()));
 
+            int k = 10;
+            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher);
+            assertEquals(k, dfsKnnResults.scoreDocs().length);
+
+            Profilers profilers = new Profilers(searcher);
+            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
-            System.out.println(Strings.toString(searchProfileDfsPhaseResult, true, false));
+            List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();
+            assertNotNull(queryProfileShardResult);
+            CollectorResult collectorResult = queryProfileShardResult.get(0).getCollectorResult();
+            assertEquals("SimpleTopScoreDocCollector_MultiThreaded", (collectorResult.getName()));
+            assertEquals("search_top_hits", (collectorResult.getReason()));
+            List<CollectorResult> children = collectorResult.getCollectorResults();
+            long totalTime = 0L;
+            for (CollectorResult child : children) {
+                assertEquals("SimpleTopScoreDocCollector", (child.getName()));
+                assertEquals("search_top_hits", (child.getReason()));
+                totalTime += child.getTime();
+            }
+            assertEquals(totalTime, collectorResult.getTime());
 
             reader.close();
         }

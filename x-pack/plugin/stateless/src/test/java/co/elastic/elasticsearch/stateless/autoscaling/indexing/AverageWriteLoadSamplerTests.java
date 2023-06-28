@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class AverageWriteLoadSamplerTests extends ESTestCase {
@@ -34,25 +35,35 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
         try {
             var writeLoadSampler = new AverageWriteLoadSampler(threadpool, TimeValue.timeValueSeconds(1));
             writeLoadSampler.start();
-            assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.WRITE), equalTo(0.0));
-            assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_WRITE), equalTo(0.0));
-            assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), equalTo(0.0));
+            assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), equalTo(0.0));
+            assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));
+            assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_CRITICAL_WRITE).averageLoad(), equalTo(0.0));
             var randomThreadPool = randomValueOtherThanMany(
                 AverageWriteLoadSampler.WRITE_EXECUTORS::contains,
                 () -> randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet())
             );
-            expectThrows(IllegalArgumentException.class, () -> writeLoadSampler.getAverageWriteLoad(randomThreadPool));
+            expectThrows(IllegalArgumentException.class, () -> writeLoadSampler.getExecutorStats(randomThreadPool).averageLoad());
 
             var writeExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.WRITE);
             writeExecutor.execute(() -> safeSleep(randomLongBetween(50, 200)));
             assertBusy(() -> assertThat(writeExecutor.getCompletedTaskCount(), equalTo(1L)));
             assertBusy(() -> {
-                assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.WRITE), greaterThan(0.0));
-                assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_WRITE), equalTo(0.0));
-                assertThat(writeLoadSampler.getAverageWriteLoad(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), equalTo(0.0));
+                assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), greaterThan(0.0));
+                assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));
+                assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_CRITICAL_WRITE).averageLoad(), equalTo(0.0));
             });
         } finally {
             terminate(threadpool);
         }
+    }
+
+    public void testWriteLoadEWMAUpdateIsCapped() {
+        double alpha = 0.2;
+        var averageLoad = new AverageWriteLoadSampler.AverageLoad(4, TimeValue.timeValueSeconds(1), alpha);
+        averageLoad.update(0);
+        assertThat(averageLoad.get(), equalTo(0.0));
+        // Cannot update more than 4 seconds at a time.
+        averageLoad.update(TimeValue.timeValueSeconds(10).nanos());
+        assertThat(averageLoad.get(), closeTo(alpha * 4, 1e-3));
     }
 }

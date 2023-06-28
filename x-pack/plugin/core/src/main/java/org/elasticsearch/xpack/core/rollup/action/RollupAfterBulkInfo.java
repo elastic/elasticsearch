@@ -17,21 +17,22 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * This class includes statistics collected by the downsampling task after
  * a bulk indexing operation ends.
  */
-public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
+public record RollupAfterBulkInfo(
+    long currentTimeMillis,
+    long executionId,
+    long lastBulkDurationInMillis,
+    long lastIngestTookInMillis,
+    long lastTookInMillis,
+    boolean hasFailures,
+    int restStatusCode
+) implements NamedWriteable, ToXContentObject {
+
     public static final String NAME = "rollup_after_bulk_info";
-    private final long currentTimeMillis;
-    private final long executionId;
-    private final long lastBulkDurationInMillis;
-    private final long lastIngestTookInMillis;
-    private final long lastTookInMillis;
-    private final boolean hasFailures;
-    private final int restStatusCode;
 
     private static final ParseField CURRENT_TIME_IN_MILLIS = new ParseField("current_time_in_millis");
     private static final ParseField EXECUTION_ID = new ParseField("execution_id");
@@ -66,106 +67,7 @@ public class RollupAfterBulkInfo implements NamedWriteable, ToXContentObject {
     }
 
     public RollupAfterBulkInfo(final StreamInput in) throws IOException {
-        currentTimeMillis = in.readLong();
-        executionId = in.readLong();
-        lastBulkDurationInMillis = in.readLong();
-        lastIngestTookInMillis = in.readLong();
-        lastTookInMillis = in.readLong();
-        hasFailures = in.readBoolean();
-        restStatusCode = in.readInt();
-    }
-
-    public RollupAfterBulkInfo(
-        long currentTimeMillis,
-        long executionId,
-        long bulkDurationInMillis,
-        long ingestTookInMillis,
-        long took,
-        boolean hasFailures,
-        int restStatusCode
-    ) {
-        this.currentTimeMillis = currentTimeMillis;
-        this.executionId = executionId;
-        this.lastBulkDurationInMillis = bulkDurationInMillis;
-        this.lastIngestTookInMillis = ingestTookInMillis;
-        this.lastTookInMillis = took;
-        this.hasFailures = hasFailures;
-        this.restStatusCode = restStatusCode;
-    }
-
-    public long getCurrentTimeMillis() {
-        return currentTimeMillis;
-    }
-
-    public long getExecutionId() {
-        return executionId;
-    }
-
-    public long getLastBulkDurationInMillis() {
-        return lastBulkDurationInMillis;
-    }
-
-    public long getLastIngestTookInMillis() {
-        return lastIngestTookInMillis;
-    }
-
-    public long getLastTookInMillis() {
-        return lastTookInMillis;
-    }
-
-    public boolean hasFailures() {
-        return hasFailures;
-    }
-
-    public int getRestStatusCode() {
-        return restStatusCode;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RollupAfterBulkInfo that = (RollupAfterBulkInfo) o;
-        return currentTimeMillis == that.currentTimeMillis
-            && executionId == that.executionId
-            && lastBulkDurationInMillis == that.lastBulkDurationInMillis
-            && lastIngestTookInMillis == that.lastIngestTookInMillis
-            && lastTookInMillis == that.lastTookInMillis
-            && hasFailures == that.hasFailures
-            && restStatusCode == that.restStatusCode;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-            currentTimeMillis,
-            executionId,
-            lastBulkDurationInMillis,
-            lastIngestTookInMillis,
-            lastTookInMillis,
-            hasFailures,
-            restStatusCode
-        );
-    }
-
-    @Override
-    public String toString() {
-        return "RollupAfterBulkInfo{"
-            + "currentTimeMillis="
-            + currentTimeMillis
-            + ", executionId="
-            + executionId
-            + ", bulkDurationInMillis="
-            + lastBulkDurationInMillis
-            + ", ingestTookInMillis="
-            + lastIngestTookInMillis
-            + ", took="
-            + lastTookInMillis
-            + ", hasFailures="
-            + hasFailures
-            + ", restStatusCode="
-            + restStatusCode
-            + '}';
+        this(in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readBoolean(), in.readInt());
     }
 
     @Override

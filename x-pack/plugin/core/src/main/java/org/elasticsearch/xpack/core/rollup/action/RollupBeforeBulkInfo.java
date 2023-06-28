@@ -17,18 +17,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * This class includes statistics collected by the downsampling task before
  * a bulk indexing operation starts.
  */
-public class RollupBeforeBulkInfo implements NamedWriteable, ToXContentObject {
+public record RollupBeforeBulkInfo(long currentTimeMillis, long executionId, long estimatedSizeInBytes, int numberOfActions)
+    implements
+        NamedWriteable,
+        ToXContentObject {
+
     public static final String NAME = "rollup_before_bulk_info";
-    private final long currentTimeMillis;
-    private final long executionId;
-    private final long estimatedSizeInBytes;
-    private final int numberOfActions;
 
     private static final ParseField CURRENT_TIME_IN_MILLIS = new ParseField("current_time_in_millis");
     private static final ParseField EXECUTION_ID = new ParseField("execution_id");
@@ -49,63 +48,7 @@ public class RollupBeforeBulkInfo implements NamedWriteable, ToXContentObject {
     }
 
     public RollupBeforeBulkInfo(final StreamInput in) throws IOException {
-        currentTimeMillis = in.readLong();
-        executionId = in.readLong();
-        estimatedSizeInBytes = in.readLong();
-        numberOfActions = in.readInt();
-    }
-
-    public RollupBeforeBulkInfo(long currentTimeMillis, long executionId, long estimatedSizeInBytes, int numberOfActions) {
-        this.currentTimeMillis = currentTimeMillis;
-        this.executionId = executionId;
-        this.estimatedSizeInBytes = estimatedSizeInBytes;
-        this.numberOfActions = numberOfActions;
-    }
-
-    public long getCurrentTimeMillis() {
-        return currentTimeMillis;
-    }
-
-    public long getExecutionId() {
-        return executionId;
-    }
-
-    public long getEstimatedSizeInBytes() {
-        return estimatedSizeInBytes;
-    }
-
-    public long getNumberOfActions() {
-        return numberOfActions;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RollupBeforeBulkInfo that = (RollupBeforeBulkInfo) o;
-        return currentTimeMillis == that.currentTimeMillis
-            && executionId == that.executionId
-            && estimatedSizeInBytes == that.estimatedSizeInBytes
-            && numberOfActions == that.numberOfActions;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(currentTimeMillis, executionId, estimatedSizeInBytes, numberOfActions);
-    }
-
-    @Override
-    public String toString() {
-        return "RollupBeforeBulkInfo{"
-            + "currentTimeMillis="
-            + currentTimeMillis
-            + ", executionId="
-            + executionId
-            + ", estimatedSizeInBytes="
-            + estimatedSizeInBytes
-            + ", numberOfActions="
-            + numberOfActions
-            + '}';
+        this(in.readLong(), in.readLong(), in.readLong(), in.readInt());
     }
 
     @Override

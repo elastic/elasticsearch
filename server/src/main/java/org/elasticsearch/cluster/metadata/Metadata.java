@@ -2272,7 +2272,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             final List<String> visibleClosedIndices = new ArrayList<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
 
-            int oldestIndexVersionId = IndexVersion.CURRENT.id();
+            int oldestIndexVersionId = IndexVersion.current().id();
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
 

@@ -51,7 +51,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
         throws IOException {
         IndexVersion versionCreated = indexSettings.getIndexVersionCreated();
-        if (IndexVersion.CURRENT.equals(versionCreated) == false) {
+        if (IndexVersion.current().equals(versionCreated) == false) {
             return super.get(indexSettings, environment, name, settings);
         } else {
             return current;

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 
 import java.io.Closeable;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -127,6 +128,10 @@ public class LocalModel implements Closeable {
             new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
         }
         return trainedModelDefinition.infer(flattenedFields, inferenceConfig);
+    }
+
+    public Collection<String> inputFields() {
+        return fieldNames;
     }
 
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {

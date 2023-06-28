@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
@@ -201,7 +202,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(

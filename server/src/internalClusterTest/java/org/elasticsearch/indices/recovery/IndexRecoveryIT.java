@@ -1683,7 +1683,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             final Query query = new BooleanQuery.Builder().add(
                 LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
                 BooleanClause.Occur.MUST
-            ).add(Queries.newNonNestedFilter(IndexVersion.CURRENT), BooleanClause.Occur.MUST).build();
+            ).add(Queries.newNonNestedFilter(IndexVersion.current()), BooleanClause.Occur.MUST).build();
             final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             for (LeafReaderContext leaf : directoryReader.leaves()) {
                 final Scorer scorer = weight.scorer(leaf);

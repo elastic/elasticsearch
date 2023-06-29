@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +32,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1509,7 +1511,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         DataLifecycle lifecycle45d = new DataLifecycle(
             new DataLifecycle.Retention(TimeValue.timeValueDays(45)),
             new DataLifecycle.Downsampling(
-                List.of(new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(30), TimeValue.timeValueHours(3)))
+                List.of(
+                    new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(30), new DownsampleConfig(new DateHistogramInterval("3h")))
+                )
             )
         );
         String ct45d = "ct_45d";

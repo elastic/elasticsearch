@@ -11,6 +11,7 @@ package org.elasticsearch.dlm;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -118,7 +120,7 @@ public class DLMFixtures {
                 List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),
-                    TimeValue.timeValueHours(randomIntBetween(1, 24))
+                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
@@ -133,7 +135,9 @@ public class DLMFixtures {
 
     private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = TimeValue.timeValueHours(previous.after().hours() + randomIntBetween(1, 10));
+        var fixedInterval = new DownsampleConfig(
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
+        );
         return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

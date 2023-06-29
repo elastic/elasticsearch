@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -147,8 +149,14 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 IllegalArgumentException.class,
                 () -> new DataLifecycle.Downsampling(
                     List.of(
-                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(10), TimeValue.timeValueHours(2)),
-                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(3), TimeValue.timeValueHours(2))
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        ),
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(3),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        )
                     )
                 )
             );
@@ -162,15 +170,36 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 IllegalArgumentException.class,
                 () -> new DataLifecycle.Downsampling(
                     List.of(
-                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(10), TimeValue.timeValueHours(2)),
-                        new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(2))
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        ),
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(30),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        )
                     )
                 )
             );
-            assertThat(
-                exception.getMessage(),
-                equalTo("A downsampling round must have a larger 'fixed_interval' value than the proceeding, 2m is not larger than 2h.")
+            assertThat(exception.getMessage(), equalTo("Downsampling interval [2h] must be greater than the source index interval [2h]."));
+        }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(
+                    List.of(
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        ),
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(30),
+                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                        )
+                    )
+                )
             );
+            assertThat(exception.getMessage(), equalTo("Downsampling interval [3h] must be a multiple of the source index interval [2h]."));
         }
         {
             IllegalArgumentException exception = expectThrows(
@@ -205,7 +234,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),
-                    TimeValue.timeValueHours(randomIntBetween(1, 24))
+                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
@@ -220,7 +249,9 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = TimeValue.timeValueHours(previous.after().hours() + randomIntBetween(1, 10));
+        var fixedInterval = new DownsampleConfig(
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
+        );
         return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -32,6 +34,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Holds the Data Lifecycle Management metadata that are configuring how a data stream is managed. Currently, it supports the following
@@ -285,9 +289,9 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         /**
          * A round represents the configuration for when and how elasticsearch will downsample a backing index.
          * @param after is a TimeValue configuring how old (based on generation age) should a backing index be before downsampling
-         * @param fixedInterval is a TimeValue configuring the interval that the backing index is going to be downsampled.
+         * @param config contains the interval that the backing index is going to be downsampled.
          */
-        public record Round(TimeValue after, TimeValue fixedInterval) implements Writeable, ToXContentObject {
+        public record Round(TimeValue after, DownsampleConfig config) implements Writeable, ToXContentObject {
 
             public static final ParseField AFTER_FIELD = new ParseField("after");
             public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
@@ -295,7 +299,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             private static final ConstructingObjectParser<Round, Void> PARSER = new ConstructingObjectParser<>(
                 "downsampling_round",
                 false,
-                (args, unused) -> new Round((TimeValue) args[0], (TimeValue) args[1])
+                (args, unused) -> new Round((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
             );
 
             static {
@@ -304,29 +308,29 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
                     value -> TimeValue.parseTimeValue(value, AFTER_FIELD.getPreferredName()),
                     AFTER_FIELD
                 );
-                PARSER.declareString(
-                    ConstructingObjectParser.optionalConstructorArg(),
-                    value -> TimeValue.parseTimeValue(value, FIXED_INTERVAL_FIELD.getPreferredName()),
-                    FIXED_INTERVAL_FIELD
+                PARSER.declareField(
+                    constructorArg(),
+                    p -> new DateHistogramInterval(p.text()),
+                    new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
+                    ObjectParser.ValueType.STRING
                 );
-
             }
 
             public static Round read(StreamInput in) throws IOException {
-                return new Round(in.readTimeValue(), in.readTimeValue());
+                return new Round(in.readTimeValue(), new DownsampleConfig(in));
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeTimeValue(after);
-                out.writeTimeValue(fixedInterval);
+                out.writeWriteable(config);
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
-                builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.getStringRep());
+                config.toXContentFragment(builder);
                 builder.endObject();
                 return builder;
             }
@@ -363,15 +367,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
                                     + "."
                             );
                         }
-                        if (round.fixedInterval.compareTo(previous.fixedInterval) < 0) {
-                            throw new IllegalArgumentException(
-                                "A downsampling round must have a larger 'fixed_interval' value than the proceeding, "
-                                    + round.fixedInterval.getStringRep()
-                                    + " is not larger than "
-                                    + previous.fixedInterval.getStringRep()
-                                    + "."
-                            );
-                        }
+                        DownsampleConfig.validateSourceAndTargetIntervals(previous.config(), round.config());
                     }
                 }
             }

@@ -533,28 +533,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (meta.isEmpty() == false) {
             String interval = meta.get(config.getIntervalType());
             if (interval != null) {
-                DateHistogramInterval sourceIndexInterval = new DateHistogramInterval(interval);
-                DateHistogramInterval targetIndexInterval = config.getInterval();
-                long sourceMillis = sourceIndexInterval.estimateMillis();
-                long targetMillis = targetIndexInterval.estimateMillis();
-                if (sourceMillis >= targetMillis) {
-                    // Downsampling interval must be greater than source interval
-                    e.addValidationError(
-                        "Source index is a downsampled index. Downsampling interval ["
-                            + targetIndexInterval
-                            + "] must be greater than the source index interval ["
-                            + sourceIndexInterval
-                            + "]"
-                    );
-                } else if (targetMillis % sourceMillis != 0) {
-                    // Downsampling interval must be a multiple of the source interval
-                    e.addValidationError(
-                        "Source index is a downsampled index. Downsampling interval ["
-                            + targetIndexInterval
-                            + "] must be a multiple of the source index interval ["
-                            + sourceIndexInterval
-                            + "]"
-                    );
+                try {
+                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+                    DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
+                } catch (IllegalArgumentException exception) {
+                    e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
                 }
             }
 
@@ -566,14 +549,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         + config.getTimeZone()
                         + "] cannot be different than the source index timezone ["
                         + sourceTimezone
-                        + "]"
+                        + "]."
                 );
             }
 
             if (e.validationErrors().isEmpty() == false) {
                 throw e;
             }
-
         }
     }
 

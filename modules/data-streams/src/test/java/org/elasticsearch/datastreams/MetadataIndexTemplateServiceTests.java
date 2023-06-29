@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -28,6 +29,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
@@ -253,7 +255,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
         var previous = new DataLifecycle.Downsampling.Round(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            TimeValue.timeValueHours(randomIntBetween(1, 24))
+            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -266,7 +268,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = TimeValue.timeValueHours(previous.after().hours() + randomIntBetween(1, 10));
+        var fixedInterval = new DownsampleConfig(
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
+        );
         return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

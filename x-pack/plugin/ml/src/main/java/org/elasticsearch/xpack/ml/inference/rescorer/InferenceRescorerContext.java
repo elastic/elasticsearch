@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.ml.inference.rescorer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 public class InferenceRescorerContext extends RescoreContext {
 

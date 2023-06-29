@@ -60,7 +60,7 @@ public class RollupShardTask extends CancellableTask {
         this.indexEndTimeMillis = indexEndTimeMillis;
         this.config = config;
         this.shardId = shardId;
-        this.rollupStartTime = System.currentTimeMillis();
+        this.rollupStartTime = client.threadPool().relativeTimeInMillis();
         this.rollupBulkStats = new RollupBulkStats();
     }
 

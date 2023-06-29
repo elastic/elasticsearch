@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -29,7 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleSupplier;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.empty;
@@ -49,14 +49,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var nodeIngestLoad = randomIngestionLoad(numProcessors);
 
         var publishedMetrics = new ArrayList<>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, (Supplier<String>) null, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
                 publishedMetrics.add(Tuple.tuple(deterministicTaskQueue.getCurrentTimeMillis(), ingestionLoad));
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -92,14 +92,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var currentIndexLoadSupplier = indexLoadOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, (Supplier<String>) null, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -153,14 +153,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
             return latestPublishedMetric;
         };
 
-        var ingestLoadPublisher = new IngestLoadPublisher(null, (Supplier<String>) null, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -195,14 +195,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var readingIter = ingestLoadsOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, (Supplier<String>) null, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -265,14 +265,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 : Math.max(previousReading - loadChangeBelowSensitivity, 0);
         };
 
-        var ingestLoadPublisher = new IngestLoadPublisher(null, (Supplier<String>) null, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         new IngestLoadSampler(
             threadPool,
@@ -298,14 +298,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var indexLoad = randomIngestionLoad(randomIntBetween(2, 32));
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, (Supplier<String>) null, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, Settings.EMPTY);
 
@@ -335,14 +335,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var indexLoad = randomIngestionLoad(randomIntBetween(2, 32));
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, (Supplier<String>) null, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
-        var writeLoadSampler = new RandomtAverageWriteLoadSampler(threadPool);
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, Settings.EMPTY);
 
@@ -374,10 +374,17 @@ public class IngestLoadSamplerTests extends ESTestCase {
         return randomDoubleBetween(0, bound, true);
     }
 
-    private static class RandomtAverageWriteLoadSampler extends AverageWriteLoadSampler {
-        RandomtAverageWriteLoadSampler(ThreadPool threadPool) {
+    // A mocked sampler that returns random values
+    private static class RandomAverageWriteLoadSampler extends AverageWriteLoadSampler {
+        RandomAverageWriteLoadSampler(ThreadPool threadPool) {
             super(threadPool, TimeValue.timeValueSeconds(1));
         }
+
+        @Override
+        public void start() {}
+
+        @Override
+        public void stop() {}
 
         @Override
         public ExecutorStats getExecutorStats(String executor) {

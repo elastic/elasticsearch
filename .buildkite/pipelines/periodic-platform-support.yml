@@ -28,23 +28,3 @@ steps:
           machineType: custom-32-98304
           diskSizeGb: 350
         env: {}
-  - group: platform-support-arm
-    steps:
-      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
-        matrix:
-          setup:
-            image: []
-            GRADLE_TASK:
-              - checkPart1
-              - checkPart2
-              - checkPart3
-              - bwcTestSnapshots
-              - checkRestCompat
-        agents:
-          provider: gcp
-          image: family/elasticsearch-{{matrix.image}}
-          buildDirectory: /dev/shm/bk
-          machineType: custom-32-98304
-        env:
-          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

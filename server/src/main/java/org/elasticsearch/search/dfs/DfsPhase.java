@@ -210,7 +210,6 @@ public class DfsPhase {
             this.resultConsumer = resultConsumer;
         }
 
-
         @Override
         public C newCollector() throws IOException {
             return wrapped.newCollector();
@@ -223,10 +222,9 @@ public class DfsPhase {
         }
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher)
-        throws IOException {
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher) throws IOException {
         final TopDocs[] topDocs = new TopDocs[1];
-        CollectorManager<? extends Collector, Void> cm  = new CollectorManagerAdapter<>(
+        CollectorManager<? extends Collector, Void> cm = new CollectorManagerAdapter<>(
             TopScoreDocCollector.createSharedManager(k, null, Integer.MAX_VALUE),
             res -> topDocs[0] = res
         );

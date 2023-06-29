@@ -48,12 +48,19 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
             .map(ipc -> ipc.getCollectorTree())
             .collect(Collectors.toList());
 
-        long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
+        // if we have just one collector result, just use that as the root of the collector tree
         if (resultsPerProfiler.size() == 1) {
             this.collectorTree = resultsPerProfiler.get(0);
         }
+        // otherwise we use a "parent" result with the different collectors of this manager as children and the time set to the sum
         if (resultsPerProfiler.size() > 1) {
-            this.collectorTree = new CollectorResult(resultsPerProfiler.get(0).getName()+"_MultiThreaded", reason, totalTime, resultsPerProfiler);
+            long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
+            this.collectorTree = new CollectorResult(
+                resultsPerProfiler.get(0).getName() + "_MultiThreaded",
+                reason,
+                totalTime,
+                resultsPerProfiler
+            );
         }
         return null;
     }

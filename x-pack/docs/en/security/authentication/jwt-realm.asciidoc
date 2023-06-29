@@ -534,8 +534,8 @@ the `jwt_role1` role that you mapped to this user in the JWT realm:
 ----
 
 If you want to specify a request as the `run_as` user, include the
-the `es-security-runas-user` header with the name of the user that you
-want to submit requests as. The following request uses the `user123_runas` user:
+`es-security-runas-user` header with the name of the user that you want to
+submit requests as. The following request uses the `user123_runas` user:
 
 [source,sh]
 ----

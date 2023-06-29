@@ -1,0 +1,86 @@
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      index:
+        index: test-index1
+        id: doc1
+        body:
+          text: elastic
+        refresh: true
+
+  - do:
+      index:
+        index: test-index1
+        id: doc2
+        body:
+          text: kibana
+        refresh: true
+
+  - do:
+      index:
+        index: test-index1
+        id: doc3
+        body:
+          text: logstash
+        refresh: true
+
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: search
+              actions:
+                ids:
+                  - 'doc1'
+            - rule_id: rule2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: ui
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'doc2'
+
+---
+"Perform a rule query with an ID match":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search:
+        body:
+          query:
+            rule_query:
+            organic:
+              query_string:
+                default_field: text
+                query: asdf
+            match_criteria:
+            query_string: elastic
+            ruleset_ids: [test-ruleset]
+
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc1' }

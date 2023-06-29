@@ -968,6 +968,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     public void testStopForceClosesConnectionDuringRequest() throws Exception {
         var grace = SHORT_GRACE_PERIOD_MS;
         TestHttpChannel httpChannel = new TestHttpChannel();
+        var doneWithRequest = new CountDownLatch(1);
         try (
             var timeout = LogExpectation.expectTimeout(grace);
             TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(grace))
@@ -977,10 +978,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var inResponse = httpChannel.notifyInSendResponse();
 
             transport.serverAcceptedChannel(httpChannel);
-            new Thread(
-                () -> transport.incomingRequest(testHttpRequest(), httpChannel),
-                "testStopForceClosesConnectionDuringRequest -> incomingRequest"
-            ).start();
+            new Thread(() -> {
+                transport.incomingRequest(testHttpRequest(), httpChannel);
+                doneWithRequest.countDown();
+            }, "testStopForceClosesConnectionDuringRequest -> incomingRequest").start();
 
             inResponse.await();
 
@@ -996,6 +997,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         } finally {
             // unblock request thread
             httpChannel.allowSendResponse();
+            doneWithRequest.countDown();
         }
     }
 
@@ -1052,6 +1054,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     public void testForceClosesOpenChannels() throws Exception {
         var grace = 100; // this test waits for the entire grace, so try to keep it short
         TestHttpChannel httpChannel = new TestHttpChannel();
+        var doneWithRequest = new CountDownLatch(1);
         try (var timeout = LogExpectation.expectTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
 
             transport.serverAcceptedChannel(httpChannel);
@@ -1062,7 +1065,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var inResponse = httpChannel.notifyInSendResponse();
             httpChannel.blockSendResponse();
 
-            new Thread(() -> transport.incomingRequest(testHttpRequest(), httpChannel)).start();
+            new Thread(() -> {
+                transport.incomingRequest(testHttpRequest(), httpChannel);
+                doneWithRequest.countDown();
+            }).start();
 
             inResponse.await();
 
@@ -1088,6 +1094,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         } finally {
             // cleanup thread
             httpChannel.allowSendResponse();
+            doneWithRequest.await();
         }
 
     }

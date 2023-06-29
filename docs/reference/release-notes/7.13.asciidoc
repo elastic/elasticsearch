@@ -174,8 +174,8 @@ PUT _cluster/settings
 +
 This issue is fixed in {es} versions 7.14.1 and later. It is not possible to
 repair a repository once it is affected by this issue, so you must restore the
-repository from a backup, or clear the repository by executing `DELETE
-_snapshot/<repository name>/*`, or move to a fresh repository. For more
+repository from a backup, or clear the repository by executing
+`DELETE _snapshot/<repository name>/*`, or move to a fresh repository. For more
 details, see {es-issue}75598[#75598].
 // end::snapshot-repo-corruption-75598-known-issue[]
 

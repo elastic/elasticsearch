@@ -145,6 +145,11 @@ public class HealthMetadataService {
             readyToPublishAsMaster = false;
         }
 
+        // Avoid scheduling updates to the taskQueue in case the cluster is recovering.
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         // Wait until every node in the cluster is upgraded to 8.5.0 or later
         if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             if (readyToPublishAsMaster) {
@@ -185,10 +190,6 @@ public class HealthMetadataService {
         }
 
         default ClusterState execute(ClusterState currentState) {
-            if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                return currentState;
-            }
-
             var initialHealthMetadata = HealthMetadata.getFromClusterState(currentState);
             var finalHealthMetadata = doExecute();
             return finalHealthMetadata.equals(initialHealthMetadata)

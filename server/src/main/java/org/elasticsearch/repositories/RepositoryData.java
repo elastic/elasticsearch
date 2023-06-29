@@ -647,7 +647,7 @@ public final class RepositoryData {
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion) throws IOException {
         return snapshotsToXContent(builder, repoMetaVersion, false);
     }
 
@@ -656,7 +656,7 @@ public final class RepositoryData {
      * @param permitMissingUuid indicates whether we permit the repository- and cluster UUIDs to be missing,
      *                          e.g. we are serializing for the in-memory cache or running tests
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion, boolean permitMissingUuid)
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion, boolean permitMissingUuid)
         throws IOException {
 
         final boolean shouldWriteUUIDS = SnapshotsService.includesUUIDs(repoMetaVersion);
@@ -670,7 +670,7 @@ public final class RepositoryData {
 
         if (shouldWriteShardGens) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
-            final Version minVersion;
+            final IndexVersion minVersion;
             if (shouldWriteUUIDS) {
                 minVersion = SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
             } else if (shouldWriteIndexGens) {
@@ -678,7 +678,9 @@ public final class RepositoryData {
             } else {
                 minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
             }
-            builder.field(MIN_VERSION, minVersion.toString());
+            assert minVersion.before(IndexVersion.V_8_10_0);
+            // if this needs to be used after 8.10.0, can write as an int to disambiguate Version and IndexVersion
+            builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
         }
 
         if (shouldWriteUUIDS) {
@@ -818,8 +820,10 @@ public final class RepositoryData {
                 case MIN_VERSION -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
                     final Version version = Version.fromString(parser.text());
-                    assert SnapshotsService.useShardGenerations(version);
-                    if (version.after(Version.CURRENT)) {
+                    assert version.before(Version.V_8_10_0);
+                    IndexVersion ixVersion = IndexVersion.fromId(version.id);
+                    assert SnapshotsService.useShardGenerations(ixVersion);
+                    if (ixVersion.after(IndexVersion.current())) {
                         throw new IllegalStateException(
                             "this snapshot repository format requires Elasticsearch version [" + version + "] or later"
                         );

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;

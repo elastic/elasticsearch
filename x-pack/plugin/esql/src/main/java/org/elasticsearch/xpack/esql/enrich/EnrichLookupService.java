@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -34,6 +34,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -69,13 +71,14 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 /**
  * {@link EnrichLookupService} performs enrich lookup for a given input page. The lookup process consists of three stages:
- * - Stage 1: Finding matching document IDs for the input page. This stage is done by the {@link MatchQuerySourceOperator} or its variants.
+ * - Stage 1: Finding matching document IDs for the input page. This stage is done by the {@link EnrichQuerySourceOperator} or its variants.
  * The output page of this stage is represented as [DocVector, IntBlock: positions of the input terms].
  * <p>
  * - Stage 2: Extracting field values for the matched document IDs. The output page is represented as
@@ -166,34 +169,38 @@ public class EnrichLookupService {
             ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
             SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT);
             listener = ActionListener.runBefore(listener, searchContext::close);
+            SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+            MappedFieldType fieldType = searchExecutionContext.getFieldType(matchField);
             final SourceOperator queryOperator = switch (matchType) {
-                case "match" -> new MatchQuerySourceOperator(
-                    matchField,
-                    searchContext.searcher().getIndexReader(),
-                    (BytesRefBlock) inputBlock
-                );
-                // TODO: support other match_type
+                case "match", "range" -> {
+                    QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
+                    yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
+                }
                 default -> throw new UnsupportedOperationException("unsupported match type " + matchType);
             };
-            List<Operator> extractOperators = new ArrayList<>(extractFields.size() + 2);
-            for (NamedExpression extractField : extractFields) {
+            List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
+            final ElementType[] mergingTypes = new ElementType[extractFields.size()];
+            // extract-field operators
+            for (int i = 0; i < extractFields.size(); i++) {
+                NamedExpression extractField = extractFields.get(i);
+                final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
+                mergingTypes[i] = elementType;
                 var sources = ValueSources.sources(
                     List.of(searchContext),
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType()),
-                    LocalExecutionPlanner.toElementType(extractField.dataType())
+                    elementType
                 );
-                extractOperators.add(new ValuesSourceReaderOperator(sources, 0, extractField.name()));
+                intermediateOperators.add(new ValuesSourceReaderOperator(sources, 0, extractField.name()));
             }
-            BitSet bitSet = new BitSet(extractFields.size() + 2);
-            bitSet.set(1, extractFields.size() + 2); // drop the docs
-            extractOperators.add(new ProjectOperator(bitSet));
-            int[] mergingChannels = new int[extractFields.size()];
-            for (int i = 0; i < mergingChannels.length; i++) {
-                mergingChannels[i] = i + 1;
-            }
-            extractOperators.add(new MergePositionsOperator(inputPage.getPositionCount(), mergingChannels));
-
+            // drop docs block
+            intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
+            boolean singleLeaf = searchContext.searcher().getLeafContexts().size() == 1;
+            // merging field-values by position
+            final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
+            intermediateOperators.add(
+                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes)
+            );
             AtomicReference<Page> result = new AtomicReference<>();
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
             Driver driver = new Driver(
@@ -201,7 +208,7 @@ public class EnrichLookupService {
                 new DriverContext(),
                 () -> lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount()),
                 queryOperator,
-                extractOperators,
+                intermediateOperators,
                 outputOperator,
                 searchContext
             );
@@ -227,6 +234,13 @@ public class EnrichLookupService {
             blocks[i] = Block.constantNullBlock(positionCount);
         }
         return new Page(blocks);
+    }
+
+    private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
+        BitSet bitSet = new BitSet(totalBlocks);
+        bitSet.set(0, totalBlocks);
+        bitSet.clear(droppingPosition);
+        return new ProjectOperator(bitSet);
     }
 
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -112,7 +113,11 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
                 }
                 Block.Builder[] builders = new Block.Builder[current.getBlockCount()];
                 for (int i = 0; i < current.getBlockCount(); i++) {
-                    builders[i] = current.getBlock(i).elementType().newBlockBuilder(1);
+                    ElementType elementType = current.getBlock(i).elementType();
+                    if (elementType == ElementType.NULL) {
+                        elementType = page.getBlock(i).elementType();
+                    }
+                    builders[i] = elementType.newBlockBuilder(1);
                     builders[i].copyFrom(current.getBlock(i), 0, current.getPositionCount());
                     builders[i].copyFrom(page.getBlock(i), 0, page.getPositionCount());
                 }

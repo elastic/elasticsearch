@@ -7,50 +7,72 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Combines values at the given blocks with the same positions into a single position for the blocks at the given channels
- * Example, input page consisting of three blocks:
+ * Example, input pages consisting of three blocks:
  * positions    | field-1 | field-2 |
- *-----------------------------------
- *    2         |  a,b    |   2020  |
- *    3         |  c      |   2021  |
- *    2         |  a,e    |   2021  |
- *    1         |  d      |   null  |
- *    5         |  null   |   2023  |
+ * -----------------------------------
+ * Page 1:
+ * 1           |  a,b    |   2020  |
+ * 1           |  c      |   2021  |
+ * ---------------------------------
+ * Page 2:
+ * 2           |  a,e    |   2021  |
+ * ---------------------------------
+ * Page 3:
+ * 4           |  d      |   null  |
+ * ---------------------------------
  * Output:
  * |  field-1   | field-2    |
  * ---------------------------
  * |  null      | null       |
- * |  d         | null       |
- * |  a, b, e   | 2020, 2021 |
- * |  c         | 2021       |
+ * |  a,b,c     | 2020,2021  |
+ * |  a,e       | 2021       |
  * |  null      | null       |
- * |  null      | 2023       |
+ * |  d         | 2023       |
  */
 final class MergePositionsOperator implements Operator {
-    private final List<Page> pages = new ArrayList<>();
     private boolean finished = false;
+    private int filledPositions = 0;
+    private final boolean singleMode;
     private final int positionCount;
+    private final int positionChannel;
+
+    private final Block.Builder[] builders;
     private final int[] mergingChannels;
 
-    MergePositionsOperator(int positionCount, int[] mergingChannels) {
+    private Page outputPage;
+
+    MergePositionsOperator(boolean singleMode, int positionCount, int positionChannel, int[] mergingChannels, ElementType[] mergingTypes) {
+        if (mergingChannels.length != mergingTypes.length) {
+            throw new IllegalArgumentException(
+                "Merging channels don't match merging types; channels="
+                    + Arrays.toString(mergingChannels)
+                    + ",types="
+                    + Arrays.toString(mergingTypes)
+            );
+        }
+        if (singleMode == false) {
+            throw new UnsupportedOperationException("Enrich indices should have single segment");
+        }
+        this.singleMode = singleMode;
         this.positionCount = positionCount;
+        this.positionChannel = positionChannel;
         this.mergingChannels = mergingChannels;
+        this.builders = new Block.Builder[mergingTypes.length];
+        for (int i = 0; i < mergingTypes.length; i++) {
+            builders[i] = mergingTypes[i].newBlockBuilder(positionCount);
+        }
     }
 
-    // Add the more positions
     @Override
     public boolean needsInput() {
         return true;
@@ -58,101 +80,52 @@ final class MergePositionsOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        pages.add(page);
-        if (pages.size() > 1) {
-            // TODO: Use PQ to support multiple pages
-            throw new UnsupportedOperationException("Expected single segment for enrich now");
+        if (singleMode) {
+            mergePage(page);
+            return;
         }
+        throw new UnsupportedOperationException("Enrich indices should have single segment");
+    }
+
+    private void fillNullUpToPosition(int position) {
+        while (filledPositions < position) {
+            for (Block.Builder builder : builders) {
+                builder.appendNull();
+            }
+            filledPositions++;
+        }
+    }
+
+    private void mergePage(Page page) {
+        IntBlock positions = page.getBlock(positionChannel);
+        int currentPosition = positions.getInt(0);
+        fillNullUpToPosition(currentPosition);
+        for (int i = 0; i < mergingChannels.length; i++) {
+            int channel = mergingChannels[i];
+            builders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
+        }
+        filledPositions++;
     }
 
     @Override
     public void finish() {
+        fillNullUpToPosition(positionCount);
+        Block[] blocks = Arrays.stream(builders).map(Block.Builder::build).toArray(Block[]::new);
+        outputPage = new Page(blocks);
         finished = true;
+        assert outputPage.getPositionCount() == positionCount;
     }
 
     @Override
     public boolean isFinished() {
-        return finished && pages.isEmpty();
+        return finished && outputPage == null;
     }
 
     @Override
     public Page getOutput() {
-        if (finished == false) {
-            return null;
-        }
-        if (pages.isEmpty()) {
-            return null;
-        }
-        Page page = pages.get(0);
-        pages.clear();
-
-        IntVector positionBlock = ((IntBlock) page.getBlock(0)).asVector();
-        int[] indices = sortedIndicesByPositions(positionBlock);
-        final Block[] inputs = new Block[mergingChannels.length];
-        final Block.Builder[] outputs = new Block.Builder[mergingChannels.length];
-        for (int i = 0; i < inputs.length; i++) {
-            inputs[i] = page.getBlock(mergingChannels[i]);
-            outputs[i] = inputs[i].elementType().newBlockBuilder(inputs[i].getPositionCount());
-        }
-        int addedPositions = 0;
-        int lastIndex = 0;
-        int lastPosition = positionBlock.getInt(indices[0]);
-        for (int i = 1; i <= indices.length; i++) {
-            int position = i < indices.length ? positionBlock.getInt(indices[i]) : positionCount;
-            if (position != lastPosition) {
-                assert lastPosition < position : "positionBlock isn't sorted; last=" + lastPosition + ",current=" + position;
-                while (addedPositions < lastPosition) {
-                    for (Block.Builder output : outputs) {
-                        output.appendNull();
-                    }
-                    addedPositions++;
-                }
-                int[] subIndices = ArrayUtil.copyOfSubArray(indices, lastIndex, i);
-                for (int c = 0; c < outputs.length; c++) {
-                    outputs[c].appendAllValuesToCurrentPosition(inputs[c].filter(subIndices));
-                }
-                addedPositions++;
-                lastPosition = position;
-                lastIndex = i;
-            }
-        }
-        while (addedPositions < positionCount) {
-            for (Block.Builder output : outputs) {
-                output.appendNull();
-            }
-            addedPositions++;
-        }
-        Page result = new Page(Arrays.stream(outputs).map(Block.Builder::build).toArray(Block[]::new));
-        assert result.getPositionCount() == positionCount;
-        return result;
-    }
-
-    private static int[] sortedIndicesByPositions(IntVector positions) {
-        int[] indices = new int[positions.getPositionCount()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = i;
-        }
-        new IntroSorter() {
-            int pivot;
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = indices[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Integer.compare(positions.getInt(pivot), positions.getInt(indices[j]));
-            }
-
-            @Override
-            protected void swap(int i, int j) {
-                int tmp = indices[i];
-                indices[i] = indices[j];
-                indices[j] = tmp;
-            }
-        }.sort(0, indices.length);
-        return indices;
+        Page page = this.outputPage;
+        this.outputPage = null;
+        return page;
     }
 
     @Override

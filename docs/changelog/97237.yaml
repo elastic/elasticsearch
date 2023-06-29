@@ -1,0 +1,5 @@
+pr: 97237
+summary: Add `SecurityActionFilter` order constant
+area: "Infra/Core, Security"
+type: enhancement
+issues: []

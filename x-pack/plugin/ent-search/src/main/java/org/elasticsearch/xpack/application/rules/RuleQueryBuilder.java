@@ -74,15 +74,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return TransportVersion.V_8_9_0;
     }
 
-    public RuleQueryBuilder(QueryBuilder organicQuery, Map<String,Object> matchCriteria, @Nullable List<String> rulesetIds) {
-        // TODO validation
-        this.organicQuery = organicQuery;
-        this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyMap());
-        this.rulesetIds = (rulesetIds != null ? rulesetIds : Collections.emptyList());
-        this.curatedIds = Collections.emptyList();
-        this.curatedIdSupplier = null;
-        this.curatedDocs = Collections.emptyList();
-        this.curatedDocsSupplier = null;
+    public RuleQueryBuilder(QueryBuilder organicQuery, Map<String,Object> matchCriteria, List<String> rulesetIds) {
+        this(organicQuery, matchCriteria, rulesetIds, (Supplier<List<String>>) null, null);
     }
 
     public RuleQueryBuilder(StreamInput in) throws IOException {
@@ -103,10 +96,13 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         Supplier<List<String>> curatedIdSupplier,
         Supplier<List<Item>> curatedDocsSupplier
     ) {
-        // No validation, this is a POC
+        if (organicQuery == null) { throw new IllegalArgumentException("organicQuery must not be null"); }
+        if (matchCriteria == null || matchCriteria.isEmpty()) { throw new IllegalArgumentException("matchCriteria must not be null or empty"); }
+        if (rulesetIds == null || rulesetIds.isEmpty()) { throw new IllegalArgumentException("rulesetIds must not be null or empty"); }
+
         this.organicQuery = organicQuery;
-        this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyMap());
-        this.rulesetIds = (rulesetIds != null ? rulesetIds : Collections.emptyList());
+        this.matchCriteria = matchCriteria;
+        this.rulesetIds = rulesetIds;
         this.curatedIds = Collections.emptyList();
         this.curatedIdSupplier = curatedIdSupplier;
         this.curatedDocs = Collections.emptyList();
@@ -121,10 +117,13 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         List<String> curatedIds,
         List<Item> curatedDocs
     ) {
-        // No validation, this is a POC
+        if (organicQuery == null) { throw new IllegalArgumentException("organicQuery must not be null"); }
+        if (matchCriteria == null || matchCriteria.isEmpty()) { throw new IllegalArgumentException("matchCriteria must not be null or empty"); }
+        if (rulesetIds == null || rulesetIds.isEmpty()) { throw new IllegalArgumentException("rulesetIds must not be null or empty"); }
+
         this.organicQuery = organicQuery;
-        this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyMap());
-        this.rulesetIds = (rulesetIds != null ? rulesetIds : Collections.emptyList());
+        this.matchCriteria = matchCriteria;
+        this.rulesetIds = rulesetIds;
         this.curatedIds = curatedIds;
         this.curatedIdSupplier = null;
         this.curatedDocs = curatedDocs;
@@ -165,10 +164,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(ORGANIC_QUERY_FIELD.getPreferredName(), organicQuery);
-        builder.startArray(MATCH_CRITERIA_FIELD.getPreferredName());
-        builder.field(MATCH_CRITERIA_FIELD.getPreferredName());
-        builder.mapContents(matchCriteria); // TODO confirm this is right
-        builder.endArray();
+        builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
+        builder.mapContents(matchCriteria);
+        builder.endObject();
         builder.startArray(RULESET_IDS_FIELD.getPreferredName());
         for (String rulesetId : rulesetIds) {
             builder.value(rulesetId);
@@ -225,8 +223,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         SetOnce<List<Item>> docsSetOnce = new SetOnce<>();
         List<String> pinnedIds = new ArrayList<>();
         List<Item> pinnedDocs = new ArrayList<>();
-        // TODO - Can we get away with a single ruleset for MVP?
-        //  If we still want this refactor this to a List call and filter by ruleset name. For now, as a GET, just support one ruleset ID
+        // TODO - Support more than one ruleset ID or take out of scope for MVP
+        //  We probably should refactor this to a List call and filter by ruleset name. For now, as a GET, just support one ruleset ID
         if (rulesetIds.size() > 1) {
             throw new IllegalArgumentException("Not yet");
         }

@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,14 +100,13 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
         when(localModel.inputFields()).thenReturn(inputFields);
         SearchExecutionContext context = createSearchExecutionContext();
         InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder("test_model", localModel);
-        RescoreContext rescoreContext = inferenceRescorerBuilder.innerBuildContext(20, context);
-        assertTrue(rescoreContext instanceof InferenceRescorerContext);
+        InferenceRescorerContext rescoreContext = inferenceRescorerBuilder.innerBuildContext(20, context);
+        assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
-        assertThat(((InferenceRescorerContext) rescoreContext).valueFetcherList, hasSize(2));
+        List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors();
+        assertThat(featureExtractors, hasSize(1));
         assertThat(
-            ((InferenceRescorerContext) rescoreContext).valueFetcherList.stream()
-                .map(InferenceRescorerContext.FieldValueFetcher::fieldName)
-                .collect(Collectors.toList()),
+            featureExtractors.stream().flatMap(featureExtractor -> featureExtractor.featureNames().stream()).toList(),
             containsInAnyOrder(DOUBLE_FIELD_NAME, INT_FIELD_NAME)
         );
     }
@@ -134,7 +131,7 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
         }
 
         @Override
-        public void getModelForSearch(String modelId, ActionListener<LocalModel> modelActionListener) {
+        public void getModelForLearnToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
             modelActionListener.onResponse(localModel());
         }
     }

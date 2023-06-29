@@ -24,7 +24,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.dlm.DLMFixtures.putComposableIndexTemplate;
-import static org.elasticsearch.dlm.DLMFixtures.randomDataLifecycle;
+import static org.elasticsearch.dlm.DLMFixtures.randomLifecycle;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -42,7 +42,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
     }
 
     public void testGetLifecycle() throws Exception {
-        DataLifecycle lifecycle = randomDataLifecycle();
+        DataLifecycle lifecycle = randomLifecycle();
         putComposableIndexTemplate("id1", null, List.of("with-lifecycle*"), null, null, lifecycle);
         putComposableIndexTemplate("id2", null, List.of("without-lifecycle*"), null, null, null);
         {

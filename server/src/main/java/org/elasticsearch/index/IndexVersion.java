@@ -345,7 +345,7 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(toString());
+        return builder.value(id);
     }
 
     @Override

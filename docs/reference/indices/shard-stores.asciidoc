@@ -172,8 +172,8 @@ The API returns the following response:
                             "attributes": {},
                             "roles": [...],
                             "version": "8.10.0",
-                            "min_index_version": "7000099",
-                            "max_index_version": "8100099"
+                            "min_index_version": 7000099,
+                            "max_index_version": 8100099
                         },
                         "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <4>
                         "allocation" : "primary|replica|unused" <5>

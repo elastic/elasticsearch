@@ -405,8 +405,7 @@ public class RootObjectMapper extends ObjectMapper {
         Map<String, Object> node,
         MappingParserContext parserContext,
         @Nullable Explicit<Boolean> explicitSubobjects
-    )
-        throws MapperParsingException {
+    ) throws MapperParsingException {
         Explicit<Boolean> subobjects = parseSubobjects(node);
         if (subobjects.explicit() == false && explicitSubobjects != null) {
             subobjects = explicitSubobjects;

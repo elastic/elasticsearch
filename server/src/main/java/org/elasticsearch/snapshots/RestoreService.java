@@ -1283,7 +1283,7 @@ public class RestoreService implements ClusterStateApplier {
                 final IndexId index = indexEntry.getValue();
                 final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
                 repositoriesService.getPreRestoreVersionChecks()
-                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion().indexVersion));
+                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
                     snapshot,
                     originalIndexMetadata,
@@ -1594,7 +1594,7 @@ public class RestoreService implements ClusterStateApplier {
         ClusterState clusterState,
         IndicesService indicesService
     ) {
-        if (snapshotIndexMetadata.getCreationVersion().before(Version.fromString("5.0.0"))) {
+        if (snapshotIndexMetadata.getCreationVersion().before(IndexVersion.fromId(5000099))) {
             throw new IllegalArgumentException("can't restore an index created before version 5.0.0");
         }
         IndexMetadata.Builder convertedIndexMetadataBuilder = IndexMetadata.builder(snapshotIndexMetadata);

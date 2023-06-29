@@ -70,6 +70,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -2612,7 +2613,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );

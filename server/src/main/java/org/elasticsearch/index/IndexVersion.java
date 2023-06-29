@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;

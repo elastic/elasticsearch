@@ -290,7 +290,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     }
 
     private static TestMapper fromMapping(String mapping) {
-        return fromMapping(mapping, IndexVersion.CURRENT, TransportVersion.current());
+        return fromMapping(mapping, IndexVersion.current(), TransportVersion.current());
     }
 
     private String toStringWithDefaults(ToXContent value) throws IOException {

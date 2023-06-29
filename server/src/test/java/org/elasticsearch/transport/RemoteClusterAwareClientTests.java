@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -45,7 +45,13 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
     }
 
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes) {
-        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, TransportVersion.current(), threadPool);
+        return RemoteClusterConnectionTests.startTransport(
+            id,
+            knownNodes,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
     }
 
     public void testSearchShards() throws Exception {
@@ -62,7 +68,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -110,7 +116,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null

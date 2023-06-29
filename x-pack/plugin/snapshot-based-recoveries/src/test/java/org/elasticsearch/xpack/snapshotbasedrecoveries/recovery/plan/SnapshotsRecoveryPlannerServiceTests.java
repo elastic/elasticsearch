@@ -601,7 +601,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName) {
-        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, IndexVersion.CURRENT.luceneVersion());
+        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, IndexVersion.current().luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(
@@ -630,7 +630,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             );
             snapshotFiles.add(fileInfo);
         }
-        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, IndexVersion.CURRENT.luceneVersion());
+        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, IndexVersion.current().luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshot(

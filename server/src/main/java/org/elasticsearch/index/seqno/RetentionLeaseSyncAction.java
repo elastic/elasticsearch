@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,10 +148,12 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
     static Level getExceptionLogLevel(Exception e) {
         return ExceptionsHelper.unwrap(
             e,
+            NodeClosedException.class,
             IndexNotFoundException.class,
             AlreadyClosedException.class,
             IndexShardClosedException.class,
-            ShardNotInPrimaryModeException.class
+            ShardNotInPrimaryModeException.class,
+            ReplicationOperation.RetryOnPrimaryException.class
         ) == null ? Level.WARN : Level.DEBUG;
     }
 

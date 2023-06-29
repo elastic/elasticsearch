@@ -143,6 +143,7 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
     public static final IndexVersion V_7_17_9 = registerIndexVersion(7_17_09_99, Version.LUCENE_8_11_1, "8044989f-77ef-4d6d-9dd8-1bdd805cef74");
     public static final IndexVersion V_7_17_10 = registerIndexVersion(7_17_10_99, Version.LUCENE_8_11_1, "66b743fb-8be6-443f-8920-d8c5ed561857");
     public static final IndexVersion V_7_17_11 = registerIndexVersion(7_17_11_99, Version.LUCENE_8_11_1, "f1935acc-1af9-44b0-97e9-67112d333753");
+    public static final IndexVersion V_7_17_12 = registerIndexVersion(7_17_12_99, Version.LUCENE_8_11_1, "1a0719f2-96f4-4df5-b20d-62244e27d7d4");
     public static final IndexVersion V_8_0_0 = registerIndexVersion(8_00_00_99, Version.LUCENE_9_0_0, "ff18a13c-1fa7-4cf7-a3b1-4fdcd9461d5b");
     public static final IndexVersion V_8_0_1 = registerIndexVersion(8_00_01_99, Version.LUCENE_9_0_0, "4bd5650f-3eff-418f-a7a6-ad46b2a9c941");
     public static final IndexVersion V_8_1_0 = registerIndexVersion(8_01_00_99, Version.LUCENE_9_0_0, "b4742461-ee43-4fd0-a260-29f8388b82ec");

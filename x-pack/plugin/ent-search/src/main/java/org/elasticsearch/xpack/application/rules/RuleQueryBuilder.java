@@ -72,7 +72,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, List<String> rulesetIds) {
-        this(organicQuery, matchCriteria, rulesetIds, (Supplier<List<String>>) null, null);
+        this(organicQuery, matchCriteria, rulesetIds, null, null, null, null);
     }
 
     public RuleQueryBuilder(StreamInput in) throws IOException {
@@ -90,35 +90,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
         @Nullable List<String> rulesetIds,
+        List<String> curatedIds,
+        List<Item> curatedDocs,
         Supplier<List<String>> curatedIdSupplier,
         Supplier<List<Item>> curatedDocsSupplier
-    ) {
-        if (organicQuery == null) {
-            throw new IllegalArgumentException("organicQuery must not be null");
-        }
-        if (matchCriteria == null || matchCriteria.isEmpty()) {
-            throw new IllegalArgumentException("matchCriteria must not be null or empty");
-        }
-        if (rulesetIds == null || rulesetIds.isEmpty()) {
-            throw new IllegalArgumentException("rulesetIds must not be null or empty");
-        }
 
-        this.organicQuery = organicQuery;
-        this.matchCriteria = matchCriteria;
-        this.rulesetIds = rulesetIds;
-        this.curatedIds = null;
-        this.curatedIdSupplier = curatedIdSupplier;
-        this.curatedDocs = null;
-        this.curatedDocsSupplier = curatedDocsSupplier;
-
-    }
-
-    private RuleQueryBuilder(
-        QueryBuilder organicQuery,
-        Map<String, Object> matchCriteria,
-        @Nullable List<String> rulesetIds,
-        List<String> curatedIds,
-        List<Item> curatedDocs
     ) {
         if (organicQuery == null) {
             throw new IllegalArgumentException("organicQuery must not be null");
@@ -134,9 +110,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         this.matchCriteria = matchCriteria;
         this.rulesetIds = rulesetIds;
         this.curatedIds = curatedIds;
-        this.curatedIdSupplier = null;
+        this.curatedIdSupplier = curatedIdSupplier;
         this.curatedDocs = curatedDocs;
-        this.curatedDocsSupplier = null;
+        this.curatedDocsSupplier = curatedDocsSupplier;
     }
 
     @Override
@@ -209,7 +185,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             if (curatedIds == null && curatedDocs == null) {
                 return this; // not executed yet
             } else {
-                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds, curatedIds, curatedDocs);
+                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds, curatedIds, curatedDocs, null, null);
             }
         }
 
@@ -276,7 +252,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         });
 
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        RuleQueryBuilder rewritten = new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetIds, idSetOnce::get, docsSetOnce::get);
+        RuleQueryBuilder rewritten =
+            new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetIds, null, null, idSetOnce::get, docsSetOnce::get);
         rewritten.boost(this.boost);
         return rewritten;
     }

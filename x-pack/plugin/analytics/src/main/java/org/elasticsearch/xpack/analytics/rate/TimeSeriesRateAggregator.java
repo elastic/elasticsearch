@@ -112,11 +112,10 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
                         calculateLastBucket();
                         currentTsid = aggCtx.getTsidOrd();
                     } else {
-                        // if we're in a new bucket but in the same tsid then we update the
-                        // timestamp and last value before we calculate the last bucket
+                        // if we're on the same tsid but new bucket then we need to calculate the last bucket
+                        calculateLastBucket();
                         currentStartTime = aggCtx.getTimestamp();
                         currentStartValue = checkForResets(latestValue);
-                        calculateLastBucket();
                     }
                     currentBucket = bucket;
                     currentStartTime = currentEndTime = aggCtx.getTimestamp();

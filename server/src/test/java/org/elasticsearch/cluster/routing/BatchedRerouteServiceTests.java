@@ -249,9 +249,11 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     (event, publishListener, ackListener) -> publishListener.onFailure(new FailedToCommitClusterStateException("simulated"))
                 );
 
+            // Case 1: an exception thrown from within the reroute itself
+
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "unexpected failure",
+                    "failure within reroute",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.ERROR,
                     "unexpected failure"
@@ -270,10 +272,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             );
             mockLogAppender.assertAllExpectationsMatched();
 
-            final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
-                l.onResponse(null);
-                return ClusterState.builder(s).build();
-            });
+            // None of the other cases should yield any log messages by default
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no errors", BatchedRerouteService.class.getCanonicalName(), Level.ERROR, "*")
@@ -284,6 +283,14 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no info", BatchedRerouteService.class.getCanonicalName(), Level.INFO, "*")
             );
+
+            // Case 2: a FailedToCommitClusterStateException (see the call to setClusterStatePublisher above)
+
+            final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
+                l.onResponse(null);
+                return ClusterState.builder(s).build();
+            });
+
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "publish failure",
@@ -301,6 +308,8 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 () -> publishFailureFuture.get(10, TimeUnit.SECONDS)
             );
             mockLogAppender.assertAllExpectationsMatched();
+
+            // Case 3: a NotMasterException
 
             PlainActionFuture.<Void, RuntimeException>get(future -> {
                 clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {

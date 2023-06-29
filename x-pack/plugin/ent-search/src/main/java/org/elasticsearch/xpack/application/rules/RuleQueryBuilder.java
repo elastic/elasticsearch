@@ -225,9 +225,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         List<Item> pinnedDocs = new ArrayList<>();
         // TODO - Support more than one ruleset ID or take out of scope for MVP
         //  We probably should refactor this to a List call and filter by ruleset name. For now, as a GET, just support one ruleset ID
-        if (rulesetIds.size() > 1) {
-            throw new IllegalArgumentException("Not yet");
-        }
         String rulesetId = rulesetIds.get(0);
         GetQueryRulesetAction.Request getQueryRulesetRequest = new GetQueryRulesetAction.Request(rulesetId);
         queryRewriteContext.registerAsyncAction((client, listener) -> {
@@ -291,7 +288,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     protected boolean doEquals(RuleQueryBuilder other) {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
-        if (super.equals(other) == false) return false;
         return Objects.equals(rulesetIds, other.rulesetIds)
             && Objects.equals(matchCriteria, other.matchCriteria)
             && Objects.equals(organicQuery, other.organicQuery)
@@ -300,7 +296,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(super.hashCode(), rulesetIds, matchCriteria, organicQuery, curatedIdSupplier);
+        return Objects.hash(rulesetIds, matchCriteria, organicQuery, curatedIdSupplier);
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
@@ -315,6 +311,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
         PARSER.declareStringArray(constructorArg(), RULESET_IDS_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), CURATED_IDS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.list(), CURATED_DOCS_FIELD);
         declareStandardFields(PARSER);
     }
 

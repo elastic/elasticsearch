@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import java.util.function.Predicate;
 
 public class SecurityActionFilter implements ActionFilter {
+    public static final int ACTION_FILTER_ORDER = Integer.MIN_VALUE;
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
     private static final Logger logger = LogManager.getLogger(SecurityActionFilter.class);
@@ -121,7 +122,7 @@ public class SecurityActionFilter implements ActionFilter {
 
     @Override
     public int order() {
-        return Integer.MIN_VALUE;
+        return ACTION_FILTER_ORDER;
     }
 
     private <Request extends ActionRequest, Response extends ActionResponse> void applyInternal(

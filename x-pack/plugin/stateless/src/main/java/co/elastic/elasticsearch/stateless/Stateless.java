@@ -303,6 +303,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             writeLoadSampler,
             ingestLoadPublisher,
             ingestLoadProbe::getIngestionLoad,
+            hasIndexRole,
             settings,
             clusterService
         );

@@ -78,7 +78,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -430,7 +430,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             InternalUsers.XPACK_USER,
             ASYNC_SEARCH_ORIGIN,
             InternalUsers.ASYNC_SEARCH_USER,
-            DLM_ORIGIN,
+            DATA_STREAM_LIFECYCLE_ORIGIN,
             InternalUsers.DATA_STREAM_LIFECYCLE_USER
         );
 

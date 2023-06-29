@@ -146,7 +146,6 @@ public class MlRescorerIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "Fix DFS rewrite for rescorers")
     public void testLtrSimpleDFS() throws Exception {
         Response searchResponse = searchDfs("""
             {
@@ -222,8 +221,7 @@ public class MlRescorerIT extends ESRestTestCase {
         Map<String, Object> response = responseAsMap(searchResponse);
         assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
 
-        // TODO add DFS support for rescorer rewrites
-        /* searchResponse = searchCanMatch("""
+        searchResponse = searchCanMatch("""
             { "query": {
               "match": { "product": { "query": "TV"}}
             },
@@ -238,7 +236,6 @@ public class MlRescorerIT extends ESRestTestCase {
 
         response = responseAsMap(searchResponse);
         assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
-        */
     }
 
     private void indexData(String data) throws IOException {

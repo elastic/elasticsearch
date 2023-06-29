@@ -374,6 +374,13 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Returns <code>true</code> if this setting is accessibly by non-operators (public users), otherwise <code>false</code>
+     */
+    public final boolean isServerlessPublic() {
+        return properties.contains(Property.ServerlessPublic);
+    }
+
+    /**
      * Returns <code>true</code> if this setting is final, otherwise <code>false</code>
      */
     public final boolean isFinal() {

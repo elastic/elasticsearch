@@ -22,7 +22,7 @@ import org.elasticsearch.action.ActionType;
 
 public class PublishNodeIngestLoadAction extends ActionType<ActionResponse.Empty> {
     public static final PublishNodeIngestLoadAction INSTANCE = new PublishNodeIngestLoadAction();
-    public static final String NAME = "cluster:admin/stateless/autoscaling/push_node_ingest_load";
+    public static final String NAME = "cluster:monitor/stateless/autoscaling/push_node_ingest_load";
 
     public PublishNodeIngestLoadAction() {
         super(NAME, in -> ActionResponse.Empty.INSTANCE);

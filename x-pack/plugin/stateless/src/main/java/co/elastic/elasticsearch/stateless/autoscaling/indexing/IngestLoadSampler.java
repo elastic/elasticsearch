@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
@@ -33,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 
 /**
@@ -69,7 +67,7 @@ public class IngestLoadSampler implements ClusterStateListener {
     private final TimeValue samplingFrequency;
     private final TimeValue maxTimeBetweenPublications;
     private final double numProcessors;
-    private final BooleanSupplier isIndexNode;
+    private final boolean isIndexNode;
 
     private volatile double ingestionLoad;
     private volatile double latestPublishedIngestionLoad;
@@ -82,7 +80,7 @@ public class IngestLoadSampler implements ClusterStateListener {
         AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestionLoadPublisher,
         DoubleSupplier currentIndexLoadSupplier,
-        BooleanSupplier isIndexNode,
+        boolean isIndexNode,
         Settings settings
     ) {
         this(
@@ -103,7 +101,7 @@ public class IngestLoadSampler implements ClusterStateListener {
         AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestionLoadPublisher,
         DoubleSupplier currentIndexLoadSupplier,
-        BooleanSupplier isIndexNode,
+        boolean isIndexNode,
         double minSensitivityRatio,
         TimeValue samplingFrequency,
         TimeValue maxTimeBetweenPublications,
@@ -132,6 +130,7 @@ public class IngestLoadSampler implements ClusterStateListener {
         AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestLoadPublisher,
         DoubleSupplier getIngestionLoad,
+        boolean hasIndexRole,
         Settings settings,
         ClusterService clusterService
     ) {
@@ -140,7 +139,7 @@ public class IngestLoadSampler implements ClusterStateListener {
             writeLoadSampler,
             ingestLoadPublisher,
             getIngestionLoad,
-            () -> clusterService.localNode().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE),
+            hasIndexRole,
             settings
         );
         clusterService.addLifecycleListener(new LifecycleListener() {
@@ -159,7 +158,7 @@ public class IngestLoadSampler implements ClusterStateListener {
     }
 
     void start() {
-        if (isIndexNode()) {
+        if (isIndexNode) {
             writeLoadSampler.start();
             var newSamplingTask = new SamplingTask();
             samplingTask = newSamplingTask;
@@ -168,7 +167,7 @@ public class IngestLoadSampler implements ClusterStateListener {
     }
 
     void stop() {
-        if (isIndexNode()) {
+        if (isIndexNode) {
             samplingTask = null;
             writeLoadSampler.stop();
         }
@@ -176,7 +175,7 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (isIndexNode() && event.nodesDelta().masterNodeChanged()) {
+        if (isIndexNode && event.nodesDelta().masterNodeChanged()) {
             clearInFlightPublicationTicket();
             publishCurrentLoad();
         }
@@ -204,12 +203,20 @@ public class IngestLoadSampler implements ClusterStateListener {
             var ticket = new Object();
             if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
                 final var publishedLoad = ingestionLoad;
-                ingestionLoadPublisher.publishIngestionLoad(publishedLoad, ActionListener.running(() -> {
-                    var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();
-                    lastPublicationRelativeTimeInMillis.compareAndSet(previousPublicationTime, getRelativeTimeInMillis());
-                    latestPublishedIngestionLoad = publishedLoad;
-                    inFlightPublicationTicket.compareAndSet(ticket, null);
-                }));
+                ingestionLoadPublisher.publishIngestionLoad(publishedLoad, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();
+                        lastPublicationRelativeTimeInMillis.compareAndSet(previousPublicationTime, getRelativeTimeInMillis());
+                        latestPublishedIngestionLoad = publishedLoad;
+                        inFlightPublicationTicket.compareAndSet(ticket, null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Unable to publish the latest index load", e);
+                    }
+                });
             }
         } catch (Exception e) {
             assert false : "unexpected exception";
@@ -224,10 +231,6 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     private long getRelativeTimeInMillis() {
         return threadPool.relativeTimeInMillis();
-    }
-
-    private boolean isIndexNode() {
-        return isIndexNode.getAsBoolean();
     }
 
     class SamplingTask implements Runnable {

@@ -760,8 +760,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "master"
                     ],
                     "version": "%s",
-                    "min_index_version":"%s",
-                    "max_index_version":"%s"
+                    "min_index_version":%s,
+                    "max_index_version":%s
                   }
                 },
                 "transport_versions": []

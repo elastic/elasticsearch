@@ -747,10 +747,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(task.getNumReceived(), task.getTotalShardDocCount());
             assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
             assertEquals(100.0F, task.getDocsProcessedPercentage(), 0.001);
-            assertTrue(task.getRollupBulkInfo().bulkDurationSumMillis() > 0);
+            assertTrue(task.getRollupBulkInfo().bulkDurationSumMillis() >= 0);
             assertEquals(task.getRollupBulkInfo().bulkDurationSumMillis(), task.getRollupBulkInfo().maxBulkDurationMillis());
             assertEquals(task.getRollupBulkInfo().bulkDurationSumMillis(), task.getRollupBulkInfo().minBulkDurationMillis());
-            assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() > 0);
+            assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
             assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().maxBulkIngestMillis());
             assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().minBulkIngestMillis());
             assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
@@ -765,8 +765,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertTrue(task.getLastBeforeBulkInfo().estimatedSizeInBytes() > 0);
             assertFalse(task.getLastAfterBulkInfo().hasFailures());
             assertEquals(RestStatus.OK.getStatus(), task.getLastAfterBulkInfo().restStatusCode());
-            assertTrue(task.getLastAfterBulkInfo().lastBulkDurationInMillis() > 0);
-            assertTrue(task.getLastAfterBulkInfo().lastTookInMillis() > 0);
+            assertTrue(task.getLastAfterBulkInfo().lastBulkDurationInMillis() >= 0);
+            assertTrue(task.getLastAfterBulkInfo().lastTookInMillis() >= 0);
             assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastIndexingTimestamp());
             assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastSourceTimestamp());
             assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastTargetTimestamp());

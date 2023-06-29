@@ -63,7 +63,7 @@ final class QueryPhaseCollector implements Collector {
     public void setWeight(Weight weight) {
         if (postFilterWeight == null && minScore == null) {
             // propagate the weight when we do no additional filtering over the docs that are collected
-            //when post_filter or min_score are provided, the collection cannot be shortcut via Weight#count
+            // when post_filter or min_score are provided, the collection cannot be shortcut via Weight#count
             topDocsCollector.setWeight(weight);
         }
         if (aggsCollector != null && minScore == null) {

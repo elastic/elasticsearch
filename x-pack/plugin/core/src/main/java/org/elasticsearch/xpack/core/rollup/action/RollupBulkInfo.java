@@ -120,15 +120,15 @@ public record RollupBulkInfo(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(totalBulkCount);
-        out.writeLong(bulkDurationSumMillis);
-        out.writeLong(maxBulkDurationMillis);
-        out.writeLong(minBulkDurationMillis);
-        out.writeLong(bulkIngestSumMillis);
-        out.writeLong(maxBulkIngestMillis);
-        out.writeLong(minBulkIngestMillis);
-        out.writeLong(bulkTookSumMillis);
-        out.writeLong(maxBulkTookMillis);
-        out.writeLong(minBulkTookMillis);
+        out.writeVLong(totalBulkCount);
+        out.writeVLong(bulkDurationSumMillis);
+        out.writeVLong(maxBulkDurationMillis);
+        out.writeVLong(minBulkDurationMillis);
+        out.writeVLong(bulkIngestSumMillis);
+        out.writeVLong(maxBulkIngestMillis);
+        out.writeVLong(minBulkIngestMillis);
+        out.writeVLong(bulkTookSumMillis);
+        out.writeVLong(maxBulkTookMillis);
+        out.writeVLong(minBulkTookMillis);
     }
 }

@@ -58,10 +58,10 @@ public record RollupBeforeBulkInfo(long currentTimeMillis, long executionId, lon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(currentTimeMillis);
-        out.writeLong(executionId);
-        out.writeLong(estimatedSizeInBytes);
-        out.writeInt(numberOfActions);
+        out.writeVLong(currentTimeMillis);
+        out.writeVLong(executionId);
+        out.writeVLong(estimatedSizeInBytes);
+        out.writeVInt(numberOfActions);
     }
 
     @Override

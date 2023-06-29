@@ -154,6 +154,24 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
                 assertEquals(shardLimitsMetadata, updatedShardLimits);
             });
+
+            var electedMaster = internalCluster.getMasterName();
+
+            // Force a master fail-over but, since the settings were manually changed, we should return the manually set values
+            internalCluster.stopNode(electedMaster);
+            ensureStableCluster(numberOfNodes - 1);
+
+            assertBusy(() -> {
+                var healthMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state());
+                var diskMetadata = healthMetadata.getDiskMetadata();
+                assertThat(diskMetadata.describeHighWatermark(), equalTo(updatedHighWatermark));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(updatedHighMaxHeadroom));
+                assertThat(diskMetadata.describeFloodStageWatermark(), equalTo(updatedFloodStageWatermark));
+                assertThat(diskMetadata.floodStageMaxHeadroom(), equalTo(updatedFloodStageMaxHeadroom));
+
+                var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
+                assertEquals(shardLimitsMetadata, updatedShardLimits);
+            });
         }
     }
 

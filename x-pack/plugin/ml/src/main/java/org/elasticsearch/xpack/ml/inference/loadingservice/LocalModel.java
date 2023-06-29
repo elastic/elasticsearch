@@ -199,6 +199,25 @@ public class LocalModel implements Closeable {
         return result.get();
     }
 
+    public InferenceResults inferLtr(Map<String, Object> fields, InferenceConfig config) {
+        statsAccumulator.incInference();
+        currentInferenceCount.increment();
+
+        // Needs to happen before collapse as defaultFieldMap might resolve fields to their appropriate name
+        LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
+        // TODO: Could we just require that input fields aren't nested objects?
+        Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
+        boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
+        if (flattenedFields.isEmpty()) {
+            statsAccumulator.incMissingFields();
+        }
+        InferenceResults inferenceResults = trainedModelDefinition.infer(flattenedFields, config);
+        if (shouldPersistStats) {
+            persistStats(false);
+        }
+        return inferenceResults;
+    }
+
     /**
      * Used for translating field names in according to the passed `fieldMappings` parameter.
      *

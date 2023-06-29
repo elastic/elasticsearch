@@ -12,6 +12,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdateTests;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
@@ -59,7 +61,11 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
 
     @Override
     protected InferenceRescorerBuilder createTestInstance() {
-        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(randomAlphaOfLength(10), (Supplier<ModelLoadingService>) null);
+        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate(),
+            (Supplier<ModelLoadingService>) null
+        );
         if (randomBoolean()) {
             builder.windowSize(randomIntBetween(1, 10000));
         }
@@ -68,15 +74,34 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
 
     @Override
     protected InferenceRescorerBuilder mutateInstance(InferenceRescorerBuilder instance) throws IOException {
-        int i = randomInt(1);
+        int i = randomInt(2);
         return switch (i) {
-            case 0 -> new InferenceRescorerBuilder(
-                randomValueOtherThan(instance.getModelId(), () -> randomAlphaOfLength(10)),
-                (Supplier<ModelLoadingService>) null
-            );
-            case 1 -> new InferenceRescorerBuilder(instance.getModelId(), (Supplier<ModelLoadingService>) null).windowSize(
+            case 0 -> {
+                InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+                    randomValueOtherThan(instance.getModelId(), () -> randomAlphaOfLength(10)),
+                    instance.getInferenceConfigUpdate(),
+                    (Supplier<ModelLoadingService>) null);
+                if (instance.windowSize() != null) {
+                    builder.windowSize(instance.windowSize());
+                }
+                yield builder;
+            }
+            case 1 -> new InferenceRescorerBuilder(
+                instance.getModelId(),
+                instance.getInferenceConfigUpdate(),
+                (Supplier<ModelLoadingService>) null).windowSize(
                 randomValueOtherThan(instance.windowSize(), () -> randomIntBetween(1, 10000))
             );
+            case 2 -> {
+                InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+                    instance.getModelId(),
+                    LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate(),
+                    (Supplier<ModelLoadingService>) null);
+                if (instance.windowSize() != null) {
+                    builder.windowSize(instance.windowSize());
+                }
+                yield builder;
+            }
             default -> throw new AssertionError("Unexpected random test case");
         };
     }
@@ -84,5 +109,15 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
     @Override
     protected InferenceRescorerBuilder mutateInstanceForVersion(InferenceRescorerBuilder instance, TransportVersion version) {
         return instance;
+    }
+
+    public void testIncorrectInferenceConfigType() {
+        InferenceRescorerBuilder.Builder builder = new InferenceRescorerBuilder.Builder();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> builder.setInferenceConfigUpdate(ClassificationConfigUpdateTests.randomClassificationConfigUpdate())
+        );
+        //Should not throw
+        builder.setInferenceConfigUpdate(LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate());
     }
 }

@@ -15,6 +15,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 
@@ -25,15 +27,14 @@ import java.util.Map;
 
 public class QueryFeatureExtractor implements FeatureExtractor {
 
-    private final List<QueryExtractorBuilder> namedQueryExtractorBuilders;
+    private final List<String> featureNames;
     private final List<Weight> weights;
     private final List<Scorer> scorers;
     private DisjunctionDISI rankerIterator;
 
-    public QueryFeatureExtractor(List<QueryExtractorBuilder> namedQueryExtractorBuilders, SearchExecutionContext executionContext)
+    public QueryFeatureExtractor(List<String> featureNames, List<ParsedQuery> queries, SearchExecutionContext executionContext)
         throws IOException {
-        this.namedQueryExtractorBuilders = namedQueryExtractorBuilders;
-        Map<String, Query> namedQueries = executionContext.copyNamedQueries();
+        this.featureNames = featureNames;
         this.weights = new ArrayList<>(namedQueries.size());
         this.scorers = new ArrayList<>(namedQueries.size());
         for (QueryExtractorBuilder namedQueryExtractorBuilder : namedQueryExtractorBuilders) {

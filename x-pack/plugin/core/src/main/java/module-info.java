@@ -95,6 +95,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
+    exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel;

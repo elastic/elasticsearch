@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -189,6 +190,10 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         }
 
         @Override
+        public void validate() throws Exception {
+        }
+
+        @Override
         public String getName() {
             return NAME.getPreferredName();
         }
@@ -204,6 +209,11 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         @Override
         public int hashCode() {
             return Objects.hash(featureName);
+        }
+
+        @Override
+        public TestValueExtractor rewrite(QueryRewriteContext ctx) throws IOException {
+            return this;
         }
     }
 }

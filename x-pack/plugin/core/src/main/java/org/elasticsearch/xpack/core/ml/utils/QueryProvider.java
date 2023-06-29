@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class QueryProvider implements Writeable, ToXContentObject {
+public class QueryProvider implements Writeable, ToXContentObject, Rewriteable<QueryProvider> {
 
     private static final Logger logger = LogManager.getLogger(QueryProvider.class);
 
@@ -130,5 +132,18 @@ public class QueryProvider implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.map(query);
         return builder;
+    }
+
+    @Override
+    public QueryProvider rewrite(QueryRewriteContext ctx) throws IOException {
+        assert parsedQuery != null;
+        if (parsedQuery == null) {
+            return this;
+        }
+        QueryBuilder rewritten = parsedQuery.rewrite(ctx);
+        if (rewritten == parsedQuery) {
+            return this;
+        }
+        return new QueryProvider(query, parsedQuery, parsingException);
     }
 }

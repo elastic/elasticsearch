@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -97,6 +101,13 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
     }
 
     @Override
+    public void validate() throws Exception {
+        if (query.getParsingException() != null) {
+            throw query.getParsingException();
+        }
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
     }
@@ -114,4 +125,17 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
         return Objects.hash(featureName, query);
     }
 
+    @Override
+    public QueryExtractorBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        QueryProvider rewritten = query.rewrite(ctx);
+        if (rewritten == query) {
+            return this;
+        }
+        return new QueryExtractorBuilder(featureName, query);
+    }
+
+    @Override
+    public ParsedQuery parsedQuery(SearchExecutionContext executionContext) {
+        return executionContext.toQuery(query.getParsedQuery());
+    }
 }

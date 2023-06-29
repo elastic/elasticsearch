@@ -1035,12 +1035,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Return the {@link Version} on which this index has been created. This
+     * Return the {@link IndexVersion} on which this index has been created. This
      * information is typically useful for backward compatibility.
      * To check index compatibility (e.g. N-1 checks), use {@link #getCompatibilityVersion()} instead.
      */
-    public Version getCreationVersion() {
-        return indexCreatedVersion.toVersion();
+    public IndexVersion getCreationVersion() {
+        return indexCreatedVersion;
     }
 
     /**

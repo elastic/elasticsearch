@@ -1,0 +1,6 @@
+pr: 97249
+summary: Calculate the bucket value using the current bucket data
+area: TSDB
+type: bug
+issues:
+ - 94223

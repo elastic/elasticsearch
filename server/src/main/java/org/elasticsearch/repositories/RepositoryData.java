@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -309,7 +310,7 @@ public final class RepositoryData {
      * Returns the {@link Version} for the given snapshot or {@code null} if unknown.
      */
     @Nullable
-    public Version getVersion(SnapshotId snapshotId) {
+    public IndexVersion getVersion(SnapshotId snapshotId) {
         return snapshotsDetails.getOrDefault(snapshotId.getUUID(), SnapshotDetails.EMPTY).getVersion();
     }
 
@@ -731,9 +732,13 @@ public final class RepositoryData {
                 }
                 builder.endObject();
             }
-            final Version version = snapshotDetails.getVersion();
+            final IndexVersion version = snapshotDetails.getVersion();
             if (version != null) {
-                builder.field(VERSION, version.toString());
+                if (version.before(IndexVersion.V_8_9_0)) {
+                    builder.field(VERSION, Version.fromId(version.id()).toString());
+                } else {
+                    builder.field(VERSION, version.id());
+                }
             }
 
             if (snapshotDetails.getStartTimeMillis() != -1) {
@@ -903,13 +908,13 @@ public final class RepositoryData {
             String uuid = null;
             SnapshotState state = null;
             Map<String, String> metaGenerations = null;
-            Version version = null;
+            IndexVersion version = null;
             long startTimeMillis = -1;
             long endTimeMillis = -1;
             String slmPolicy = null;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
-                parser.nextToken();
+                var token = parser.nextToken();
                 switch (currentFieldName) {
                     case NAME -> name = parser.text();
                     case UUID -> uuid = parser.text();
@@ -918,7 +923,13 @@ public final class RepositoryData {
                         HashMap::new,
                         p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity())
                     );
-                    case VERSION -> version = Version.fromString(parser.text());
+                    case VERSION -> {
+                        switch (token) {
+                            case VALUE_STRING -> version = IndexVersion.fromId(Version.fromString(parser.text()).id);   // 8.9.0 or before
+                            case VALUE_NUMBER -> version = IndexVersion.fromId(parser.intValue());  // separated index version
+                            default -> throw new IllegalStateException("Unexpected token type " + token);
+                        }
+                    }
                     case START_TIME_MILLIS -> {
                         assert startTimeMillis == -1;
                         startTimeMillis = parser.longValue();
@@ -1051,7 +1062,7 @@ public final class RepositoryData {
         private final SnapshotState snapshotState;
 
         @Nullable // may be omitted if pre-7.6 nodes were involved somewhere
-        private final Version version;
+        private final IndexVersion version;
 
         // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
         private final long startTimeMillis;
@@ -1066,7 +1077,7 @@ public final class RepositoryData {
 
         public SnapshotDetails(
             @Nullable SnapshotState snapshotState,
-            @Nullable Version version,
+            @Nullable IndexVersion version,
             long startTimeMillis,
             long endTimeMillis,
             @Nullable String slmPolicy
@@ -1084,7 +1095,7 @@ public final class RepositoryData {
         }
 
         @Nullable
-        public Version getVersion() {
+        public IndexVersion getVersion() {
             return version;
         }
 

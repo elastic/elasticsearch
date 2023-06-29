@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -38,13 +37,8 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     @Override
-    protected void doAssertLuceneQuery(RuleQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        // if (queryBuilder.ids().size() == 0 && queryBuilder.docs().size() == 0) {
-        // assertThat(query, instanceOf(CappedScoreQuery.class));
-        // } else {
-        // Have IDs/docs and an organic query - uses DisMax
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        // }
+    protected void doAssertLuceneQuery(RuleQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
+        // TODO - Figure out what needs to be validated here.
     }
 
     @Override

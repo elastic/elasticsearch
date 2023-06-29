@@ -13,15 +13,17 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,7 +35,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         super(NAME, GetLifecycleAction.Response::new);
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         private List<LifecyclePolicyResponseItem> policies;
 
@@ -48,21 +50,6 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         public List<LifecyclePolicyResponseItem> getPolicies() {
             return policies;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            for (LifecyclePolicyResponseItem item : policies) {
-                builder.startObject(item.getLifecyclePolicy().getName());
-                builder.field("version", item.getVersion());
-                builder.field("modified_date", item.getModifiedDate());
-                builder.field("policy", item.getLifecyclePolicy());
-                builder.field("in_use_by", item.getUsage());
-                builder.endObject();
-            }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -92,6 +79,23 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             return Strings.toString(this, true, true);
         }
 
+        @Override
+        @SuppressWarnings("unchecked")
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                Iterators.single((ToXContent) (builder, params) -> builder.startObject()),
+                Iterators.concat(policies.stream().map(policy -> Iterators.single((ToXContent) (b, p) -> {
+                    b.startObject(policy.getLifecyclePolicy().getName());
+                    b.field("version", policy.getVersion());
+                    b.field("modified_date", policy.getModifiedDate());
+                    b.field("policy", policy.getLifecyclePolicy());
+                    b.field("in_use_by", policy.getUsage());
+                    b.endObject();
+                    return b;
+                })).toArray(Iterator[]::new)),
+                Iterators.single((b, p) -> b.endObject())
+            );
+        }
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

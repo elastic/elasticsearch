@@ -55,7 +55,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
-    public static final String DLM_ORIGIN = "data_lifecycle";
+    public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");

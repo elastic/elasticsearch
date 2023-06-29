@@ -150,8 +150,11 @@ public class HealthMetadataService {
             if (readyToPublishAsMaster) {
                 resetHealthMetadata("health-metadata-update-master-election");
                 readyToPublishAsMaster = false;
-            } else if (isMaster && event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-                taskQueue.submitTask("health-metadata-update", () -> this.localHealthMetadata, null);
+            } else if (isMaster) {
+                var currentStoredHealthMetadata = HealthMetadata.getFromClusterState(event.state());
+                if (currentStoredHealthMetadata != null && this.localHealthMetadata.equals(currentStoredHealthMetadata) == false) {
+                    taskQueue.submitTask("health-metadata-update", () -> this.localHealthMetadata, null);
+                }
             }
         }
     }
@@ -182,6 +185,10 @@ public class HealthMetadataService {
         }
 
         default ClusterState execute(ClusterState currentState) {
+            if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                return currentState;
+            }
+
             var initialHealthMetadata = HealthMetadata.getFromClusterState(currentState);
             var finalHealthMetadata = doExecute();
             return finalHealthMetadata.equals(initialHealthMetadata)

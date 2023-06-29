@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A base class for node level operations.
@@ -66,5 +67,18 @@ public abstract class BaseNodeResponse extends TransportResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        if (other == null || getClass() != other.getClass()) return false;
+        BaseNodeResponse that = (BaseNodeResponse) other;
+        return Objects.equals(node, that.node);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(node);
     }
 }

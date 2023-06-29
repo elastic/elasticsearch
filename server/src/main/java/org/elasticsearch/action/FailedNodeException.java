@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class FailedNodeException extends ElasticsearchException {
 
@@ -43,4 +44,27 @@ public class FailedNodeException extends ElasticsearchException {
     protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node_id", nodeId);
     }
+
+        @Override
+        public boolean equals(Object o) {
+            return super.equals(o);
+//            if (this == o) return true;
+//            if (o == null || getClass() != o.getClass()) return false;
+//            FailedNodeException that = (FailedNodeException) o;
+//            return Objects.equals(nodeId, that.nodeId)
+//                && getRootCause().getClass() == that.getRootCause().getClass()
+//                && Objects.equals(getMessage(), that.getMessage())
+//                && getCause() == that.getCause();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                nodeId,
+                getMessage(),
+                getClass(),
+                getCause().getMessage(),
+                getCause().getClass()
+            ); //TODO
+        }
 }

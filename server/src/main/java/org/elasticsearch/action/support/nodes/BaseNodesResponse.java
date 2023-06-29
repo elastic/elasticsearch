@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,4 +113,18 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
      */
     protected abstract void writeNodesTo(StreamOutput out, List<TNodeResponse> nodes) throws IOException;
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BaseNodesResponse<?> that = (BaseNodesResponse<?>) o;
+        return Objects.equals(clusterName, that.clusterName)
+            && failures.equals(failures)
+            && Objects.equals(nodes, that.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clusterName, failures, nodes);
+    }
 }

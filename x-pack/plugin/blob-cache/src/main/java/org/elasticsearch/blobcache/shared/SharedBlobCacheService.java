@@ -625,7 +625,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    /**
+    /** TODO just change the above function to return the number of entries evicted.
      * Evicts every entry from the cache.
      * <p>
      * As currently implemented, this is a blocking operation on the entire cache.

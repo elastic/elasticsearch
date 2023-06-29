@@ -43,4 +43,14 @@ public abstract class BaseNodesXContentResponse<TNodeResponse extends BaseNodeRe
     }
 
     protected abstract Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams);
+
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }

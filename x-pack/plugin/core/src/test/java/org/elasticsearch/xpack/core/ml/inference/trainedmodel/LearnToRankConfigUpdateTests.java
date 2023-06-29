@@ -10,6 +10,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -17,8 +19,9 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.NamedQueryExtractorBuilder;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.NamedQueryExtractorBuilderTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilderTests;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,13 +45,13 @@ public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCa
                 : Stream.generate(
                 () -> randomFrom(
                     new LearnToRankConfigTests.TestValueExtractor(randomAlphaOfLength(10)),
-                    NamedQueryExtractorBuilderTests.randomInstance()
+                    QueryExtractorBuilderTests.randomInstance()
                 )
             ).limit(randomInt(5)).collect(Collectors.toList())
         );
     }
 
-    public void testApply() {
+    public void testApply() throws IOException {
         LearnToRankConfig originalConfig = randomLearnToRankConfig();
         assertThat(originalConfig, equalTo(LearnToRankConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
         assertThat(
@@ -61,7 +64,10 @@ public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCa
         );
 
         LearnToRankFeatureExtractorBuilder extractorBuilder = new LearnToRankConfigTests.TestValueExtractor("foo");
-        LearnToRankFeatureExtractorBuilder extractorBuilder2 = new NamedQueryExtractorBuilder("bar", "bar_bm25");
+        LearnToRankFeatureExtractorBuilder extractorBuilder2 = new QueryExtractorBuilder(
+            "bar",
+            QueryProvider.fromParsedQuery(QueryBuilders.termQuery("foo", "bar"))
+        );
 
         LearnToRankConfig config = new LearnToRankConfigUpdate.Builder().setNumTopFeatureImportanceValues(1)
             .setFeatureExtractorBuilders(List.of(extractorBuilder2, extractorBuilder))

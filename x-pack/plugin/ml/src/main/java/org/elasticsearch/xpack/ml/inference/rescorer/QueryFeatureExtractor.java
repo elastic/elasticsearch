@@ -16,27 +16,27 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.NamedQueryExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class NamedQueryFeatureExtractor implements FeatureExtractor {
+public class QueryFeatureExtractor implements FeatureExtractor {
 
-    private final List<NamedQueryExtractorBuilder> namedQueryExtractorBuilders;
+    private final List<QueryExtractorBuilder> namedQueryExtractorBuilders;
     private final List<Weight> weights;
     private final List<Scorer> scorers;
     private DisjunctionDISI rankerIterator;
 
-    public NamedQueryFeatureExtractor(List<NamedQueryExtractorBuilder> namedQueryExtractorBuilders, SearchExecutionContext executionContext)
+    public QueryFeatureExtractor(List<QueryExtractorBuilder> namedQueryExtractorBuilders, SearchExecutionContext executionContext)
         throws IOException {
         this.namedQueryExtractorBuilders = namedQueryExtractorBuilders;
         Map<String, Query> namedQueries = executionContext.copyNamedQueries();
         this.weights = new ArrayList<>(namedQueries.size());
         this.scorers = new ArrayList<>(namedQueries.size());
-        for (NamedQueryExtractorBuilder namedQueryExtractorBuilder : namedQueryExtractorBuilders) {
+        for (QueryExtractorBuilder namedQueryExtractorBuilder : namedQueryExtractorBuilders) {
             Query namedQuery = namedQueries.get(namedQueryExtractorBuilder.queryName());
             if (namedQuery != null) {
                 weights.add(
@@ -80,7 +80,7 @@ public class NamedQueryFeatureExtractor implements FeatureExtractor {
 
     @Override
     public List<String> featureNames() {
-        return namedQueryExtractorBuilders.stream().map(NamedQueryExtractorBuilder::featureName).toList();
+        return namedQueryExtractorBuilders.stream().map(QueryExtractorBuilder::featureName).toList();
     }
 
     /**

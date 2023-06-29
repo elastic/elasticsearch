@@ -10,16 +10,17 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.utils.QueryProviderTests;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class NamedQueryExtractorBuilderTests extends AbstractXContentSerializingTestCase<NamedQueryExtractorBuilder> {
+public class QueryExtractorBuilderTests extends AbstractXContentSerializingTestCase<QueryExtractorBuilder> {
 
     protected boolean lenient;
 
-    public static NamedQueryExtractorBuilder randomInstance() {
-        return new NamedQueryExtractorBuilder(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    public static QueryExtractorBuilder randomInstance() {
+        return new QueryExtractorBuilder(randomAlphaOfLength(10), QueryProviderTests.createRandomValidQueryProvider());
     }
 
     @Before
@@ -33,27 +34,27 @@ public class NamedQueryExtractorBuilderTests extends AbstractXContentSerializing
     }
 
     @Override
-    protected Writeable.Reader<NamedQueryExtractorBuilder> instanceReader() {
-        return NamedQueryExtractorBuilder::new;
+    protected Writeable.Reader<QueryExtractorBuilder> instanceReader() {
+        return QueryExtractorBuilder::new;
     }
 
     @Override
-    protected NamedQueryExtractorBuilder createTestInstance() {
+    protected QueryExtractorBuilder createTestInstance() {
         return randomInstance();
     }
 
     @Override
-    protected NamedQueryExtractorBuilder mutateInstance(NamedQueryExtractorBuilder instance) throws IOException {
+    protected QueryExtractorBuilder mutateInstance(QueryExtractorBuilder instance) throws IOException {
         int i = randomInt(1);
         return switch (i) {
-            case 0 -> new NamedQueryExtractorBuilder(randomAlphaOfLength(10), instance.featureName());
-            case 1 -> new NamedQueryExtractorBuilder(instance.queryName(), randomAlphaOfLength(10));
+            case 0 -> new QueryExtractorBuilder(randomAlphaOfLength(10), instance.query());
+            case 1 -> new QueryExtractorBuilder(instance.featureName(), QueryProviderTests.createRandomValidQueryProvider());
             default -> throw new AssertionError("unknown random case for instance mutation");
         };
     }
 
     @Override
-    protected NamedQueryExtractorBuilder doParseInstance(XContentParser parser) throws IOException {
-        return NamedQueryExtractorBuilder.fromXContent(parser, lenient);
+    protected QueryExtractorBuilder doParseInstance(XContentParser parser) throws IOException {
+        return QueryExtractorBuilder.fromXContent(parser, lenient);
     }
 }

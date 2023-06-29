@@ -19,6 +19,8 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
@@ -30,9 +32,15 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     public static final String NAME = "inference";
     private static final ParseField MODEL = new ParseField("model_id");
+    private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, false, Builder::new);
     static {
         PARSER.declareString(Builder::setModelId, MODEL);
+        PARSER.declareNamedObject(
+            Builder::setInferenceConfigUpdate,
+            (p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, c),
+            INFERENCE_CONFIG
+        );
     }
 
     public static InferenceRescorerBuilder fromXContent(XContentParser parser, Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
@@ -40,20 +48,23 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     }
 
     private final String modelId;
+    private final InferenceConfigUpdate inferenceConfigUpdate;
     private final LocalModel inferenceDefinition;
     private final Supplier<LocalModel> inferenceDefinitionSupplier;
     private final Supplier<ModelLoadingService> modelLoadingServiceSupplier;
     private boolean rescoreOccurred;
 
-    public InferenceRescorerBuilder(String modelId, Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
+    public InferenceRescorerBuilder(String modelId, InferenceConfigUpdate inferenceConfigUpdate, Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
         this.modelId = Objects.requireNonNull(modelId);
+        this.inferenceConfigUpdate = inferenceConfigUpdate;
         this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
         this.inferenceDefinition = null;
         this.inferenceDefinitionSupplier = null;
     }
 
-    InferenceRescorerBuilder(String modelId, LocalModel inferenceDefinition) {
+    InferenceRescorerBuilder(String modelId, InferenceConfigUpdate inferenceConfigUpdate, LocalModel inferenceDefinition) {
         this.modelId = Objects.requireNonNull(modelId);
+        this.inferenceConfigUpdate = inferenceConfigUpdate;
         this.inferenceDefinition = Objects.requireNonNull(inferenceDefinition);
         this.inferenceDefinitionSupplier = null;
         this.modelLoadingServiceSupplier = null;
@@ -61,10 +72,12 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     private InferenceRescorerBuilder(
         String modelId,
+        InferenceConfigUpdate inferenceConfigUpdate,
         Supplier<ModelLoadingService> modelLoadingServiceSupplier,
         Supplier<LocalModel> inferenceDefinitionSupplier
     ) {
         this.modelId = modelId;
+        this.inferenceConfigUpdate = inferenceConfigUpdate;
         this.inferenceDefinition = null;
         this.inferenceDefinitionSupplier = inferenceDefinitionSupplier;
         this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
@@ -73,6 +86,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     public InferenceRescorerBuilder(StreamInput input, Supplier<ModelLoadingService> modelLoadingServiceSupplier) throws IOException {
         super(input);
         this.modelId = input.readString();
+        this.inferenceConfigUpdate = input.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         this.inferenceDefinitionSupplier = null;
         this.inferenceDefinition = null;
         this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
@@ -102,7 +116,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 return this;
             }
             LocalModel inferenceDefinition = inferenceDefinitionSupplier.get();
-            InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, inferenceDefinition);
+            InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, inferenceConfigUpdate, inferenceDefinition);
             if (windowSize() != null) {
                 builder.windowSize(windowSize());
             }
@@ -120,6 +134,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             }, l::onFailure)));
             InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
                 modelId,
+                inferenceConfigUpdate,
                 modelLoadingServiceSupplier,
                 inferenceDefinitionSetOnce::get
             );
@@ -142,19 +157,25 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         }
         assert inferenceDefinition == null || rescoreOccurred : "Unnecessarily populated local model object";
         out.writeString(modelId);
+        out.writeOptionalNamedWriteable(inferenceConfigUpdate);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(MODEL.getPreferredName(), modelId);
+        if (inferenceConfigUpdate != null) {
+            builder.startObject(INFERENCE_CONFIG.getPreferredName());
+            builder.field(inferenceConfigUpdate.getName(), inferenceConfigUpdate, params);
+            builder.endObject();
+        }
         builder.endObject();
     }
 
     @Override
     protected InferenceRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
-        return new InferenceRescorerContext(windowSize, InferenceRescorer.INSTANCE, inferenceDefinition, context);
+        return new InferenceRescorerContext(windowSize, InferenceRescorer.INSTANCE, inferenceConfigUpdate, inferenceDefinition, context);
     }
 
     @Override
@@ -165,24 +186,30 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         InferenceRescorerBuilder that = (InferenceRescorerBuilder) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(inferenceDefinition, that.inferenceDefinition)
+            && Objects.equals(inferenceConfigUpdate, that.inferenceConfigUpdate)
             && Objects.equals(inferenceDefinitionSupplier, that.inferenceDefinitionSupplier)
             && Objects.equals(modelLoadingServiceSupplier, that.modelLoadingServiceSupplier);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), modelId, inferenceDefinition, inferenceDefinitionSupplier, modelLoadingServiceSupplier);
+        return Objects.hash(super.hashCode(), modelId, inferenceConfigUpdate, inferenceDefinition, inferenceDefinitionSupplier, modelLoadingServiceSupplier);
     }
 
     private static class Builder {
         private String modelId;
+        private InferenceConfigUpdate inferenceConfigUpdate;
 
         public void setModelId(String modelId) {
             this.modelId = modelId;
         }
 
+        public void setInferenceConfigUpdate(InferenceConfigUpdate inferenceConfigUpdate) {
+            this.inferenceConfigUpdate = inferenceConfigUpdate;
+        }
+
         InferenceRescorerBuilder build(Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
-            return new InferenceRescorerBuilder(modelId, modelLoadingServiceSupplier);
+            return new InferenceRescorerBuilder(modelId, inferenceConfigUpdate, modelLoadingServiceSupplier);
         }
     }
 }

@@ -10,60 +10,72 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.requireNonNull;
 
-public record NamedQueryExtractorBuilder(String queryName, String featureName) implements LearnToRankFeatureExtractorBuilder {
+public record QueryExtractorBuilder(String featureName, QueryProvider query) implements LearnToRankFeatureExtractorBuilder {
 
     public static final ParseField NAME = new ParseField("named_query");
-    public static final ParseField QUERY_NAME = new ParseField("query_name");
+    public static final ParseField FEATURE_NAME = new ParseField("feature_name");
+    public static final ParseField QUERY = new ParseField("query");
 
-    private static final ConstructingObjectParser<NamedQueryExtractorBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<QueryExtractorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
-        a -> new NamedQueryExtractorBuilder((String) a[0], (String) a[1])
+        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1])
     );
-    private static final ConstructingObjectParser<NamedQueryExtractorBuilder, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<QueryExtractorBuilder, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
         true,
-        a -> new NamedQueryExtractorBuilder((String) a[0], (String) a[1])
+        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1])
     );
     static {
-        PARSER.declareString(constructorArg(), QUERY_NAME);
-        PARSER.declareString(optionalConstructorArg(), FEATURE_NAME);
-        LENIENT_PARSER.declareString(constructorArg(), QUERY_NAME);
-        LENIENT_PARSER.declareString(optionalConstructorArg(), FEATURE_NAME);
+        PARSER.declareString(constructorArg(), FEATURE_NAME);
+        PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> QueryProvider.fromXContent(p, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
+            QUERY
+        );
+        LENIENT_PARSER.declareString(constructorArg(), FEATURE_NAME);
+        LENIENT_PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> QueryProvider.fromXContent(p, true, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
+            QUERY
+        );
     }
 
-    public static NamedQueryExtractorBuilder fromXContent(XContentParser parser, Object context) {
+    public static QueryExtractorBuilder fromXContent(XContentParser parser, Object context) {
         boolean lenient = Boolean.TRUE.equals(context);
         return lenient ? LENIENT_PARSER.apply(parser, null) : PARSER.apply(parser, null);
     }
 
-    public NamedQueryExtractorBuilder(String queryName, @Nullable String featureName) {
-        this.queryName = requireNonNull(queryName, QUERY_NAME);
-        this.featureName = featureName;
+    public QueryExtractorBuilder(String featureName, QueryProvider query) {
+        this.featureName = requireNonNull(featureName, FEATURE_NAME);
+        this.query = requireNonNull(query, QUERY);
     }
 
-    public NamedQueryExtractorBuilder(StreamInput input) throws IOException {
-        this(input.readString(), input.readOptionalString());
+    public QueryExtractorBuilder(StreamInput input) throws IOException {
+        this(input.readString(), QueryProvider.fromStream(input));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(QUERY_NAME.getPreferredName(), queryName);
-        if (featureName != null) {
-            builder.field(FEATURE_NAME.getPreferredName(), featureName);
-        }
+        builder.field(FEATURE_NAME.getPreferredName(), featureName);
+        builder.field(QUERY.getPreferredName(), query.getQuery());
         builder.endObject();
         return builder;
     }
@@ -75,13 +87,13 @@ public record NamedQueryExtractorBuilder(String queryName, String featureName) i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(queryName);
-        out.writeOptionalString(featureName);
+        out.writeString(featureName);
+        query.writeTo(out);
     }
 
     @Override
     public String featureName() {
-        return featureName == null ? queryName : featureName;
+        return featureName;
     }
 
     @Override
@@ -93,20 +105,13 @@ public record NamedQueryExtractorBuilder(String queryName, String featureName) i
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        NamedQueryExtractorBuilder that = (NamedQueryExtractorBuilder) o;
-        return Objects.equals(queryName, that.queryName) && Objects.equals(featureName, that.featureName);
+        QueryExtractorBuilder that = (QueryExtractorBuilder) o;
+        return Objects.equals(featureName, that.featureName) && Objects.equals(query, that.query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryName, featureName);
+        return Objects.hash(featureName, query);
     }
 
-    @Override
-    public String toString() {
-        return "NamedQueryExtractorBuilder{" +
-            "queryName='" + queryName + '\'' +
-            ", featureName='" + featureName + '\'' +
-            '}';
-    }
 }

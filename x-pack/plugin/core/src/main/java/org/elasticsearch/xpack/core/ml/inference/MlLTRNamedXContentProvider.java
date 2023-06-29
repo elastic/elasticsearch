@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigU
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.NamedQueryExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,8 +58,8 @@ public class MlLTRNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 LearnToRankFeatureExtractorBuilder.class,
-                NamedQueryExtractorBuilder.NAME,
-                NamedQueryExtractorBuilder::fromXContent
+                QueryExtractorBuilder.NAME,
+                QueryExtractorBuilder::fromXContent
             )
         );
         return namedXContent;
@@ -83,8 +83,8 @@ public class MlLTRNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 LearnToRankFeatureExtractorBuilder.class,
-                NamedQueryExtractorBuilder.NAME.getPreferredName(),
-                NamedQueryExtractorBuilder::new
+                QueryExtractorBuilder.NAME.getPreferredName(),
+                QueryExtractorBuilder::new
             )
         );
         return namedWriteables;

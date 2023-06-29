@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.NamedQueryExtractorBuilderTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilderTests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
                 : Stream.generate(
                     () -> randomFrom(
                         new TestValueExtractor(randomAlphaOfLength(10)),
-                        NamedQueryExtractorBuilderTests.randomInstance()
+                        QueryExtractorBuilderTests.randomInstance()
                     )
             ).limit(randomInt(5)).collect(Collectors.toList())
         );

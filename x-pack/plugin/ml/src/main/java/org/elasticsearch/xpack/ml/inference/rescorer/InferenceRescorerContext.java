@@ -10,31 +10,41 @@ package org.elasticsearch.xpack.ml.inference.rescorer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class InferenceRescorerContext extends RescoreContext {
 
     final SearchExecutionContext executionContext;
     final LocalModel inferenceDefinition;
+    final InferenceConfig inferenceConfig;
 
     /**
      * @param windowSize how many documents to rescore
      * @param rescorer The rescorer to apply
+     * @param inferenceConfigUpdate The optional inference config update containing updated parameters
      * @param inferenceDefinition The local model inference definition, may be null during certain search phases.
      * @param executionContext The local shard search context
      */
     public InferenceRescorerContext(
         int windowSize,
         Rescorer rescorer,
+        InferenceConfigUpdate inferenceConfigUpdate,
         LocalModel inferenceDefinition,
         SearchExecutionContext executionContext
     ) {
         super(windowSize, rescorer);
         this.executionContext = executionContext;
         this.inferenceDefinition = inferenceDefinition;
+        this.inferenceConfig = inferenceConfigUpdate != null ?
+            inferenceConfigUpdate.apply(inferenceDefinition.getInferenceConfig()) :
+            inferenceDefinition.getInferenceConfig();
     }
 
     List<FeatureExtractor> buildFeatureExtractors() {

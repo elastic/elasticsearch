@@ -79,11 +79,11 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetFiles() throws Exception {
-        Request request = new Request("PUT", ".fleet-files-agent-00001");
+        Request request = new Request("PUT", ".fleet-fileds-tohost-meta-agent");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        request = new Request("GET", ".fleet-files-agent-00001/_mapping");
+        request = new Request("GET", ".fleet-fileds-tohost-meta-agent-00001/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked

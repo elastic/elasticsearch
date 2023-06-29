@@ -83,7 +83,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readMap();
         rulesetIds = in.readList(StreamInput::readString);
-        curatedIds = in.readImmutableList(StreamInput::readString);
+        curatedIds = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         curatedIdSupplier = null;
         curatedDocs = in.readBoolean() ? in.readList(Item::new) : null;
         curatedDocsSupplier = null;
@@ -139,6 +139,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
         out.writeStringCollection(rulesetIds);
+        if (curatedIds == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeStringCollection(curatedIds);
+        }
         out.writeStringCollection(curatedIds);
         if (curatedDocs == null) {
             out.writeBoolean(false);
@@ -172,16 +178,20 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             builder.value(rulesetId);
         }
         builder.endArray();
-        builder.startArray(CURATED_IDS_FIELD.getPreferredName());
-        for (String curatedId : curatedIds) {
-            builder.value(curatedId);
+        if (curatedIds != null) {
+            builder.startArray(CURATED_IDS_FIELD.getPreferredName());
+            for (String curatedId : curatedIds) {
+                builder.value(curatedId);
+            }
+            builder.endArray();
         }
-        builder.endArray();
-        builder.startArray(CURATED_DOCS_FIELD.getPreferredName());
-        for (Item curatedDoc : curatedDocs) {
-           builder.value(curatedDoc);
+        if (curatedDocs != null) {
+            builder.startArray(CURATED_DOCS_FIELD.getPreferredName());
+            for (Item curatedDoc : curatedDocs) {
+                builder.value(curatedDoc);
+            }
+            builder.endArray();
         }
-        builder.endArray();
         builder.endObject();
     }
 
@@ -291,12 +301,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return Objects.equals(rulesetIds, other.rulesetIds)
             && Objects.equals(matchCriteria, other.matchCriteria)
             && Objects.equals(organicQuery, other.organicQuery)
-            && Objects.equals(curatedIdSupplier, other.curatedIdSupplier);
+            && Objects.equals(curatedIds, other.curatedIds)
+            && Objects.equals(curatedDocs, other.curatedDocs)
+            && Objects.equals(curatedIdSupplier, other.curatedIdSupplier)
+            && Objects.equals(curatedDocsSupplier, other.curatedDocsSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(rulesetIds, matchCriteria, organicQuery, curatedIdSupplier);
+        return Objects.hash(rulesetIds, matchCriteria, organicQuery, curatedIds, curatedDocs, curatedIdSupplier, curatedDocsSupplier);
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

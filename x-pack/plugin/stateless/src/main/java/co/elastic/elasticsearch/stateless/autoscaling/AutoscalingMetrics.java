@@ -39,4 +39,12 @@ public interface AutoscalingMetrics extends ToXContentObject, Writeable {
         builder.endObject();
         return builder;
     }
+
+    default XContentBuilder serializeMetric(XContentBuilder builder, String name, long value, MetricQuality quality) throws IOException {
+        builder.startObject(name);
+        builder.field("value", value);
+        builder.field("quality", quality.getLabel());
+        builder.endObject();
+        return builder;
+    }
 }

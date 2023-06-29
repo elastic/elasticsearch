@@ -15,10 +15,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class AuthenticateResponse extends ActionResponse implements ToXContent {
 
-    public static final TransportVersion VERSION_OPERATOR_FIELD = TransportVersion.V_8_500_025;
+    public static final TransportVersion VERSION_OPERATOR_FIELD = TransportVersion.V_8_500_026;
 
     private final Authentication authentication;
     private final boolean operator;
@@ -34,7 +35,7 @@ public class AuthenticateResponse extends ActionResponse implements ToXContent {
     }
 
     public AuthenticateResponse(Authentication authentication, boolean operator) {
-        this.authentication = authentication;
+        this.authentication = Objects.requireNonNull(authentication);
         this.operator = operator;
     }
 
@@ -59,8 +60,25 @@ public class AuthenticateResponse extends ActionResponse implements ToXContent {
         builder.startObject();
         authentication.toXContentFragment(builder);
         if (this.operator) {
-            builder.field("operator", operator);
+            builder.field("operator", true);
         }
         return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        AuthenticateResponse that = (AuthenticateResponse) o;
+        return this.operator == that.operator && this.authentication.equals(that.authentication);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(authentication, operator);
     }
 }

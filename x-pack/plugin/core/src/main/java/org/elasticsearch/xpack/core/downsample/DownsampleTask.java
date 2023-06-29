@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.RollupField;

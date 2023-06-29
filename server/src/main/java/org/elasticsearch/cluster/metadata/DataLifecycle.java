@@ -171,7 +171,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             out.writeOptionalWriteable(dataRetention);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_025)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
             out.writeOptionalWriteable(downsampling);
         }
     }
@@ -182,7 +182,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         } else {
             dataRetention = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_025)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
             downsampling = in.readOptionalWriteable(Downsampling::read);
         } else {
             downsampling = null;

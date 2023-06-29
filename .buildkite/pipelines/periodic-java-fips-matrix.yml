@@ -15,8 +15,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:

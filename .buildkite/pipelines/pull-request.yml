@@ -8,8 +8,7 @@ steps:
       tar -czf $$WORKSPACE/build/$${BUILD_NUMBER}.tar.bz2 profile-out
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: build-benchmark-part2
@@ -21,8 +20,7 @@ steps:
       tar -czf $$WORKSPACE/build/$${BUILD_NUMBER}.tar.bz2 profile-out
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - group: bwc-snapshots
@@ -33,13 +31,12 @@ steps:
           setup:
             BWC_VERSION:
               - 7.17.11
-              - 8.8.2
+              - 8.8.3
               - 8.9.0
               - 8.10.0
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -63,16 +60,14 @@ steps:
       docker push $$DOCKER_TAG
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: docs-check
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: eql-correctness
@@ -88,8 +83,7 @@ steps:
       .ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:plugin:eql:qa:correctness:check
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: example-plugins
@@ -98,8 +92,7 @@ steps:
       .ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - group: full-bwc
@@ -108,8 +101,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -118,8 +110,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -128,8 +119,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -138,8 +128,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -148,8 +137,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -158,8 +146,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -168,8 +155,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -178,8 +164,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -188,8 +173,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -198,8 +182,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -208,8 +191,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -218,8 +200,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -228,8 +209,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -238,8 +218,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -248,8 +227,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -258,8 +236,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -268,8 +245,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -278,8 +254,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -288,8 +263,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -298,8 +272,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -308,8 +281,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -318,8 +290,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -328,8 +299,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -338,8 +308,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -348,8 +317,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -358,8 +326,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -368,8 +335,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -378,8 +344,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -388,8 +353,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -398,8 +362,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -408,8 +371,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -418,8 +380,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -428,8 +389,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -438,8 +398,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -448,8 +407,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -458,8 +416,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -468,8 +425,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -478,8 +434,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -488,8 +443,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -498,8 +452,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -508,8 +461,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -518,8 +470,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -528,8 +479,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -538,8 +488,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -548,8 +497,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -558,8 +506,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -568,8 +515,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -578,8 +524,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -588,8 +533,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -598,8 +542,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -608,8 +551,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -618,8 +560,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -628,8 +569,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -638,8 +578,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -648,8 +587,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -658,8 +596,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -668,8 +605,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -678,8 +614,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -688,8 +623,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -698,8 +632,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -708,8 +641,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -718,8 +650,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -728,8 +659,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -738,8 +668,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -748,8 +677,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -758,8 +686,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -768,8 +695,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -778,8 +704,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -788,8 +713,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -798,8 +722,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -808,8 +731,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -818,8 +740,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -828,8 +749,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -838,8 +758,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -848,8 +767,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -858,8 +776,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -868,8 +785,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -878,8 +794,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -888,8 +803,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -898,8 +812,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -908,8 +821,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -918,8 +830,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -928,8 +839,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -938,8 +848,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -948,8 +857,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -958,8 +866,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -968,8 +875,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -978,8 +884,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -988,8 +893,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -998,8 +902,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -1008,18 +911,25 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.8.2
+      - label: 8.8.3 / full-bwc
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          BWC_VERSION: 8.8.3
       - label: 8.9.0 / full-bwc
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -1028,8 +938,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -1050,7 +959,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           machineType: custom-16-32768
           diskSizeGb: 350
         env:
@@ -1072,7 +980,7 @@ steps:
               - family/brian-elasticsearch-sles-15
               - family/brian-elasticsearch-ubuntu-1804
               - family/brian-elasticsearch-ubuntu-2004
-              - family/brian-elasticsearch-ubuntu-2022
+              - family/brian-elasticsearch-ubuntu-2204
               - family/brian-elasticsearch-rocky-8
               - family/brian-elasticsearch-rhel-7
               - family/brian-elasticsearch-rhel-8
@@ -1085,7 +993,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           machineType: custom-16-32768
           diskSizeGb: 350
         env:
@@ -1102,7 +1009,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1117,7 +1023,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1132,7 +1037,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1147,7 +1051,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1162,7 +1065,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1177,7 +1079,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1192,7 +1093,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1207,7 +1107,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1222,7 +1121,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1237,7 +1135,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1252,7 +1149,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1267,7 +1163,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1282,7 +1177,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1297,7 +1191,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1312,7 +1205,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1327,7 +1219,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1342,7 +1233,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1357,7 +1247,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1372,7 +1261,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1387,7 +1275,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1402,7 +1289,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1417,7 +1303,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1432,7 +1317,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1447,7 +1331,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1462,7 +1345,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1477,7 +1359,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1492,7 +1373,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1507,7 +1387,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1522,7 +1401,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1537,7 +1415,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1552,7 +1429,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1567,7 +1443,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1582,7 +1457,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1597,7 +1471,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1612,7 +1485,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1627,7 +1499,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1642,7 +1513,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1657,7 +1527,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1672,7 +1541,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1687,7 +1555,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1702,7 +1569,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1717,7 +1583,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1732,7 +1597,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1747,7 +1611,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1762,7 +1625,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1777,7 +1639,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1792,7 +1653,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1807,7 +1667,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1822,7 +1681,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1837,7 +1695,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1852,7 +1709,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1867,7 +1723,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1882,7 +1737,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1897,7 +1751,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1912,7 +1765,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1927,7 +1779,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1942,7 +1793,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1957,7 +1807,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1972,7 +1821,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1987,7 +1835,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2002,7 +1849,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2017,7 +1863,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2032,7 +1877,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2047,7 +1891,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2062,7 +1905,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2077,7 +1919,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2092,7 +1933,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2107,7 +1947,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2122,7 +1961,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2137,7 +1975,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2152,7 +1989,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2167,7 +2003,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2182,7 +2017,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2197,7 +2031,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2212,7 +2045,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2227,7 +2059,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2242,7 +2073,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2257,7 +2087,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2272,7 +2101,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2287,7 +2115,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2302,7 +2129,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2317,7 +2143,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2332,7 +2157,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2347,7 +2171,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2362,7 +2185,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2377,7 +2199,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2392,7 +2213,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2407,7 +2227,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2422,7 +2241,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2437,7 +2255,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2452,11 +2269,24 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.8.2
+      - label: "{{matrix.image}} / 8.8.3 / packaging-upgrade-tests"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
+        matrix:
+          setup:
+            image:
+              - family/brian-elasticsearch-rocky-8
+              - family/brian-elasticsearch-ubuntu-2004
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          buildDirectory: /dev/shm/bk
+          machineType: custom-16-32768
+        env:
+          BWC_VERSION: 8.8.3
       - label: "{{matrix.image}} / 8.9.0 / packaging-upgrade-tests"
         command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
@@ -2467,7 +2297,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2482,7 +2311,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -2491,56 +2319,49 @@ steps:
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart1
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-1
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-2-fips
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart2
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-2
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-3-fips
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart3
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: part-3
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: precommit
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: release-tests
@@ -2566,15 +2387,13 @@ steps:
         -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: rest-compatibility
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304

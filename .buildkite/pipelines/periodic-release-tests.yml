@@ -23,7 +23,6 @@ steps:
         -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304

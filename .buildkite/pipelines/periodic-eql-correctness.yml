@@ -12,7 +12,6 @@ steps:
       .ci/scripts/run-gradle.sh :x-pack:plugin:eql:qa:correctness:check
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304

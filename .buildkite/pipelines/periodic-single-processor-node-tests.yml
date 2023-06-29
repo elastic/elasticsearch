@@ -3,7 +3,6 @@ steps:
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304

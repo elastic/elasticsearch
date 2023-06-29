@@ -3,7 +3,6 @@ steps:
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304

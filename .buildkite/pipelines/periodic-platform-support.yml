@@ -16,7 +16,7 @@ steps:
               - family/brian-elasticsearch-sles-15
               - family/brian-elasticsearch-ubuntu-1804
               - family/brian-elasticsearch-ubuntu-2004
-              - family/brian-elasticsearch-ubuntu-2022
+              - family/brian-elasticsearch-ubuntu-2204
               - family/brian-elasticsearch-rocky-8
               - family/brian-elasticsearch-rhel-7
               - family/brian-elasticsearch-rhel-8
@@ -25,7 +25,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           machineType: custom-32-98304
           diskSizeGb: 350
         env: {}
@@ -45,7 +44,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:

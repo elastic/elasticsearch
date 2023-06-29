@@ -5,8 +5,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -15,8 +14,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -25,8 +23,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -35,8 +32,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -45,8 +41,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -55,8 +50,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -65,8 +59,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -75,8 +68,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -85,8 +77,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -95,8 +86,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -105,8 +95,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -115,8 +104,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -125,8 +113,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -135,8 +122,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -145,8 +131,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -155,8 +140,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -165,8 +149,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -175,8 +158,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -185,8 +167,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -195,8 +176,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -205,8 +185,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -215,8 +194,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -225,8 +203,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -235,8 +212,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -245,8 +221,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -255,8 +230,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -265,8 +239,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -275,8 +248,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -285,8 +257,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -295,8 +266,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -305,8 +275,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -315,8 +284,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -325,8 +293,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -335,8 +302,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -345,8 +311,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -355,8 +320,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -365,8 +329,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -375,8 +338,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -385,8 +347,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -395,8 +356,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -405,8 +365,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -415,8 +374,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -425,8 +383,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -435,8 +392,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -445,8 +401,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -455,8 +410,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -465,8 +419,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -475,8 +428,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -485,8 +437,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -495,8 +446,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -505,8 +455,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -515,8 +464,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -525,8 +473,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -535,8 +482,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -545,8 +491,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -555,8 +500,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -565,8 +509,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -575,8 +518,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -585,8 +527,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -595,8 +536,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -605,8 +545,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -615,8 +554,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -625,8 +563,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -635,8 +572,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -645,8 +581,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -655,8 +590,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -665,8 +599,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -675,8 +608,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -685,8 +617,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -695,8 +626,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -705,8 +635,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -715,8 +644,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -725,8 +653,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -735,8 +662,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -745,8 +671,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -755,8 +680,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -765,8 +689,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -775,8 +698,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -785,8 +707,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -795,8 +716,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -805,8 +725,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -815,8 +734,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -825,8 +743,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -835,8 +752,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -845,8 +761,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -855,8 +770,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -865,8 +779,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -875,8 +788,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -885,8 +797,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -895,8 +806,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -905,18 +815,25 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
           BWC_VERSION: 8.8.2
+      - label: 8.8.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          BWC_VERSION: 8.8.3
       - label: 8.9.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:
@@ -925,8 +842,7 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         agents:
           provider: gcp
-          image: family/brian-elasticsearch-ubuntu-2004
-          imageProject: elastic-images-qa
+          image: family/elasticsearch-ubuntu-2004
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
         env:

@@ -16,7 +16,7 @@ steps:
               - family/brian-elasticsearch-sles-15
               - family/brian-elasticsearch-ubuntu-1804
               - family/brian-elasticsearch-ubuntu-2004
-              - family/brian-elasticsearch-ubuntu-2022
+              - family/brian-elasticsearch-ubuntu-2204
               - family/brian-elasticsearch-rocky-8
               - family/brian-elasticsearch-rhel-7
               - family/brian-elasticsearch-rhel-8
@@ -25,7 +25,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           machineType: custom-16-32768
           diskSizeGb: 350
         env: {}
@@ -41,7 +40,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -56,7 +54,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -71,7 +68,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -86,7 +82,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -101,7 +96,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -116,7 +110,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -131,7 +124,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -146,7 +138,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -161,7 +152,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -176,7 +166,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -191,7 +180,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -206,7 +194,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -221,7 +208,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -236,7 +222,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -251,7 +236,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -266,7 +250,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -281,7 +264,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -296,7 +278,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -311,7 +292,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -326,7 +306,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -341,7 +320,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -356,7 +334,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -371,7 +348,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -386,7 +362,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -401,7 +376,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -416,7 +390,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -431,7 +404,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -446,7 +418,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -461,7 +432,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -476,7 +446,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -491,7 +460,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -506,7 +474,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -521,7 +488,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -536,7 +502,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -551,7 +516,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -566,7 +530,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -581,7 +544,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -596,7 +558,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -611,7 +572,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -626,7 +586,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -641,7 +600,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -656,7 +614,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -671,7 +628,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -686,7 +642,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -701,7 +656,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -716,7 +670,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -731,7 +684,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -746,7 +698,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -761,7 +712,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -776,7 +726,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -791,7 +740,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -806,7 +754,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -821,7 +768,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -836,7 +782,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -851,7 +796,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -866,7 +810,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -881,7 +824,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -896,7 +838,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -911,7 +852,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -926,7 +866,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -941,7 +880,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -956,7 +894,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -971,7 +908,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -986,7 +922,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1001,7 +936,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1016,7 +950,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1031,7 +964,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1046,7 +978,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1061,7 +992,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1076,7 +1006,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1091,7 +1020,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1106,7 +1034,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1121,7 +1048,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1136,7 +1062,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1151,7 +1076,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1166,7 +1090,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1181,7 +1104,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1196,7 +1118,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1211,7 +1132,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1226,7 +1146,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1241,7 +1160,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1256,7 +1174,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1271,7 +1188,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1286,7 +1202,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1301,7 +1216,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1316,7 +1230,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1331,7 +1244,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1346,7 +1258,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1361,7 +1272,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1376,7 +1286,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1391,11 +1300,24 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
           BWC_VERSION: 8.8.2
+      - label: "{{matrix.image}} / 8.8.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
+        matrix:
+          setup:
+            image:
+              - family/brian-elasticsearch-rocky-8
+              - family/brian-elasticsearch-ubuntu-2004
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          buildDirectory: /dev/shm/bk
+          machineType: custom-16-32768
+        env:
+          BWC_VERSION: 8.8.3
       - label: "{{matrix.image}} / 8.9.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
         matrix:
@@ -1406,7 +1328,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1421,7 +1342,6 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:

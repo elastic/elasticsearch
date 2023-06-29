@@ -14,8 +14,7 @@ steps:
       .ci/scripts/run-gradle.sh azureThirdPartyTest
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: third-party-tests-azure-sas
@@ -33,8 +32,7 @@ steps:
       .ci/scripts/run-gradle.sh azureThirdPartyTest
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: third-party-tests-gcs
@@ -52,8 +50,7 @@ steps:
       .ci/scripts/run-gradle.sh gcsThirdPartyTest
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: third-party-tests-s3
@@ -72,15 +69,13 @@ steps:
       .ci/scripts/run-gradle.sh s3ThirdPartyTest
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
   - label: third-party-tests-geoip
     command: .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dgeoip_use_service=true
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2004
-      imageProject: elastic-images-qa
+      image: family/elasticsearch-ubuntu-2004
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304

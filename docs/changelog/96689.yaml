@@ -1,5 +1,5 @@
 pr: 96689
-summary: Introduce `ProfileCollectorManager`
+summary: Use a collector manager in DfsPhase Knn Search
 area: Search
 type: enhancement
 issues: []

@@ -168,8 +168,8 @@ disabling stored fields removes fetch sub phases:
 ---
 dfs knn vector profiling:
   - skip:
-      version: ' - 8.9.99'
-      reason: profile output extensions in 8.10.0
+      version: ' - 8.6.99'
+      reason: multi-knn dfs profiling implemented in 8.7.0
 
   - do:
       indices.create:

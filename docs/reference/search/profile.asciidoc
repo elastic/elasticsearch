@@ -1304,8 +1304,8 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "rewrite_time" : 1275732,
         "collector" : [
             {
-                "name" : "ProfileCollectorManager",
-                "reason" : "segment_search",
+                "name" : "SimpleTopScoreDocCollector",
+                "reason" : "search_top_hits",
                 "time_in_nanos" : 17163
             }
         ]

@@ -56,7 +56,7 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
         if (resultsPerProfiler.size() > 1) {
             long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
             this.collectorTree = new CollectorResult(
-                resultsPerProfiler.get(0).getName() + "_MultiThreaded",
+                resultsPerProfiler.get(0).getName() + "_Manager",
                 reason,
                 totalTime,
                 resultsPerProfiler

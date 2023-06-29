@@ -101,15 +101,20 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             searcher.search(new MatchAllDocsQuery(), profileCollectorManager);
 
             CollectorResult parent = profileCollectorManager.getCollectorTree();
-            assertEquals("ProfileCollectorManager", parent.getName());
-            assertEquals("segment_search", parent.getReason());
-            assertEquals(0, parent.getTime());
+            assertEquals(numSlices == 1 ? "SimpleTopScoreDocCollector" : "SimpleTopScoreDocCollector_Manager", parent.getName());
+            assertEquals("profiler_reason", parent.getReason());
+            long parentTime = parent.getTime();
             List<ProfilerCollectorResult> delegateCollectorResults = parent.getProfiledChildren();
-            assertEquals(numSlices, delegateCollectorResults.size());
-            for (ProfilerCollectorResult pcr : delegateCollectorResults) {
-                assertEquals("SimpleTopScoreDocCollector", pcr.getName());
-                assertEquals(profileReason, pcr.getReason());
-                assertTrue(pcr.getTime() > 0);
+            assertEquals(numSlices == 1 ? 0 : numSlices, delegateCollectorResults.size());
+            if (numSlices > 1) {
+                long childrenTotalTime = 0L;
+                for (ProfilerCollectorResult pcr : delegateCollectorResults) {
+                    assertEquals("SimpleTopScoreDocCollector", pcr.getName());
+                    assertEquals(profileReason, pcr.getReason());
+                    assertTrue(pcr.getTime() > 0);
+                    childrenTotalTime += pcr.getTime();
+                }
+                assertEquals(parentTime, childrenTotalTime);
             }
             reader.close();
         }

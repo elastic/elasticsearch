@@ -95,17 +95,22 @@ public class DfsPhaseTests extends ESTestCase {
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();
             assertNotNull(queryProfileShardResult);
             CollectorResult collectorResult = queryProfileShardResult.get(0).getCollectorResult();
-            assertEquals("SimpleTopScoreDocCollector_MultiThreaded", (collectorResult.getName()));
+            if (collectorResult.getCollectorResults().size() > 0) {
+                assertEquals("SimpleTopScoreDocCollector_Manager", (collectorResult.getName()));
+            } else {
+                assertEquals("SimpleTopScoreDocCollector", (collectorResult.getName()));
+            }
             assertEquals("search_top_hits", (collectorResult.getReason()));
             List<CollectorResult> children = collectorResult.getCollectorResults();
-            long totalTime = 0L;
-            for (CollectorResult child : children) {
-                assertEquals("SimpleTopScoreDocCollector", (child.getName()));
-                assertEquals("search_top_hits", (child.getReason()));
-                totalTime += child.getTime();
+            if (children.size() > 0) {
+                long totalTime = 0L;
+                for (CollectorResult child : children) {
+                    assertEquals("SimpleTopScoreDocCollector", (child.getName()));
+                    assertEquals("search_top_hits", (child.getReason()));
+                    totalTime += child.getTime();
+                }
+                assertEquals(totalTime, collectorResult.getTime());
             }
-            assertEquals(totalTime, collectorResult.getTime());
-
             reader.close();
         }
     }

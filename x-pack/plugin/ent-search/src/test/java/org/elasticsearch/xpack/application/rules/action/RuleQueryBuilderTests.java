@@ -54,25 +54,25 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         return classpathPlugins;
     }
 
-     public void testIllegalArguments() {
-     expectThrows(
-     IllegalArgumentException.class,
-     () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId"))
-     );
-     expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), null));
-     expectThrows(
-     IllegalArgumentException.class,
-     () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), Collections.emptyList())
-     );
-     expectThrows(
-     IllegalArgumentException.class,
-     () -> new RuleQueryBuilder(null, Map.of("foo", "bar"), Collections.singletonList("rulesetId"))
-     );
-     expectThrows(
-     IllegalArgumentException.class,
-     () -> new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId"))
-     );
-     }
+    public void testIllegalArguments() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId"))
+        );
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), null));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), Collections.emptyList())
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RuleQueryBuilder(null, Map.of("foo", "bar"), Collections.singletonList("rulesetId"))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId"))
+        );
+    }
 
     public void testFromJson() throws IOException {
         String query = """

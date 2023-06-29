@@ -6,25 +6,25 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-centos-7
-              - family/brian-elasticsearch-debian-10
-              - family/brian-elasticsearch-debian-11
-              - family/brian-elasticsearch-opensuse-leap-15
-              - family/brian-elasticsearch-oraclelinux-7
-              - family/brian-elasticsearch-oraclelinux-8
-              - family/brian-elasticsearch-sles-12
-              - family/brian-elasticsearch-sles-15
-              - family/brian-elasticsearch-ubuntu-1804
-              - family/brian-elasticsearch-ubuntu-2004
-              - family/brian-elasticsearch-ubuntu-2204
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-rhel-7
-              - family/brian-elasticsearch-rhel-8
-              - family/brian-elasticsearch-rhel-9
-              - family/brian-elasticsearch-almalinux-8
+              - centos-7
+              - debian-10
+              - debian-11
+              - opensuse-leap-15
+              - oraclelinux-7
+              - oraclelinux-8
+              - sles-12
+              - sles-15
+              - ubuntu-1804
+              - ubuntu-2004
+              - ubuntu-2204
+              - rocky-8
+              - rhel-7
+              - rhel-8
+              - rhel-9
+              - almalinux-8
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           diskSizeGb: 350
         env: {}
@@ -35,11 +35,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -49,11 +49,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -63,11 +63,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -77,11 +77,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -91,11 +91,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -105,11 +105,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -119,11 +119,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -133,11 +133,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -147,11 +147,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -161,11 +161,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -175,11 +175,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -189,11 +189,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -203,11 +203,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -217,11 +217,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -231,11 +231,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -245,11 +245,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -259,11 +259,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -273,11 +273,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -287,11 +287,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -301,11 +301,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -315,11 +315,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -329,11 +329,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -343,11 +343,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -357,11 +357,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -371,11 +371,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -385,11 +385,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -399,11 +399,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -413,11 +413,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -427,11 +427,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -441,11 +441,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -455,11 +455,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -469,11 +469,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -483,11 +483,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -497,11 +497,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -511,11 +511,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -525,11 +525,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -539,11 +539,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -553,11 +553,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -567,11 +567,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -581,11 +581,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -595,11 +595,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -609,11 +609,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -623,11 +623,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -637,11 +637,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -651,11 +651,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -665,11 +665,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -679,11 +679,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -693,11 +693,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -707,11 +707,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -721,11 +721,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -735,11 +735,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -749,11 +749,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -763,11 +763,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -777,11 +777,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -791,11 +791,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -805,11 +805,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -819,11 +819,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -833,11 +833,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -847,11 +847,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -861,11 +861,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -875,11 +875,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -889,11 +889,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -903,11 +903,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -917,11 +917,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -931,11 +931,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -945,11 +945,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -959,11 +959,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -973,11 +973,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -987,11 +987,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1001,11 +1001,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1015,11 +1015,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1029,11 +1029,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1043,11 +1043,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1057,11 +1057,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1071,11 +1071,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1085,11 +1085,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1099,11 +1099,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1113,11 +1113,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1127,11 +1127,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1141,11 +1141,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1155,11 +1155,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1169,11 +1169,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1183,11 +1183,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1197,11 +1197,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1211,11 +1211,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1225,11 +1225,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1239,11 +1239,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1253,11 +1253,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1267,11 +1267,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1281,11 +1281,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1295,11 +1295,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1309,11 +1309,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1323,11 +1323,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:
@@ -1337,11 +1337,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/brian-elasticsearch-rocky-8
-              - family/brian-elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
-          image: "{{matrix.image}}"
+          image: family/elasticsearch-{{matrix.image}}
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env:

@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionType;
 public class PublishShardSizesAction extends ActionType<ActionResponse.Empty> {
 
     public static final PublishShardSizesAction INSTANCE = new PublishShardSizesAction();
-    public static final String NAME = "cluster:monitor/stateless/autoscaling/push_shard_sizes";
+    public static final String NAME = "cluster:admin/stateless/autoscaling/push_shard_sizes";
 
     public PublishShardSizesAction() {
         super(NAME, in -> ActionResponse.Empty.INSTANCE);

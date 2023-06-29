@@ -248,12 +248,14 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         SetOnce<List<Item>> docsSetOnce = new SetOnce<>();
         List<String> pinnedIds = new ArrayList<>();
         List<Item> pinnedDocs = new ArrayList<>();
-        // TODO - Support more than one ruleset ID or take out of scope for MVP
-        // We probably should refactor this to a List call and filter by ruleset name. For now, as a GET, just support one ruleset ID
+        // TODO - Support more than one ruleset ID or take out of scope for MVP (Maybe it's not needed?)
+        // We probably should refactor this to a List call and filter by ruleset name,
+        // but in that case we may need to return more details for the listed rulesets to avoid a second call
         String rulesetId = rulesetIds.get(0);
         GetQueryRulesetAction.Request getQueryRulesetRequest = new GetQueryRulesetAction.Request(rulesetId);
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             client.execute(GetQueryRulesetAction.INSTANCE, getQueryRulesetRequest, new ActionListener<>() {
+                // TODO - Make this less ugly, don't hard code field names, etc.
                 @Override
                 public void onResponse(GetQueryRulesetAction.Response response) {
                     QueryRuleset queryRuleset = response.queryRuleset();
@@ -261,7 +263,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                         if (rule.type() == QueryRule.QueryRuleType.PINNED) {
                             for (QueryRuleCriteria criterion : rule.criteria()) {
                                 for (String match : matchCriteria.keySet()) {
-                                    if (criterion.criteriaMetadata().equals(match)
+                                    if (criterion.criteriaMetadata().equals(match) // TODO need to verify "exact" here too
                                         && criterion.criteriaValue().equals(matchCriteria.get(match))) {
                                         if (rule.actions().containsKey("ids")) {
                                             pinnedIds.addAll((List<String>) rule.actions().get("ids"));

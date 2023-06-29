@@ -122,8 +122,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                               "voting_only"
                             ],
                             "version": "%s",
-                            "minIndexVersion": "%s",
-                            "maxIndexVersion": "%s"
+                            "min_index_version": "%s",
+                            "max_index_version": "%s"
                           }
                         },
                         "transport_versions": [

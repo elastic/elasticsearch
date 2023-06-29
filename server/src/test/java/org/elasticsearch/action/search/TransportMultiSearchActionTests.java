@@ -26,7 +26,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -64,12 +63,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
                 null,
                 Collections.emptySet()
-            ) {
-                @Override
-                public TaskManager getTaskManager() {
-                    return taskManager;
-                }
-            };
+            );
             ClusterService clusterService = mock(ClusterService.class);
             when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
 
@@ -128,12 +122,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             null,
             Collections.emptySet()
-        ) {
-            @Override
-            public TaskManager getTaskManager() {
-                return taskManager;
-            }
-        };
+        );
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
 

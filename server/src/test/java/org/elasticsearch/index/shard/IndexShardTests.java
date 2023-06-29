@@ -70,6 +70,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -1502,32 +1503,37 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testAsyncFsync() throws InterruptedException, IOException {
+    public void testAsyncFsync() throws Exception {
         IndexShard shard = newStartedShard();
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
-        Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        CountDownLatch latch = new CountDownLatch(thread.length);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.countDown();
-                        latch.await();
-                        for (int i = 0; i < 10000; i++) {
-                            semaphore.acquire();
-                            shard.sync(new Translog.Location(randomLong(), randomLong(), randomInt()), (ex) -> semaphore.release());
+        try (var operationPermit = getOperationPermit(shard)) {
+            Thread[] thread = new Thread[randomIntBetween(3, 5)];
+            CountDownLatch latch = new CountDownLatch(thread.length);
+            for (int i = 0; i < thread.length; i++) {
+                thread[i] = new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+                            latch.countDown();
+                            latch.await();
+                            for (int i = 0; i < 10000; i++) {
+                                semaphore.acquire();
+                                shard.syncAfterWrite(
+                                    new Translog.Location(randomLong(), randomLong(), randomInt()),
+                                    e -> semaphore.release()
+                                );
+                            }
+                        } catch (Exception ex) {
+                            throw new RuntimeException(ex);
                         }
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
                     }
-                }
-            };
-            thread[i].start();
-        }
+                };
+                thread[i].start();
+            }
 
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
+            for (int i = 0; i < thread.length; i++) {
+                thread[i].join();
+            }
         }
         assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
 
@@ -2607,7 +2613,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
@@ -3812,12 +3818,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertThat(primary.getThreadPool().relativeTimeInMillis(), greaterThan(lastSearchAccess)));
 
         // Make shard search active again and ensure previously index document is visible:
-        CountDownLatch latch = new CountDownLatch(1);
-        primary.ensureShardSearchActive(refreshed -> {
-            assertTrue(refreshed);
-            latch.countDown();
+        long refreshesBefore = primary.refreshStats().getTotal();
+        primary.ensureShardSearchActive(registered -> { assertTrue(registered); });
+        assertBusy(() -> {
+            assertFalse(primary.hasRefreshPending());
+            assertThat(primary.refreshStats().getTotal(), equalTo(refreshesBefore + 1));
         });
-        latch.await();
         assertNotEquals(
             "awaitShardSearchActive must access a searcher to remove search idle state",
             lastSearchAccess,
@@ -3828,19 +3834,19 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
 
-        // No documents were added and shard is search active so makeShardSearchActive(...) should behave like a noop:
+        // No documents were added and shard is search active so ensureShardSearchActive(...) should behave like a noop:
         assertFalse(primary.getEngine().refreshNeeded());
-        CountDownLatch latch1 = new CountDownLatch(1);
-        primary.ensureShardSearchActive(refreshed -> {
-            assertFalse(refreshed);
+        CountDownLatch latch = new CountDownLatch(1);
+        primary.ensureShardSearchActive(registered -> {
+            assertFalse(registered);
             try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
                 assertEquals(2, searcher.getIndexReader().numDocs());
             } finally {
-                latch1.countDown();
+                latch.countDown();
             }
 
         });
-        latch1.await();
+        latch.await();
 
         // Index a document while shard is search active and ensure scheduleRefresh(...) makes documen visible:
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");

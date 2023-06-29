@@ -67,7 +67,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         };
         Client client = new MockClient(Settings.EMPTY, null);
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(client, null, null, null, scriptService, null, null, null, null, null, null, Tracer.NOOP, null);
+        plugin.createComponents(client, null, null, null, scriptService, null, null, null, null, null, null, Tracer.NOOP, null, null);
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(plugin),

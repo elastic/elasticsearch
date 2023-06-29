@@ -68,7 +68,7 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_AGGREGATION);
         InternalAggregation[] result;
         timer.start();
         try {
@@ -93,7 +93,7 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {
             return new ProfilingLeafBucketCollector(delegate.getLeafCollector(aggCtx), profileBreakdown);
@@ -105,7 +105,7 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public void preCollection() throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.INITIALIZE);
         timer.start();
         try {
             delegate.preCollection();
@@ -117,7 +117,7 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public void postCollection() throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.POST_COLLECTION);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.POST_COLLECTION);
         timer.start();
         try {
             delegate.postCollection();

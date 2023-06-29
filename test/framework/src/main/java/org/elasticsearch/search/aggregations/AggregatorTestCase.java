@@ -1221,7 +1221,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 null,
                 null,
                 null,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 () -> TransportVersion.current(),
                 null,
                 ScriptCompiler.NONE,

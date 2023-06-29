@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 public class ShardSizesPublisher {
 
     public static final String VERSION_CHECK_MESSAGE_PREFIX = "Cannot publish search shard disk usage until entire cluster is: [";
-    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_025;
+    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_027;
     private final NodeClient client;
     private final Supplier<String> nodeIdSupplier;
     private final Supplier<TransportVersion> minimumTransportVersion;

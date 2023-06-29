@@ -1,0 +1,37 @@
+[[release-notes-7.17.11]]
+== {es} version 7.17.11
+
+coming[7.17.11]
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[bug-7.17.11]]
+[float]
+=== Bug fixes
+
+Distributed::
+* Make cluster health API cancellable {es-pull}96551[#96551]
+
+Geo::
+* Port lucene tessellator fix github-12352 to Elasticsearch 7.17 {es-pull}96721[#96721]
+
+ILM+SLM::
+* [ILM] Fix the migrate to tiers service and migrate action tiers configuration {es-pull}95934[#95934]
+
+Search::
+* Increase concurrent request of opening point-in-time {es-pull}96782[#96782]
+
+Snapshot/Restore::
+* Fix Azure `InputStream#read` method {es-pull}96034[#96034]
+
+Watcher::
+* Avoiding running IO on scheduler thread in `ResourceWatcherService` {es-pull}96251[#96251]
+
+[[upgrade-7.17.11]]
+[float]
+=== Upgrades
+
+Network::
+* Upgrade Netty to 4.1.89 {es-pull}95559[#95559]
+
+

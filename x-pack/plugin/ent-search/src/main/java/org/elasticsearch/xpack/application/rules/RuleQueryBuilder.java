@@ -127,6 +127,18 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
         out.writeStringCollection(rulesetIds);
+        if (curatedIds != null) {
+            out.writeBoolean(true);
+            out.writeStringCollection(curatedIds);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (curatedDocs != null) {
+            out.writeBoolean(true);
+            out.writeList(curatedDocs);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     public List<String> rulesetIds() {
@@ -252,8 +264,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         });
 
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        RuleQueryBuilder rewritten =
-            new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetIds, null, null, idSetOnce::get, docsSetOnce::get);
+        RuleQueryBuilder rewritten = new RuleQueryBuilder(
+            newOrganicQuery,
+            matchCriteria,
+            rulesetIds,
+            null,
+            null,
+            idSetOnce::get,
+            docsSetOnce::get
+        );
         rewritten.boost(this.boost);
         return rewritten;
     }

@@ -108,7 +108,9 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
             return queryRuleset.toXContent(builder, params);
         }
 
-        public QueryRuleset queryRuleset() { return queryRuleset; }
+        public QueryRuleset queryRuleset() {
+            return queryRuleset;
+        }
 
         @Override
         public boolean equals(Object o) {

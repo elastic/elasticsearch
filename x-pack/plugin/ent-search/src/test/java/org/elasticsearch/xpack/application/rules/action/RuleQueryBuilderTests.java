@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -52,26 +54,25 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         return classpathPlugins;
     }
 
-    // TODO uncomment when we add validation
-//    public void testIllegalArguments() {
-//        expectThrows(
-//            IllegalArgumentException.class,
-//            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId"))
-//        );
-//        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), null));
-//        expectThrows(
-//            IllegalArgumentException.class,
-//            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), Collections.emptyList())
-//        );
-//        expectThrows(
-//            IllegalArgumentException.class,
-//            () -> new RuleQueryBuilder(null, Map.of("foo", "bar"), Collections.singletonList("rulesetId"))
-//        );
-//        expectThrows(
-//            IllegalArgumentException.class,
-//            () -> new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId"))
-//        );
-//    }
+     public void testIllegalArguments() {
+     expectThrows(
+     IllegalArgumentException.class,
+     () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId"))
+     );
+     expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), null));
+     expectThrows(
+     IllegalArgumentException.class,
+     () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), Collections.emptyList())
+     );
+     expectThrows(
+     IllegalArgumentException.class,
+     () -> new RuleQueryBuilder(null, Map.of("foo", "bar"), Collections.singletonList("rulesetId"))
+     );
+     expectThrows(
+     IllegalArgumentException.class,
+     () -> new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId"))
+     );
+     }
 
     public void testFromJson() throws IOException {
         String query = """
@@ -99,6 +100,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
 
+    // Copied from PinnedQueryBuilderTests - TODO go through these and see what test cases we may want to copy
     // /**
     // * test that unknown query names in the clauses throw an error
     // */

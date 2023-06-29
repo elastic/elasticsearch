@@ -417,7 +417,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
-                    .replace(String.valueOf(IndexVersion.current().id()), versionString(version))
+                    .replace(IndexVersion.current().toString(), version.toString())
             )
         );
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);

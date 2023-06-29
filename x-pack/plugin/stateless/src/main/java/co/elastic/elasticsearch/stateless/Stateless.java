@@ -33,8 +33,11 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsServ
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.PublishNodeIngestLoadAction;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishNodeIngestLoadMetric;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.search.AutoscalingDiskSizeMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.search.SearchTierMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.search.PublishShardSizesAction;
+import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesCollector;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
+import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishShardSizes;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
@@ -167,9 +170,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
-
-    private final SetOnce<ShardSizeStatsReader> shardSizeStatsReader = new SetOnce<>();
-    private final SetOnce<AutoscalingDiskSizeMetricsService> autoscalingDiskSizeMetricsService = new SetOnce<>();
+    private final SetOnce<ShardSizesCollector> shardSizesCollector = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean hasSearchRole;
@@ -202,6 +203,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
             new ActionHandler<>(GetStatelessAutoscalingMetricsAction.INSTANCE, TransportGetStatelessAutoscalingMetricsAction.class),
             new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
+            new ActionHandler<>(PublishShardSizesAction.INSTANCE, TransportPublishShardSizes.class),
             new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class)
         );
     }
@@ -289,12 +291,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             )
         );
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
-        var shardSizeStatsReader = setAndGet(this.shardSizeStatsReader, new ShardSizeStatsReader(clusterService, threadPool));
-        var autoscalingDiskSizeMetricsService = setAndGet(
-            this.autoscalingDiskSizeMetricsService,
-            new AutoscalingDiskSizeMetricsService(clusterService.getClusterSettings(), threadPool)
-        );
 
+        // autoscaling
+        // memory
+        var memoryMetricsService = new MemoryMetricsService();
+        // ingest
         var ingestLoadPublisher = new IngestLoadPublisher(client, clusterService, threadPool);
         var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings);
         var ingestLoadProbe = new IngestLoadProbe(writeLoadSampler::getExecutorStats);
@@ -307,21 +308,39 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             settings,
             clusterService
         );
-
-        var memoryMetricsService = new MemoryMetricsService();
         var ingestMetricService = new IngestMetricsService(settings, threadPool::relativeTimeInNanos, memoryMetricsService);
         clusterService.addListener(ingestMetricService);
-        var searchMetricsService = new SearchTierMetricsService(memoryMetricsService);
+        // search
+        var shardSizeStatsReader = new ShardSizeStatsReader(clusterService, threadPool, indicesService);
+        var shardSizesPublisher = new ShardSizesPublisher(client, clusterService, threadPool);
+        var shardSizesCollector = setAndGet(
+            this.shardSizesCollector,
+            ShardSizesCollector.create(
+                clusterService.getClusterSettings(),
+                threadPool,
+                clusterService,
+                shardSizeStatsReader,
+                shardSizesPublisher,
+                hasSearchRole
+            )
+        );
+        var searchMetricsService = SearchMetricsService.create(
+            clusterService.getClusterSettings(),
+            threadPool,
+            clusterService,
+            memoryMetricsService
+        );
+
         return List.of(
             objectStoreService,
             translogReplicator,
             sharedBlobCache,
             refreshThrottlingService,
-            shardSizeStatsReader,
-            autoscalingDiskSizeMetricsService,
-            ingestMetricService,
+            // autoscaling
             memoryMetricsService,
             ingestLoadSampler,
+            ingestMetricService,
+            shardSizesCollector,
             searchMetricsService
         );
     }
@@ -362,7 +381,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,
-            IngestMetricsService.INACCURATE_LOAD_WINDOW
+            IngestMetricsService.INACCURATE_LOAD_WINDOW,
+            ShardSizesCollector.PUSH_INTERVAL_SETTING,
+            ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING,
+            SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING
         );
     }
 
@@ -372,7 +394,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
             var localTranslogReplicator = translogReplicator.get();
-
             indexModule.addIndexEventListener(new IndexEventListener() {
 
                 @Override
@@ -416,6 +437,12 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             });
         }
         if (hasSearchRole) {
+            indexModule.addIndexEventListener(new IndexEventListener() {
+                @Override
+                public void afterIndexShardStarted(IndexShard indexShard) {
+                    shardSizesCollector.get().detectShardSize(indexShard.shardId());
+                }
+            });
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();

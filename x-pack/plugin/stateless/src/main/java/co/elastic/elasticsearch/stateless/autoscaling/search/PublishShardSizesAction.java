@@ -17,23 +17,15 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 
-public class SearchTierMetricsService {
+public class PublishShardSizesAction extends ActionType<ActionResponse.Empty> {
 
-    private final MemoryMetricsService memoryMetricsService;
+    public static final PublishShardSizesAction INSTANCE = new PublishShardSizesAction();
+    public static final String NAME = "cluster:admin/stateless/autoscaling/push_shard_sizes";
 
-    public SearchTierMetricsService(MemoryMetricsService memoryMetricsService) {
-        this.memoryMetricsService = memoryMetricsService;
-    }
-
-    public SearchTierMetrics getSearchTierMetrics() {
-        var memoryMetrics = memoryMetricsService.getMemoryMetrics();
-        return new SearchTierMetrics(
-            memoryMetrics,
-            new MaxShardCopies(1, MetricQuality.EXACT),
-            new StorageMetrics(100, 1000, 10000, MetricQuality.EXACT)
-        );
+    public PublishShardSizesAction() {
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 }

@@ -51,7 +51,7 @@ final class QueryPhaseCollector implements Collector {
         this.topDocsCollector = Objects.requireNonNull(topDocsCollector);
         this.postFilterWeight = postFilterWeight;
         if (terminateAfter < 0) {
-            throw new IllegalArgumentException("terminateAfter must be greater than 0");
+            throw new IllegalArgumentException("terminateAfter must be greater than or equal to 0");
         }
         this.terminateAfter = terminateAfter;
         this.aggsCollector = aggsCollector;
@@ -63,10 +63,11 @@ final class QueryPhaseCollector implements Collector {
     public void setWeight(Weight weight) {
         if (postFilterWeight == null && minScore == null) {
             // propagate the weight when we do no additional filtering over the docs that are collected
+            //when post_filter or min_score are provided, the collection cannot be shortcut via Weight#count
             topDocsCollector.setWeight(weight);
         }
         if (aggsCollector != null && minScore == null) {
-            // min_score is applied to aggs collection as well as top docs collection
+            // min_score is applied to aggs collection as well as top docs collection, though BucketCollectorWrapper does not override it.
             aggsCollector.setWeight(weight);
         }
     }

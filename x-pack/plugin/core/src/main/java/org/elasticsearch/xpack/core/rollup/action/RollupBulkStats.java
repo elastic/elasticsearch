@@ -52,14 +52,14 @@ public class RollupBulkStats {
         return new RollupBulkInfo(
             this.totalBulkCount.get(),
             this.bulkDurationSumMillis.get(),
-            this.maxBulkDurationMillis.get(),
-            this.minBulkDurationMillis.get(),
+            Math.max(0, this.maxBulkDurationMillis.get()),
+            Math.max(0, this.minBulkDurationMillis.get()),
             this.bulkIngestSumMillis.get(),
-            this.maxBulkIngestMillis.get(),
-            this.minBulkIngestMillis.get(),
+            Math.max(0, this.maxBulkIngestMillis.get()),
+            Math.max(0, this.minBulkIngestMillis.get()),
             this.bulkTookSumMillis.get(),
-            this.maxBulkTookMillis.get(),
-            this.minBulkTookMillis.get()
+            Math.max(0, this.maxBulkTookMillis.get()),
+            Math.max(0, this.minBulkTookMillis.get())
         );
     }
 }

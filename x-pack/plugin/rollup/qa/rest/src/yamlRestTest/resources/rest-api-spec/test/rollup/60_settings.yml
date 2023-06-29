@@ -91,6 +91,84 @@
   - match: { test-rollup.settings.index.default_pipeline: null }
   - match: { test-rollup.settings.index.final_pipeline: null }
 
+---
+"Downsample datastream with tier preference":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97150"
+#      version: " - 8.4.99"
+#      reason: "rollup renamed to downsample in 8.5.0"
+
+  - do:
+      indices.put_index_template:
+        name: downsampling-template
+        body:
+          index_patterns: ["test-datastream-*"]
+          template:
+            settings:
+              index:
+                mode: time_series
+                hidden: false
+                routing:
+                  allocation:
+                    include:
+                      _tier_preference: "data_warm"
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                value:
+                  type: double
+                  time_series_metric: gauge
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: test-datastream-downsampling
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-datastream-downsampling
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "value": 10}'
+
+  - do:
+      indices.get_data_stream:
+        name: test-datastream-downsampling
+  - set: { data_streams.0.indices.0.index_name: datastream-backing-index }
+
+  - do:
+      indices.get_settings:
+        index: $datastream-backing-index
+  - match: { .$datastream-backing-index.settings.index.routing.allocation.include._tier_preference: "data_warm" }
+
+  - do:
+      indices.put_settings:
+        index: $datastream-backing-index
+        body:
+          index.blocks.write: true
+  - is_true: acknowledged
+
+  - do:
+      indices.downsample:
+        index: $datastream-backing-index
+        target_index: rollup-index
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.get_settings:
+        index: rollup-index
+  - match: { rollup-index.settings.index.routing.allocation.include._tier_preference: "data_warm" }
 
 ---
 teardown:

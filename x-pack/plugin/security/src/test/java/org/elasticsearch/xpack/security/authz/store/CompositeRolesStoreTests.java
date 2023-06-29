@@ -2920,8 +2920,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
         }
         if (reservedRolesStore == null) {
-            reservedRolesStore = mock(ReservedRolesStore.class);
-            doCallRealMethod().when(reservedRolesStore).accept(anySet(), anyActionListener());
+            reservedRolesStore = new ReservedRolesStore();
         }
         if (licenseState == null) {
             licenseState = new XPackLicenseState(() -> 0);

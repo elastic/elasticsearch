@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -55,12 +56,15 @@ import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngest
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
@@ -147,6 +151,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
             actionHandlers.add(new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class));
             actionHandlers.add(new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class));
+            actionHandlers.add(new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class));
             actionHandlers.add(new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class));
         }
 
@@ -186,6 +191,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
             restHandlers.add(new RestDeleteQueryRulesetAction(getLicenseState()));
             restHandlers.add(new RestGetQueryRulesetAction(getLicenseState()));
+            restHandlers.add(new RestListQueryRulesetsAction(getLicenseState()));
             restHandlers.add(new RestPutQueryRulesetAction(getLicenseState()));
         }
 
@@ -206,7 +212,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (enabled == false) {
             return Collections.emptyList();

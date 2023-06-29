@@ -103,11 +103,6 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
-    @Override
-    public boolean mediaTypesValid(RestRequest request) {
-        return request.getXContentType() != null;
-    }
-
     protected static String unrecognized(
         final RestRequest request,
         final Set<String> invalids,

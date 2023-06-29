@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.internal.Client;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -171,9 +171,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
                 final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
-                final Version version = shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                final IndexVersion version = shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
                     ? ((RecoverySource.SnapshotRecoverySource) shardRouting.recoverySource()).version()
-                    : Version.CURRENT;
+                    : IndexVersion.current();
 
                 final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
                     recoveryUuid,

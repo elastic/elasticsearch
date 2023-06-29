@@ -113,7 +113,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("lucene_version", version.luceneVersion().toString())
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
-            .field("transport_version", transportVersion.toString())
+            .field("transport_version", transportVersion != null ? transportVersion.toString() : "unknown")
             .endObject();
         builder.field("tagline", "You Know, for Search");
         builder.endObject();

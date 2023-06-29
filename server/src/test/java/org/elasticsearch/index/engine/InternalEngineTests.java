@@ -197,6 +197,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -6733,7 +6734,7 @@ public class InternalEngineTests extends EngineTestCase {
             Map<String, String> userData = new HashMap<>(store.readLastCommittedSegmentsInfo().userData);
             userData.remove(Engine.MIN_RETAINED_SEQNO);
             IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null).setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-                .setIndexCreatedVersionMajor(IndexVersion.CURRENT.luceneVersion().major)
+                .setIndexCreatedVersionMajor(IndexVersion.current().luceneVersion().major)
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE);
@@ -7444,6 +7445,25 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(userData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
             }
         }
+    }
+
+    public void testExtraUserDataIsCommitted() throws IOException {
+        engine.close();
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected Map<String, String> getCommitExtraUserData() {
+                return Map.of("userkey", "userdata", ES_VERSION, Version.V_EMPTY.toString());
+            }
+        };
+        engine.skipTranslogRecovery();
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+
+        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+        assertThat(userData, hasEntry("userkey", "userdata"));
+        assertThat(userData, hasEntry(ES_VERSION, Version.CURRENT.toString()));
     }
 
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {

@@ -1863,7 +1863,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     indicesService,
                     clusterService,
                     threadPool,
-                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, snapshotFilesProvider),
+                    new PeerRecoveryTargetService(
+                        client,
+                        threadPool,
+                        transportService,
+                        recoverySettings,
+                        clusterService,
+                        snapshotFilesProvider
+                    ),
                     shardStateAction,
                     repositoriesService,
                     searchService,

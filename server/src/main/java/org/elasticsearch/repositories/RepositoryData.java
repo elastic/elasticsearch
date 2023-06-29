@@ -13,6 +13,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -678,9 +680,13 @@ public final class RepositoryData {
             } else {
                 minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
             }
-            assert minVersion.before(IndexVersion.V_8_10_0);
-            // if this needs to be used after 8.10.0, can write as an int to disambiguate Version and IndexVersion
-            builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
+            if (minVersion.before(IndexVersion.V_8_10_0)) {
+                // write as a string
+                builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
+            } else {
+                // write an int
+                builder.field(MIN_VERSION, minVersion.id());
+            }
         }
 
         if (shouldWriteUUIDS) {
@@ -818,12 +824,29 @@ public final class RepositoryData {
                     indexMetaIdentifiers = parser.mapStrings();
                 }
                 case MIN_VERSION -> {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
-                    final Version version = Version.fromString(parser.text());
-                    assert version.before(Version.V_8_10_0);
-                    IndexVersion ixVersion = IndexVersion.fromId(version.id);
-                    assert SnapshotsService.useShardGenerations(ixVersion);
-                    if (ixVersion.after(IndexVersion.current())) {
+                    IndexVersion version;
+                    switch (parser.nextToken()) {
+                        case VALUE_STRING -> {
+                            Version v = Version.fromString(parser.text());
+                            assert v.before(Version.V_8_10_0);
+                            version = IndexVersion.fromId(v.id);
+                        }
+                        case VALUE_NUMBER -> {
+                            version = IndexVersion.fromId(parser.intValue());
+                        }
+                        default -> throw new ParsingException(
+                            parser.getTokenLocation(),
+                            Strings.format(
+                                "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                                XContentParser.Token.VALUE_STRING,
+                                XContentParser.Token.VALUE_NUMBER,
+                                parser.nextToken()
+                            )
+                        );
+                    }
+
+                    assert SnapshotsService.useShardGenerations(version);
+                    if (version.after(IndexVersion.current())) {
                         throw new IllegalStateException(
                             "this snapshot repository format requires Elasticsearch version [" + version + "] or later"
                         );

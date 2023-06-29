@@ -2567,7 +2567,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
                 final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true)
                     .stream()
-                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
+                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION))
                     .map(i -> i.getIndex().getName())
                     .sorted() // reliable error message for testing
                     .toList();

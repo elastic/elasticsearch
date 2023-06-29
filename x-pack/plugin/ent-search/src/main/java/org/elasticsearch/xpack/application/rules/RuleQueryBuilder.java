@@ -55,12 +55,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
-    private static final ParseField CURATED_IDS_FIELD = new ParseField("curated_ids");
-    private static final ParseField CURATED_DOCS_FIELD = new ParseField("curated_docs");
-
     private final List<String> rulesetIds;
     private final Map<String, Object> matchCriteria;
-    private QueryBuilder organicQuery;
+    private final QueryBuilder organicQuery;
 
     private final List<String> curatedIds;
     private final Supplier<List<String>> curatedIdSupplier;
@@ -154,19 +151,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
         out.writeStringCollection(rulesetIds);
-        if (curatedIds == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeStringCollection(curatedIds);
-        }
-        out.writeStringCollection(curatedIds);
-        if (curatedDocs == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeList(curatedDocs);
-        }
     }
 
     public List<String> rulesetIds() {
@@ -193,20 +177,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             builder.value(rulesetId);
         }
         builder.endArray();
-        if (curatedIds != null) {
-            builder.startArray(CURATED_IDS_FIELD.getPreferredName());
-            for (String curatedId : curatedIds) {
-                builder.value(curatedId);
-            }
-            builder.endArray();
-        }
-        if (curatedDocs != null) {
-            builder.startArray(CURATED_DOCS_FIELD.getPreferredName());
-            for (Item curatedDoc : curatedDocs) {
-                builder.value(curatedDoc);
-            }
-            builder.endArray();
-        }
         builder.endObject();
     }
 
@@ -341,8 +311,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
         PARSER.declareStringArray(constructorArg(), RULESET_IDS_FIELD);
-        PARSER.declareStringArray(optionalConstructorArg(), CURATED_IDS_FIELD);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.list(), CURATED_DOCS_FIELD);
         declareStandardFields(PARSER);
     }
 

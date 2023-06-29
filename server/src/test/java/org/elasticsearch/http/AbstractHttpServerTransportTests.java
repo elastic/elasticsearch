@@ -94,6 +94,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     private ThreadPool threadPool;
     private Recycler<BytesRef> recycler;
 
+    private static final int LONG_GRACE_PERIOD_MS = 20_000;
+    private static final int SHORT_GRACE_PERIOD_MS = 1;
+
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
@@ -917,7 +920,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testStopWorksWithNoOpenRequests() {
-        var grace = 1;
+        var grace = SHORT_GRACE_PERIOD_MS;
         try (var noWait = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
             final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
                 @Override
@@ -940,7 +943,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testStopClosesIdleConnectionImmediately() {
-        var grace = 10;
+        var grace = SHORT_GRACE_PERIOD_MS;
         try (
             var noTimeout = LogExpectation.unexpectedTimeout(grace);
             TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(grace))
@@ -963,7 +966,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testStopForceClosesConnectionDuringRequest() throws Exception {
-        var grace = 10;
+        var grace = SHORT_GRACE_PERIOD_MS;
         TestHttpChannel httpChannel = new TestHttpChannel();
         try (
             var timeout = LogExpectation.expectTimeout(grace);
@@ -997,7 +1000,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testStopClosesChannelAfterRequest() throws Exception {
-        var grace = 100;
+        var grace = LONG_GRACE_PERIOD_MS;
         try (var noTimeout = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
 
             TestHttpChannel httpChannel = new TestHttpChannel();
@@ -1047,7 +1050,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testForceClosesOpenChannels() throws Exception {
-        var grace = 100;
+        var grace = 100; // this test waits for the entire grace, so try to keep it short
         TestHttpChannel httpChannel = new TestHttpChannel();
         try (var timeout = LogExpectation.expectTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
 
@@ -1069,7 +1072,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }).start();
 
             try {
-                assertTrue(stopped.await(10, TimeUnit.SECONDS));
+                assertTrue(stopped.await(2 * LONG_GRACE_PERIOD_MS, TimeUnit.MILLISECONDS));
             } catch (InterruptedException e) {
                 fail("server never stopped");
             }

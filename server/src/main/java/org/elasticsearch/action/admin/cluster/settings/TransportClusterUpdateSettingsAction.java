@@ -28,6 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
@@ -238,12 +239,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         });
     }
 
-    public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
+    private static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
         protected volatile boolean reroute = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
 
-        public ClusterUpdateSettingsTask(
+        ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
             Priority priority,
             ClusterUpdateSettingsRequest request,
@@ -252,13 +253,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             super(priority, request, listener);
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
-        }
-
-        /**
-         * Used by the reserved state handler {@link ReservedClusterSettingsAction}
-         */
-        public ClusterUpdateSettingsTask(final ClusterSettings clusterSettings, ClusterUpdateSettingsRequest request) {
-            this(clusterSettings, Priority.IMMEDIATE, request, null);
         }
 
         @Override

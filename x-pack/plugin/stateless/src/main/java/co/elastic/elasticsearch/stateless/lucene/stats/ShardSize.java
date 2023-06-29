@@ -17,9 +17,32 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
-public record ShardSize(long interactiveSize, long nonInteractiveSize) {
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
-    public long totalSize() {
-        return interactiveSize + nonInteractiveSize;
+import java.io.IOException;
+
+public record ShardSize(long interactiveSizeInBytes, long nonInteractiveSizeInBytes) implements Writeable {
+
+    public static final ShardSize EMPTY = new ShardSize(0, 0);
+
+    public ShardSize {
+        assert interactiveSizeInBytes >= 0 : "interactiveSize must be non negative";
+        assert nonInteractiveSizeInBytes >= 0 : "nonInteractiveSize must be non negative";
+    }
+
+    public ShardSize(StreamInput in) throws IOException {
+        this(in.readLong(), in.readLong());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(interactiveSizeInBytes);
+        out.writeLong(nonInteractiveSizeInBytes);
+    }
+
+    public long totalSizeInBytes() {
+        return interactiveSizeInBytes + nonInteractiveSizeInBytes;
     }
 }

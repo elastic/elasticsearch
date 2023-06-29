@@ -15,34 +15,37 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package co.elastic.elasticsearch.stateless.autoscaling.search;
+
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
-public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeIngestLoadRequest> {
+public class PublishShardSizesRequest extends MasterNodeRequest<PublishShardSizesRequest> {
 
     private final String nodeId;
     private final long seqNo;
-    private final double ingestionLoad;
+    private final Map<ShardId, ShardSize> shardSizes;
 
-    public PublishNodeIngestLoadRequest(String nodeId, long seqNo, double ingestionLoad) {
-        super();
+    public PublishShardSizesRequest(String nodeId, long seqNo, Map<ShardId, ShardSize> shardSizes) {
         this.nodeId = nodeId;
         this.seqNo = seqNo;
-        this.ingestionLoad = ingestionLoad;
+        this.shardSizes = shardSizes;
     }
 
-    public PublishNodeIngestLoadRequest(StreamInput in) throws IOException {
+    public PublishShardSizesRequest(StreamInput in) throws IOException {
         super(in);
         this.nodeId = in.readString();
         this.seqNo = in.readLong();
-        this.ingestionLoad = in.readDouble();
+        this.shardSizes = in.readImmutableMap(ShardId::new, ShardSize::new);
     }
 
     @Override
@@ -50,7 +53,12 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
         super.writeTo(out);
         out.writeString(nodeId);
         out.writeLong(seqNo);
-        out.writeDouble(ingestionLoad);
+        out.writeMap(shardSizes);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     public String getNodeId() {
@@ -61,30 +69,29 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
         return seqNo;
     }
 
-    public double getIngestionLoad() {
-        return ingestionLoad;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public Map<ShardId, ShardSize> getShardSizes() {
+        return shardSizes;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PublishNodeIngestLoadRequest that = (PublishNodeIngestLoadRequest) o;
-        return seqNo == that.seqNo && Double.compare(that.ingestionLoad, ingestionLoad) == 0 && Objects.equals(nodeId, that.nodeId);
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        PublishShardSizesRequest that = (PublishShardSizesRequest) o;
+        return seqNo == that.seqNo && Objects.equals(nodeId, that.nodeId) && Objects.equals(shardSizes, that.shardSizes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, seqNo, ingestionLoad);
+        return Objects.hash(nodeId, seqNo, shardSizes);
     }
 
     @Override
     public String toString() {
-        return "PublishNodeIngestLoadRequest{nodeId='" + nodeId + "', seqNo=" + seqNo + ", ingestionLoad=" + ingestionLoad + '}';
+        return "PublishShardDiskUsageRequest{nodeId='" + nodeId + "', seqNo=" + seqNo + ", shardSizes=" + shardSizes + '}';
     }
 }

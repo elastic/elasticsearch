@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -24,14 +25,12 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -92,7 +91,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private RuleQueryBuilder(
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
-        @Nullable List<String> rulesetIds,
+        List<String> rulesetIds,
         List<String> curatedIds,
         List<Item> curatedDocs,
         Supplier<List<String>> curatedIdSupplier,
@@ -112,6 +111,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
         if (rulesetIds == null || rulesetIds.isEmpty()) {
             throw new IllegalArgumentException("rulesetIds must not be null or empty");
+        }
+        for (String rulesetId : rulesetIds) {
+            if (Strings.isNullOrEmpty(rulesetId)) {
+                throw new IllegalArgumentException("rulesetIds must not be null or empty");
+            }
         }
 
         this.organicQuery = organicQuery;
@@ -210,66 +214,56 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             }
         }
 
-        // Identify matching rules and apply them if applicable
-        SetOnce<List<String>> idSetOnce = new SetOnce<>();
-        SetOnce<List<Item>> docsSetOnce = new SetOnce<>();
-        List<String> pinnedIds = new ArrayList<>();
-        List<Item> pinnedDocs = new ArrayList<>();
+        // Identify matching rules and apply them as applicable
         // TODO - Support more than one ruleset ID or take out of scope for MVP (Maybe it's not needed?)
         // We probably should refactor this to a List call and filter by ruleset name,
         // but in that case we may need to return more details for the listed rulesets to avoid a second call
         String rulesetId = rulesetIds.get(0);
-        GetQueryRulesetAction.Request getQueryRulesetRequest = new GetQueryRulesetAction.Request(rulesetId);
+        GetRequest getRequest = new GetRequest(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
+        SetOnce<List<String>> idSetOnce = new SetOnce<>();
+        SetOnce<List<Item>> docsSetOnce = new SetOnce<>();
+        List<String> pinnedIds = new ArrayList<>();
+        List<Item> pinnedDocs = new ArrayList<>();
+
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            client.execute(GetQueryRulesetAction.INSTANCE, getQueryRulesetRequest, new ActionListener<>() {
-                // TODO - Make this less ugly, don't hard code field names, etc.
-                @Override
-                public void onResponse(GetQueryRulesetAction.Response response) {
-                    QueryRuleset queryRuleset = response.queryRuleset();
-                    for (QueryRule rule : queryRuleset.rules()) {
-                        if (rule.type() == QueryRule.QueryRuleType.PINNED) {
-                            for (QueryRuleCriteria criterion : rule.criteria()) {
-                                for (String match : matchCriteria.keySet()) {
-                                    if (criterion.criteriaMetadata().equals(match) // TODO need to verify "exact" here too
-                                        && criterion.criteriaValue().equals(matchCriteria.get(match))) {
-                                        if (rule.actions().containsKey("ids")) {
-                                            pinnedIds.addAll((List<String>) rule.actions().get("ids"));
-                                        } else if (rule.actions().containsKey("docs")) {
-                                            Object docsConfiguredInRule = rule.actions().get("docs");
-                                            if ((docsConfiguredInRule instanceof List) == false) {
-                                                throw new IllegalArgumentException("docs must be a list");
-                                            }
-
-                                            List<LinkedHashMap<String, String>> maps = (ArrayList<
-                                                LinkedHashMap<String, String>>) docsConfiguredInRule;
-                                            List<Item> items = maps.stream()
-                                                .map(map -> new Item(map.get("_index"), map.get("_id")))
-                                                .toList();
-                                            pinnedDocs.addAll(items);
-
-                                        } else {
-                                            throw new UnsupportedOperationException("Pinned rules must have id or docs");
+            client.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
+                if (getResponse.isExists() == false) {
+                    throw new ResourceNotFoundException("query ruleset [{}] couldn't be found", rulesetId);
+                }
+                QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
+                for (QueryRule rule : queryRuleset.rules()) {
+                    if (rule.type() == QueryRule.QueryRuleType.PINNED) {
+                        for (QueryRuleCriteria criterion : rule.criteria()) {
+                            for (String match : matchCriteria.keySet()) {
+                                if (criterion.criteriaMetadata().equals(match) // TODO need to verify "exact" here too
+                                    && criterion.criteriaValue().equals(matchCriteria.get(match))) {
+                                    if (rule.actions().containsKey("ids")) {
+                                        pinnedIds.addAll((List<String>) rule.actions().get("ids"));
+                                    } else if (rule.actions().containsKey("docs")) {
+                                        Object docsConfiguredInRule = rule.actions().get("docs");
+                                        if ((docsConfiguredInRule instanceof List) == false) {
+                                            throw new IllegalArgumentException("docs must be a list");
                                         }
+                                        List<Map<String, String>> maps = (ArrayList<Map<String, String>>) docsConfiguredInRule;
+                                        List<Item> items = maps.stream()
+                                            .map(map -> new Item(map.get("_index"), map.get("_id")))
+                                            .toList();
+                                        pinnedDocs.addAll(items);
+
+                                    } else {
+                                        throw new UnsupportedOperationException("Pinned rules must have id or docs");
                                     }
                                 }
                             }
-                        } else {
-                            logger.warn("Skipping unsupported query rule type [" + rule.type() + "]");
                         }
+                    } else {
+                        logger.warn("Skipping unsupported query rule type [" + rule.type() + "]");
                     }
-                    idSetOnce.set(pinnedIds.stream().distinct().toList());
-                    docsSetOnce.set(pinnedDocs.stream().distinct().toList());
-                    listener.onResponse(null);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // Ruleset not found, no rules to apply
-                    idSetOnce.set(Collections.emptyList());
-                    docsSetOnce.set(Collections.emptyList());
-                    listener.onResponse(null);
-                }
-            });
+                idSetOnce.set(pinnedIds.stream().distinct().toList());
+                docsSetOnce.set(pinnedDocs.stream().distinct().toList());
+                listener.onResponse(null);
+            }));
         });
 
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);

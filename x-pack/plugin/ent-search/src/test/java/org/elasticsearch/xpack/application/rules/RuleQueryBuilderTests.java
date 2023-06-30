@@ -8,13 +8,24 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +39,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
 
+    protected static String rulesetId;
+
     private Map<String, Object> generateRandomMatchCriteria() {
         final int randomIndex = Randomness.get().nextInt(ALLOWED_MATCH_CRITERIA.size());
         final String matchCriteria = (String) ALLOWED_MATCH_CRITERIA.toArray()[randomIndex];
@@ -39,9 +52,20 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         return Map.of(key, randomAlphaOfLengthBetween(1, 10));
     }
 
+    private List<String> generateRandomRulesetIds() {
+        List<String> rulesetIds = new ArrayList<>();
+        for (int i=0; i<randomIntBetween(1, 2); i++) {
+            rulesetIds.add(randomAlphaOfLengthBetween(5, 10));
+        }
+        return rulesetIds;
+    }
+
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
-        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), randomList(1, 2, String::new));
+        return new RuleQueryBuilder(new MatchAllQueryBuilder(),
+            generateRandomMatchCriteria(),
+            generateRandomRulesetIds()
+        );
     }
 
     @Override
@@ -51,9 +75,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>();
-        classpathPlugins.add(EnterpriseSearch.class);
-        return classpathPlugins;
+        return Collections.singletonList(EnterpriseSearch.class);
     }
 
     public void testIllegalArguments() {
@@ -165,4 +187,38 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     // assertEquals(items[pos++], item);
     // }
     // }
+
+    @Override
+    protected GetResponse executeGet(GetRequest getRequest) {
+        String rulesetId = getRequest.id();
+        List<QueryRule> rules = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            rules.add(SearchApplicationTestUtils.randomQueryRule());
+        }
+        QueryRuleset queryRuleset = new QueryRuleset(rulesetId, rules);
+
+        assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));
+
+        String json;
+        try {
+            XContentBuilder builder = queryRuleset.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
+            json = Strings.toString(builder);
+        } catch (IOException ex) {
+            throw new ElasticsearchException("boom", ex);
+        }
+
+        return new GetResponse(
+            new GetResult(
+                QueryRulesIndexService.QUERY_RULES_ALIAS_NAME,
+                rulesetId,
+                0,
+                1,
+                0L,
+                true,
+                new BytesArray(json),
+                null,
+                null
+            )
+        );
+    }
 }

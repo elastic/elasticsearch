@@ -391,7 +391,6 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96999")
     public void testQueryLinearRing() throws Exception {
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();

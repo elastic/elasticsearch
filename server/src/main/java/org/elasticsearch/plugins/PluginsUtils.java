@@ -168,7 +168,7 @@ public class PluginsUtils {
             if (bundles.add(bundle) == false) {
                 throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
             }
-            if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
+            if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.current().isSnapshot() == false) {
                 throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
             }
         }

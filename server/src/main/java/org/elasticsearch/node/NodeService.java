@@ -114,7 +114,7 @@ public class NodeService implements Closeable {
         return new NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
-            Build.CURRENT,
+                Build.current(),
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,
             os ? monitorService.osService().info() : null,

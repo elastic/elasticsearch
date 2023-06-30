@@ -877,7 +877,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             )
             .build();
 
-        ClusterService mockedClusterService = spy(clusterService);
+        ClusterService mockedClusterService = clusterService;
         MetadataIndexTemplateService mockedTemplateService = new MetadataIndexTemplateService(
             mockedClusterService,
             mock(MetadataCreateIndexService.class),

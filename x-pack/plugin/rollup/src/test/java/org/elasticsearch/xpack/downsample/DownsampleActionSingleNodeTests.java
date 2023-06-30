@@ -597,8 +597,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
-            shard.shardId(),
-            client()
+            shard.shardId()
         );
         TaskCancelHelper.cancel(task, "test cancel");
 
@@ -669,8 +668,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
-            shard.shardId(),
-            client()
+            shard.shardId()
         );
 
         // re-use source index as temp index for test
@@ -719,8 +717,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 indexService.getIndexSettings().getTimestampBounds().endTime(),
                 config,
                 emptyMap(),
-                shard.shardId(),
-                client()
+                shard.shardId()
             );
 
             final RollupShardIndexer indexer = new RollupShardIndexer(

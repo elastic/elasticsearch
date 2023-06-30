@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -51,8 +50,7 @@ public class RollupShardTask extends CancellableTask {
         long indexEndTimeMillis,
         DownsampleConfig config,
         Map<String, String> headers,
-        ShardId shardId,
-        Client client
+        ShardId shardId
     ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
@@ -60,7 +58,7 @@ public class RollupShardTask extends CancellableTask {
         this.indexEndTimeMillis = indexEndTimeMillis;
         this.config = config;
         this.shardId = shardId;
-        this.rollupStartTime = client.threadPool().relativeTimeInMillis();
+        this.rollupStartTime = System.currentTimeMillis();
         this.rollupBulkStats = new RollupBulkStats();
     }
 

@@ -30,7 +30,7 @@ public class InferenceRescorerIT extends InferenceTestCase {
                         "description": "super complex model for tests",
                         "input": {"field_names": ["cost", "product"]},
                         "inference_config": {
-                          "regression": {
+                          "learn_to_rank": {
                           }
                         },
                         "definition": {

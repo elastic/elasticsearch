@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-package org.elasticsearch.xpack.core.downsample;
+
+package org.elasticsearch.action.downsample;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
@@ -29,7 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * This class holds the configuration details of a {@link DownsampleAction} that downsamples time series
+ * This class holds the configuration details of a DownsampleAction that downsamples time series
  * (TSDB) indices. We have made great effort to simplify the rollup configuration and currently
  * only requires a fixed time interval. So, it has the following format:
  *
@@ -97,6 +99,37 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         fixedInterval = new DateHistogramInterval(in);
     }
 
+    /**
+     * This method validates the target downsampling configuration can be applied on an index that has been
+     * already downsampled from the source configuration. The requirements are:
+     * - The target interval needs to be greater than source interval
+     * - The target interval needs to be a multiple of the source interval
+     * throws an IllegalArgumentException to signal that the target interval is not acceptable
+     */
+    public static void validateSourceAndTargetIntervals(DownsampleConfig source, DownsampleConfig target) {
+        long sourceMillis = source.fixedInterval.estimateMillis();
+        long targetMillis = target.fixedInterval.estimateMillis();
+        if (sourceMillis >= targetMillis) {
+            // Downsampling interval must be greater than source interval
+            throw new IllegalArgumentException(
+                "Downsampling interval ["
+                    + target.fixedInterval
+                    + "] must be greater than the source index interval ["
+                    + source.fixedInterval
+                    + "]."
+            );
+        } else if (targetMillis % sourceMillis != 0) {
+            // Downsampling interval must be a multiple of the source interval
+            throw new IllegalArgumentException(
+                "Downsampling interval ["
+                    + target.fixedInterval
+                    + "] must be a multiple of the source index interval ["
+                    + source.fixedInterval
+                    + "]."
+            );
+        }
+    }
+
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
@@ -154,9 +187,13 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(FIXED_INTERVAL, fixedInterval.toString());
+            toXContentFragment(builder);
         }
         return builder.endObject();
+    }
+
+    public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
+        return builder.field(FIXED_INTERVAL, fixedInterval.toString());
     }
 
     public static DownsampleConfig fromXContent(final XContentParser parser) throws IOException {

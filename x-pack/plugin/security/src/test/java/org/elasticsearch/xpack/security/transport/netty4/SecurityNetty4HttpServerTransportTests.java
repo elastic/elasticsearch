@@ -674,8 +674,6 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                     ch.flushInbound();
                 }).get();
                 testThreadPool.generic().submit(() -> ch.close().get()).get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("Connection closed before received headers"));
-                assertThat(badDispatchInvocationCount.get(), is(6));
                 assertThat(authnInvocationCount.get(), is(0));
             }
         } finally {

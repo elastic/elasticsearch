@@ -1,5 +1,0 @@
-pr: 96243
-summary: Support dotted field notations in the reroute processor
-area: Ingest Node
-type: bug
-issues: []

@@ -11,9 +11,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.index.IndexResponse;
@@ -39,6 +42,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -48,6 +52,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -77,6 +82,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -85,6 +91,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -112,6 +119,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -1861,6 +1869,47 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testDfsQueryPhaseRewrite() {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.source(SearchSourceBuilder.searchSource().query(new TestRewriteCounterQueryBuilder()));
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
+        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+        ReaderContext context = service.createAndPutReaderContext(
+            request,
+            indexService,
+            indexShard,
+            reader,
+            SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+        );
+        service.executeQueryPhase(
+            new QuerySearchRequest(null, context.id(), request, new AggregatedDfs(Map.of(), Map.of(), 10)),
+            new SearchShardTask(42L, "", "", "", null, Collections.emptyMap()),
+            plainActionFuture
+        );
+
+        plainActionFuture.actionGet();
+        assertThat(((TestRewriteCounterQueryBuilder) request.source().query()).asyncRewriteCount, equalTo(1));
+        final ShardSearchContextId contextId = context.id();
+        assertTrue(service.freeReaderContext(contextId));
+    }
+
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
@@ -1870,5 +1919,75 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             randomNonNegativeLong(),
             false
         );
+    }
+
+    private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
+
+        final int asyncRewriteCount;
+        final Supplier<Boolean> fetched;
+
+        TestRewriteCounterQueryBuilder() {
+            asyncRewriteCount = 0;
+            fetched = null;
+        }
+
+        private TestRewriteCounterQueryBuilder(int asyncRewriteCount, Supplier<Boolean> fetched) {
+            this.asyncRewriteCount = asyncRewriteCount;
+            this.fetched = fetched;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test_query";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
+        protected boolean doEquals(TestRewriteCounterQueryBuilder other) {
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 42;
+        }
+
+        @Override
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            if (asyncRewriteCount > 0) {
+                return this;
+            }
+            if (fetched != null) {
+                if (fetched.get() == null) {
+                    return this;
+                }
+                assert fetched.get();
+                return new TestRewriteCounterQueryBuilder(1, null);
+            }
+            if (queryRewriteContext.convertToDataRewriteContext() != null) {
+                SetOnce<Boolean> awaitingFetch = new SetOnce<>();
+                queryRewriteContext.registerAsyncAction((c, l) -> {
+                    awaitingFetch.set(true);
+                    l.onResponse(null);
+                });
+                return new TestRewriteCounterQueryBuilder(0, awaitingFetch::get);
+            }
+            return this;
+        }
     }
 }

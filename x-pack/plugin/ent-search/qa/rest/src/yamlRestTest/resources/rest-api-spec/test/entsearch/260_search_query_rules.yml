@@ -77,9 +77,10 @@ setup:
               query_string:
                 default_field: text
                 query: asdf
-            match_criteria:
+              match_criteria:
                 query_string: search
-            ruleset_ids: [test-ruleset]
+            ruleset_ids:
+              - test-ruleset
 
 
   - match: { hits.total.value: 1 }
@@ -100,9 +101,10 @@ setup:
               query_string:
                 default_field: text
                 query: asdf
-            match_criteria:
+              match_criteria:
                 query_string: ui
-            ruleset_ids: [test-ruleset]
+            ruleset_ids:
+              - test-ruleset
 
 
   - match: { hits.total.value: 1 }
@@ -123,9 +125,10 @@ setup:
               query_string:
                 default_field: text
                 query: logstash
-            match_criteria:
+              match_criteria:
                 query_string: logstash
-            ruleset_ids: [test-ruleset]
+            ruleset_ids:
+              - test-ruleset
 
 
   - match: { hits.total.value: 1 }

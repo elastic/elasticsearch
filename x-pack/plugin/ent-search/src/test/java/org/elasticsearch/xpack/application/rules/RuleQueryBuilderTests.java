@@ -5,17 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.rules.action;
+package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
-import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,15 +21,30 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
+import static org.elasticsearch.xpack.application.rules.RuleQueryBuilder.ALLOWED_MATCH_CRITERIA;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
+
+    private Map<String,Object> generateRandomMatchCriteria() {
+        int randomIndex = new Random().nextInt(ALLOWED_MATCH_CRITERIA.size());
+        String matchCriteria = (String) ALLOWED_MATCH_CRITERIA.toArray()[randomIndex];
+
+        return generateRandomMatchCriteria(matchCriteria);
+    }
+
+    private Map<String,Object> generateRandomMatchCriteria(String key) {
+        return Map.of(key, randomAlphaOfLengthBetween(1, 10));
+    }
+
+
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
         return new RuleQueryBuilder(
             new MatchAllQueryBuilder(),
-            randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))),
+            generateRandomMatchCriteria(),
             randomList(1, 2, String::new)
         );
     }
@@ -53,18 +66,26 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
             IllegalArgumentException.class,
             () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId"))
         );
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), null));
+        expectThrows(IllegalArgumentException.class, () ->
+            new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), null));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("foo", "bar"), Collections.emptyList())
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), Collections.emptyList())
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(null, Map.of("foo", "bar"), Collections.singletonList("rulesetId"))
+            () -> new RuleQueryBuilder(null, generateRandomMatchCriteria(), Collections.singletonList("rulesetId"))
         );
         expectThrows(
             IllegalArgumentException.class,
             () -> new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId"))
+        );
+        expectThrows(
+            IllegalArgumentException.class, () -> new RuleQueryBuilder(
+                new MatchAllQueryBuilder(),
+                generateRandomMatchCriteria("invalid_value"),
+                Collections.singletonList("rulesetId")
+            )
         );
     }
 

@@ -35,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -54,6 +55,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
+    
+    static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
 
     private final List<String> rulesetIds;
     private final Map<String, Object> matchCriteria;
@@ -101,6 +104,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
         if (matchCriteria == null || matchCriteria.isEmpty()) {
             throw new IllegalArgumentException("matchCriteria must not be null or empty");
+        }
+        for (String matchCriteriaKey : matchCriteria.keySet()) {
+            if (ALLOWED_MATCH_CRITERIA.contains(matchCriteriaKey) == false) {
+                throw new IllegalArgumentException("matchCriteria key [" + matchCriteriaKey + "] is not allowed");
+            }
         }
         if (rulesetIds == null || rulesetIds.isEmpty()) {
             throw new IllegalArgumentException("rulesetIds must not be null or empty");

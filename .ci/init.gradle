@@ -31,7 +31,7 @@ if (System.getenv('VAULT_ROLE_ID') == null && System.getenv('VAULT_SECRET_ID') =
     "or the VAULT_TOKEN environment variable to use this init script.")
 }
 
-final String vaultPathPrefix = System.getenv('VAULT_ADDR') ==~ /.+vault-ci.+\.dev.*/ ? "secret/ci/elastic-elasticsearch/migrated" : "secret/elasticsearch-ci"
+final String vaultPathPrefix = System.getenv('VAULT_ADDR') ==~ /secrets\.elastic\.co/ ? "secret/elasticsearch-ci" : "secret/ci/elastic-elasticsearch/migrated"
 
 final String vaultToken = System.getenv('VAULT_TOKEN') ?: new Vault(
   new VaultConfig()
@@ -90,10 +90,10 @@ if (USE_ARTIFACTORY) {
   }
 }
 
-projectsLoaded {
-  rootProject {
-    project.pluginManager.withPlugin('com.gradle.build-scan') {
-      buildScan.server = 'https://gradle-enterprise.elastic.co'
+gradle.settingsEvaluated { settings ->
+  settings.pluginManager.withPlugin("com.gradle.enterprise") {
+    settings.gradleEnterprise {
+      server = 'https://gradle-enterprise.elastic.co'
     }
   }
 }

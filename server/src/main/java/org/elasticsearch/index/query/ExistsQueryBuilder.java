@@ -68,7 +68,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         if (getMappedFields(context, fieldName).isEmpty()) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         } else {
             return this;
         }

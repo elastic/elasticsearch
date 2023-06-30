@@ -1,27 +1,32 @@
 {
   "index_patterns": [
-    ".fleet-filedelivery-data-*-*"
+    ".fleet-fileds-fromhost-data-*"
   ],
+  "data_stream": {},
   "priority": 200,
   "composed_of": [],
   "_meta": {
-    "description": "fleet file delivery data index template",
+    "description": "fleet file from-host data index template",
     "managed": true
   },
   "template" : {
     "settings": {
       "index.auto_expand_replicas": "0-1",
-      "index.hidden": true
+      "index.hidden": true,
+      "index.lifecycle.name": ".fleet-fileds-fromhost-data-ilm-policy"
     },
     "mappings": {
       "_doc": {
         "_meta": {
           "version": "${xpack.fleet.template.version}"
         },
+        "dynamic": false,
         "properties": {
+          "@timestamp": {
+            "type": "date"
+          },
           "data": {
-            "type": "binary",
-            "store": true
+            "type": "binary"
           },
           "bid": {
             "type": "keyword"

@@ -28,25 +28,20 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
 
-    private Map<String,Object> generateRandomMatchCriteria() {
+    private Map<String, Object> generateRandomMatchCriteria() {
         int randomIndex = new Random().nextInt(ALLOWED_MATCH_CRITERIA.size());
         String matchCriteria = (String) ALLOWED_MATCH_CRITERIA.toArray()[randomIndex];
 
         return generateRandomMatchCriteria(matchCriteria);
     }
 
-    private Map<String,Object> generateRandomMatchCriteria(String key) {
+    private Map<String, Object> generateRandomMatchCriteria(String key) {
         return Map.of(key, randomAlphaOfLengthBetween(1, 10));
     }
 
-
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
-        return new RuleQueryBuilder(
-            new MatchAllQueryBuilder(),
-            generateRandomMatchCriteria(),
-            randomList(1, 2, String::new)
-        );
+        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), randomList(1, 2, String::new));
     }
 
     @Override
@@ -66,8 +61,10 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
             IllegalArgumentException.class,
             () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId"))
         );
-        expectThrows(IllegalArgumentException.class, () ->
-            new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), null));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), null)
+        );
         expectThrows(
             IllegalArgumentException.class,
             () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), Collections.emptyList())
@@ -81,7 +78,8 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
             () -> new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId"))
         );
         expectThrows(
-            IllegalArgumentException.class, () -> new RuleQueryBuilder(
+            IllegalArgumentException.class,
+            () -> new RuleQueryBuilder(
                 new MatchAllQueryBuilder(),
                 generateRandomMatchCriteria("invalid_value"),
                 Collections.singletonList("rulesetId")

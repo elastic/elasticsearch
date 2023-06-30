@@ -117,7 +117,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             { doc: 1, dim: 1, timestamp: 2000, value: 15 }
             { doc: 2, dim: 1, timestamp: 3000, value: 37 }
             { doc: 3, dim: 1, timestamp: 4000, value: 60 }
-            { doc: 4, dim: 1, timestamp: 5000, value: 14 }
+            { doc: 4, dim: 1, timestamp: 5000, value: 14 } *** counter reset ***
 
             { doc: 5, dim: 2, timestamp: 2000, value: 74 }
             { doc: 6, dim: 2, timestamp: 3000, value: 150 }

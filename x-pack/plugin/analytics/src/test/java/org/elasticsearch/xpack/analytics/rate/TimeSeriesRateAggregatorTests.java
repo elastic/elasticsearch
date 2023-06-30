@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -100,11 +101,42 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((/* reset: 90 -> 40 */ 90 + 40 - 90) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
+            {
+                Rate rate = hb.getBuckets().get(2).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), equalTo(Double.NaN));
+            }
         };
 
         AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
             .withSplitLeavesIntoSeperateAggregators(false);
         testCase(iw -> {
+            /*
+            Documents
+            ---------
+
+            { doc: 1, dim: 1, timestamp: 2000, value: 15 }
+            { doc: 2, dim: 1, timestamp: 3000, value: 37 }
+            { doc: 3, dim: 1, timestamp: 4000, value: 60 }
+            { doc: 4, dim: 1, timestamp: 5000, value: 14 }
+
+            { doc: 5, dim: 2, timestamp: 2000, value: 74 }
+            { doc: 6, dim: 2, timestamp: 3000, value: 150 }
+            { doc: 7, dim: 2, timestamp: 4000, value: 50 } *** counter reset ***
+            { doc: 8, dim: 2, timestamp: 5000, value: 90 }
+            { doc: 9, dim: 2, timestamp: 6000, value: 40 } *** counter reset ***
+
+            Date histogram (fixed_interval = 2 seconds)
+            -------------------------------------------
+
+            dim: 1
+            * bucket 0: { doc: 1, doc: 2 } -> rate: (37 - 15) / 1000
+            * bucket 1: { doc: 3, doc: 4 } -> rate: (60 + 14 - 60) / 1000
+
+            dim: 2
+            * bucket 0: { doc: 1, doc: 2 } -> rate: (150 - 74) / 1000
+            * bucket 1: { doc: 3, doc: 4 } -> rate: (90 + 40 - 90) / 1000
+            * bucket 2: { doc: 5 } -> rate: NaN
+             */
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
         }, verifier, aggTestConfig);

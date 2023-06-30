@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -21,7 +22,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import static org.elasticsearch.xpack.application.rules.RuleQueryBuilder.ALLOWED_MATCH_CRITERIA;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -29,8 +29,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
 
     private Map<String, Object> generateRandomMatchCriteria() {
-        int randomIndex = new Random().nextInt(ALLOWED_MATCH_CRITERIA.size());
-        String matchCriteria = (String) ALLOWED_MATCH_CRITERIA.toArray()[randomIndex];
+        final int randomIndex = Randomness.get().nextInt(ALLOWED_MATCH_CRITERIA.size());
+        final String matchCriteria = (String) ALLOWED_MATCH_CRITERIA.toArray()[randomIndex];
 
         return generateRandomMatchCriteria(matchCriteria);
     }

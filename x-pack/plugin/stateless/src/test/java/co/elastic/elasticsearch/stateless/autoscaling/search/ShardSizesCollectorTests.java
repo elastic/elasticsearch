@@ -251,6 +251,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/488")
     public void testMovedShardsAreRemovedFromState() throws Exception {
 
         var indexMetadata1 = createIndex(1, 1);

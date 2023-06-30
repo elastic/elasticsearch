@@ -127,6 +127,50 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
         return super.canSimulateMethod(method, args);
     }
+    public void testIdsRewrite() throws IOException {
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
+            new TermQueryBuilder("foo", 1),
+            Collections.emptyMap(),
+            Collections.singletonList("bar")
+        );
+        QueryBuilder rewritten = ruleQueryBuilder.rewrite(createSearchExecutionContext());
+        assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
+    }
+
+    public void testDocsRewrite() throws IOException {
+        RuleQueryBuilder RuleQueryBuilder = new RuleQueryBuilder(new TermQueryBuilder("foo", 1), new Item("test", "1"));
+        QueryBuilder rewritten = RuleQueryBuilder.rewrite(createSearchExecutionContext());
+        assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
+        RuleQueryBuilder queryBuilder = new RuleQueryBuilder(new TermQueryBuilder("unmapped_field", "42"), "42");
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testIdInsertionOrderRetained() {
+        String[] ids = generateRandomStringArray(10, 50, false);
+        RuleQueryBuilder pqb = new RuleQueryBuilder(new MatchAllQueryBuilder(), ids);
+        List<String> addedIds = pqb.ids();
+        int pos = 0;
+        for (String key : addedIds) {
+            assertEquals(ids[pos++], key);
+        }
+    }
+
+    public void testDocInsertionOrderRetained() {
+        Item[] items = randomArray(10, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
+        RuleQueryBuilder pqb = new RuleQueryBuilder(new MatchAllQueryBuilder(), items);
+        List<Item> addedDocs = pqb.docs();
+        int pos = 0;
+        for (Item item : addedDocs) {
+            assertEquals(items[pos++], item);
+        }
+    }
 
     @Override
     protected Object simulateMethod(Method method, Object[] args) {

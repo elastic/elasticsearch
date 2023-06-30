@@ -3,6 +3,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        timeout_in_minutes: 180
         matrix:
           setup:
             image:

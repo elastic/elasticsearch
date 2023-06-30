@@ -12,6 +12,7 @@ steps:
       set -x
 
       .ci/scripts/run-gradle.sh azureThirdPartyTest
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -30,6 +31,7 @@ steps:
       set -x
 
       .ci/scripts/run-gradle.sh azureThirdPartyTest
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -48,6 +50,7 @@ steps:
       set -x
 
       .ci/scripts/run-gradle.sh gcsThirdPartyTest
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -67,6 +70,7 @@ steps:
       set -x
 
       .ci/scripts/run-gradle.sh s3ThirdPartyTest
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -74,6 +78,7 @@ steps:
       machineType: custom-32-98304
   - label: third-party-tests-geoip
     command: .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dgeoip_use_service=true
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

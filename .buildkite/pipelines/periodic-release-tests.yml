@@ -21,6 +21,7 @@ steps:
 
       .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
         -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

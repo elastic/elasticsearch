@@ -3,7 +3,8 @@ steps:
     command: |-
       cd $$WORKSPACE/plugins/examples
 
-      .ci/scripts/run-gradle.sh build
+      $$WORKSPACE/.ci/scripts/run-gradle.sh build
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

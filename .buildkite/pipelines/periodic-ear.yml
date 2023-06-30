@@ -22,6 +22,7 @@ steps:
       ln -s "$$PWD" "$$WORKSPACE"
 
       .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

@@ -1,6 +1,7 @@
 steps:
   - label: single-processor-node-tests
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

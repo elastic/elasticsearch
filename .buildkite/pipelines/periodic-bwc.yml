@@ -3,6 +3,7 @@ steps:
     steps:
       - label: 7.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -12,6 +13,7 @@ steps:
           BWC_VERSION: 7.0.0
       - label: 7.0.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -21,6 +23,7 @@ steps:
           BWC_VERSION: 7.0.1
       - label: 7.1.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -30,6 +33,7 @@ steps:
           BWC_VERSION: 7.1.0
       - label: 7.1.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -39,6 +43,7 @@ steps:
           BWC_VERSION: 7.1.1
       - label: 7.2.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -48,6 +53,7 @@ steps:
           BWC_VERSION: 7.2.0
       - label: 7.2.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -57,6 +63,7 @@ steps:
           BWC_VERSION: 7.2.1
       - label: 7.3.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -66,6 +73,7 @@ steps:
           BWC_VERSION: 7.3.0
       - label: 7.3.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -75,6 +83,7 @@ steps:
           BWC_VERSION: 7.3.1
       - label: 7.3.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -84,6 +93,7 @@ steps:
           BWC_VERSION: 7.3.2
       - label: 7.4.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -93,6 +103,7 @@ steps:
           BWC_VERSION: 7.4.0
       - label: 7.4.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -102,6 +113,7 @@ steps:
           BWC_VERSION: 7.4.1
       - label: 7.4.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -111,6 +123,7 @@ steps:
           BWC_VERSION: 7.4.2
       - label: 7.5.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -120,6 +133,7 @@ steps:
           BWC_VERSION: 7.5.0
       - label: 7.5.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -129,6 +143,7 @@ steps:
           BWC_VERSION: 7.5.1
       - label: 7.5.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -138,6 +153,7 @@ steps:
           BWC_VERSION: 7.5.2
       - label: 7.6.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -147,6 +163,7 @@ steps:
           BWC_VERSION: 7.6.0
       - label: 7.6.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -156,6 +173,7 @@ steps:
           BWC_VERSION: 7.6.1
       - label: 7.6.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -165,6 +183,7 @@ steps:
           BWC_VERSION: 7.6.2
       - label: 7.7.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -174,6 +193,7 @@ steps:
           BWC_VERSION: 7.7.0
       - label: 7.7.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -183,6 +203,7 @@ steps:
           BWC_VERSION: 7.7.1
       - label: 7.8.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -192,6 +213,7 @@ steps:
           BWC_VERSION: 7.8.0
       - label: 7.8.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -201,6 +223,7 @@ steps:
           BWC_VERSION: 7.8.1
       - label: 7.9.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -210,6 +233,7 @@ steps:
           BWC_VERSION: 7.9.0
       - label: 7.9.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -219,6 +243,7 @@ steps:
           BWC_VERSION: 7.9.1
       - label: 7.9.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -228,6 +253,7 @@ steps:
           BWC_VERSION: 7.9.2
       - label: 7.9.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -237,6 +263,7 @@ steps:
           BWC_VERSION: 7.9.3
       - label: 7.10.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -246,6 +273,7 @@ steps:
           BWC_VERSION: 7.10.0
       - label: 7.10.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -255,6 +283,7 @@ steps:
           BWC_VERSION: 7.10.1
       - label: 7.10.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -264,6 +293,7 @@ steps:
           BWC_VERSION: 7.10.2
       - label: 7.11.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -273,6 +303,7 @@ steps:
           BWC_VERSION: 7.11.0
       - label: 7.11.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -282,6 +313,7 @@ steps:
           BWC_VERSION: 7.11.1
       - label: 7.11.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -291,6 +323,7 @@ steps:
           BWC_VERSION: 7.11.2
       - label: 7.12.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -300,6 +333,7 @@ steps:
           BWC_VERSION: 7.12.0
       - label: 7.12.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -309,6 +343,7 @@ steps:
           BWC_VERSION: 7.12.1
       - label: 7.13.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -318,6 +353,7 @@ steps:
           BWC_VERSION: 7.13.0
       - label: 7.13.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -327,6 +363,7 @@ steps:
           BWC_VERSION: 7.13.1
       - label: 7.13.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -336,6 +373,7 @@ steps:
           BWC_VERSION: 7.13.2
       - label: 7.13.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -345,6 +383,7 @@ steps:
           BWC_VERSION: 7.13.3
       - label: 7.13.4 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -354,6 +393,7 @@ steps:
           BWC_VERSION: 7.13.4
       - label: 7.14.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -363,6 +403,7 @@ steps:
           BWC_VERSION: 7.14.0
       - label: 7.14.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -372,6 +413,7 @@ steps:
           BWC_VERSION: 7.14.1
       - label: 7.14.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -381,6 +423,7 @@ steps:
           BWC_VERSION: 7.14.2
       - label: 7.15.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -390,6 +433,7 @@ steps:
           BWC_VERSION: 7.15.0
       - label: 7.15.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -399,6 +443,7 @@ steps:
           BWC_VERSION: 7.15.1
       - label: 7.15.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -408,6 +453,7 @@ steps:
           BWC_VERSION: 7.15.2
       - label: 7.16.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -417,6 +463,7 @@ steps:
           BWC_VERSION: 7.16.0
       - label: 7.16.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -426,6 +473,7 @@ steps:
           BWC_VERSION: 7.16.1
       - label: 7.16.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -435,6 +483,7 @@ steps:
           BWC_VERSION: 7.16.2
       - label: 7.16.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -444,6 +493,7 @@ steps:
           BWC_VERSION: 7.16.3
       - label: 7.17.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -453,6 +503,7 @@ steps:
           BWC_VERSION: 7.17.0
       - label: 7.17.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -462,6 +513,7 @@ steps:
           BWC_VERSION: 7.17.1
       - label: 7.17.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -471,6 +523,7 @@ steps:
           BWC_VERSION: 7.17.2
       - label: 7.17.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -480,6 +533,7 @@ steps:
           BWC_VERSION: 7.17.3
       - label: 7.17.4 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -489,6 +543,7 @@ steps:
           BWC_VERSION: 7.17.4
       - label: 7.17.5 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -498,6 +553,7 @@ steps:
           BWC_VERSION: 7.17.5
       - label: 7.17.6 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -507,6 +563,7 @@ steps:
           BWC_VERSION: 7.17.6
       - label: 7.17.7 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -516,6 +573,7 @@ steps:
           BWC_VERSION: 7.17.7
       - label: 7.17.8 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -525,6 +583,7 @@ steps:
           BWC_VERSION: 7.17.8
       - label: 7.17.9 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -534,6 +593,7 @@ steps:
           BWC_VERSION: 7.17.9
       - label: 7.17.10 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -543,6 +603,7 @@ steps:
           BWC_VERSION: 7.17.10
       - label: 7.17.11 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -550,8 +611,19 @@ steps:
           machineType: custom-32-98304
         env:
           BWC_VERSION: 7.17.11
+      - label: 7.17.12 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+        env:
+          BWC_VERSION: 7.17.12
       - label: 8.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -561,6 +633,7 @@ steps:
           BWC_VERSION: 8.0.0
       - label: 8.0.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -570,6 +643,7 @@ steps:
           BWC_VERSION: 8.0.1
       - label: 8.1.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -579,6 +653,7 @@ steps:
           BWC_VERSION: 8.1.0
       - label: 8.1.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -588,6 +663,7 @@ steps:
           BWC_VERSION: 8.1.1
       - label: 8.1.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -597,6 +673,7 @@ steps:
           BWC_VERSION: 8.1.2
       - label: 8.1.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -606,6 +683,7 @@ steps:
           BWC_VERSION: 8.1.3
       - label: 8.2.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -615,6 +693,7 @@ steps:
           BWC_VERSION: 8.2.0
       - label: 8.2.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -624,6 +703,7 @@ steps:
           BWC_VERSION: 8.2.1
       - label: 8.2.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -633,6 +713,7 @@ steps:
           BWC_VERSION: 8.2.2
       - label: 8.2.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -642,6 +723,7 @@ steps:
           BWC_VERSION: 8.2.3
       - label: 8.3.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -651,6 +733,7 @@ steps:
           BWC_VERSION: 8.3.0
       - label: 8.3.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -660,6 +743,7 @@ steps:
           BWC_VERSION: 8.3.1
       - label: 8.3.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -669,6 +753,7 @@ steps:
           BWC_VERSION: 8.3.2
       - label: 8.3.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -678,6 +763,7 @@ steps:
           BWC_VERSION: 8.3.3
       - label: 8.4.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -687,6 +773,7 @@ steps:
           BWC_VERSION: 8.4.0
       - label: 8.4.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -696,6 +783,7 @@ steps:
           BWC_VERSION: 8.4.1
       - label: 8.4.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -705,6 +793,7 @@ steps:
           BWC_VERSION: 8.4.2
       - label: 8.4.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -714,6 +803,7 @@ steps:
           BWC_VERSION: 8.4.3
       - label: 8.5.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -723,6 +813,7 @@ steps:
           BWC_VERSION: 8.5.0
       - label: 8.5.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -732,6 +823,7 @@ steps:
           BWC_VERSION: 8.5.1
       - label: 8.5.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -741,6 +833,7 @@ steps:
           BWC_VERSION: 8.5.2
       - label: 8.5.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -750,6 +843,7 @@ steps:
           BWC_VERSION: 8.5.3
       - label: 8.6.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -759,6 +853,7 @@ steps:
           BWC_VERSION: 8.6.0
       - label: 8.6.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -768,6 +863,7 @@ steps:
           BWC_VERSION: 8.6.1
       - label: 8.6.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -777,6 +873,7 @@ steps:
           BWC_VERSION: 8.6.2
       - label: 8.7.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -786,6 +883,7 @@ steps:
           BWC_VERSION: 8.7.0
       - label: 8.7.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -795,6 +893,7 @@ steps:
           BWC_VERSION: 8.7.1
       - label: 8.8.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -804,6 +903,7 @@ steps:
           BWC_VERSION: 8.8.0
       - label: 8.8.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -813,6 +913,7 @@ steps:
           BWC_VERSION: 8.8.1
       - label: 8.8.2 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -822,6 +923,7 @@ steps:
           BWC_VERSION: 8.8.2
       - label: 8.8.3 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -831,6 +933,7 @@ steps:
           BWC_VERSION: 8.8.3
       - label: 8.9.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -840,6 +943,7 @@ steps:
           BWC_VERSION: 8.9.0
       - label: 8.10.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

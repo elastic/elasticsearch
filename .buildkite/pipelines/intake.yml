@@ -1,6 +1,7 @@
 steps:
   - label: sanity-check
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files precommit
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -9,6 +10,7 @@ steps:
   - wait: null
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart1
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -16,6 +18,7 @@ steps:
       machineType: custom-32-98304
   - label: part2
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart2
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -23,6 +26,7 @@ steps:
       machineType: custom-32-98304
   - label: part3
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart3
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -32,10 +36,11 @@ steps:
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
         matrix:
           setup:
             BWC_VERSION:
-              - 7.17.11
+              - 7.17.12
               - 8.8.3
               - 8.9.0
               - 8.10.0
@@ -48,6 +53,7 @@ steps:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: rest-compat
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkRestCompat
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -108,6 +114,7 @@ steps:
              --artifact-set main \
              --dependency beats:https://artifacts-$${WORKFLOW}.elastic.co/beats/$${BEATS_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json \
              --dependency ml-cpp:https://artifacts-$${WORKFLOW}.elastic.co/ml-cpp/$${ML_CPP_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
@@ -116,6 +123,7 @@ steps:
   - wait: null
   - label: update-last-good-commit
     command: /usr/bin/true
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

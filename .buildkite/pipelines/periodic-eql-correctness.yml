@@ -10,6 +10,7 @@ steps:
       set -x
 
       .ci/scripts/run-gradle.sh :x-pack:plugin:eql:qa:correctness:check
+    timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

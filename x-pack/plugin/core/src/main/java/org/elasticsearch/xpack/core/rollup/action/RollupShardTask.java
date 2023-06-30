@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.rollup.action;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.util.Map;

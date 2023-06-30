@@ -100,6 +100,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -1699,6 +1700,10 @@ public class IndicesService extends AbstractLifecycleComponent
         return new QueryRewriteContext(parserConfig, client, nowInMillis);
     }
 
+    public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {
+        return new DataRewriteContext(parserConfig, client, nowInMillis);
+    }
+
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
         return new CoordinatorRewriteContextProvider(parserConfig, client, nowInMillis, clusterService::state, this::getTimestampFieldType);
     }
@@ -1800,4 +1805,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return timestampFieldMapperService.getTimestampFieldType(index);
     }
 
+    public IndexScopedSettings getIndexScopedSettings() {
+        return indexScopedSettings;
+    }
 }

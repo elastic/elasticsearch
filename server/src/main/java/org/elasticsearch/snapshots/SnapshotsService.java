@@ -72,6 +72,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -2168,7 +2169,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         for (SnapshotId snapshotId : snapshotIds.stream()
             .filter(excluded == null ? sn -> true : Predicate.not(excluded::contains))
             .toList()) {
-            final Version known = repositoryData.getVersion(snapshotId);
+            final IndexVersion known = repositoryData.getVersion(snapshotId);
             // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs
             if (known == null) {
                 assert repositoryData.shardGenerations().totalShards() == 0
@@ -2179,7 +2180,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         + "]";
                 return OLD_SNAPSHOT_FORMAT;
             } else {
-                minCompatVersion = minCompatVersion.before(known) ? minCompatVersion : known;
+                minCompatVersion = minCompatVersion.before(known.toVersion()) ? minCompatVersion : known.toVersion();
             }
         }
         return minCompatVersion;

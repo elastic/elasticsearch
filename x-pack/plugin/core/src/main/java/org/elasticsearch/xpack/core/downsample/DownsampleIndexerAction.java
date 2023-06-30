@@ -69,11 +69,11 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_029) && in.readBoolean()) {
-                this.indexStartTimeMillis = in.readLong();
-                this.indexEndTimeMillis = in.readLong();
+                this.indexStartTimeMillis = in.readVLong();
+                this.indexEndTimeMillis = in.readVLong();
             } else {
-                this.indexStartTimeMillis = -1;
-                this.indexEndTimeMillis = -1;
+                this.indexStartTimeMillis = 0;
+                this.indexEndTimeMillis = 0;
             }
             this.downsampleRequest = new DownsampleAction.Request(in);
             this.dimensionFields = in.readStringArray();
@@ -133,8 +133,8 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
             super.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_029)) {
                 out.writeBoolean(true);
-                out.writeLong(indexStartTimeMillis);
-                out.writeLong(indexEndTimeMillis);
+                out.writeVLong(indexStartTimeMillis);
+                out.writeVLong(indexEndTimeMillis);
             } else {
                 out.writeBoolean(false);
             }

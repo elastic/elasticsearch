@@ -61,6 +61,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -203,7 +204,7 @@ class RollupShardIndexer {
 
     private BulkProcessor2 createBulkProcessor() {
         final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
-            private long bulkStartTime;
+            private final Map<Long, Long> bulkStartTimes = new ConcurrentHashMap<>();
 
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
@@ -216,12 +217,12 @@ class RollupShardIndexer {
                         request.numberOfActions()
                     )
                 );
-                bulkStartTime = client.threadPool().relativeTimeInMillis();
+                bulkStartTimes.put(executionId, client.threadPool().relativeTimeInMillis());
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                long bulkDurationMillis = client.threadPool().relativeTimeInMillis() - bulkStartTime;
+                long bulkDurationMillis = client.threadPool().relativeTimeInMillis() - bulkStartTimes.get(executionId);
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());

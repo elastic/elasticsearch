@@ -14,7 +14,7 @@ steps:
       sudo mkdir /mnt/secret
       # Change /mnt/secret with care (at least a test uses this path to detect when encryption at rest is used)
       sudo mount /dev/mapper/secret /mnt/secret
-      sudo chown -R jenkins /mnt/secret
+      sudo chown -R buildkite-agent /mnt/secret
       cp -r "$$WORKSPACE" /mnt/secret
       cd /mnt/secret/$$(basename "$$WORKSPACE")
       touch .output.log

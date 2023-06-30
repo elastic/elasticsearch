@@ -280,9 +280,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                  * of deleting because they'll be gone soon anyway.
                  */
                 Set<Index> indicesToExclude = new HashSet<>();
-                Index currentWriteIndex = dataStream.getWriteIndex();
-                indicesToExclude.add(currentWriteIndex);
-                indicesToExclude.add(originalWriteIndex); // Could be the same as currentWriteIndex, but that's fine
+                indicesToExclude.add(originalWriteIndex);
                 indicesToExclude.addAll(indicesBeingRemoved);
                 List<Index> potentialForceMergeIndices = dataStream.getIndices()
                     .stream()

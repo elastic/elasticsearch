@@ -114,7 +114,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 throw new IllegalStateException("Model loading service must be available");
             }
             SetOnce<LocalModel> inferenceDefinitionSetOnce = new SetOnce<>();
-            ctx.registerAsyncAction((c, l) -> modelLoadingServiceSupplier.get().getModelForSearch(modelId, ActionListener.wrap(lm -> {
+            ctx.registerAsyncAction((c, l) -> modelLoadingServiceSupplier.get().getModelForLearnToRank(modelId, ActionListener.wrap(lm -> {
                 inferenceDefinitionSetOnce.set(lm);
                 l.onResponse(null);
             }, l::onFailure)));

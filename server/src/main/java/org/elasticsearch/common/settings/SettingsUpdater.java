@@ -6,15 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Map;
@@ -26,24 +24,24 @@ import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_
  * Updates transient and persistent cluster state settings if there are any changes
  * due to the update.
  */
-final class SettingsUpdater {
+public final class SettingsUpdater {
     final Settings.Builder transientUpdates = Settings.builder();
     final Settings.Builder persistentUpdates = Settings.builder();
     private final ClusterSettings clusterSettings;
 
-    SettingsUpdater(ClusterSettings clusterSettings) {
+    public SettingsUpdater(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
     }
 
-    synchronized Settings getTransientUpdates() {
+    public synchronized Settings getTransientUpdates() {
         return transientUpdates.build();
     }
 
-    synchronized Settings getPersistentUpdate() {
+    public synchronized Settings getPersistentUpdate() {
         return persistentUpdates.build();
     }
 
-    synchronized ClusterState updateSettings(
+    public synchronized ClusterState updateSettings(
         final ClusterState currentState,
         final Settings transientToApply,
         final Settings persistentToApply,

@@ -1516,6 +1516,9 @@ public class MetadataIndexTemplateService {
                 if (current.getDataRetention() != null) {
                     builder.dataRetention(current.getDataRetention());
                 }
+                if (current.getDownsampling() != null) {
+                    builder.downsampling(current.getDownsampling());
+                }
             }
         }
         return builder == null ? null : builder.build();

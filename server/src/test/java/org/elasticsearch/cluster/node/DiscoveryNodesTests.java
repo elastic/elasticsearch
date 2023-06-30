@@ -402,48 +402,43 @@ public class DiscoveryNodesTests extends ESTestCase {
         abstract Set<String> matchingNodeIds(DiscoveryNodes nodes);
     }
 
-    public void testMaxMinNodeVersion() {
+    public void testMinMaxNodeVersions() {
         assertEquals(Version.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxNodeVersion());
         assertEquals(Version.CURRENT.minimumCompatibilityVersion(), DiscoveryNodes.EMPTY_NODES.getMinNodeVersion());
+        assertEquals(IndexVersion.current(), DiscoveryNodes.EMPTY_NODES.getMaxDataNodeCompatibleIndexVersion());
+        assertEquals(IndexVersion.MINIMUM_COMPATIBLE, DiscoveryNodes.EMPTY_NODES.getMinSupportedIndexVersion());
+
+        // use a mix of versions with major, minor, and patch numbers
+        List<VersionInformation> dataVersions = List.of(
+            new VersionInformation(Version.fromString("3.2.5"), IndexVersion.fromId(2000099), IndexVersion.fromId(3020599)),
+            new VersionInformation(Version.fromString("3.0.7"), IndexVersion.fromId(2000099), IndexVersion.fromId(3000799)),
+            new VersionInformation(Version.fromString("2.1.0"), IndexVersion.fromId(1050099), IndexVersion.fromId(2010099))
+        );
+        List<VersionInformation> observerVersions = List.of(
+            new VersionInformation(Version.fromString("5.0.17"), IndexVersion.fromId(0), IndexVersion.fromId(5001799)),
+            new VersionInformation(Version.fromString("2.0.1"), IndexVersion.fromId(1000099), IndexVersion.fromId(2000199)),
+            new VersionInformation(Version.fromString("1.6.0"), IndexVersion.fromId(0), IndexVersion.fromId(1060099))
+        );
 
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        discoBuilder.add(
-            new DiscoveryNode(
-                "name_" + 1,
-                "node_" + 1,
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                VersionInformation.inferVersions(Version.fromString("5.1.0"))
-            )
-        );
-        discoBuilder.add(
-            new DiscoveryNode(
-                "name_" + 2,
-                "node_" + 2,
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                VersionInformation.inferVersions(Version.fromString("6.3.0"))
-            )
-        );
-        discoBuilder.localNodeId("node_" + between(1, 3));
-        if (randomBoolean()) {
-            discoBuilder.masterNodeId("node_" + between(1, 3));
+        for (int i = 0; i < dataVersions.size(); i++) {
+            discoBuilder.add(
+                DiscoveryNodeUtils.builder("data_" + i)
+                    .version(dataVersions.get(i))
+                    .roles(Set.of(randomBoolean() ? DiscoveryNodeRole.DATA_ROLE : DiscoveryNodeRole.MASTER_ROLE))
+                    .build()
+            );
         }
-        discoBuilder.add(
-            new DiscoveryNode(
-                "name_" + 3,
-                "node_" + 3,
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-                VersionInformation.inferVersions(Version.fromString("1.1.0"))
-            )
-        );
+        for (int i = 0; i < observerVersions.size(); i++) {
+            discoBuilder.add(DiscoveryNodeUtils.builder("observer_" + i).version(observerVersions.get(i)).roles(Set.of()).build());
+        }
         DiscoveryNodes build = discoBuilder.build();
-        assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
-        assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());
+
+        assertEquals(Version.fromString("5.0.17"), build.getMaxNodeVersion());
+        assertEquals(Version.fromString("1.6.0"), build.getMinNodeVersion());
+        assertEquals(Version.fromString("2.1.0"), build.getSmallestNonClientNodeVersion());  // doesn't include 1.6.0 observer
+        assertEquals(IndexVersion.fromId(2010099), build.getMaxDataNodeCompatibleIndexVersion());   // doesn't include 2000199 observer
+        assertEquals(IndexVersion.fromId(2000099), build.getMinSupportedIndexVersion());            // also includes observers
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -386,7 +387,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             restoreUUID,
                             snapshot,
-                            Version.CURRENT,
+                            IndexVersion.current(),
                             new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
                         ),
                         new HashSet<>()
@@ -399,7 +400,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             restoreUUID,
                             snapshot,
-                            Version.CURRENT,
+                            IndexVersion.current(),
                             new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
                         )
                     );

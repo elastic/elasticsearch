@@ -11,7 +11,7 @@ package org.elasticsearch.compute.data;
  * Vector that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector {
+public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector, IntBigArrayVector {
 
     int getInt(int position);
 

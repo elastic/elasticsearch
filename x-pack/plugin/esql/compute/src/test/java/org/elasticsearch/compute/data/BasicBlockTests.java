@@ -114,7 +114,7 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    private static void assertSingleValueDenseBlock(Block initialBlock) {
+    static void assertSingleValueDenseBlock(Block initialBlock) {
         final int positionCount = initialBlock.getPositionCount();
         int depth = randomIntBetween(1, 5);
         for (int d = 0; d < depth; d++) {

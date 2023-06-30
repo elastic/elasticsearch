@@ -16,6 +16,7 @@ tasks.named("compileJava").configure {
 
 tasks.named('checkstyleMain').configure {
   source = "src/main/java"
+  excludes = [ "**/*.java.st" ]
 }
 
 spotlessJava.dependsOn stringTemplates
@@ -103,6 +104,28 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile =  arrayVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanArrayVector.java"
+  }
+  // BigArray vector implementations
+  File bigArrayVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-BigArrayVector.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  bigArrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntBigArrayVector.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  bigArrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongBigArrayVector.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  bigArrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleBigArrayVector.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  bigArrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanBigArrayVector.java"
   }
   //  filter vectors
   File filterVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterVector.java.st")

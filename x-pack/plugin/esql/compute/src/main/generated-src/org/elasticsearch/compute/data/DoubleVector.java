@@ -11,8 +11,8 @@ package org.elasticsearch.compute.data;
  * Vector that stores double values.
  * This class is generated. Do not edit it.
  */
-public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, FilterDoubleVector, DoubleArrayVector {
-
+public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, FilterDoubleVector, DoubleArrayVector,
+    DoubleBigArrayVector {
     double getDouble(int position);
 
     @Override

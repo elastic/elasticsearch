@@ -11,7 +11,7 @@ package org.elasticsearch.compute.data;
  * Vector that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, FilterLongVector, LongArrayVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, FilterLongVector, LongArrayVector, LongBigArrayVector {
 
     long getLong(int position);
 

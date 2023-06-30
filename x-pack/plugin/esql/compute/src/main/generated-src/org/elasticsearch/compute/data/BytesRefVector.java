@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
  * This class is generated. Do not edit it.
  */
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, FilterBytesRefVector, BytesRefArrayVector {
-
     BytesRef getBytesRef(int position, BytesRef dest);
 
     @Override

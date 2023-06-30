@@ -163,18 +163,14 @@ $endif$
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
 $if(BytesRef)$
                     result = 31 * result + block.getBytesRef(firstValueIdx + valueIndex, new BytesRef()).hashCode();
-$endif$
-$if(boolean)$
+$elseif(boolean)$
                     result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
-$endif$
-$if(int)$
+$elseif(int)$
                     result = 31 * result + block.getInt(firstValueIdx + valueIndex);
-$endif$
-$if(long)$
+$elseif(long)$
                     long element = block.getLong(firstValueIdx + valueIndex);
                     result = 31 * result + (int) (element ^ (element >>> 32));
-$endif$
-$if(double)$
+$elseif(double)$
                     long element = Double.doubleToLongBits(block.getDouble(firstValueIdx + valueIndex));
                     result = 31 * result + (int) (element ^ (element >>> 32));
 $endif$

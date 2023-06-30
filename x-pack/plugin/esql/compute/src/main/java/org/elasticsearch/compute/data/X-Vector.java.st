@@ -15,7 +15,17 @@ $endif$
  * Vector that stores $type$ values.
  * This class is generated. Do not edit it.
  */
+$if(BytesRef)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector {
+$elseif(boolean)$
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector,
+    $Type$BigArrayVector {
+$elseif(double)$
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector,
+    $Type$BigArrayVector {
+$else$
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
+$endif$
 
 $if(BytesRef)$
     BytesRef getBytesRef(int position, BytesRef dest);
@@ -76,18 +86,14 @@ $endif$
         for (int pos = 0; pos < len; pos++) {
 $if(BytesRef)$
             result = 31 * result + vector.getBytesRef(pos, new BytesRef()).hashCode();
-$endif$
-$if(boolean)$
+$elseif(boolean)$
             result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
-$endif$
-$if(int)$
+$elseif(int)$
             result = 31 * result + vector.getInt(pos);
-$endif$
-$if(long)$
+$elseif(long)$
             long element = vector.getLong(pos);
             result = 31 * result + (int) (element ^ (element >>> 32));
-$endif$
-$if(double)$
+$elseif(double)$
             long element = Double.doubleToLongBits(vector.getDouble(pos));
             result = 31 * result + (int) (element ^ (element >>> 32));
 $endif$

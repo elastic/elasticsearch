@@ -51,8 +51,13 @@ public class BuildTests extends ESTestCase {
         assertTrue(build.qualifiedVersion(), build.isProductionRelease());
 
         assertFalse(
-            new Build(Build.current().type(), Build.current().hash(), Build.current().date(), Build.current().isSnapshot(), "7.0.0-SNAPSHOT")
-                .isProductionRelease()
+            new Build(
+                Build.current().type(),
+                Build.current().hash(),
+                Build.current().date(),
+                Build.current().isSnapshot(),
+                "7.0.0-SNAPSHOT"
+            ).isProductionRelease()
         );
 
         assertFalse(

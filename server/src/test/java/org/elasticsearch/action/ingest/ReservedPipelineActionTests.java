@@ -99,7 +99,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
-                Build.current(),
+            Build.current(),
             discoveryNode,
             Settings.EMPTY,
             null,

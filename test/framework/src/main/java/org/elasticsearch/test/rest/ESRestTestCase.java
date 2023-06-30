@@ -628,6 +628,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "90-days-default",
             "180-days-default",
             "365-days-default",
+            ".fleet-files-ilm-policy",
+            ".fleet-file-data-ilm-policy",
             ".fleet-actions-results-ilm-policy",
             ".fleet-file-fromhost-data-ilm-policy",
             ".fleet-file-fromhost-meta-ilm-policy",

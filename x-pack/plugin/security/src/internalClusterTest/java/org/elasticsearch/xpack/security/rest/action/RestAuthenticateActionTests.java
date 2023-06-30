@@ -33,6 +33,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
     private static boolean anonymousEnabled;
     private static boolean operatorUser;
+    private static boolean operatorPrivilegesEnabled;
     private static String domainName;
 
     @BeforeClass
@@ -48,6 +49,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     @BeforeClass
     public static void maybeSetOperator() {
         operatorUser = randomBoolean();
+        operatorPrivilegesEnabled = randomBoolean();
     }
 
     @Override
@@ -57,7 +59,11 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
     @Override
     protected String configOperatorUsers() {
-        return super.configOperatorUsers() + "operator:\n" + "  - usernames: ['" + SecuritySettingsSource.TEST_USER_NAME + "']\n";
+        return super.configOperatorUsers()
+            + "operator:\n"
+            + "  - usernames: ['"
+            + (operatorUser ? SecuritySettingsSource.TEST_USER_NAME : "_another_user")
+            + "']\n";
     }
 
     @Override
@@ -72,7 +78,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         if (domainName != null) {
             builder.put(DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName).getKey(), "file");
         }
-        builder.put("xpack.security.operator_privileges.enabled", operatorUser);
+        builder.put("xpack.security.operator_privileges.enabled", operatorPrivilegesEnabled);
         return builder.build();
     }
 
@@ -113,7 +119,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
             assertThat(roles.size(), is(1));
             assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE));
         }
-        if (operatorUser) {
+        if (operatorUser && operatorPrivilegesEnabled) {
             assertThat(objectPath.evaluate("operator"), equalTo(true));
         } else {
             assertThat(objectPath.evaluate("operator"), equalTo(null));

@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportAuthenticateActionTests extends ESTestCase {
 
-    private ThreadContext threadContent = new ThreadContext(Settings.EMPTY);
+    private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     public void testInternalUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
@@ -130,9 +130,9 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         final boolean operator = randomBoolean();
 
         if (operator) {
-            threadContent.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+            threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
         } else if (randomBoolean()) {
-            threadContent.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY);
+            threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY);
         }
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, effectiveUser, authentication);
@@ -222,7 +222,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(securityContext.getUser()).thenReturn(user);
-        when(securityContext.getThreadContext()).thenReturn(this.threadContent);
+        when(securityContext.getThreadContext()).thenReturn(this.threadContext);
 
         TransportService transportService = new TransportService(
             Settings.EMPTY,

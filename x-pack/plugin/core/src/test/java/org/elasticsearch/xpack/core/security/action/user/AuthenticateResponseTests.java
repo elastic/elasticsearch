@@ -28,14 +28,10 @@ public class AuthenticateResponseTests extends AbstractWireSerializingTestCase<A
     @Override
     protected AuthenticateResponse mutateInstance(AuthenticateResponse instance) throws IOException {
         if (randomBoolean()) {
-            final AuthenticationTestHelper.AuthenticationTestBuilder authenticationTestBuilder = AuthenticationTestHelper.builder()
-                .user(AuthenticationTestHelper.randomUser());
-            if (instance.authentication().isApiKey()) {
-                authenticationTestBuilder.realmRef(AuthenticationTestHelper.randomRealmRef(randomBoolean()));
-            } else {
-                authenticationTestBuilder.apiKey();
-            }
-            return new AuthenticateResponse(authenticationTestBuilder.build(), instance.isOperator());
+            return new AuthenticateResponse(
+                randomValueOtherThanMany(instance::equals, () -> AuthenticationTestHelper.builder().build()),
+                instance.isOperator()
+            );
         } else {
             return new AuthenticateResponse(instance.authentication(), instance.isOperator() == false);
         }

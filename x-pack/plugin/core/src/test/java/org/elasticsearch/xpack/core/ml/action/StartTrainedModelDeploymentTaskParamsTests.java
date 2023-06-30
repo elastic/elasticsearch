@@ -130,5 +130,11 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractXContent
             long elserMemUsagePerAllocation = ByteSizeValue.ofMb(1002).getBytes();
             assertEquals(elserMemUsage + 4 * elserMemUsagePerAllocation, task.estimateMemoryUsageBytes());
         }
+        {
+            assertEquals(
+                executableMemoryOverhead + 2 * modelSizeBytes,
+                StartTrainedModelDeploymentAction.estimateMemoryUsageBytes("not-elser", modelSizeBytes)
+            );
+        }
     }
 }

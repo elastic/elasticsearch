@@ -650,8 +650,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
+    /**
+     * Usage for a single allocation
+     */
     public static long estimateMemoryUsageBytes(String modelId, long totalDefinitionLength) {
-        return estimateMemoryUsageBytes(modelId, totalDefinitionLength);
+        return estimateMemoryUsageBytes(modelId, totalDefinitionLength, 1);
     }
 
     /**

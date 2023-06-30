@@ -229,7 +229,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             client.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
                 if (getResponse.isExists() == false) {
-                    throw new ResourceNotFoundException("query ruleset [{}] not found", rulesetId);
+                    throw new ResourceNotFoundException("query ruleset " + rulesetId + " not found");
                 }
                 QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
                 for (QueryRule rule : queryRuleset.rules()) {
@@ -240,12 +240,19 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                                     && criterion.criteriaType() == CriteriaType.EXACT
                                     && criterion.criteriaValue().equals(matchCriteria.get(match))) {
 
-                                    if (rule.actions().containsKey("ids")) {
-                                        matchingPinnedIds.addAll((List<String>) rule.actions().get("ids"));
-                                    } else if (rule.actions().containsKey("docs")) {
-                                        List<Map<String, String>> docsToPin = (List<Map<String, String>>) rule.actions().get("docs");
+                                    if (rule.actions().containsKey(PinnedQueryBuilder.IDS_FIELD.getPreferredName())) {
+                                        matchingPinnedIds.addAll((List<String>) rule.actions().get(
+                                            PinnedQueryBuilder.IDS_FIELD.getPreferredName())
+                                        );
+                                    } else if (rule.actions().containsKey(PinnedQueryBuilder.DOCS_FIELD.getPreferredName())) {
+                                        List<Map<String, String>> docsToPin =
+                                            (List<Map<String, String>>) rule.actions().get(
+                                                PinnedQueryBuilder.DOCS_FIELD.getPreferredName()
+                                            );
                                         List<Item> items =
-                                            docsToPin.stream().map(map -> new Item(map.get("_index"), map.get("_id"))).toList();
+                                            docsToPin.stream().map(map ->
+                                                new Item(map.get(Item.INDEX_FIELD.getPreferredName()),
+                                                    map.get(Item.ID_FIELD.getPreferredName()))).toList();
                                         matchingPinnedDocs.addAll(items);
                                     } else {
                                         throw new UnsupportedOperationException("Pinned rules must specify id or docs");

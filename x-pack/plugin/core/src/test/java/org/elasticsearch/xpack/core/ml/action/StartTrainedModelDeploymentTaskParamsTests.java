@@ -50,4 +50,85 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractXContent
             randomFrom(Priority.values())
         );
     }
+
+    public void testEstimateMemoryUsageBytes() {
+        final long executableMemoryOverhead = ByteSizeValue.ofMb(240).getBytes(); // see StartTrainedModelDeploymentAction::MEMORY_OVERHEAD
+        long modelSizeBytes = 1024L;
+        int numAllocations = 1;
+
+        {
+            var task = new TaskParams(
+                "not-elser",
+                "not-elser",
+                modelSizeBytes,
+                numAllocations,
+                randomIntBetween(1, 8),
+                randomIntBetween(1, 10000),
+                ByteSizeValue.ZERO, // no cache
+                Priority.NORMAL
+            );
+            assertEquals(executableMemoryOverhead + 2 * modelSizeBytes, task.estimateMemoryUsageBytes());
+        }
+        {
+            numAllocations = 2;
+            var task = new TaskParams(
+                "not-elser",
+                "not-elser",
+                modelSizeBytes,
+                numAllocations,
+                randomIntBetween(1, 8),
+                randomIntBetween(1, 10000),
+                ByteSizeValue.ZERO, // no cache
+                Priority.NORMAL
+            );
+            assertEquals(executableMemoryOverhead + 3 * modelSizeBytes, task.estimateMemoryUsageBytes());
+        }
+        {
+            numAllocations = 2;
+            long cacheSize = modelSizeBytes / 2;
+            var task = new TaskParams(
+                "not-elser",
+                "not-elser",
+                modelSizeBytes,
+                numAllocations,
+                randomIntBetween(1, 8),
+                randomIntBetween(1, 10000),
+                ByteSizeValue.ofBytes(cacheSize), // no cache
+                Priority.NORMAL
+            );
+            assertEquals(executableMemoryOverhead + 3 * modelSizeBytes, task.estimateMemoryUsageBytes());
+        }
+        {
+            numAllocations = 2;
+            long cacheSize = modelSizeBytes * 2;
+            var task = new TaskParams(
+                "not-elser",
+                "not-elser",
+                modelSizeBytes,
+                numAllocations,
+                randomIntBetween(1, 8),
+                randomIntBetween(1, 10000),
+                ByteSizeValue.ofBytes(cacheSize), // no cache
+                Priority.NORMAL
+            );
+            assertEquals(executableMemoryOverhead + (3 * modelSizeBytes) + (cacheSize - modelSizeBytes), task.estimateMemoryUsageBytes());
+        }
+        {
+            numAllocations = 4;
+            var task = new TaskParams(
+                ".elser_model_1",
+                ".elser_model_1",
+                modelSizeBytes,
+                numAllocations,
+                randomIntBetween(1, 8),
+                randomIntBetween(1, 10000),
+                ByteSizeValue.ZERO, // no cache
+                Priority.NORMAL
+            );
+            // See StartTrainedModelDeploymentAction::ELSER_1_MEMORY_USAGE
+            long elserMemUsage = ByteSizeValue.ofMb(1002).getBytes();
+            long elserMemUsagePerAllocation = ByteSizeValue.ofMb(1002).getBytes();
+            assertEquals(elserMemUsage + 4 * elserMemUsagePerAllocation, task.estimateMemoryUsageBytes());
+        }
+    }
 }

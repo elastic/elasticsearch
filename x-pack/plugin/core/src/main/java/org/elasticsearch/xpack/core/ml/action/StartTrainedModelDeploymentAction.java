@@ -66,7 +66,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
      * We overwrite the estimate with this static value for ELSER V1 for now. Soon to be
      * replaced with a better estimate provided by the model.
      */
-    private static final ByteSizeValue ELSER_1_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
+    private static final ByteSizeValue ELSER_1_MEMORY_USAGE = ByteSizeValue.ofMb(1002);
+    private static final ByteSizeValue ELSER_1_MEMORY_USAGE_PER_ALLOCATION = ByteSizeValue.ofMb(1002);
 
     public StartTrainedModelDeploymentAction() {
         super(NAME, CreateTrainedModelAssignmentAction.Response::new);
@@ -521,10 +522,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
             if (cacheSize != null && cacheSize.getBytes() > modelBytes) {
-                return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes) + (cacheSize.getBytes()
-                    - modelBytes);
+                return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes, numberOfAllocations) + (cacheSize
+                    .getBytes() - modelBytes);
             }
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes);
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes, numberOfAllocations);
         }
 
         public Version getMinimalSupportedVersion() {
@@ -650,8 +651,28 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     }
 
     public static long estimateMemoryUsageBytes(String modelId, long totalDefinitionLength) {
-        // While loading the model in the process we need twice the model size.
-        return isElserModel(modelId) ? ELSER_1_MEMORY_USAGE.getBytes() : MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
+        return estimateMemoryUsageBytes(modelId, totalDefinitionLength);
+    }
+
+    /**
+     * While loading the model in the process we need twice the model definition
+     * size {@code totalDefinitionLength * 2}.
+     * Where numberOfAllocations > 1 and those allocations can be evaluated
+     * simultaneously peak memory usage is a function of the number of
+     * allocations, extra memory is required for multiple allocations.
+     *
+     * The ELSER model has known memory usage and is handled as a
+     * special case.
+     *
+     * @param modelId The model Id
+     * @param totalDefinitionLength Model definition size in bytes*
+     * @param numberOfAllocations Number of allocations for this task/instance of the model process
+     * @return estimated memory usage.
+     */
+    private static long estimateMemoryUsageBytes(String modelId, long totalDefinitionLength, int numberOfAllocations) {
+        return isElserModel(modelId)
+            ? ELSER_1_MEMORY_USAGE.getBytes() + (numberOfAllocations * ELSER_1_MEMORY_USAGE_PER_ALLOCATION.getBytes())
+            : MEMORY_OVERHEAD.getBytes() + (numberOfAllocations + 1) * totalDefinitionLength;
     }
 
     private static boolean isElserModel(String modelId) {

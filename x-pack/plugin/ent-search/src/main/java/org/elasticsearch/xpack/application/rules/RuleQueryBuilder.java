@@ -218,7 +218,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
 
         // Identify matching rules and apply them as applicable
-        // TODO - Support more than one ruleset ID or take out of scope for MVP (Maybe it's not needed?)
         String rulesetId = rulesetIds.get(0);
         GetRequest getRequest = new GetRequest(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
         SetOnce<List<String>> pinnedIdsSetOnce = new SetOnce<>();

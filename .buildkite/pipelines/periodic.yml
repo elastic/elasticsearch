@@ -2,7 +2,7 @@ steps:
   - group: java-fips-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$$$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$GRADLE_TASK
         timeout_in_minutes: 180
         matrix:
           setup:
@@ -25,7 +25,7 @@ steps:
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$$$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
         timeout_in_minutes: 180
         matrix:
           setup:

@@ -92,13 +92,13 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 final long relativeStartNanos = System.nanoTime();
                 logAndWriteNotificationAtInfo(modelId, "starting model upload");
 
-                URI uri = new URI(repository).resolve(packagedModelId + ModelLoaderUtils.MODEL_FILE_EXTENSION);
+                URI uri = ModelLoaderUtils.resolvePackageLocation(repository, packagedModelId + ModelLoaderUtils.MODEL_FILE_EXTENSION);
 
                 // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
                 // download is complete
                 if (Strings.isNullOrEmpty(modelPackageConfig.getVocabularyFile()) == false) {
                     Tuple<List<String>, List<String>> vocabularyAndMerges = ModelLoaderUtils.loadVocabulary(
-                        new URI(repository).resolve(modelPackageConfig.getVocabularyFile())
+                        ModelLoaderUtils.resolvePackageLocation(repository, modelPackageConfig.getVocabularyFile())
                     );
 
                     PutTrainedModelVocabularyAction.Request r2 = new PutTrainedModelVocabularyAction.Request(

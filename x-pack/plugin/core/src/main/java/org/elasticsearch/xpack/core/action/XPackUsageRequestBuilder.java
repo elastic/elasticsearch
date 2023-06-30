@@ -16,10 +16,7 @@ public class XPackUsageRequestBuilder extends MasterNodeOperationRequestBuilder<
     XPackUsageRequestBuilder> {
 
     public XPackUsageRequestBuilder(ElasticsearchClient client) {
-        this(client, XPackUsageAction.INSTANCE);
+        super(client, XPackUsageAction.INSTANCE, new XPackUsageRequest());
     }
 
-    public XPackUsageRequestBuilder(ElasticsearchClient client, XPackUsageAction action) {
-        super(client, action, new XPackUsageRequest());
-    }
 }

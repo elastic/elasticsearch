@@ -137,10 +137,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
-    public SearchResponseSections getInternalResponse() {
-        return internalResponse;
-    }
-
     /**
      * The search hits.
      */
@@ -617,16 +613,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
         }
 
-        public String toStringExtended() {
-            return Strings.format(
-                "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, ccsMinimizeRoundtrips=%s}",
-                total,
-                successful,
-                skipped,
-                remoteClusters,
-                ccsMinimizeRoundtrips
-            );
-        }
     }
 
     // public for tests

@@ -24,39 +24,10 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     CreateSnapshotRequestBuilder> {
 
     /**
-     * Constructs a new create snapshot request builder
-     */
-    public CreateSnapshotRequestBuilder(ElasticsearchClient client, CreateSnapshotAction action) {
-        super(client, action, new CreateSnapshotRequest());
-    }
-
-    /**
      * Constructs a new create snapshot request builder with specified repository and snapshot names
      */
     public CreateSnapshotRequestBuilder(ElasticsearchClient client, CreateSnapshotAction action, String repository, String snapshot) {
         super(client, action, new CreateSnapshotRequest(repository, snapshot));
-    }
-
-    /**
-     * Sets the snapshot name
-     *
-     * @param snapshot snapshot name
-     * @return this builder
-     */
-    public CreateSnapshotRequestBuilder setSnapshot(String snapshot) {
-        request.snapshot(snapshot);
-        return this;
-    }
-
-    /**
-     * Sets the repository name
-     *
-     * @param repository repository name
-     * @return this builder
-     */
-    public CreateSnapshotRequestBuilder setRepository(String repository) {
-        request.repository(repository);
-        return this;
     }
 
     /**

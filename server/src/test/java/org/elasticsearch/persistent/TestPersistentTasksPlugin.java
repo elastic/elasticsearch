@@ -541,7 +541,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 transportService,
                 actionFilters,
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 ThreadPool.Names.MANAGEMENT
             );

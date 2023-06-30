@@ -125,14 +125,6 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     /**
-     * Returns the relocating target node, or {@code null} if the shard is not in the {@link ShardRoutingState#RELOCATING} state.
-     */
-    @Nullable
-    public DiscoveryNode getRelocationTargetNode() {
-        return relocationTargetNode;
-    }
-
-    /**
      * Returns the unassigned info for the shard, or {@code null} if the shard is active.
      */
     @Nullable

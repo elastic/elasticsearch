@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -60,14 +59,6 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
      */
     public UpdateSettingsRequestBuilder setSettings(Settings.Builder settings) {
         request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the settings to be updated (either json or yaml format)
-     */
-    public UpdateSettingsRequestBuilder setSettings(String source, XContentType xContentType) {
-        request.settings(source, xContentType);
         return this;
     }
 

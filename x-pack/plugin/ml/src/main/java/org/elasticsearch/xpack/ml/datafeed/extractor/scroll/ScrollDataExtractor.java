@@ -232,7 +232,7 @@ class ScrollDataExtractor implements DataExtractor {
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
-            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
+            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE, scrollId).setScroll(SCROLL_TIMEOUT).get()
         );
         try {
             checkForSkippedClusters(searchResponse);

@@ -10,7 +10,6 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
@@ -35,9 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.action.get.GetResponse
  * @see org.elasticsearch.client.internal.Client#get(GetRequest)
  */
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
-public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> {
 
     private String id;
     private String routing;
@@ -230,7 +227,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this.realtime;
     }
 
-    @Override
     public GetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;

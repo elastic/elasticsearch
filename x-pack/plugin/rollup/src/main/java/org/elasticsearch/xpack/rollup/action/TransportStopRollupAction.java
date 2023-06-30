@@ -50,7 +50,6 @@ public class TransportStopRollupAction extends TransportTasksAction<
             actionFilters,
             StopRollupJobAction.Request::new,
             StopRollupJobAction.Response::new,
-            StopRollupJobAction.Response::new,
             ThreadPool.Names.SAME
         );
         this.threadPool = threadPool;

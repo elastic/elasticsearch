@@ -18,7 +18,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupRepositoryRequest> {
 
-    private String repository;
+    private final String repository;
 
     public CleanupRepositoryRequest(String repository) {
         this.repository = repository;
@@ -46,7 +46,4 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
         return repository;
     }
 
-    public void name(String repository) {
-        this.repository = repository;
-    }
 }

@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Objects;
@@ -62,7 +63,7 @@ public class DeprecationIndexingAppender extends AbstractAppender {
 
         final byte[] payload = this.getLayout().toByteArray(event);
 
-        final IndexRequest request = new IndexRequest(DEPRECATION_MESSAGES_DATA_STREAM).source(payload, XContentType.JSON)
+        final IndexRequest request = new IndexRequest(DEPRECATION_MESSAGES_DATA_STREAM).source(new BytesArray(payload), XContentType.JSON)
             .opType(DocWriteRequest.OpType.CREATE);
 
         this.requestConsumer.accept(request);

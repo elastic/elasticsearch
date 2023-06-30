@@ -8,15 +8,11 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-
-import java.util.Map;
 
 /**
  * Builder for a put mapping request
@@ -35,34 +31,11 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
         return this;
     }
 
-    public PutMappingRequestBuilder setConcreteIndex(Index index) {
-        request.setConcreteIndex(index);
-        return this;
-    }
-
-    /**
-     * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p>
-     * For example indices that don't exist.
-     */
-    public PutMappingRequestBuilder setIndicesOptions(IndicesOptions options) {
-        request.indicesOptions(options);
-        return this;
-    }
-
     /**
      * The mapping source definition.
      */
     public PutMappingRequestBuilder setSource(XContentBuilder mappingBuilder) {
         request.source(mappingBuilder);
-        return this;
-    }
-
-    /**
-     * The mapping source definition.
-     */
-    public PutMappingRequestBuilder setSource(Map<String, ?> mappingSource) {
-        request.source(mappingSource);
         return this;
     }
 

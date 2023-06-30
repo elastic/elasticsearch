@@ -349,11 +349,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return dataStreams;
         }
 
-        @Nullable
-        public RolloverConfiguration getRolloverConfiguration() {
-            return rolloverConfiguration;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(dataStreams);

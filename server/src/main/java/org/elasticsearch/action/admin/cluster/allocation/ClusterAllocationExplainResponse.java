@@ -19,7 +19,7 @@ import java.io.IOException;
  */
 public class ClusterAllocationExplainResponse extends ActionResponse {
 
-    private ClusterAllocationExplanation cae;
+    private final ClusterAllocationExplanation cae;
 
     public ClusterAllocationExplainResponse(StreamInput in) throws IOException {
         super(in);

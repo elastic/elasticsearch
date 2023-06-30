@@ -14,11 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Objects;
 
 public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineRequest> {
 
-    private String id;
+    private final String id;
 
     public DeletePipelineRequest(String id) {
         if (id == null) {
@@ -30,12 +29,6 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
     public DeletePipelineRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
-    }
-
-    DeletePipelineRequest() {}
-
-    public void setId(String id) {
-        this.id = Objects.requireNonNull(id);
     }
 
     public String getId() {

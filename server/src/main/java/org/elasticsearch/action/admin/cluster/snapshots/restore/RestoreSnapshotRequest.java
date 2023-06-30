@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -427,14 +426,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      */
     public RestoreSnapshotRequest indexSettings(Settings.Builder settings) {
         this.indexSettings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets settings that should be added/changed in all restored indices
-     */
-    public RestoreSnapshotRequest indexSettings(String source, XContentType xContentType) {
-        this.indexSettings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 

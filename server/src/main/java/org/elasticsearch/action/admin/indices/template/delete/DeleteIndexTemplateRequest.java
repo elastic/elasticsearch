@@ -21,28 +21,18 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTemplateRequest> {
 
-    private String name;
+    private final String name;
 
     public DeleteIndexTemplateRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
     }
 
-    public DeleteIndexTemplateRequest() {}
-
     /**
      * Constructs a new delete index request for the specified name.
      */
     public DeleteIndexTemplateRequest(String name) {
         this.name = name;
-    }
-
-    /**
-     * Set the index template name to delete.
-     */
-    public DeleteIndexTemplateRequest name(String name) {
-        this.name = name;
-        return this;
     }
 
     @Override

@@ -481,7 +481,7 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public GetRequestBuilder prepareGet() {
-        return new GetRequestBuilder(this, GetAction.INSTANCE, null);
+        return new GetRequestBuilder(this, GetAction.INSTANCE);
     }
 
     @Override

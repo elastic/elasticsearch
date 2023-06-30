@@ -48,7 +48,6 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
             actionFilters,
             GetRollupJobsAction.Request::new,
             GetRollupJobsAction.Response::new,
-            GetRollupJobsAction.Response::new,
             ThreadPool.Names.SAME
         );
     }

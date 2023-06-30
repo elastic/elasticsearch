@@ -307,13 +307,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public CreateIndexRequest aliases(XContentBuilder source) {
-        return aliases(BytesReference.bytes(source));
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
     public CreateIndexRequest aliases(String source) {
         return aliases(new BytesArray(source));
     }
@@ -435,15 +428,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
         this.waitForActiveShards = waitForActiveShards;
         return this;
-    }
-
-    /**
-     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public CreateIndexRequest waitForActiveShards(final int waitForActiveShards) {
-        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     @Override

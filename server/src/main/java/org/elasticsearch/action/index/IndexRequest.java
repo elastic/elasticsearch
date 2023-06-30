@@ -52,9 +52,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Index request to index a typed JSON document into a specific index and make it searchable.
  *
  * The index requires the {@link #index()}, {@link #id(String)} and
- * {@link #source(byte[], XContentType)} to be set.
+ * {@link #source(BytesReference, XContentType)} to be set.
  *
- * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
+ * The source (content to index) can be set in its bytes form using ({@link #source(BytesReference, XContentType)}),
  * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.xcontent.XContentBuilder)}).
  *
@@ -168,7 +168,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Constructs a new index request against the specific index. The
-     * {@link #source(byte[], XContentType)} must be set.
+     * {@link #source(BytesReference, XContentType)} must be set.
      */
     public IndexRequest(String index) {
         super(NO_SHARD_ID);
@@ -396,7 +396,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document source to index.
      *
      * Note, its preferable to either set it using {@link #source(org.elasticsearch.xcontent.XContentBuilder)}
-     * or using the {@link #source(byte[], XContentType)}.
+     * or using the {@link #source(BytesReference, XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
         return source(new BytesArray(source), xContentType);
@@ -459,25 +459,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
         return this;
-    }
-
-    /**
-     * Sets the document to index in bytes form.
-     */
-    public IndexRequest source(byte[] source, XContentType xContentType) {
-        return source(source, 0, source.length, xContentType);
-    }
-
-    /**
-     * Sets the document to index in bytes form (assumed to be safe to be used from different
-     * threads).
-     *
-     * @param source The source to index
-     * @param offset The offset in the byte array
-     * @param length The length of the data
-     */
-    public IndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        return source(new BytesArray(source, offset, length), xContentType);
     }
 
     /**

@@ -50,11 +50,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
-    public NodesStatsRequestBuilder setScript(boolean script) {
-        addOrRemoveMetric(script, NodesStatsRequest.Metric.SCRIPT);
-        return this;
-    }
-
     /**
      * Should the node indices stats be returned.
      */
@@ -68,14 +63,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      */
     public NodesStatsRequestBuilder setOs(boolean os) {
         addOrRemoveMetric(os, NodesStatsRequest.Metric.OS);
-        return this;
-    }
-
-    /**
-     * Should the node OS stats be returned.
-     */
-    public NodesStatsRequestBuilder setProcess(boolean process) {
-        addOrRemoveMetric(process, NodesStatsRequest.Metric.PROCESS);
         return this;
     }
 
@@ -104,22 +91,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
     }
 
     /**
-     * Should the node Transport stats be returned.
-     */
-    public NodesStatsRequestBuilder setTransport(boolean transport) {
-        addOrRemoveMetric(transport, NodesStatsRequest.Metric.TRANSPORT);
-        return this;
-    }
-
-    /**
-     * Should the node HTTP stats be returned.
-     */
-    public NodesStatsRequestBuilder setHttp(boolean http) {
-        addOrRemoveMetric(http, NodesStatsRequest.Metric.HTTP);
-        return this;
-    }
-
-    /**
      * Should the discovery stats be returned.
      */
     public NodesStatsRequestBuilder setDiscovery(boolean discovery) {
@@ -137,19 +108,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
 
     public NodesStatsRequestBuilder setAdaptiveSelection(boolean adaptiveSelection) {
         addOrRemoveMetric(adaptiveSelection, NodesStatsRequest.Metric.ADAPTIVE_SELECTION);
-        return this;
-    }
-
-    /**
-     * Should script context cache statistics be returned
-     */
-    public NodesStatsRequestBuilder setScriptCache(boolean scriptCache) {
-        addOrRemoveMetric(scriptCache, NodesStatsRequest.Metric.SCRIPT_CACHE);
-        return this;
-    }
-
-    public NodesStatsRequestBuilder setIndexingPressure(boolean indexingPressure) {
-        addOrRemoveMetric(indexingPressure, NodesStatsRequest.Metric.INDEXING_PRESSURE);
         return this;
     }
 

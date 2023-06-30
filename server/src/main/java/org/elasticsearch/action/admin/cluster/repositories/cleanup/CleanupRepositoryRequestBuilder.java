@@ -20,8 +20,4 @@ public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestB
         super(client, action, new CleanupRepositoryRequest(repository));
     }
 
-    public CleanupRepositoryRequestBuilder setName(String repository) {
-        request.name(repository);
-        return this;
-    }
 }

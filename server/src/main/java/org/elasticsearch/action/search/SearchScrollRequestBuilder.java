@@ -18,20 +18,8 @@ import org.elasticsearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse> {
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action) {
-        super(client, action, new SearchScrollRequest());
-    }
-
     public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action, String scrollId) {
         super(client, action, new SearchScrollRequest(scrollId));
-    }
-
-    /**
-     * The scroll id to use to continue scrolling.
-     */
-    public SearchScrollRequestBuilder setScrollId(String scrollId) {
-        request.scrollId(scrollId);
-        return this;
     }
 
     /**

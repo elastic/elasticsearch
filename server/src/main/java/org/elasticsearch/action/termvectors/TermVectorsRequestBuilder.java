@@ -10,7 +10,6 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Map;
@@ -42,14 +41,6 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
      */
     public TermVectorsRequestBuilder setIndex(String index) {
         request.index(index);
-        return this;
-    }
-
-    /**
-     * Sets the id of the document.
-     */
-    public TermVectorsRequestBuilder setId(String id) {
-        request.id(id);
         return this;
     }
 
@@ -143,14 +134,6 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
      */
     public TermVectorsRequestBuilder setVersion(long version) {
         request.version(version);
-        return this;
-    }
-
-    /*
-     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
-     */
-    public TermVectorsRequestBuilder setVersionType(VersionType versionType) {
-        request.versionType(versionType);
         return this;
     }
 

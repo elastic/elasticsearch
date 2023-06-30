@@ -10,7 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -84,9 +83,6 @@ public class BulkProcessor implements Closeable {
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
-        private String globalIndex;
-        private String globalRouting;
-        private String globalPipeline;
         private Supplier<Boolean> flushCondition = () -> true;
 
         private Builder(
@@ -142,21 +138,6 @@ public class BulkProcessor implements Closeable {
             return this;
         }
 
-        public Builder setGlobalIndex(String globalIndex) {
-            this.globalIndex = globalIndex;
-            return this;
-        }
-
-        public Builder setGlobalRouting(String globalRouting) {
-            this.globalRouting = globalRouting;
-            return this;
-        }
-
-        public Builder setGlobalPipeline(String globalPipeline) {
-            this.globalPipeline = globalPipeline;
-            return this;
-        }
-
         /**
          * Sets a custom backoff policy. The backoff policy defines how the bulk processor should handle retries of bulk requests internally
          * in case they have failed due to resource constraints (i.e. a thread pool was full).
@@ -188,13 +169,9 @@ public class BulkProcessor implements Closeable {
                 flushScheduler,
                 retryScheduler,
                 onClose,
-                createBulkRequestWithGlobalDefaults(),
+                BulkRequest::new,
                 flushCondition
             );
-        }
-
-        private Supplier<BulkRequest> createBulkRequestWithGlobalDefaults() {
-            return () -> new BulkRequest(globalIndex).pipeline(globalPipeline).routing(globalRouting);
         }
 
         public Builder setFlushCondition(Supplier<Boolean> flushCondition) {
@@ -380,13 +357,6 @@ public class BulkProcessor implements Closeable {
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkProcessor add(IndexRequest request) {
-        return add((DocWriteRequest<?>) request);
-    }
-
-    /**
-     * Adds an {@link DeleteRequest} to the list of actions to execute.
-     */
-    public BulkProcessor add(DeleteRequest request) {
         return add((DocWriteRequest<?>) request);
     }
 

@@ -35,9 +35,4 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
         return this;
     }
 
-    public ClearIndicesCacheRequestBuilder setFields(String... fields) {
-        request.fields(fields);
-        return this;
-    }
-
 }

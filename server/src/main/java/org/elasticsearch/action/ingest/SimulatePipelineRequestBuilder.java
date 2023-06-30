@@ -18,13 +18,6 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
      */
-    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action) {
-        super(client, action, new SimulatePipelineRequest());
-    }
-
-    /**
-     * Create a new builder for {@link SimulatePipelineRequest}s
-     */
     public SimulatePipelineRequestBuilder(
         ElasticsearchClient client,
         SimulatePipelineAction action,
@@ -39,14 +32,6 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
      */
     public SimulatePipelineRequestBuilder setId(String id) {
         request.setId(id);
-        return this;
-    }
-
-    /**
-     * Enable or disable verbose mode
-     */
-    public SimulatePipelineRequestBuilder setVerbose(boolean verbose) {
-        request.setVerbose(verbose);
         return this;
     }
 

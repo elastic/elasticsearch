@@ -21,26 +21,10 @@ public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteRepositoryRequestBuilder> {
 
     /**
-     * Constructs unregister repository request builder
-     */
-    public DeleteRepositoryRequestBuilder(ElasticsearchClient client, DeleteRepositoryAction action) {
-        super(client, action, new DeleteRepositoryRequest());
-    }
-
-    /**
      * Constructs unregister repository request builder with specified repository name
      */
     public DeleteRepositoryRequestBuilder(ElasticsearchClient client, DeleteRepositoryAction action, String name) {
         super(client, action, new DeleteRepositoryRequest(name));
     }
 
-    /**
-     * Sets the repository name
-     *
-     * @param name the repository name
-     */
-    public DeleteRepositoryRequestBuilder setName(String name) {
-        request.name(name);
-        return this;
-    }
 }

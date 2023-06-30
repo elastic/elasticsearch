@@ -143,14 +143,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     }
 
     /**
-     * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
-     */
-    public ClusterUpdateSettingsRequest persistentSettings(String source, XContentType xContentType) {
-        this.persistentSettings = Settings.builder().loadFromSource(source, xContentType).build();
-        return this;
-    }
-
-    /**
      * Sets the persistent settings to be updated. They will get applied cross restarts
      */
     public ClusterUpdateSettingsRequest persistentSettings(Map<String, ?> source) {

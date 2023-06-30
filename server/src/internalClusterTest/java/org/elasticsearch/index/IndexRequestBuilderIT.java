@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -33,8 +32,7 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
             client().prepareIndex("test").setSource("{\"test_field\" : \"foobar\"}", XContentType.JSON),
             client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
             client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
-            client().prepareIndex("test")
-                .setSource(BytesReference.toBytes(new BytesArray("{\"test_field\" : \"foobar\"}")), XContentType.JSON),
+            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
             client().prepareIndex("test").setSource(map) };
         indexRandom(true, builders);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();

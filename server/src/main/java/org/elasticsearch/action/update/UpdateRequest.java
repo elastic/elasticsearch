@@ -601,15 +601,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public UpdateRequest waitForActiveShards(final int waitForActiveShards) {
-        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-    /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(IndexRequest doc) {
@@ -646,22 +637,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest doc(String source, XContentType xContentType) {
         safeDoc().source(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the doc to use for updates when a script is not specified.
-     */
-    public UpdateRequest doc(byte[] source, XContentType xContentType) {
-        safeDoc().source(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the doc to use for updates when a script is not specified.
-     */
-    public UpdateRequest doc(byte[] source, int offset, int length, XContentType xContentType) {
-        safeDoc().source(source, offset, length, xContentType);
         return this;
     }
 
@@ -722,40 +697,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(Map<String, Object> source) {
-        safeUpsertRequest().source(source);
-        return this;
-    }
-
-    /**
-     * Sets the doc source of the update request to be used when the document does not exists.
-     */
-    public UpdateRequest upsert(Map<String, Object> source, XContentType contentType) {
-        safeUpsertRequest().source(source, contentType);
-        return this;
-    }
-
-    /**
-     * Sets the doc source of the update request to be used when the document does not exists.
-     */
     public UpdateRequest upsert(String source, XContentType xContentType) {
         safeUpsertRequest().source(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the doc source of the update request to be used when the document does not exists.
-     */
-    public UpdateRequest upsert(byte[] source, XContentType xContentType) {
-        safeUpsertRequest().source(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the doc source of the update request to be used when the document does not exists.
-     */
-    public UpdateRequest upsert(byte[] source, int offset, int length, XContentType xContentType) {
-        safeUpsertRequest().source(source, offset, length, xContentType);
         return this;
     }
 

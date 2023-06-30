@@ -27,14 +27,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
 
-    private String repository;
+    private final String repository;
 
     private String[] snapshots;
-
-    /**
-     * Constructs a new delete snapshots request
-     */
-    public DeleteSnapshotRequest() {}
 
     /**
      * Constructs a new delete snapshots request with repository and snapshot names
@@ -79,11 +74,6 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
             validationException = addValidationError("snapshots are missing", validationException);
         }
         return validationException;
-    }
-
-    public DeleteSnapshotRequest repository(String repository) {
-        this.repository = repository;
-        return this;
     }
 
     /**

@@ -73,10 +73,6 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         return value;
     }
 
-    public String name() {
-        return name;
-    }
-
     public Type type() {
         return type;
     }

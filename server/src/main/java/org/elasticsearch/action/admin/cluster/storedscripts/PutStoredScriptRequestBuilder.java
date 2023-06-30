@@ -28,11 +28,6 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
         return this;
     }
 
-    public PutStoredScriptRequestBuilder setContext(String context) {
-        request.context(context);
-        return this;
-    }
-
     /**
      * Set the source of the script along with the content type of the source
      */

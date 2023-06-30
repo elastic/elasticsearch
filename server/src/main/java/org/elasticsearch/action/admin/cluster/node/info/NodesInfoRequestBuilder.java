@@ -43,38 +43,6 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Should the node OS info be returned.
-     */
-    public NodesInfoRequestBuilder setOs(boolean os) {
-        addOrRemoveMetric(os, NodesInfoRequest.Metric.OS);
-        return this;
-    }
-
-    /**
-     * Should the node OS process be returned.
-     */
-    public NodesInfoRequestBuilder setProcess(boolean process) {
-        addOrRemoveMetric(process, NodesInfoRequest.Metric.PROCESS);
-        return this;
-    }
-
-    /**
-     * Should the node JVM info be returned.
-     */
-    public NodesInfoRequestBuilder setJvm(boolean jvm) {
-        addOrRemoveMetric(jvm, NodesInfoRequest.Metric.JVM);
-        return this;
-    }
-
-    /**
-     * Should the node thread pool info be returned.
-     */
-    public NodesInfoRequestBuilder setThreadPool(boolean threadPool) {
-        addOrRemoveMetric(threadPool, NodesInfoRequest.Metric.THREAD_POOL);
-        return this;
-    }
-
-    /**
      * Should the node Transport info be returned.
      */
     public NodesInfoRequestBuilder setTransport(boolean transport) {
@@ -95,14 +63,6 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      */
     public NodesInfoRequestBuilder setPlugins(boolean plugins) {
         addOrRemoveMetric(plugins, NodesInfoRequest.Metric.PLUGINS);
-        return this;
-    }
-
-    /**
-     * Should the node ingest info be returned.
-     */
-    public NodesInfoRequestBuilder setIngest(boolean ingest) {
-        addOrRemoveMetric(ingest, NodesInfoRequest.Metric.INGEST);
         return this;
     }
 

@@ -22,7 +22,7 @@ import java.util.Objects;
 
 public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<SimulateIndexTemplateRequest> {
 
-    private String indexName;
+    private final String indexName;
 
     @Nullable
     private PutComposableIndexTemplateAction.Request indexTemplateRequest;
@@ -75,11 +75,6 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     @Nullable
     public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
         return indexTemplateRequest;
-    }
-
-    public SimulateIndexTemplateRequest indexName(String indexName) {
-        this.indexName = indexName;
-        return this;
     }
 
     public SimulateIndexTemplateRequest indexTemplateRequest(PutComposableIndexTemplateAction.Request indexTemplateRequest) {

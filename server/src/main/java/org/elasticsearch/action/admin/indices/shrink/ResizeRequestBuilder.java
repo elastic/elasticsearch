@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse, ResizeRequestBuilder> {
     public ResizeRequestBuilder(ElasticsearchClient client, ActionType<ResizeResponse> action) {
@@ -54,25 +53,9 @@ public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeReque
         return this;
     }
 
-    /**
-     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public ResizeRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
-        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
     public ResizeRequestBuilder setResizeType(ResizeType type) {
         this.request.setResizeType(type);
         return this;
     }
 
-    /**
-     * Sets the max primary shard size of the target index.
-     */
-    public ResizeRequestBuilder setMaxPrimaryShardSize(ByteSizeValue maxPrimaryShardSize) {
-        this.request.setMaxPrimaryShardSize(maxPrimaryShardSize);
-        return this;
-    }
 }

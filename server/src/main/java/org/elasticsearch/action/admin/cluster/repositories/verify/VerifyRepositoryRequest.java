@@ -22,14 +22,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositoryRequest> {
 
-    private String name;
+    private final String name;
 
     public VerifyRepositoryRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
     }
-
-    public VerifyRepositoryRequest() {}
 
     /**
      * Constructs a new unregister repository request with the provided name.
@@ -47,16 +45,6 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
             validationException = addValidationError("name is missing", validationException);
         }
         return validationException;
-    }
-
-    /**
-     * Sets the name of the repository to unregister.
-     *
-     * @param name name of the repository
-     */
-    public VerifyRepositoryRequest name(String name) {
-        this.name = name;
-        return this;
     }
 
     /**

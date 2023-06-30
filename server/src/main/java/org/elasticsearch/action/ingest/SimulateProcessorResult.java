@@ -47,9 +47,6 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             return this.name().toLowerCase(Locale.ROOT);
         }
 
-        public static Status fromString(String string) {
-            return Status.valueOf(string.toUpperCase(Locale.ROOT));
-        }
     }
 
     private final String type;

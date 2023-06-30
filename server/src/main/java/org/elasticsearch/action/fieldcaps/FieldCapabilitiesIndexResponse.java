@@ -144,14 +144,6 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         return responseMap;
     }
 
-    /**
-     *
-     * Get the field capabilities for the provided {@code field}
-     */
-    public IndexFieldCapabilities getField(String field) {
-        return responseMap.get(field);
-    }
-
     TransportVersion getOriginVersion() {
         return originVersion;
     }

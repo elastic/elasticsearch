@@ -84,11 +84,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return context;
     }
 
-    public PutStoredScriptRequest context(String context) {
-        this.context = context;
-        return this;
-    }
-
     public BytesReference content() {
         return content;
     }

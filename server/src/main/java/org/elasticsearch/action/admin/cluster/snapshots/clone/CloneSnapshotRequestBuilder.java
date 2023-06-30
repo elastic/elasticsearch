@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.clone;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -20,14 +19,6 @@ public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuild
     AcknowledgedResponse,
     CloneSnapshotRequestBuilder> {
 
-    protected CloneSnapshotRequestBuilder(
-        ElasticsearchClient client,
-        ActionType<AcknowledgedResponse> action,
-        CloneSnapshotRequest request
-    ) {
-        super(client, action, request);
-    }
-
     public CloneSnapshotRequestBuilder(
         ElasticsearchClient client,
         ActionType<AcknowledgedResponse> action,
@@ -35,7 +26,7 @@ public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuild
         String source,
         String target
     ) {
-        this(client, action, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
+        super(client, action, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
     }
 
     /**
@@ -51,14 +42,4 @@ public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuild
         return this;
     }
 
-    /**
-     * Specifies the indices options. Like what type of requested indices to ignore. For example indices that don't exist.
-     *
-     * @param indicesOptions the desired behaviour regarding indices options
-     * @return this request
-     */
-    public CloneSnapshotRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
-        request.indicesOptions(indicesOptions);
-        return this;
-    }
 }

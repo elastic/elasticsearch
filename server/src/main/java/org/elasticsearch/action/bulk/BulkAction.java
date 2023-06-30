@@ -25,7 +25,6 @@ public class BulkAction extends ActionType<BulkResponse> {
         super(NAME, BulkResponse::new);
     }
 
-    @Override
     public TransportRequestOptions transportOptions() {
         return TRANSPORT_REQUEST_OPTIONS;
     }

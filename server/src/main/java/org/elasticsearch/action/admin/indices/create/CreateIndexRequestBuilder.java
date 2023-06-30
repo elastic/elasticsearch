@@ -12,9 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -34,14 +32,6 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
 
     public CreateIndexRequestBuilder(ElasticsearchClient client, CreateIndexAction action, String index) {
         super(client, action, new CreateIndexRequest(index));
-    }
-
-    /**
-     * Sets the name of the index to be created
-     */
-    public CreateIndexRequestBuilder setIndex(String index) {
-        request.index(index);
-        return this;
     }
 
     /**
@@ -134,31 +124,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public CreateIndexRequestBuilder setAliases(Map<String, ?> source) {
-        request.aliases(source);
-        return this;
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
     public CreateIndexRequestBuilder setAliases(String source) {
-        request.aliases(source);
-        return this;
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
-    public CreateIndexRequestBuilder setAliases(XContentBuilder source) {
-        request.aliases(source);
-        return this;
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
-    public CreateIndexRequestBuilder setAliases(BytesReference source) {
         request.aliases(source);
         return this;
     }
@@ -182,32 +148,8 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
-        request.source(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     */
     public CreateIndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
         request.source(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     */
-    public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
-        request.source(source, offset, length, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     */
-    public CreateIndexRequestBuilder setSource(Map<String, ?> source) {
-        request.source(source, LoggingDeprecationHandler.INSTANCE);
         return this;
     }
 

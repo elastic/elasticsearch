@@ -90,34 +90,6 @@ public class TermVectorsFilter {
         return sizes.get(fieldName);
     }
 
-    public int getMaxNumTerms() {
-        return maxNumTerms;
-    }
-
-    public int getMinTermFreq() {
-        return minTermFreq;
-    }
-
-    public int getMaxTermFreq() {
-        return maxTermFreq;
-    }
-
-    public int getMinDocFreq() {
-        return minDocFreq;
-    }
-
-    public int getMaxDocFreq() {
-        return maxDocFreq;
-    }
-
-    public int getMinWordLength() {
-        return minWordLength;
-    }
-
-    public int getMaxWordLength() {
-        return maxWordLength;
-    }
-
     public void setMaxNumTerms(int maxNumTerms) {
         this.maxNumTerms = maxNumTerms;
     }

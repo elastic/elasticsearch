@@ -207,14 +207,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return index;
             }
 
-            public BytesReference getDocument() {
-                return document;
-            }
-
-            public QueryBuilder getQuery() {
-                return query;
-            }
-
             public XContentType getXContentType() {
                 return xContentType;
             }
@@ -322,10 +314,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             return script;
         }
 
-        public ScriptContext<?> getContext() {
-            return context;
-        }
-
         public ContextSetup getContextSetup() {
             return contextSetup;
         }
@@ -396,7 +384,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Object result;
+        private final Object result;
 
         Response(Object result) {
             this.result = result;

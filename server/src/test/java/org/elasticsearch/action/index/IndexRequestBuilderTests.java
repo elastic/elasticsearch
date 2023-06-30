@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -63,7 +64,7 @@ public class IndexRequestBuilderTests extends ESTestCase {
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
-        indexRequestBuilder.setSource(docOut.toByteArray(), XContentType.JSON);
+        indexRequestBuilder.setSource(new BytesArray(docOut.toByteArray()), XContentType.JSON);
         assertEquals(
             EXPECTED_SOURCE,
             XContentHelper.convertToJson(indexRequestBuilder.request().source(), true, indexRequestBuilder.request().getContentType())

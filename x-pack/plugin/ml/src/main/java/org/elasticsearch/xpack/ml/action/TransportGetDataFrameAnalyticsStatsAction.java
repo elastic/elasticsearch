@@ -96,7 +96,6 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
             transportService,
             actionFilters,
             GetDataFrameAnalyticsStatsAction.Request::new,
-            GetDataFrameAnalyticsStatsAction.Response::new,
             in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new),
             ThreadPool.Names.MANAGEMENT
         );

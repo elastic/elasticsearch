@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParsingException;
@@ -47,12 +46,7 @@ import java.util.Locale;
 
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class MultiGetRequest extends ActionRequest
-    implements
-        Iterable<MultiGetRequest.Item>,
-        CompositeIndicesRequest,
-        RealtimeRequest,
-        ToXContentObject {
+public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, ToXContentObject {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiGetRequest.class);
 
     private static final ParseField DOCS = new ParseField("docs");
@@ -114,11 +108,6 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public IndicesOptions indicesOptions() {
             return GetRequest.INDICES_OPTIONS;
-        }
-
-        public Item index(String index) {
-            this.index = index;
-            return this;
         }
 
         public String id() {
@@ -329,15 +318,10 @@ public class MultiGetRequest extends ActionRequest
         return this;
     }
 
-    public String preference() {
-        return this.preference;
-    }
-
     public boolean realtime() {
         return this.realtime;
     }
 
-    @Override
     public MultiGetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;

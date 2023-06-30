@@ -11,8 +11,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -94,23 +92,6 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
-     * Timeout to wait for the shards on to be available for each bulk request.
-     */
-    public Self timeout(TimeValue timeout) {
-        request.setTimeout(timeout);
-        return self();
-    }
-
-    /**
-     * The number of shard copies that must be active before proceeding with the write.
-     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
-     */
-    public Self waitForActiveShards(ActiveShardCount activeShardCount) {
-        request.setWaitForActiveShards(activeShardCount);
-        return self();
-    }
-
-    /**
      * Initial delay after a rejection before retrying a bulk request. With the default maxRetries the total backoff for retrying rejections
      * is about one minute per bulk request. Once the entire bulk request is successful the retry counter resets.
      */
@@ -134,14 +115,6 @@ public abstract class AbstractBulkByScrollRequestBuilder<
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
         request.setRequestsPerSecond(requestsPerSecond);
-        return self();
-    }
-
-    /**
-     * Should this task store its result after it has finished?
-     */
-    public Self setShouldStoreResult(boolean shouldStoreResult) {
-        request.setShouldStoreResult(shouldStoreResult);
         return self();
     }
 

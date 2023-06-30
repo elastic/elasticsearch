@@ -72,10 +72,6 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         return pipelines.isEmpty() == false;
     }
 
-    public boolean isSummary() {
-        return summary;
-    }
-
     @Override
     public RestStatus status() {
         return isFound() ? RestStatus.OK : RestStatus.NOT_FOUND;

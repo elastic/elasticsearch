@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -14,7 +13,6 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
@@ -136,10 +134,4 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        protected RequestBuilder(ElasticsearchClient client, DownsampleAction action) {
-            super(client, action, new Request());
-        }
-    }
 }

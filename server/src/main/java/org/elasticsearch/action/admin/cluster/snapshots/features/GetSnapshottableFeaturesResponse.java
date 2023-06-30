@@ -87,10 +87,6 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
             return featureName;
         }
 
-        public String getDescription() {
-            return description;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(featureName);

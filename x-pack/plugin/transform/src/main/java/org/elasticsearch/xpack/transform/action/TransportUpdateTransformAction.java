@@ -82,7 +82,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             ThreadPool.Names.SAME
         );
 

@@ -16,13 +16,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Get repositories response
@@ -62,8 +59,4 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
         return builder;
     }
 
-    public static GetRepositoriesResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        return new GetRepositoriesResponse(RepositoriesMetadata.fromXContent(parser));
-    }
 }

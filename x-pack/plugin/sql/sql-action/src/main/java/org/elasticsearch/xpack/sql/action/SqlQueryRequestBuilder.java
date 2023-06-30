@@ -164,11 +164,6 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         return this;
     }
 
-    public SqlQueryRequestBuilder multiValueFieldLeniency(boolean lenient) {
-        request.fieldMultiValueLeniency(lenient);
-        return this;
-    }
-
     public SqlQueryRequestBuilder waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
         request.waitForCompletionTimeout(waitForCompletionTimeout);
         return this;

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -46,7 +47,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -232,7 +232,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             // Update snapshot timestamp to force it out of snapshot retention window
             String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";
             UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), snapshotDocId);
-            updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
+            updateSnapshotRequest.doc(new BytesArray(snapshotUpdate), XContentType.JSON);
             client().execute(UpdateAction.INSTANCE, updateSnapshotRequest).get();
 
             // Now let's create some forecasts

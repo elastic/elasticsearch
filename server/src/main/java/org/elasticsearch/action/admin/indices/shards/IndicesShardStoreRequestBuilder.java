@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.shards;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -24,23 +23,6 @@ public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequ
 
     public IndicesShardStoreRequestBuilder(ElasticsearchClient client, ActionType<IndicesShardStoresResponse> action, String... indices) {
         super(client, action, new IndicesShardStoresRequest(indices));
-    }
-
-    /**
-     * Sets the indices for the shard stores request
-     */
-    public IndicesShardStoreRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
-        return this;
-    }
-
-    /**
-     * Specifies what type of requested indices to ignore and wildcard indices expressions
-     * By default, expands wildcards to both open and closed indices
-     */
-    public IndicesShardStoreRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
-        request.indicesOptions(indicesOptions);
-        return this;
     }
 
     /**

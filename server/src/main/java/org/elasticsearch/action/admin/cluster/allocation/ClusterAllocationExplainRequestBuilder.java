@@ -62,14 +62,4 @@ public class ClusterAllocationExplainRequestBuilder extends MasterNodeOperationR
         return this;
     }
 
-    /**
-     * Signal that the first unassigned shard should be used
-     */
-    public ClusterAllocationExplainRequestBuilder useAnyUnassignedShard() {
-        request.setIndex(null);
-        request.setShard(null);
-        request.setPrimary(null);
-        return this;
-    }
-
 }

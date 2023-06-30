@@ -16,10 +16,6 @@ public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBui
     GetPipelineResponse,
     GetPipelineRequestBuilder> {
 
-    public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action) {
-        super(client, action, new GetPipelineRequest());
-    }
-
     public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action, String[] ids) {
         super(client, action, new GetPipelineRequest(ids));
     }

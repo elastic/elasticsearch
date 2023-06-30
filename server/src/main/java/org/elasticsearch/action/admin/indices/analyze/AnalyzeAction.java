@@ -123,11 +123,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             return this;
         }
 
-        public Request tokenizer(Map<String, ?> tokenizer) {
-            this.tokenizer = new NameOrDefinition(tokenizer);
-            return this;
-        }
-
         public void tokenizer(NameOrDefinition tokenizer) {
             this.tokenizer = tokenizer;
         }
@@ -188,14 +183,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         public boolean explain() {
             return this.explain;
-        }
-
-        public Request attributes(String... attributes) {
-            if (attributes == null) {
-                throw new IllegalArgumentException("attributes must not be null");
-            }
-            this.attributes = attributes;
-            return this;
         }
 
         public void attributes(List<String> attributes) {

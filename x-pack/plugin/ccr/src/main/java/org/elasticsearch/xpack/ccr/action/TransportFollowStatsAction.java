@@ -59,7 +59,6 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             transportService,
             actionFilters,
             FollowStatsAction.StatsRequest::new,
-            FollowStatsAction.StatsResponses::new,
             FollowStatsAction.StatsResponse::new,
             Ccr.CCR_THREAD_POOL_NAME
         );

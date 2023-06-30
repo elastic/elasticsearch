@@ -20,11 +20,6 @@ public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFiel
         super(client, action, new GetFieldMappingsRequest().indices(indices));
     }
 
-    public GetFieldMappingsRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
-        return this;
-    }
-
     public GetFieldMappingsRequestBuilder addIndices(String... indices) {
         request.indices(ArrayUtils.concat(request.indices(), indices));
         return this;

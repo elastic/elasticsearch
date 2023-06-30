@@ -15,32 +15,7 @@ public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<
     ClearRealmCacheRequestBuilder> {
 
     public ClearRealmCacheRequestBuilder(ElasticsearchClient client) {
-        this(client, ClearRealmCacheAction.INSTANCE);
+        super(client, ClearRealmCacheAction.INSTANCE, new ClearRealmCacheRequest());
     }
 
-    public ClearRealmCacheRequestBuilder(ElasticsearchClient client, ClearRealmCacheAction action) {
-        super(client, action, new ClearRealmCacheRequest());
-    }
-
-    /**
-     * Sets the realms for which caches will be evicted. When not set all the caches of all realms will be
-     * evicted.
-     *
-     * @param realms The realm names
-     */
-    public ClearRealmCacheRequestBuilder realms(String... realms) {
-        request.realms(realms);
-        return this;
-    }
-
-    /**
-     * Sets the usernames of the users that should be evicted from the caches. When not set, all users
-     * will be evicted.
-     *
-     * @param usernames The usernames
-     */
-    public ClearRealmCacheRequestBuilder usernames(String... usernames) {
-        request.usernames(usernames);
-        return this;
-    }
 }

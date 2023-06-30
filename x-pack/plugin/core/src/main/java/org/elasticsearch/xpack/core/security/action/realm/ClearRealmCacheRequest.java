@@ -54,13 +54,6 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
     }
 
     /**
-     * @return  {@code true} if this request targets users, {@code false} otherwise.
-     */
-    public boolean allUsernames() {
-        return usernames == null || usernames.length == 0;
-    }
-
-    /**
      * @return  The usernames of the users that should be evicted. Empty array indicates all users.
      */
     public String[] usernames() {
@@ -87,8 +80,8 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
 
     public static class Node extends TransportRequest {
 
-        private String[] realms;
-        private String[] usernames;
+        private final String[] realms;
+        private final String[] usernames;
 
         public Node(StreamInput in) throws IOException {
             super(in);

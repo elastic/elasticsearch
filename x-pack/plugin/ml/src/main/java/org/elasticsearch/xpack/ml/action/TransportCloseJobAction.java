@@ -97,7 +97,6 @@ public class TransportCloseJobAction extends TransportTasksAction<
             actionFilters,
             CloseJobAction.Request::new,
             CloseJobAction.Response::new,
-            CloseJobAction.Response::new,
             ThreadPool.Names.SAME
         );
         this.threadPool = threadPool;

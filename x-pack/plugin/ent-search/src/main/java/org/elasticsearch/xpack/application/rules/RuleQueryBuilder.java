@@ -240,18 +240,20 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                                     && criterion.criteriaValue().equals(matchCriteria.get(match))) {
 
                                     if (rule.actions().containsKey(PinnedQueryBuilder.IDS_FIELD.getPreferredName())) {
-                                        matchingPinnedIds.addAll((List<String>) rule.actions().get(
-                                            PinnedQueryBuilder.IDS_FIELD.getPreferredName())
+                                        matchingPinnedIds.addAll(
+                                            (List<String>) rule.actions().get(PinnedQueryBuilder.IDS_FIELD.getPreferredName())
                                         );
                                     } else if (rule.actions().containsKey(PinnedQueryBuilder.DOCS_FIELD.getPreferredName())) {
-                                        List<Map<String, String>> docsToPin =
-                                            (List<Map<String, String>>) rule.actions().get(
-                                                PinnedQueryBuilder.DOCS_FIELD.getPreferredName()
-                                            );
-                                        List<Item> items =
-                                            docsToPin.stream().map(map ->
-                                                new Item(map.get(Item.INDEX_FIELD.getPreferredName()),
-                                                    map.get(Item.ID_FIELD.getPreferredName()))).toList();
+                                        List<Map<String, String>> docsToPin = (List<Map<String, String>>) rule.actions()
+                                            .get(PinnedQueryBuilder.DOCS_FIELD.getPreferredName());
+                                        List<Item> items = docsToPin.stream()
+                                            .map(
+                                                map -> new Item(
+                                                    map.get(Item.INDEX_FIELD.getPreferredName()),
+                                                    map.get(Item.ID_FIELD.getPreferredName())
+                                                )
+                                            )
+                                            .toList();
                                         matchingPinnedDocs.addAll(items);
                                     } else {
                                         throw new UnsupportedOperationException("Pinned rules must specify id or docs");

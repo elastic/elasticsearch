@@ -11,11 +11,13 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -54,7 +56,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     private List<String> generateRandomRulesetIds() {
         List<String> rulesetIds = new ArrayList<>();
-        for (int i=0; i<randomIntBetween(1, 2); i++) {
+        for (int i = 0; i < randomIntBetween(1, 2); i++) {
             rulesetIds.add(randomAlphaOfLengthBetween(5, 10));
         }
         return rulesetIds;
@@ -62,10 +64,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
-        return new RuleQueryBuilder(new MatchAllQueryBuilder(),
-            generateRandomMatchCriteria(),
-            generateRandomRulesetIds()
-        );
+        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), generateRandomRulesetIds());
     }
 
     @Override
@@ -135,58 +134,60 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
 
-    // Copied from PinnedQueryBuilderTests - TODO go through these and see what test cases we may want to copy
-    // /**
-    // * test that unknown query names in the clauses throw an error
-    // */
-    // public void testUnknownQueryName() {
-    // String query = "{\"rule_query\" : {\"organic\" : { \"unknown_query\" : { } } } }";
-    //
-    // ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
-    // assertEquals("[1:46] [rule_query] failed to parse field [organic]", ex.getMessage());
-    // }
-    //
-    // public void testIdsRewrite() throws IOException {
-    // RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(new TermQueryBuilder("foo", 1),
-    // Collections.singletonList("bar"), Collections.emptyMap());
-    // QueryBuilder rewritten = ruleQueryBuilder.rewrite(createSearchExecutionContext());
-    // assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
-    // }
-    //
-    // public void testDocsRewrite() throws IOException {
-    // RuleQueryBuilder RuleQueryBuilder = new RuleQueryBuilder(new TermQueryBuilder("foo", 1), new Item("test", "1"));
-    // QueryBuilder rewritten = RuleQueryBuilder.rewrite(createSearchExecutionContext());
-    // assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
-    // }
-    //
-    // @Override
-    // public void testMustRewrite() throws IOException {
-    // SearchExecutionContext context = createSearchExecutionContext();
-    // context.setAllowUnmappedFields(true);
-    // RuleQueryBuilder queryBuilder = new RuleQueryBuilder(new TermQueryBuilder("unmapped_field", "42"), "42");
-    // IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
-    // assertEquals("Rewrite first", e.getMessage());
-    // }
+    /**
+    * test that unknown query names in the clauses throw an error
+    */
+    public void testUnknownQueryName() {
+        String query = "{\"rule_query\" : {\"organic\" : { \"unknown_query\" : { } } } }";
 
-    // public void testIdInsertionOrderRetained() {
-    // String[] ids = generateRandomStringArray(10, 50, false);
-    // RuleQueryBuilder pqb = new RuleQueryBuilder(new MatchAllQueryBuilder(), ids);
-    // List<String> addedIds = pqb.ids();
-    // int pos = 0;
-    // for (String key : addedIds) {
-    // assertEquals(ids[pos++], key);
-    // }
-    // }
-    //
-    // public void testDocInsertionOrderRetained() {
-    // Item[] items = randomArray(10, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
-    // RuleQueryBuilder pqb = new RuleQueryBuilder(new MatchAllQueryBuilder(), items);
-    // List<Item> addedDocs = pqb.docs();
-    // int pos = 0;
-    // for (Item item : addedDocs) {
-    // assertEquals(items[pos++], item);
-    // }
-    // }
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
+        assertEquals("[1:46] [rule_query] failed to parse field [organic]", ex.getMessage());
+    }
+
+    public void testIdsRewrite() throws IOException {
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
+            new TermQueryBuilder("foo", 1),
+            Collections.emptyMap(),
+            Collections.singletonList("bar")
+        );
+        QueryBuilder rewritten = ruleQueryBuilder.rewrite(createSearchExecutionContext());
+        assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
+    }
+
+    public void testDocsRewrite() throws IOException {
+        RuleQueryBuilder RuleQueryBuilder = new RuleQueryBuilder(new TermQueryBuilder("foo", 1), new Item("test", "1"));
+        QueryBuilder rewritten = RuleQueryBuilder.rewrite(createSearchExecutionContext());
+        assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
+        RuleQueryBuilder queryBuilder = new RuleQueryBuilder(new TermQueryBuilder("unmapped_field", "42"), "42");
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testIdInsertionOrderRetained() {
+        String[] ids = generateRandomStringArray(10, 50, false);
+        RuleQueryBuilder pqb = new RuleQueryBuilder(new MatchAllQueryBuilder(), ids);
+        List<String> addedIds = pqb.ids();
+        int pos = 0;
+        for (String key : addedIds) {
+            assertEquals(ids[pos++], key);
+        }
+    }
+
+    public void testDocInsertionOrderRetained() {
+        Item[] items = randomArray(10, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
+        RuleQueryBuilder pqb = new RuleQueryBuilder(new MatchAllQueryBuilder(), items);
+        List<Item> addedDocs = pqb.docs();
+        int pos = 0;
+        for (Item item : addedDocs) {
+            assertEquals(items[pos++], item);
+        }
+    }
 
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
@@ -208,17 +209,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         }
 
         return new GetResponse(
-            new GetResult(
-                QueryRulesIndexService.QUERY_RULES_ALIAS_NAME,
-                rulesetId,
-                0,
-                1,
-                0L,
-                true,
-                new BytesArray(json),
-                null,
-                null
-            )
+            new GetResult(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId, 0, 1, 0L, true, new BytesArray(json), null, null)
         );
     }
 }
